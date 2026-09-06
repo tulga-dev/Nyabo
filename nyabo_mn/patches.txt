@@ -1,0 +1,5 @@
+[pre_model_sync]
+# Patches run before DocType sync go here, one dotted path per line.
+
+[post_model_sync]
+# Patches run after DocType sync go here.

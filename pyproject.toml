@@ -1,0 +1,35 @@
+[project]
+name = "nyabo_mn"
+authors = [{ name = "Nyabo", email = "hello@nyabo.mn" }]
+description = "Нябо — AI bookkeeping for Mongolian SMEs on ERPNext v16 + Telegram"
+requires-python = ">=3.10"
+readme = "README.md"
+dynamic = ["version"]
+# Runtime deps are added per phase (Phase 2: openai, pyzbar/zxing; Phase 3: openpyxl).
+dependencies = []
+
+[build-system]
+requires = ["flit_core >=3.4,<4"]
+build-backend = "flit_core.buildapi"
+
+# Read by bench / Frappe Cloud to check framework compatibility.
+[tool.bench.frappe-dependencies]
+frappe = ">=16.0.0,<17.0.0"
+erpnext = ">=16.0.0,<17.0.0"
+
+[tool.ruff]
+line-length = 110
+target-version = "py310"
+extend-exclude = ["nyabo_mn/public", "node_modules"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "W"]
+ignore = ["E501", "W191"]  # tabs are the Frappe convention
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "tab"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

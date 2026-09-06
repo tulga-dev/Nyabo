@@ -1,0 +1,126 @@
+{
+  "_comment": "DRAFT v0.2 for nyabo_mn. Source: Tooroi mn_sme_v1.json (May 2026, 29 accounts) mapped into ERPNext chart-of-accounts tree format, with the system accounts ERPNext needs to create a Company. Codes follow the V1 scheme; codes marked NEW were added here. NOT the official Ministry of Finance chart — reconcile with the official list and an accountant before first client. Fix from V1: 3110 was labelled 'Үндсэн хөрөнгө' (which means fixed assets); equity is 'Эзэмшигчийн өмч'.",
+  "country_code": "mn",
+  "name": "Монгол - ЖДҮ (Nyabo)",
+  "tree": {
+    "Хөрөнгө": {
+      "root_type": "Asset",
+      "account_number": "1000",
+      "Эргэлтийн хөрөнгө": {
+        "account_number": "1100-1800",
+        "Мөнгөн хөрөнгө": {
+          "account_number": "1100",
+          "Касс": { "account_number": "1110", "account_type": "Cash" },
+          "Банкны харилцах данс": { "account_number": "1120", "account_type": "Bank" }
+        },
+        "Авлага": {
+          "account_number": "1300",
+          "Дансны авлага": { "account_number": "1310", "account_type": "Receivable" }
+        },
+        "Бараа материал": {
+          "account_number": "1400",
+          "Бараа материалын нөөц": { "account_number": "1410", "account_type": "Stock" }
+        },
+        "Татварын авлага": {
+          "account_number": "1800",
+          "Татан суутгах НӨАТ": { "account_number": "1810", "account_type": "Tax" }
+        }
+      },
+      "Эргэлтийн бус хөрөнгө": {
+        "account_number": "1500",
+        "Үндсэн хөрөнгө": { "account_number": "1510", "account_type": "Fixed Asset", "_comment": "NEW" },
+        "Хуримтлагдсан элэгдэл": { "account_number": "1519", "account_type": "Accumulated Depreciation", "_comment": "NEW" },
+        "Дуусаагүй хөрөнгө оруулалт": { "account_number": "1530", "account_type": "Capital Work in Progress", "_comment": "NEW" }
+      },
+      "Түр данс": {
+        "account_number": "1900",
+        "Түр нээлтийн данс": { "account_number": "1910", "account_type": "Temporary", "_comment": "NEW — ERPNext opening balances" }
+      }
+    },
+    "Өр төлбөр": {
+      "root_type": "Liability",
+      "account_number": "2000",
+      "Богино хугацаат өр төлбөр": {
+        "account_number": "2100-2300",
+        "Дансны өглөг": { "account_number": "2110", "account_type": "Payable" },
+        "Хүлээн авсан, нэхэмжлээгүй бараа": { "account_number": "2120", "account_type": "Stock Received But Not Billed", "_comment": "NEW — ERPNext stock accounting" },
+        "Татварын өглөг": {
+          "account_number": "2200",
+          "Төлөх НӨАТ": { "account_number": "2210", "account_type": "Tax" },
+          "Төлөх ААНОАТ": { "account_number": "2220", "account_type": "Tax" }
+        },
+        "Цалингийн өглөг": { "account_number": "2310" }
+      }
+    },
+    "Эзэмшигчийн өмч": {
+      "root_type": "Equity",
+      "account_number": "3000",
+      "Хувь нийлүүлсэн хөрөнгө": { "account_number": "3110", "_comment": "was 'Үндсэн хөрөнгө' in V1 — corrected" },
+      "Эзний татан авалт": { "account_number": "3120" },
+      "Хуримтлагдсан ашиг": { "account_number": "3210" }
+    },
+    "Орлого": {
+      "root_type": "Income",
+      "account_number": "4000",
+      "Үндсэн үйл ажиллагааны орлого": {
+        "account_number": "4100",
+        "Борлуулалтын орлого": { "account_number": "4110", "account_type": "Income Account" },
+        "Үйлчилгээний орлого": { "account_number": "4120", "account_type": "Income Account" }
+      }
+    },
+    "Зардал": {
+      "root_type": "Expense",
+      "account_number": "5000-9000",
+      "Борлуулсан бүтээгдэхүүний өртөг": {
+        "account_number": "5100",
+        "Борлуулсан бараа материалын өртөг": { "account_number": "5110", "account_type": "Cost of Goods Sold" },
+        "Бараа материалын тохируулга": { "account_number": "5120", "account_type": "Stock Adjustment", "_comment": "NEW" },
+        "Үнэлгээнд орсон зардал": { "account_number": "5130", "account_type": "Expenses Included In Valuation", "_comment": "NEW" }
+      },
+      "Үйл ажиллагааны зардал": {
+        "account_number": "6000",
+        "Цалин хөлс": { "account_number": "6110", "account_type": "Expense Account" },
+        "Нийгмийн даатгал": { "account_number": "6120", "account_type": "Expense Account" },
+        "Шатахуун": { "account_number": "6210", "account_type": "Expense Account" },
+        "Тээврийн зардал": { "account_number": "6220", "account_type": "Expense Account" },
+        "Түрээс": { "account_number": "6310", "account_type": "Expense Account" },
+        "Цахилгаан, дулаан, ус": { "account_number": "6320", "account_type": "Expense Account" },
+        "Холбоо, интернет": { "account_number": "6410", "account_type": "Expense Account" },
+        "Бичиг хэрэг, оффисын зардал": { "account_number": "6510", "account_type": "Expense Account" },
+        "Засвар үйлчилгээ": { "account_number": "6520", "account_type": "Expense Account" },
+        "Элэгдлийн зардал": { "account_number": "6530", "account_type": "Depreciation", "_comment": "NEW" },
+        "Зар сурталчилгаа": { "account_number": "6610", "account_type": "Expense Account" },
+        "Мэргэжлийн үйлчилгээ": { "account_number": "6710", "account_type": "Expense Account" },
+        "Банкны үйлчилгээний хураамж": { "account_number": "6810", "account_type": "Expense Account" },
+        "Бусад үйл ажиллагааны зардал": { "account_number": "6910", "account_type": "Expense Account" },
+        "Тоймлолтын зөрүү": { "account_number": "6920", "account_type": "Round Off", "_comment": "NEW" },
+        "Ханшийн зөрүү": { "account_number": "6930", "account_type": "Expense Account", "_comment": "NEW — set as Company exchange_gain_loss_account in provisioning script" },
+        "Найдваргүй авлагын зардал": { "account_number": "6940", "account_type": "Expense Account", "_comment": "NEW — set as Company write_off_account in provisioning script" }
+      },
+      "Татварын зардал": {
+        "account_number": "9100",
+        "Аж ахуйн нэгжийн орлогын албан татвар": { "account_number": "9110", "account_type": "Expense Account" }
+      }
+    }
+  },
+  "vat": {
+    "_comment": "From V1 vat_codes. Build as ERPNext templates in nyabo_mn fixtures.",
+    "sales_taxes_template": { "name": "НӨАТ 10%", "rate": 10, "account": "2210 Төлөх НӨАТ" },
+    "purchase_taxes_template": { "name": "Татан суутгах НӨАТ 10%", "rate": 10, "account": "1810 Татан суутгах НӨАТ" },
+    "item_tax_templates": [
+      { "name": "НӨАТ-аас чөлөөлөгдсөн", "rate": 0 },
+      { "name": "Тэг хувийн НӨАТ", "rate": 0 }
+    ],
+    "account_defaults_from_v1": {
+      "output_vat_10": ["4110", "4120"],
+      "input_vat_10": ["5110", "6210", "6220", "6310", "6320", "6410", "6510", "6520", "6610", "6710", "6910"],
+      "exempt": ["6110", "6120", "6810", "9110"]
+    }
+  },
+  "ebarimt_custom_fields": {
+    "_comment": "Custom fields for nyabo_mn; exact names to be confirmed against the ebarimt 3.0 API.",
+    "Purchase Invoice / Expense": ["ebarimt_receipt_id", "ebarimt_lottery_no", "ebarimt_qr_data", "ebarimt_datetime", "ebarimt_verified", "receipt_image"],
+    "Sales Invoice": ["ebarimt_receipt_id", "ebarimt_lottery_no", "ebarimt_customer_tin_or_regno"],
+    "Supplier / Customer": ["register_no", "tin"]
+  }
+}
