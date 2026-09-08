@@ -114,11 +114,10 @@ def render_candidates(candidates: Iterable[Mapping[str, Any]]) -> str:
 		lines.append(
 			mn.CARD_BANK_CANDIDATE.format(
 				index=index,
-				doctype=item.get("doctype", ""),
-				name=item.get("name", ""),
+				voucher=item.get("voucher_name") or item.get("name", ""),
 				date=str(item.get("date", ""))[:10],
 				amount=fmt_mnt(item.get("amount") or 0),
-				party=item.get("party_name") or "",
+				party=item.get("party") or item.get("party_name") or "",
 			)
 		)
 	return "\n".join(lines)

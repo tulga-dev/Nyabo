@@ -359,12 +359,16 @@ def _load_transaction(name: str) -> dict[str, Any]:
 	return frappe.get_doc("Bank Transaction", name).as_dict()
 
 
-def propose_for_line(bank_transaction_name: str, *, document: str | None = None) -> str:
+def propose_for_line(
+	bank_transaction_name: str, *, document: str | None = None, account_code: str | None = None
+) -> str:
 	"""Create (or return) the bank_line proposal for one Bank Transaction.
 
 	Fee lines follow the bank_fee rule; other outflows are classified by the model
 	(mock under simulation); inflows go to the receivable role for the accountant to
 	confirm. Every proposal links the transaction, its source document, the citation.
+	``account_code`` is the accountant's choice from the [Зардал бүртгэх] chooser: it
+	replaces both the fee rule and the model for that line.
 	"""
 	found = existing_proposal(bank_transaction_name)
 	if found:
@@ -380,7 +384,32 @@ def propose_for_line(bank_transaction_name: str, *, document: str | None = None)
 	confidence = 1.0
 	rule = bank_fee_rule(company)
 
-	if line.amount < 0 and rule and is_fee_line(line.description, rule):
+	if account_code:
+		account, code = resolve_account(company, account_code)
+		if account is None:
+			raise ProposalError(mn.MSG_ACCOUNT_CODE_INVALID.format(code=account_code))
+		if line.amount < 0:
+			pattern_id = EXPENSE_PATTERN_ID
+			text = mn.EXPL_BANK_LINE_EXPENSE.format(
+				description=line.description[:60], debit_code=code, credit_code=bank_code
+			)
+			debit_code, credit_code = str(code), bank_code
+		else:
+			pattern_id = INCOME_PATTERN_ID
+			text = mn.EXPL_BANK_LINE_INCOME.format(
+				description=line.description[:60], debit_code=bank_code, credit_code=code
+			)
+			debit_code, credit_code = bank_code, str(code)
+		citation = pattern_citation(pattern_id)
+		lines = (
+			ProposedLine(
+				account_code=debit_code, debit=amount, credit=Decimal("0.00"), description=line.description
+			),
+			ProposedLine(
+				account_code=credit_code, debit=Decimal("0.00"), credit=amount, description=line.description
+			),
+		)
+	elif line.amount < 0 and rule and is_fee_line(line.description, rule):
 		pattern_id = str(rule.get("posting_pattern") or FEE_PATTERN_ID)
 		account, code = resolve_account(company, rule.get("target_account_code"))
 		if account is None:

@@ -363,8 +363,29 @@ def find_candidates(
 		item = candidate.to_dict()
 		item["score"] = score
 		item["amount_diff"] = str(quantize(abs(abs(line.amount) - abs(candidate.amount))))
+		# The Telegram bank handler reads voucher_doctype / voucher_name / party (ARCHITECTURE §5.4);
+		# both spellings are kept so neither side needs to translate.
+		item["voucher_doctype"] = candidate.doctype
+		item["voucher_name"] = candidate.name
+		item["party"] = candidate.party_name
 		out.append(item)
 	return out
+
+
+def propose_expense(bank_transaction_name: str, account_code: str, user: str | None = None) -> str:
+	"""[Зардал бүртгэх] → account chooser: the bank_line proposal debiting the chosen account.
+
+	A line that already carries an open proposal gets its account changed through the
+	pipeline (a Nyabo Correction is recorded, like on a receipt card) instead of a
+	second proposal. Returns the proposal name.
+	"""
+	existing = rules_mod.existing_proposal(bank_transaction_name)
+	if existing:
+		from nyabo_mn.agent import post
+
+		post.change_account(existing, account_code, user or "Administrator")
+		return existing
+	return rules_mod.propose_for_line(bank_transaction_name, account_code=account_code)
 
 
 def reconcile(

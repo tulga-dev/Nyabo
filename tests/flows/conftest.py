@@ -148,6 +148,9 @@ def books(company: str) -> str:
 	settings.chart_scheme = "v1"
 	settings.default_expense_code = "6910"
 	settings.accountant_user = _ensure_user(ACCOUNTANT)
+	# provision_company already wrote the initial (open-ended) regime row; the receipt tests
+	# need the two-regime history, so replace the table instead of appending to it.
+	settings.set("regimes", [])
 	settings.append(
 		"regimes", {"regime": "vat_payer", "effective_from": "2026-01-01", "effective_to": "2026-12-31"}
 	)

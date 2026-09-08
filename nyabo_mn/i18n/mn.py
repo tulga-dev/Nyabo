@@ -884,7 +884,6 @@ MSG_LAYOUT_LEARNED_NOTE = "{company} компанийн {document} хуулга�
 MSG_BANK_LINE_ALREADY_RECONCILED = "Энэ гүйлгээ аль хэдийн тулгагдсан байна."
 MSG_BANK_VOUCHER_NOT_FOUND = "{doctype} {name} олдсонгүй."
 MSG_BANK_VOUCHER_NOT_ALLOWED = "{doctype} төрлийн баримтыг банкны гүйлгээтэй тулгах боломжгүй."
-MSG_BANK_TRANSACTION_NOT_FOUND = "Банкны гүйлгээ {name} олдсонгүй."
 EXPL_BANK_FEE = "Банкны хураамж тул {debit_code} дебетлэж, банкны данс {credit_code} кредитлэв."
 EXPL_BANK_LINE_EXPENSE = (
 	"«{description}» гүйлгээг {debit_code} дансанд бүртгэж, банкны данс {credit_code} кредитлэв."
@@ -895,7 +894,6 @@ WARN_BANK_LINE_LLM_UNAVAILABLE = "Ангилал хийх боломжгүй т�
 WARN_BANK_LINE_INCOME_UNCLASSIFIED = "Орлогын гүйлгээ тул нягтлан дансыг сонгоно."
 CARD_BANK_UNMATCHED = "❔ Тулгаагүй"
 CARD_BANK_TRANSFER = "🔁 Шилжүүлэг: {from_account} → {to_account}"
-CARD_BANK_CANDIDATE = "{index}. {doctype} {name} · {date} · {amount}₮ · {party}"
 CARD_BANK_REASON = "Шалтгаан: {reason}"
 MSG_RECON_AS_OF = "{date}-ны байдлаар"
 
@@ -930,7 +928,7 @@ ONB_ASK_CURRENCY_CODE = "Валютын кодоо бичнэ үү (жишээ: 
 ONB_CONFIRM_SUMMARY = "Дээрх мэдээлэл зөв үү?"
 CARD_BANK_CANDIDATE = "{index}. {voucher} · {date} · {amount}₮ · {party}"
 MSG_BANK_EXPENSE_CHOOSE_ACCOUNT = "Энэ гүйлгээг аль дансанд бүртгэх вэ?"
-MSG_BANK_TRANSACTION_NOT_FOUND = "Банкны гүйлгээ олдсонгүй."
+MSG_BANK_TRANSACTION_NOT_FOUND = "Банкны гүйлгээ олдсонгүй: {name}"
 MSG_STATEMENT_LAYOUT_DONE = "Баганы тохиргоо: {mapping}"
 MSG_STATEMENT_ADMIN_VERIFY = "🆕 Шинэ банкны формат хадгалагдлаа: {layout}. Баталгаажуулна уу."
 MSG_CLOSE_PDF_CAPTION = "{title} · {period}"

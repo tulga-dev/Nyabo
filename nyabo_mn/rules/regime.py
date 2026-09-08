@@ -73,7 +73,10 @@ def is_vat_payer(company: str, on_date: dt.date | str) -> bool:
 def set_regime(company: str, regime: str, effective_from: dt.date | str, *, note: str | None = None) -> Any:
 	"""Append a regime period from `effective_from`, closing the open previous period the day before.
 
-	Idempotent: a row with the same regime and start date is left alone. Creates the
+	Idempotent: a row with the same regime and start date is left alone. A row that
+	starts on the same date with another regime is re-answered in place (provisioning
+	writes the first row from the fiscal-year start and onboarding asks the VAT question
+	for the same date), so the history never gains a second open period. Creates the
 	company settings when they do not exist yet (provisioning calls this first).
 	"""
 	validate_regime_name(regime)
@@ -86,8 +89,15 @@ def set_regime(company: str, regime: str, effective_from: dt.date | str, *, note
 	)
 	doc.flags.ignore_permissions = True
 	for row in doc.regimes or []:
-		if row.regime == regime and _date(row.effective_from) == start:
+		if _date(row.effective_from) != start:
+			continue
+		if row.regime == regime:
 			return doc
+		row.regime = regime
+		if note:
+			row.note = note
+		doc.save()
+		return doc
 	for row in doc.regimes or []:
 		row_start = _date(row.effective_from)
 		if row.effective_to in (None, "") and row_start is not None and row_start < start:
