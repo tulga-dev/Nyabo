@@ -386,9 +386,11 @@ Fee lines follow the company's `bank_fee` Nyabo Rule (seed row fallback). Other 
 are classified by the model (`agent.classify`, mock under `frappe.flags.nyabo_simulation`),
 inflows are proposed as Дт bank / Кт receivable with `needs_accountant = 1` because the
 classification prompt is receipt-shaped. Every bank-line proposal cites an unverified
-pattern today, so all carry `WARN_UNVERIFIED_RULE` and need the accountant; the two
-pattern ids without a seed row (`bank_line_expense`, `bank_transfer_internal`) leave
-`posting_pattern` empty until the seed gains them.
+pattern today, so all carry `WARN_UNVERIFIED_RULE` and need the accountant. All four ids
+(`bank_fee_expense`, `receivable_collect`, `bank_line_expense`, `bank_transfer_internal`)
+are seed rows with `citation.section = null` and `verified = false`: approval therefore
+ends in `UnverifiedRuleError` («Дүрэм баталгаажаагүй») and an admin can clear it by
+verifying the row, instead of failing with «загвар олдсонгүй» on an id that exists nowhere.
 
 ### D-023 Synthetic statement fixtures are committed, clearly labelled
 Unlike D-016, the import tests need real file containers (xlsx zip, cp1251 bytes), so

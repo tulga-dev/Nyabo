@@ -202,6 +202,38 @@ def test_unmatched_expense_line_is_classified_by_the_mock_under_simulation(
 	assert entry["lines"][0]["account_code"] == "1120" and entry["lines"][0]["debit"] == "1250000.00"
 
 
+def test_bank_line_patterns_exist_and_stop_at_the_unverified_gate(books, banks):
+	"""Both bank pattern ids resolve to a row an admin can verify (ARCHITECTURE §1.2)."""
+	import frappe
+
+	from nyabo_mn.agent import pipeline, post
+	from tests.flows.conftest import seed_patterns
+
+	inserted = seed_patterns(verified=False, only=(rules.EXPENSE_PATTERN_ID, rules.TRANSFER_PATTERN_ID))
+	assert sorted(inserted) == sorted([rules.EXPENSE_PATTERN_ID, rules.TRANSFER_PATTERN_ID])
+	for pattern_id in (rules.EXPENSE_PATTERN_ID, rules.TRANSFER_PATTERN_ID):
+		assert pipeline.pattern_by_id(pattern_id).verified is False
+
+	_import(books, fixtures.khan_xlsx)
+	_import(books, fixtures.tdb_xlsx)
+	expense = match.propose_expense(_bt(withdrawal=50000.0).name, "6910")
+	transfer = rules.existing_proposal(_bt(withdrawal=200000.0).name)
+	assert frappe.db.get_value("Nyabo Proposal", expense, "posting_pattern") == rules.EXPENSE_PATTERN_ID
+	assert frappe.db.get_value("Nyabo Proposal", transfer, "posting_pattern") == rules.TRANSFER_PATTERN_ID
+	for proposal_name, pattern_id in (
+		(expense, rules.EXPENSE_PATTERN_ID),
+		(transfer, rules.TRANSFER_PATTERN_ID),
+	):
+		with pytest.raises(pipeline.UnverifiedRuleError) as info:
+			post.post_proposal(proposal_name, "Administrator")
+		assert info.value.message_mn == mn.MSG_UNVERIFIED_RULE_BLOCKED.format(rule=pattern_id)
+	assert frappe.db.count("Journal Entry") == 0
+
+	# The admin verifies the row in the desk and the same tap posts.
+	frappe.db.set_value("Nyabo Posting Pattern", rules.EXPENSE_PATTERN_ID, "verified", 1)
+	assert post.post_proposal(expense, "Administrator")["posted_doctype"] == "Journal Entry"
+
+
 def test_bank_fee_rule_prefers_the_company_rule_row(books, banks):
 	import frappe
 
