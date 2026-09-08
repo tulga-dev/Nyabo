@@ -7,7 +7,15 @@ from nyabo_mn.agent.llm_client import DEFAULT_ANTHROPIC_MODEL, DEFAULT_OPENAI_MO
 
 
 def _result(model: str, tokens_in: int, tokens_out: int) -> LlmResult:
-	return LlmResult(data=None, text=None, tokens_in=tokens_in, tokens_out=tokens_out, latency_ms=1, model=model, provider="x")
+	return LlmResult(
+		data=None,
+		text=None,
+		tokens_in=tokens_in,
+		tokens_out=tokens_out,
+		latency_ms=1,
+		model=model,
+		provider="x",
+	)
 
 
 def test_defaults_are_priced_but_unverified():

@@ -26,6 +26,9 @@ PROMPT_NAME = "question"
 PURPOSE = "question"
 MAX_TURNS = 4
 MAX_QUESTION_CHARS = 2000
+# Errors the dispatcher itself produces (the model asked for something impossible). They
+# mean "no answer", not "the ledger is broken", so the user gets a different sentence.
+MODEL_FAULT_ERRORS = frozenset({"invalid_arguments", "unknown_tool"})
 
 Handler = Callable[[dict[str, Any]], dict[str, Any]]
 
@@ -164,12 +167,16 @@ def answer(
 	escalated = any(call.name == "escalate_to_admin" and not call.is_error for call in llm.tool_calls)
 	last_ok = next((call.name for call in reversed(llm.tool_calls) if not call.is_error), None)
 	all_failed = bool(llm.tool_calls) and all(call.is_error for call in llm.tool_calls)
+	handler_broke = any(
+		call.is_error and (call.result or {}).get("error") not in MODEL_FAULT_ERRORS
+		for call in llm.tool_calls
+	)
 
 	if escalated:
 		answer_text = (llm.text or "").strip() or mn.MSG_ESCALATED
 	elif llm.text and llm.text.strip():
 		answer_text = llm.text.strip()
-	elif all_failed:
+	elif all_failed and handler_broke:
 		answer_text = mn.AGENT_ANSWER_TOOL_ERROR
 	else:
 		answer_text = mn.MSG_QUESTION_CANNOT
@@ -185,6 +192,7 @@ def answer(
 
 __all__ = [
 	"MAX_TURNS",
+	"MODEL_FAULT_ERRORS",
 	"PROMPT_NAME",
 	"PURPOSE",
 	"TOOL_ARG_MODELS",
