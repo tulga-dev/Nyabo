@@ -205,6 +205,7 @@ def unpaid_purchase_invoice(
 	posting_date: str,
 	expense_code: str = "6210",
 	currency: str | None = None,
+	name: str | None = None,
 	**extra: Any,
 ) -> Any:
 	"""A submitted Purchase Invoice that still owes money - the voucher a Payment Entry settles.
@@ -212,6 +213,9 @@ def unpaid_purchase_invoice(
 	No ``is_paid``: the credit sits on the payable and nothing has touched a bank account,
 	which is what a card / QPay / transfer purchase looks like until its statement line
 	arrives (docs/DECISIONS.md PIPE-03).
+
+	``name`` overrides the naming series (``Document.insert(set_name=...)``), which is how a
+	test gets the long document name a rename produces on a real site.
 	"""
 	import frappe
 
@@ -231,7 +235,7 @@ def unpaid_purchase_invoice(
 	values.update(extra)
 	pi = frappe.get_doc(values)
 	pi.flags.ignore_permissions = True
-	pi.insert()
+	pi.insert(set_name=name)
 	pi.submit()
 	return pi
 

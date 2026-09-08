@@ -655,6 +655,54 @@ def test_the_settlement_hint_and_button_never_suppress_a_card(books, banks, monk
 	assert bot.callback_datas() == [f"b:{bt.name}:find", f"b:{bt.name}:exp", f"b:{bt.name}:later"]
 
 
+def test_a_voucher_name_too_long_for_the_callback_never_suppresses_a_card(books, banks):
+	"""K1: Telegram caps callback data at 64 bytes, and the card outranks the button.
+
+	``keyboards.encode`` refuses a longer datum with ``CallbackDataTooLong``, and nothing on
+	the import path caught it: ``settle_offer`` guards only the candidate scan and
+	``_send_card`` only Telegram / settings errors. One renamed invoice therefore aborted the
+	whole statement import, so every later line went uncarded too.
+	"""
+	import frappe
+
+	from nyabo_mn.telegram import keyboards
+	from nyabo_mn.telegram.handlers import bank as bank_handler
+
+	# What a rename leaves behind on a real site; the series stays because ERPNext requires it.
+	long_name = "ACC-PINV-2026-" + "9" * 50
+	pi = helpers.unpaid_purchase_invoice(
+		books, "Петровис ХХК", 93500, "2026-09-01", name=long_name, naming_series="ACC-PINV-.YYYY.-"
+	)
+	assert pi.name == long_name
+
+	filename, data = fixtures.khan_xlsx()
+	document = helpers.statement_document(books, filename, data)
+	frappe.db.set_value("Nyabo Document", document, "telegram_chat_id", "8107")
+
+	bot = fake_bot.FakeBotApi()
+	with api.use_bot(bot):
+		summary = bank_import.import_statement(document)
+
+	bt = _bt(withdrawal=93500.0)
+	# The invoice IS the settlement candidate, and its datum genuinely overflows the limit.
+	candidate = match.settlement_candidate(bt.name)
+	assert candidate is not None and candidate.name == long_name
+	with pytest.raises(keyboards.CallbackDataTooLong):
+		keyboards.encode(keyboards.PREFIX_BANK, bt.name, "st", "pi", long_name)
+
+	# The import ran to the end and every unmatched line got its card.
+	assert summary["match"]["settlement_offered"] == 1
+	assert summary["match"]["cards_sent"] == summary["match"]["unmatched"] == 4
+
+	bot.clear()
+	with api.use_bot(bot):
+		bank_handler.send_bank_card(bot, 8107, bt.name)
+	assert bot.callback_datas() == [f"b:{bt.name}:find", f"b:{bt.name}:exp", f"b:{bt.name}:later"]
+	assert long_name in bot.last_text  # the card still names the invoice the accountant needs
+	# The find flow's own offer drops the same button rather than raising.
+	assert keyboards.bank_settle(bt.name, "Purchase Invoice", long_name) == keyboards.empty_markup()
+
+
 def test_a_settlement_carries_the_nyabo_compliance_trail(guarded_books, as_user):
 	"""S14: a Payment Entry is a posting, so it comes under the same guards as the rest.
 

@@ -13,6 +13,7 @@ from collections.abc import Iterable, Sequence
 from typing import Any
 
 from nyabo_mn.i18n import mn
+from nyabo_mn.log import log_event
 from nyabo_mn.telegram.api import MAX_CALLBACK_DATA_BYTES
 
 SEP = ":"
@@ -124,21 +125,42 @@ def correction_reasons(posted_name: str) -> dict[str, Any]:
 # --- bank lines ------------------------------------------------------------------------------------
 
 
-def bank_line_keyboard(bank_transaction: str, settle: tuple[str, str] | None = None) -> dict[str, Any]:
-	"""``settle`` is (voucher doctype, voucher name) when the line clearly pays an unpaid invoice.
+def settle_row(bank_transaction: str, voucher_doctype: str, voucher_name: str) -> list[dict[str, str]]:
+	"""The [Төлбөр бүртгэх] row, or an empty row when the voucher cannot be carried.
 
-	The settlement button carries the voucher itself (short doctype + name), not an index
-	into the chat state, so the tap still works on a card the accountant opens tomorrow.
+	The button carries the voucher itself (short doctype + name) rather than an index into
+	the chat state, because ``Nyabo Chat State`` is one row per chat with a single payload:
+	a statement import sends one card per unmatched line, so an index would be overwritten
+	by the next card and by whatever the accountant does next, and the tap has to still work
+	on a card opened tomorrow. (``bank_candidates`` may use an index precisely because the
+	find flow writes the state one message earlier and the taps follow immediately.)
+
+	The price is that a document name long enough to push the datum past Telegram's 64-byte
+	limit cannot be encoded. Losing the button is a nuisance; losing the card is not — the
+	``CallbackDataTooLong`` used to escape ``matching.match._send_card`` (which catches only
+	Telegram and settings errors) and abort the whole statement import, so every later line
+	of the statement went uncarded too. The refusal is logged so the silence is visible.
 	"""
-	settle_row: list[dict[str, str]] = []
-	if settle is not None:
-		short = DOCTYPE_SHORT.get(settle[0])
-		if short:
-			settle_row = [
-				button(mn.BTN_RECORD_PAYMENT, encode(PREFIX_BANK, bank_transaction, "st", short, settle[1]))
-			]
+	short = DOCTYPE_SHORT.get(voucher_doctype)
+	if not short:
+		return []
+	try:
+		data = encode(PREFIX_BANK, bank_transaction, "st", short, voucher_name)
+	except CallbackDataTooLong:
+		log_event(
+			"telegram.settle_button_too_long",
+			level="warning",
+			bank_transaction=bank_transaction,
+			voucher=f"{voucher_doctype} {voucher_name}",
+		)
+		return []
+	return [button(mn.BTN_RECORD_PAYMENT, data)]
+
+
+def bank_line_keyboard(bank_transaction: str, settle: tuple[str, str] | None = None) -> dict[str, Any]:
+	"""``settle`` is (voucher doctype, voucher name) when the line clearly pays an unpaid invoice."""
 	return markup(
-		settle_row,
+		settle_row(bank_transaction, *settle) if settle is not None else [],
 		[button(mn.BTN_FIND_DOCUMENT, encode(PREFIX_BANK, bank_transaction, "find"))],
 		[
 			button(mn.BTN_RECORD_EXPENSE, encode(PREFIX_BANK, bank_transaction, "exp")),
@@ -149,13 +171,10 @@ def bank_line_keyboard(bank_transaction: str, settle: tuple[str, str] | None = N
 
 def bank_settle(bank_transaction: str, voucher_doctype: str, voucher_name: str) -> dict[str, Any]:
 	"""The [Төлбөр бүртгэх] offer shown after [Баримт хайх] picked an unpaid invoice."""
-	short = DOCTYPE_SHORT.get(voucher_doctype)
-	if not short:
+	row = settle_row(bank_transaction, voucher_doctype, voucher_name)
+	if not row:
 		return empty_markup()
-	return markup(
-		[button(mn.BTN_RECORD_PAYMENT, encode(PREFIX_BANK, bank_transaction, "st", short, voucher_name))],
-		[button(mn.BTN_LATER, encode(PREFIX_BANK, bank_transaction, "later"))],
-	)
+	return markup(row, [button(mn.BTN_LATER, encode(PREFIX_BANK, bank_transaction, "later"))])
 
 
 def bank_candidates(bank_transaction: str, count: int) -> dict[str, Any]:
