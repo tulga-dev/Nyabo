@@ -44,6 +44,9 @@ def _commands() -> dict[str, Callable[[Ctx], Any]]:
 		start,
 	)
 
+	# Cyrillic is what a Mongolian accountant types; the Latin name beside it is the same
+	# command registered with Telegram's command menu, which accepts "only lowercase
+	# English letters, digits and underscores" (nyabo_mn.telegram.commands).
 	return {
 		"/start": start.handle_start,
 		"/whoami": start.handle_whoami,
@@ -52,11 +55,17 @@ def _commands() -> dict[str, Callable[[Ctx], Any]]:
 		"/тусламж": menu.handle_help,
 		"/help": menu.handle_help,
 		"/хаалт": close.handle_command,
+		"/close": close.handle_command,
 		"/данс": accounts.handle_command,
+		"/bank": accounts.handle_command,
 		"/чанар": quality.handle_command,
+		"/quality": quality.handle_command,
 		"/бодлого": policy.handle_command,
+		"/policy": policy.handle_command,
 		"/компани": company.handle_command,
+		"/company": company.handle_command,
 		"/эхлэх": onboarding.handle_command,
+		"/setup": onboarding.handle_command,
 		"/link": admin.handle_link,
 		"/status": admin.handle_status,
 	}

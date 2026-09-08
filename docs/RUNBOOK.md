@@ -47,6 +47,16 @@ bench --site nyabo.s.frappe.cloud execute nyabo_mn.telegram.webhook.setup_webhoo
 You should see: `{"ok": true, "url": "https://<site>/api/method/nyabo_mn.telegram.webhook.webhook"}`.
 Then send `/start` to the bot. You should see: the welcome message and your Telegram ID.
 
+Register the command menu (the ☰ button next to the message box) at the same time, and
+again whenever a command is added or renamed:
+
+```bash
+bench --site nyabo.s.frappe.cloud execute nyabo_mn.telegram.commands.setup_commands
+```
+
+Telegram accepts only lowercase Latin command names, so the menu shows `/bank`, `/close`,
+`/setup` with a Mongolian description naming the Cyrillic command; both spellings work.
+
 ## 4. Link people
 
 In your own chat with the bot (you must be in `ADMIN_TELEGRAM_IDS`):

@@ -73,3 +73,53 @@ def test_webhook_url_helper():
 		webhook.webhook_url("https://nyabo.s.frappe.cloud/")
 		== "https://nyabo.s.frappe.cloud/api/method/nyabo_mn.telegram.webhook.webhook"
 	)
+
+
+# --- command menu (UX-12) ----------------------------------------------------------------------
+
+
+def test_setup_commands_registers_ascii_names_and_the_menu_button(site):
+	"""Telegram accepts only lowercase Latin command names, so the Cyrillic ones cannot go here."""
+	from nyabo_mn.telegram import commands
+
+	bot = FakeBotApi()
+	result = commands.setup_commands(bot=bot)
+	call = bot.sent("set_my_commands")[0]
+	names = [c["command"] for c in call["commands"]]
+	assert names == list(commands.MENU_COMMANDS) == result["commands"]
+	for entry in call["commands"]:
+		assert entry["command"].isascii() and entry["command"].islower()
+		assert entry["command"].replace("_", "").isalnum() and 1 <= len(entry["command"]) <= 32
+		assert not entry["command"].startswith("/")
+		assert entry["description"] and len(entry["description"]) <= commands.MAX_DESCRIPTION_CHARS
+	assert call["scope"] == {"type": "all_private_chats"}
+	assert bot.sent("set_chat_menu_button")[0]["menu_button"] == {"type": "commands"}
+
+
+def test_every_registered_command_is_routable_and_the_cyrillic_aliases_still_work(site):
+	from nyabo_mn.telegram import commands, router
+
+	routed = router._commands()
+	for name in commands.MENU_COMMANDS:
+		assert f"/{name}" in routed, name
+	# The Cyrillic spelling and its Latin twin reach the same handler.
+	for cyrillic, latin in (
+		("/данс", "/bank"),
+		("/хаалт", "/close"),
+		("/чанар", "/quality"),
+		("/бодлого", "/policy"),
+		("/компани", "/company"),
+		("/эхлэх", "/setup"),
+		("/меню", "/menu"),
+		("/тусламж", "/help"),
+	):
+		assert routed[cyrillic] is routed[latin], cyrillic
+
+
+def test_menu_text_lists_every_command_a_linked_user_can_run(site):
+	"""UX-12: MSG_MENU omitted /компани and /меню."""
+	from nyabo_mn.telegram import router
+
+	admin_or_bootstrap = {"/link", "/status", "/whoami", "/start"}
+	cyrillic = {c for c in router._commands() if c not in admin_or_bootstrap and not c.isascii()}
+	assert sorted(c for c in cyrillic if c not in mn.MSG_MENU) == []

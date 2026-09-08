@@ -108,6 +108,14 @@ class FakeBotApi:
 	def get_me(self):
 		return {"id": 1, "is_bot": True, "username": "nyabo_bot"}
 
+	def set_my_commands(self, commands, scope=None, language_code=None):
+		self._record("set_my_commands", commands=commands, scope=scope, language_code=language_code)
+		return True
+
+	def set_chat_menu_button(self, chat_id=None, menu_button=None):
+		self._record("set_chat_menu_button", chat_id=chat_id, menu_button=menu_button)
+		return True
+
 
 # --- update builders ---------------------------------------------------------------------------------
 
