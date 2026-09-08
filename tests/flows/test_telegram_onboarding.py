@@ -124,7 +124,7 @@ def test_full_onboarding_stores_settings(company, monkeypatch):
 	assert "Сарантуяа (MICPA-778)" in summary
 
 
-def test_vat_yes_no_banks_no_inventory_without_setup_module(company):
+def test_vat_yes_no_banks_no_inventory(company):
 	link_user(9002, "Owner", company)
 	uid = 9002
 	bot = FakeBotApi()
@@ -144,8 +144,11 @@ def test_vat_yes_no_banks_no_inventory_without_setup_module(company):
 	assert settings.onboarding_completed == 1 and settings.has_inventory == 0
 	assert [r.regime for r in settings.regimes] == ["vat_payer"]
 	assert settings.bank_accounts == []
-	assert mn.MSG_ONBOARDING_APPLY_PENDING in bot.texts()  # apply_onboarding not present in this checkout
+	assert mn.MSG_ONBOARDING_APPLY_PENDING not in bot.texts()  # apply_onboarding really ran
 	assert mn.ONB_SUMMARY_REGIME_VAT in bot.last_text
+	# The company was provisioned as a non-VAT payer; answering "тийм" makes the templates default.
+	assert frappe.db.get_value("Sales Taxes and Charges Template", {"company": company}, "is_default") == 1
+	assert frappe.db.get_value("Purchase Taxes and Charges Template", {"company": company}, "is_default") == 1
 
 	bot.clear()
 	run(bot, message_update(uid, "/эхлэх"))
@@ -182,3 +185,49 @@ def test_onboarding_with_unparseable_inventory(company, monkeypatch):
 	run(bot, message_update(9004, "хор, зургаа, их"))
 	assert bot.last_text == mn.ONB_INVENTORY_PARSE_ERROR.format(error="мөр 1: дүн уншигдсангүй")
 	assert _state(9004) == "onb:inv_wait"
+
+
+def test_onboarding_applies_bank_accounts_to_erpnext(company):
+	"""The wizard's bank answers must reach ERPNext, or the next statement import has no account."""
+	link_user(9101, "Owner", company)
+	uid = 9101
+	bot = FakeBotApi()
+	run(bot, message_update(uid, "/эхлэх"))
+	run(bot, callback_update(uid, "o:vat:no"))
+	run(bot, callback_update(uid, "o:400m:no"))
+	run(bot, callback_update(uid, "o:banks:Khan_Bank"))
+	run(bot, callback_update(uid, "o:banks:done"))
+	run(bot, callback_update(uid, "o:cur:MNT"))
+	run(bot, callback_update(uid, "o:cur:done"))
+	run(bot, message_update(uid, "5001234567"))
+	run(bot, callback_update(uid, "o:inv:no"))
+	run(bot, message_update(uid, "Дорж"))
+	run(bot, callback_update(uid, "o:micpa:skip"))
+	run(bot, callback_update(uid, "o:summary:confirm"))
+
+	assert mn.MSG_ONBOARDING_APPLY_PENDING not in bot.texts()
+	bank_accounts = frappe.get_all(
+		"Bank Account", filters={"company": company}, fields=["name", "bank", "bank_account_no"]
+	)
+	assert len(bank_accounts) == 1
+	assert bank_accounts[0]["bank"] == "Khan Bank"
+	assert bank_accounts[0]["bank_account_no"] == "5001234567"
+	settings = frappe.get_doc(
+		"Nyabo Company Settings", frappe.db.exists("Nyabo Company Settings", {"company": company})
+	)
+	rows = [(r.bank, r.currency, r.erpnext_bank_account) for r in settings.bank_accounts]
+	assert rows == [("Khan Bank", "MNT", bank_accounts[0]["name"])]
+	assert settings.accountant_of_record_name == "Дорж"
+
+
+def test_apply_onboarding_is_idempotent(company):
+	from nyabo_mn.setup import provision_company as provision
+
+	rows = [{"bank": "Khan Bank", "currency": "MNT", "account_number": "5001234567"}]
+	first = provision.apply_onboarding(company, True, rows, False, "Дорж", "MICPA-1")
+	second = provision.apply_onboarding(company, True, rows, False, "Дорж", "MICPA-1")
+	assert first["bank_accounts"] == second["bank_accounts"]
+	assert len(frappe.get_all("Bank Account", filters={"company": company})) == 1
+	settings = frappe.get_doc("Nyabo Company Settings", second["settings"])
+	assert len(settings.bank_accounts) == 1
+	assert settings.accountant_micpa_permit == "MICPA-1"

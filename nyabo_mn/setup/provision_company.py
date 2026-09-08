@@ -139,6 +139,87 @@ def provision(
 	)
 
 
+@frappe.whitelist()
+def apply_onboarding(
+	company: str,
+	vat_registered: bool | int | str = 0,
+	banks: Iterable[Mapping[str, Any]] | str | None = None,
+	has_inventory: bool | int | str = 0,
+	accountant_name: str = "",
+	micpa: str = "",
+) -> dict[str, Any]:
+	"""Apply the answers of the Telegram ``/эхлэх`` wizard to an already provisioned company.
+
+	The wizard writes the answers to Nyabo Company Settings itself (§5.2); this makes the
+	ERPNext side match them - VAT templates (default only when the company is registered),
+	the regime row from the fiscal-year start, one GL sub-account + ERPNext Bank Account per
+	bank the owner named, the inventory flag and the accountant of record. Everything is
+	idempotent, so re-running the wizard changes nothing.
+	"""
+	company = (company or "").strip()
+	if not company:
+		frappe.throw(_("company is required"))
+	if not frappe.db.exists("Company", company):
+		frappe.throw(_("Company {0} does not exist").format(company))
+	is_vat_payer = bool(cint(vat_registered))
+	inventory = bool(cint(has_inventory))
+	fiscal_year_start = getdate(frappe.db.get_value("Fiscal Year", _ensure_fiscal_year(), "year_start_date"))
+	report: dict[str, Any] = {
+		"company": company,
+		"vat_registered": is_vat_payer,
+		"tax_templates": _apply_vat_templates(company, is_vat_payer, fiscal_year_start),
+		"regime": _ensure_regime(company, is_vat_payer, fiscal_year_start),
+		"bank_accounts": _ensure_bank_rows(company, _json_arg(banks) or []),
+	}
+	report["settings"] = _apply_onboarding_settings(company, inventory, accountant_name, micpa)
+	log_event(
+		"onboarding.applied",
+		company=company,
+		vat_registered=is_vat_payer,
+		banks=len(report["bank_accounts"]),
+		has_inventory=inventory,
+	)
+	return report
+
+
+def _apply_vat_templates(company: str, is_vat_payer: bool, on_date: Any) -> dict[str, str]:
+	"""``ensure_vat_templates`` plus the default flag, which provisioning only sets on creation.
+
+	The company may have been provisioned before the owner answered the VAT question, so the
+	templates already exist with ``is_default = 0``; a VAT payer needs them picked up
+	automatically (and a company that de-registered needs the flag cleared again).
+	"""
+	created = ensure_vat_templates(company, is_vat_payer, on_date)
+	is_default = 1 if is_vat_payer else 0
+	for title in (SALES_TEMPLATE_TITLE, PURCHASE_TEMPLATE_TITLE):
+		name = created.get(title)
+		if name and frappe.db.get_value(TAX_TEMPLATES[title], name, "is_default") != is_default:
+			frappe.db.set_value(TAX_TEMPLATES[title], name, "is_default", is_default)
+	return created
+
+
+def _apply_onboarding_settings(
+	company: str, has_inventory: bool, accountant_name: str, micpa: str
+) -> str | None:
+	"""Inventory flag and accountant of record on Nyabo Company Settings; blanks never overwrite."""
+	if not frappe.db.exists("DocType", SETTINGS_DOCTYPE):
+		return None
+	name = regime.settings_name(company)
+	doc = (
+		frappe.get_doc(SETTINGS_DOCTYPE, name)
+		if name
+		else frappe.get_doc({"doctype": SETTINGS_DOCTYPE, "company": company})
+	)
+	doc.has_inventory = 1 if has_inventory else 0
+	if accountant_name:
+		doc.accountant_of_record_name = accountant_name
+	if micpa:
+		doc.accountant_micpa_permit = micpa
+	doc.flags.ignore_permissions = True
+	doc.save()
+	return doc.name
+
+
 def _json_arg(value: Any) -> Any:
 	if isinstance(value, str) and value.strip().startswith(("[", "{")):
 		return json.loads(value)
