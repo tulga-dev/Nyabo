@@ -206,3 +206,14 @@ def test_callback_without_link_is_ignored(site):
 	assert outcome["result"] is None
 	assert bot.sent("send_message") == []
 	assert bot.sent("answer_callback_query")
+
+
+def test_account_chooser_uses_the_real_deps_shim(company):
+	"""No monkeypatch: the tap must resolve ``_deps.top_accounts`` at its real dotted path."""
+	link_user(2101, "Accountant", company)
+	proposal = make_proposal(company)
+	bot = FakeBotApi()
+	outcome = run(bot, callback_update(2101, f"p:{proposal.name}:ch"))
+	assert outcome.get("error") is None
+	assert outcome["result"]["accounts"], "top_accounts returned nothing through the real shim"
+	assert mn.MSG_FEATURE_UNAVAILABLE not in bot.texts()

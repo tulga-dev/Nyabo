@@ -30,7 +30,9 @@ def _call(module: str, function: str, *args: Any, **kwargs: Any) -> Any:
 	return fn(*args, **kwargs)
 
 
-# --- nyabo_mn.agent.pipeline -------------------------------------------------------------------
+# --- nyabo_mn.agent.pipeline / nyabo_mn.agent.post ----------------------------------------------
+# The pipeline reads documents and answers questions; ``agent.post`` owns everything that
+# touches an accounting document (approve, change account, reject, correct) - see agent/post.py.
 
 
 def process_receipt(document_name: str) -> Any:
@@ -38,30 +40,28 @@ def process_receipt(document_name: str) -> Any:
 
 
 def post_proposal(proposal_name: str, approver_user: str, approver_telegram_id: str) -> dict[str, Any]:
-	return _call(
-		"nyabo_mn.agent.pipeline", "post_proposal", proposal_name, approver_user, approver_telegram_id
-	)
+	return _call("nyabo_mn.agent.post", "post_proposal", proposal_name, approver_user, approver_telegram_id)
 
 
 def change_account(proposal_name: str, code: str, user: str) -> Any:
-	return _call("nyabo_mn.agent.pipeline", "change_account", proposal_name, code, user)
+	return _call("nyabo_mn.agent.post", "change_account", proposal_name, code, user)
 
 
 def reject(proposal_name: str, reason: str, user: str) -> Any:
-	return _call("nyabo_mn.agent.pipeline", "reject", proposal_name, reason, user)
+	return _call("nyabo_mn.agent.post", "reject", proposal_name, reason, user)
 
 
 def top_accounts(company: str, n: int = 6) -> list[tuple[str, str]]:
-	return _call("nyabo_mn.agent.pipeline", "top_accounts", company, n=n)
+	return _call("nyabo_mn.agent.post", "top_accounts", company, n=n)
 
 
 def search_accounts(company: str, query: str) -> list[tuple[str, str]]:
-	return _call("nyabo_mn.agent.pipeline", "search_accounts", company, query)
+	return _call("nyabo_mn.agent.post", "search_accounts", company, query)
 
 
 def make_correction_proposal(original_doctype: str, original_name: str, reason: str, user: str) -> str:
 	return _call(
-		"nyabo_mn.agent.pipeline", "make_correction_proposal", original_doctype, original_name, reason, user
+		"nyabo_mn.agent.post", "make_correction_proposal", original_doctype, original_name, reason, user
 	)
 
 
