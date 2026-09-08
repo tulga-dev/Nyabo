@@ -26,16 +26,25 @@ from pathlib import Path
 from typing import Any
 
 from nyabo_mn.agent.mock_client import MockLlmClient
+from nyabo_mn.core.models import Regime
 from nyabo_mn.core.money import fmt_mnt
 from nyabo_mn.evals import harness
 from nyabo_mn.evals.loader import GOLDEN_DIR, EvalCase, load_file
 from nyabo_mn.i18n import mn
 
-DEFAULT_REGIMES: tuple[str, ...] = ("vat_payer", "simplified_1pct")
+# The names come from the Regime enum that ``rules.regime`` re-exports (F-12); the
+# simulator runs without a site, so it reads the enum rather than importing the Frappe-side
+# module.
+REGIME_VAT_PAYER = Regime.VAT_PAYER.value
+REGIME_SIMPLIFIED = Regime.SIMPLIFIED_1PCT.value
+DEFAULT_REGIMES: tuple[str, ...] = (REGIME_VAT_PAYER, REGIME_SIMPLIFIED)
 DEFAULT_DATES: tuple[str, ...] = ("2026-06-15", "2027-02-15")
 SIM_PREFIX = "SIM-"
 COLUMN_WIDTH = 52
-REGIME_LABELS = {"vat_payer": mn.SIM_REGIME_VAT_PAYER, "simplified_1pct": mn.SIM_REGIME_SIMPLIFIED}
+REGIME_LABELS = {
+	REGIME_VAT_PAYER: mn.SIM_REGIME_VAT_PAYER,
+	REGIME_SIMPLIFIED: mn.SIM_REGIME_SIMPLIFIED,
+}
 
 
 # --- inputs ------------------------------------------------------------------------------------
@@ -132,8 +141,8 @@ def provision_sim_company(regime: str, use_site: bool | None = None) -> str | No
 	from nyabo_mn.setup.provision_company import provision_company
 
 	name = f"{SIM_PREFIX}{regime}"
-	abbr = "SV" if regime == "vat_payer" else "SS"
-	report = provision_company(name, abbr, vat_registered=1 if regime == "vat_payer" else 0)
+	abbr = "SV" if regime == REGIME_VAT_PAYER else "SS"
+	report = provision_company(name, abbr, vat_registered=1 if regime == REGIME_VAT_PAYER else 0)
 	if not report["verify"]["ok"]:
 		raise RuntimeError(f"simulation company {name} did not verify: {report['verify']['problems']}")
 	return name

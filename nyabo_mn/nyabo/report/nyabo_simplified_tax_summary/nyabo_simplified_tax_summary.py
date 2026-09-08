@@ -2,6 +2,11 @@
 
 Rows: the three months of the quarter (revenue), then the quarter total with the rate and
 the tax, then the tax-parameter row that supplied the rate (key, effective date, verified).
+
+There is no Simulation filter (F-11): it used to be one, and ticking it switched off the
+verified guard on the statutory 1% rate for anyone who could open the report. The label
+still appears when ``frappe.flags.nyabo_simulation`` is set, which only the simulator and
+the tests do.
 """
 
 from __future__ import annotations
@@ -9,7 +14,7 @@ from __future__ import annotations
 from typing import Any
 
 import frappe
-from frappe.utils import cint, getdate
+from frappe.utils import getdate
 
 from nyabo_mn.core.dates import period_label, quarter_of
 from nyabo_mn.i18n import mn
@@ -32,9 +37,7 @@ def execute(filters: Any = None) -> tuple[list[dict[str, Any]], list[dict[str, A
 		return columns(), []
 	end = getdate(filters.to_date)
 	quarter = f"{end.year}-Q{quarter_of(end)}"
-	summary = simplified_summary.compute(
-		filters.company, quarter, simulation=bool(cint(filters.get("simulation")))
-	)
+	summary = simplified_summary.compute(filters.company, quarter)
 	rate_pct = float(summary["rate"] * 100)
 	data = [
 		{"label": period_label(m["period"]), "revenue": float(m["revenue"]), "rate_pct": None, "tax": None}

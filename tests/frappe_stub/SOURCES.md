@@ -107,6 +107,7 @@ Seed data: the 29 standard Account Categories come from
 | `default_fields`, `table_fields`, `numeric_fieldtypes` | frappe/model/__init__.py |
 | `get_mapped_doc` no_copy handling | frappe/model/mapper.py |
 | Delete order (`on_trash` -> link check -> row delete -> `after_delete` -> attached Files -> Deleted Document) | frappe/model/delete_doc.py |
+| Link check ignores: the `ignore_links_on_delete` hook on Delete, `doc.ignore_linked_doctypes` on Cancel | frappe/model/delete_doc.py (`get_linked_docs`, read 2026-09-09) |
 | Version `data` layout (`changed`, `added`, `removed`, `row_changed`), no Version on plain insert | frappe/core/doctype/version/version.py |
 | File: `content` written on insert, `get_content()` | frappe/core/doctype/file/file.py |
 | Exception hierarchy | frappe/exceptions.py |

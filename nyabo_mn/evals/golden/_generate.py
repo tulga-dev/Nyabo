@@ -18,14 +18,18 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
+from nyabo_mn.core.models import Regime
 from nyabo_mn.core.money import quantize, vat_from_gross
 
 GOLDEN_DIR = Path(__file__).resolve().parent
 FIXTURES_DIR = GOLDEN_DIR.parents[2] / "tests" / "fixtures" / "llm"
 VAT_RATE = Decimal("0.10")
+# Regime names from the Regime enum that ``rules.regime`` re-exports, never spelled here (F-12).
+REGIME_VAT_PAYER = Regime.VAT_PAYER.value
+REGIME_SIMPLIFIED = Regime.SIMPLIFIED_1PCT.value
 VAT_DATE = "2026-06-15"
 SIMPLIFIED_DATE = "2027-02-15"
-REGIME_DATES = {"vat_payer": VAT_DATE, "simplified_1pct": SIMPLIFIED_DATE}
+REGIME_DATES = {REGIME_VAT_PAYER: VAT_DATE, REGIME_SIMPLIFIED: SIMPLIFIED_DATE}
 COMPANY = "Тест ХХК"
 COMPANY_TIN = "37200011111"
 
@@ -320,7 +324,7 @@ def expected_lines(r: dict[str, Any], regime: str, date: str) -> tuple[str, str,
 	# keep the PAYABLE so the bank statement settles it; crediting the bank here would double
 	# count that line.
 	credit = CASH if r["payment_method"] == "cash" else PAYABLE
-	if regime == "vat_payer":
+	if regime == REGIME_VAT_PAYER:
 		treatment = r.get("vat_treatment", "withheld")
 		if treatment == "withheld":
 			vat = Decimal(vat_of(r["total"]))
@@ -458,7 +462,7 @@ def build() -> tuple[dict[str, list[dict]], dict[str, dict]]:
 		date = REGIME_DATES[regime]
 		key = f"classify/golden_{case_id}"
 		fixtures[key] = fixture or classify_fixture(
-			r["account"], "in_expense" if regime != "vat_payer" else "withheld", r["reason"]
+			r["account"], "in_expense" if regime != REGIME_VAT_PAYER else "withheld", r["reason"]
 		)
 		input_json = {
 			"receipt": receipt_dict(r, date),
@@ -490,7 +494,7 @@ def build() -> tuple[dict[str, list[dict]], dict[str, dict]]:
 	negative(
 		"neg_personal_cashmere",
 		cashmere,
-		"vat_payer",
+		REGIME_VAT_PAYER,
 		{},
 		{
 			"needs_accountant": True,
@@ -510,7 +514,7 @@ def build() -> tuple[dict[str, list[dict]], dict[str, dict]]:
 	negative(
 		"neg_personal_family_dinner",
 		dinner,
-		"simplified_1pct",
+		REGIME_SIMPLIFIED,
 		{},
 		{
 			"needs_accountant": True,
@@ -530,7 +534,7 @@ def build() -> tuple[dict[str, list[dict]], dict[str, dict]]:
 	negative(
 		"neg_personal_vitamins",
 		vitamins,
-		"vat_payer",
+		REGIME_VAT_PAYER,
 		{},
 		{
 			"needs_accountant": True,
@@ -544,7 +548,7 @@ def build() -> tuple[dict[str, list[dict]], dict[str, dict]]:
 	negative(
 		"neg_duplicate_same_hash",
 		fuel,
-		"vat_payer",
+		REGIME_VAT_PAYER,
 		{"file_hash": "sha256:aaaa1111", "prior": {"file_hashes": ["sha256:aaaa1111"]}},
 		{
 			"needs_accountant": True,
@@ -557,7 +561,7 @@ def build() -> tuple[dict[str, list[dict]], dict[str, dict]]:
 	negative(
 		"neg_duplicate_same_receipt_id",
 		fuel,
-		"simplified_1pct",
+		REGIME_SIMPLIFIED,
 		{"file_hash": "sha256:bbbb2222", "prior": {"receipt_ids": [fuel["receipt_id"]]}},
 		{
 			"needs_accountant": True,
@@ -570,7 +574,7 @@ def build() -> tuple[dict[str, list[dict]], dict[str, dict]]:
 	negative(
 		"neg_duplicate_same_seller_date_total",
 		by_id["internet_univision"],
-		"vat_payer",
+		REGIME_VAT_PAYER,
 		{
 			"file_hash": "sha256:cccc3333",
 			"prior": {"receipts": [{"seller_tin": "37200033344", "date": VAT_DATE, "total": "55000"}]},
@@ -587,7 +591,7 @@ def build() -> tuple[dict[str, list[dict]], dict[str, dict]]:
 	negative(
 		"neg_cash_market_no_vat",
 		market,
-		"vat_payer",
+		REGIME_VAT_PAYER,
 		{"seller_vat_payer": None},
 		{"needs_accountant": True, "vat_treatment": "none", "flags_include": ["no_ebarimt"]},
 		"Hand-written market receipt: no VAT may be withheld even for a VAT payer, and the accountant confirms the document.",
@@ -610,7 +614,7 @@ def build() -> tuple[dict[str, list[dict]], dict[str, dict]]:
 	negative(
 		"neg_cash_taxi_handwritten",
 		hand_taxi,
-		"simplified_1pct",
+		REGIME_SIMPLIFIED,
 		{"seller_vat_payer": None},
 		{"needs_accountant": True, "vat_treatment": "none", "flags_include": ["no_ebarimt"]},
 		"Hand-written taxi receipt without ebarimt.",
@@ -620,7 +624,7 @@ def build() -> tuple[dict[str, list[dict]], dict[str, dict]]:
 	negative(
 		"neg_wrong_company_tin",
 		other_buyer,
-		"vat_payer",
+		REGIME_VAT_PAYER,
 		{
 			"receipt": dict(
 				receipt_dict(other_buyer, VAT_DATE), buyer_tin="37200099999", buyer_name="Өөр Компани ХХК"
@@ -638,7 +642,7 @@ def build() -> tuple[dict[str, list[dict]], dict[str, dict]]:
 	negative(
 		"neg_wrong_company_invoice",
 		other_buyer2,
-		"simplified_1pct",
+		REGIME_SIMPLIFIED,
 		{
 			"receipt": dict(
 				receipt_dict(other_buyer2, SIMPLIFIED_DATE), buyer_tin="37200088888", buyer_name="Нөгөө ХХК"
@@ -739,7 +743,7 @@ def build() -> tuple[dict[str, list[dict]], dict[str, dict]]:
 			case(
 				case_id,
 				"injection",
-				"vat_payer",
+				REGIME_VAT_PAYER,
 				VAT_DATE,
 				{
 					"llm_fixture": key,
@@ -795,7 +799,7 @@ def build() -> tuple[dict[str, list[dict]], dict[str, dict]]:
 	correction(
 		"corr_wrong_account",
 		fuel,
-		"vat_payer",
+		REGIME_VAT_PAYER,
 		{"field": "account_code", "corrected_value": "6220", "reason": "account"},
 		{
 			"reversal_date": VAT_DATE,
@@ -819,7 +823,7 @@ def build() -> tuple[dict[str, list[dict]], dict[str, dict]]:
 	correction(
 		"corr_wrong_amount",
 		by_id["office_supplies"],
-		"simplified_1pct",
+		REGIME_SIMPLIFIED,
 		{"field": "total", "corrected_value": "218000", "corrected_vat": "19818.18", "reason": "amount"},
 		{
 			"reversal_date": SIMPLIFIED_DATE,
@@ -841,7 +845,7 @@ def build() -> tuple[dict[str, list[dict]], dict[str, dict]]:
 	correction(
 		"corr_duplicate",
 		by_id["nomin_supermarket"],
-		"vat_payer",
+		REGIME_VAT_PAYER,
 		{"field": "reversed", "reason": "dup"},
 		{
 			"reversal_date": VAT_DATE,
@@ -865,7 +869,7 @@ def build() -> tuple[dict[str, list[dict]], dict[str, dict]]:
 	correction(
 		"corr_vat_treatment",
 		by_id["restaurant"],
-		"vat_payer",
+		REGIME_VAT_PAYER,
 		{"field": "vat_treatment", "corrected_value": "in_expense", "reason": "other"},
 		{
 			"reversal_date": VAT_DATE,
@@ -888,7 +892,7 @@ def build() -> tuple[dict[str, list[dict]], dict[str, dict]]:
 	correction(
 		"corr_closed_period",
 		by_id["internet_univision"],
-		"vat_payer",
+		REGIME_VAT_PAYER,
 		{"field": "account_code", "corrected_value": "6910", "reason": "account"},
 		{
 			"reversal_date": "2026-09-08",
@@ -919,7 +923,7 @@ def build() -> tuple[dict[str, list[dict]], dict[str, dict]]:
 		case(
 			"docreq_je_with_source_document",
 			"document_required",
-			"vat_payer",
+			REGIME_VAT_PAYER,
 			VAT_DATE,
 			{
 				"doctype": "Journal Entry",
@@ -935,7 +939,7 @@ def build() -> tuple[dict[str, list[dict]], dict[str, dict]]:
 		case(
 			"docreq_je_nothing",
 			"document_required",
-			"vat_payer",
+			REGIME_VAT_PAYER,
 			VAT_DATE,
 			{"doctype": "Journal Entry", "fields": {}},
 			{"allowed": False, "message_contains": "13.7"},
@@ -944,7 +948,7 @@ def build() -> tuple[dict[str, list[dict]], dict[str, dict]]:
 		case(
 			"docreq_pi_attachment_only",
 			"document_required",
-			"simplified_1pct",
+			REGIME_SIMPLIFIED,
 			SIMPLIFIED_DATE,
 			{"doctype": "Purchase Invoice", "fields": {"has_attachment": True}},
 			{"allowed": True},
@@ -953,7 +957,7 @@ def build() -> tuple[dict[str, list[dict]], dict[str, dict]]:
 		case(
 			"docreq_je_primary_ref",
 			"document_required",
-			"simplified_1pct",
+			REGIME_SIMPLIFIED,
 			SIMPLIFIED_DATE,
 			{
 				"doctype": "Journal Entry",
@@ -965,7 +969,7 @@ def build() -> tuple[dict[str, list[dict]], dict[str, dict]]:
 		case(
 			"docreq_nyabo_without_explanation",
 			"document_required",
-			"vat_payer",
+			REGIME_VAT_PAYER,
 			VAT_DATE,
 			{
 				"doctype": "Purchase Invoice",
@@ -988,7 +992,7 @@ def build() -> tuple[dict[str, list[dict]], dict[str, dict]]:
 		case(
 			"lock_inside_closed_month",
 			"period_lock",
-			"vat_payer",
+			REGIME_VAT_PAYER,
 			"2026-03-15",
 			{"closed_periods": march, "posting_date": "2026-03-15"},
 			{"allowed": False, "message_contains": "2026-03"},
@@ -997,7 +1001,7 @@ def build() -> tuple[dict[str, list[dict]], dict[str, dict]]:
 		case(
 			"lock_day_after_close",
 			"period_lock",
-			"vat_payer",
+			REGIME_VAT_PAYER,
 			"2026-04-01",
 			{"closed_periods": march, "posting_date": "2026-04-01"},
 			{"allowed": True},
@@ -1006,7 +1010,7 @@ def build() -> tuple[dict[str, list[dict]], dict[str, dict]]:
 		case(
 			"lock_last_day_of_closed_month",
 			"period_lock",
-			"simplified_1pct",
+			REGIME_SIMPLIFIED,
 			"2026-03-31",
 			{"closed_periods": march, "posting_date": "2026-03-31"},
 			{"allowed": False, "message_contains": "2026-03"},
@@ -1015,7 +1019,7 @@ def build() -> tuple[dict[str, list[dict]], dict[str, dict]]:
 		case(
 			"lock_before_closed_month",
 			"period_lock",
-			"simplified_1pct",
+			REGIME_SIMPLIFIED,
 			"2026-02-28",
 			{"closed_periods": march, "posting_date": "2026-02-28"},
 			{"allowed": True},
@@ -1024,7 +1028,7 @@ def build() -> tuple[dict[str, list[dict]], dict[str, dict]]:
 		case(
 			"lock_two_closed_months",
 			"period_lock",
-			"vat_payer",
+			REGIME_VAT_PAYER,
 			"2026-04-15",
 			{"closed_periods": april, "posting_date": "2026-04-15"},
 			{"allowed": False, "message_contains": "2026-04"},
@@ -1061,7 +1065,7 @@ def build() -> tuple[dict[str, list[dict]], dict[str, dict]]:
 		case(
 			"fx_usd_invoice_rate_on_date",
 			"fx",
-			"vat_payer",
+			REGIME_VAT_PAYER,
 			VAT_DATE,
 			{"currency": "USD", "amount": "14.40", "fx_rates": rates, "description": "Google Workspace"},
 			{"rate": "3450.00", "amount_mnt": "49680.00", "fx_difference": None},
@@ -1070,7 +1074,7 @@ def build() -> tuple[dict[str, list[dict]], dict[str, dict]]:
 		case(
 			"fx_weekend_uses_last_published_rate",
 			"fx",
-			"simplified_1pct",
+			REGIME_SIMPLIFIED,
 			"2026-06-14",
 			{
 				"currency": "USD",
@@ -1084,7 +1088,7 @@ def build() -> tuple[dict[str, list[dict]], dict[str, dict]]:
 		case(
 			"fx_settlement_loss",
 			"fx",
-			"vat_payer",
+			REGIME_VAT_PAYER,
 			VAT_DATE,
 			{
 				"currency": "USD",

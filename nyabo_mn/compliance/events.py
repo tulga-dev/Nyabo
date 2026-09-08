@@ -3,8 +3,16 @@
 ERPNext keeps Version rows for tracked doctypes, but a Version can be deleted with the
 document and says nothing about *why* something happened. Nyabo writes its own row for
 every decision that the law wants traceable (period locked/reopened, entry reversed,
-injection suspected, ...). The DocType is never edited or deleted after insert; the two
+injection suspected, ...). The DocType is never edited or deleted after insert; the
 hook handlers below enforce that regardless of who holds which role.
+
+An event points at its document with a Dynamic Link, and an undeletable event made every
+document it named undeletable too - a draft proposal, a test receipt, a mistyped journal
+entry - because Frappe refuses to delete a row another row links to (F11). The fix is the
+``ignore_links_on_delete`` hook in ``nyabo_mn/hooks.py``, which is what Frappe reads when
+deleting; it changes nothing about the audit trail: the event still exists and still names
+the document. Which documents may be deleted at all stays where it belongs, in
+``compliance.hooks`` (retention, posted documents).
 """
 
 from __future__ import annotations
@@ -15,6 +23,8 @@ from typing import Any
 import frappe
 
 from nyabo_mn.i18n import mn
+
+EVENT_DOCTYPE = "Nyabo Event"
 
 
 def log(
@@ -34,7 +44,7 @@ def log(
 	"""
 	doc = frappe.get_doc(
 		{
-			"doctype": "Nyabo Event",
+			"doctype": EVENT_DOCTYPE,
 			"event_type": event_type,
 			"company": company,
 			"actor_user": frappe.session.user,

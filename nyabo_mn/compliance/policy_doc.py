@@ -19,8 +19,14 @@ from nyabo_mn.compliance.hooks import retention_years
 from nyabo_mn.i18n import mn
 from nyabo_mn.reports.accounts import chart_scheme
 from nyabo_mn.reports.month_end import is_vat_payer
+from nyabo_mn.rules import regime
 
 TEMPLATE = "nyabo_mn/templates/policy_document.html"
+# Regime keys from rules.regime, wording from i18n/mn.py: neither is spelled here (F-12).
+POLICY_REGIME_LABELS: dict[str, str] = {
+	regime.REGIME_VAT_PAYER: mn.POLICY_REGIME_VAT_PAYER,
+	regime.REGIME_SIMPLIFIED: mn.POLICY_REGIME_SIMPLIFIED,
+}
 
 
 def _settings(company: str) -> Any:
@@ -40,11 +46,12 @@ def context(company: str) -> dict[str, Any]:
 	company_doc = frappe.get_doc("Company", company)
 	today = dt.date.fromisoformat(nowdate())
 	vat = is_vat_payer(company, today)
-	regime_key = None if vat is None else ("vat_payer" if vat else "simplified_1pct")
+	# The regime name comes from rules.regime, never from a literal here (F-12).
+	regime_key = None if vat is None else regime.name_for_vat_status(vat)
 	values = {
 		"company": company,
 		"tax_id": company_doc.get("tax_id") or mn.POLICY_UNKNOWN,
-		"regime": _label(mn.POLICY_REGIME_LABELS, regime_key),
+		"regime": _label(POLICY_REGIME_LABELS, regime_key),
 		"chart_scheme": _label(mn.POLICY_CHART_SCHEME_LABELS, chart_scheme(company)),
 		"inventory_method": _label(mn.POLICY_INVENTORY_LABELS, settings.get("inventory_method")),
 		"has_inventory": mn.BTN_YES if settings.get("has_inventory") else mn.BTN_NO,

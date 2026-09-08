@@ -32,6 +32,9 @@ PARTY_DOCTYPES: dict[str, str] = {
 	"Supplier": "tax_id",
 	"Customer": "tax_id",
 }
+# Financial Report Templates Nyabo ships (setup/install.py owns the sync).
+TEMPLATE_DOCTYPE = "Financial Report Template"
+TEMPLATE_CHECKSUM_FIELD = "nyabo_shipped_checksum"
 LINK_FIELDS: tuple[tuple[str, str, str], ...] = (
 	# fieldname, target doctype, label
 	("source_document", "Nyabo Document", mn.LBL_SOURCE_DOCUMENT),
@@ -144,6 +147,28 @@ def party_fields(insert_after: str, doctype: str = "Customer") -> list[dict]:
 	return fields
 
 
+def template_ownership_fields(insert_after: str) -> list[dict]:
+	"""The checksum ``setup.install`` stamps on a Financial Report Template it wrote (F9).
+
+	Hidden and read-only: it is bookkeeping for the migrate, not something to fill in. It
+	says "this is exactly what Nyabo shipped", so a later migrate may replace the row with a
+	corrected template, and an accountant's edit (which changes the content, not the stamp)
+	is left alone.
+	"""
+	return [
+		dict(
+			fieldname=TEMPLATE_CHECKSUM_FIELD,
+			fieldtype="Data",
+			label=mn.LBL_NYABO_TEMPLATE_CHECKSUM,
+			insert_after=insert_after,
+			read_only=1,
+			hidden=1,
+			no_copy=1,
+			print_hide=1,
+		)
+	]
+
+
 def get_custom_fields() -> dict[str, list[dict]]:
 	"""Only doctypes that exist on this site; insert_after verified against the meta."""
 	fields: dict[str, list[dict]] = {}
@@ -153,6 +178,8 @@ def get_custom_fields() -> dict[str, list[dict]]:
 	for doctype, preferred in PARTY_DOCTYPES.items():
 		if frappe.db.exists("DocType", doctype):
 			fields[doctype] = party_fields(_insert_after(doctype, preferred), doctype)
+	if frappe.db.exists("DocType", TEMPLATE_DOCTYPE):
+		fields[TEMPLATE_DOCTYPE] = template_ownership_fields(_insert_after(TEMPLATE_DOCTYPE, "disabled"))
 	return fields
 
 

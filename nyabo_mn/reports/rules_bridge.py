@@ -1,10 +1,16 @@
 """Tax-parameter rows and the verified guard for the report side.
 
 A thin bridge over ``nyabo_mn.rules.params`` / ``nyabo_mn.rules.guard`` that keeps the
-report-side signatures (``parameter_on`` throws a Mongolian ``frappe.throw`` on a rule
-error; ``require_verified`` takes an explicit ``simulation`` flag for the report filter).
-``UnverifiedRuleError`` is the rules package's class, so callers catching either name
-behave the same.
+report-side signature (``parameter_on`` throws a Mongolian ``frappe.throw`` on a rule
+error). ``UnverifiedRuleError`` is the rules package's class, so callers catching either
+name behave the same.
+
+``require_verified`` takes no ``simulation`` argument (F-11): it used to, and a desk
+report filter passed one, so anyone who could open the report could switch off the
+verified guard on a statutory figure. The only bypass is ``frappe.flags.nyabo_simulation``
+- set by the simulator and the tests, never by user input - which ``rules.guard`` reads
+itself. ``is_simulation()`` is re-exported so a report can *label* a figure without being
+able to change how it was guarded.
 """
 
 from __future__ import annotations
@@ -18,7 +24,14 @@ from nyabo_mn.core.rules_engine import ParameterRow, RuleError
 from nyabo_mn.rules import guard, params
 from nyabo_mn.rules.guard import UnverifiedRuleError
 
-__all__ = ["UnverifiedRuleError", "parameter_on", "require_verified", "row_summary", "tax_parameter_rows"]
+__all__ = [
+	"UnverifiedRuleError",
+	"is_simulation",
+	"parameter_on",
+	"require_verified",
+	"row_summary",
+	"tax_parameter_rows",
+]
 
 
 def tax_parameter_rows(key: str) -> list[ParameterRow]:
@@ -39,14 +52,18 @@ def parameter_on(key: str, on_date: dt.date) -> ParameterRow:
 		raise  # unreachable
 
 
-def require_verified(row: ParameterRow, *, simulation: bool = False) -> None:
-	"""Refuse an unverified parameter unless the caller is a simulation (the report filter, dry runs).
+def is_simulation() -> bool:
+	"""True while ``frappe.flags.nyabo_simulation`` is set - for labelling a figure, not for guarding it."""
+	return guard.is_simulation()
 
-	``rules.guard.require_verified`` also honours ``frappe.flags.nyabo_simulation`` (tests,
-	the simulator).
+
+def require_verified(row: ParameterRow) -> None:
+	"""Refuse an unverified parameter for a statutory figure (F-11).
+
+	No caller-supplied bypass: ``rules.guard.require_verified`` decides, and its only
+	exemption is ``frappe.flags.nyabo_simulation``. A number nobody checked must not reach
+	a tax return because someone ticked a box on a report.
 	"""
-	if simulation:
-		return
 	guard.require_verified(row)
 
 

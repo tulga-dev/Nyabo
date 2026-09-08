@@ -279,6 +279,16 @@ WARN_SIMPLIFIED_OVER_THRESHOLD = (
 	"⚠️ Өмнөх жилийн бүртгэлийн орлого {revenue}₮ нь хялбаршуулсан горимын босго {threshold}₮-өөс давсан "
 	"байна (ААНОАТ 29.1); горимд хамаарах эсэхийг нягтлан баталгаажуулна уу."
 )
+# The 1% base is operating (sales) revenue only — ААНОАТ 29.1 with 29.9. What was left out
+# is named, never dropped in silence.
+WARN_SIMPLIFIED_NON_OPERATING_EXCLUDED = (
+	"⚠️ Үндсэн бус үйл ажиллагааны орлого, олз {amount}₮-г 1%-ийн татварын суурьт оруулаагүй "
+	"(ААНОАТ 29.1, 29.9); нягтлан бодогч шалгаж баталгаажуулна уу."
+)
+WARN_SIMPLIFIED_REVENUE_ROLES_UNKNOWN = (
+	"⚠️ Борлуулалтын орлогын дансдыг тодорхойлж чадсангүй тул орлогын бүх данс 1%-ийн суурьт орлоо "
+	"(ААНОАТ 29.1); нягтлан бодогч суурийг шалгана уу."
+)
 MSG_CLOSE_TRIAL_BALANCE_SOURCE_FALLBACK = (
 	"Гүйлгээ балансыг ерөнхий дэвтрийн бичилтээс шууд тооцов (ERPNext тайлан ашиглах боломжгүй)."
 )
@@ -369,10 +379,10 @@ POLICY_CHART_SCHEME_LABELS = {
 	"v03": "Сангийн яамны үлгэрчилсэн дансны төлөвлөгөө (Тушаал 116/2000) дээр суурилсан бүтэц",
 	"accountant": "Нягтлан бодогчийн өөрийн дансны төлөвлөгөө (Нябо-гийн зүйлчлэлтэй)",
 }
-POLICY_REGIME_LABELS = {
-	"vat_payer": "НӨАТ төлөгч; НӨАТ-ын тайланг сар бүр гаргана",
-	"simplified_1pct": "НӨАТ төлөгч бус; хялбаршуулсан 1%-ийн горим (улирал бүр)",
-}
+# Keyed by the regime name in nyabo_mn.rules.regime, which builds the mapping (F-12): this
+# module holds the wording, never the rule keys.
+POLICY_REGIME_VAT_PAYER = "НӨАТ төлөгч; НӨАТ-ын тайланг сар бүр гаргана"
+POLICY_REGIME_SIMPLIFIED = "НӨАТ төлөгч бус; хялбаршуулсан 1%-ийн горим (улирал бүр)"
 POLICY_INVENTORY_LABELS = {
 	"FIFO": "Эхэлж авснаа эхэлж зарлагадах (FIFO)",
 	"Weighted Average": "Жигнэсэн дундаж өртөг",
@@ -737,6 +747,7 @@ LBL_NYABO_CORRECTS = "Залруулж буй баримт"
 LBL_NYABO_APPROVED_BY = "Баталсан (Нябо)"
 LBL_NYABO_PRIMARY_DOCUMENT_REF = "Анхан шатны баримтын лавлагаа"
 LBL_NYABO_RETAIN_UNTIL = "Хадгалах хугацаа (хүртэл)"
+LBL_NYABO_TEMPLATE_CHECKSUM = "Нябо-гийн үлгэрийн хяналтын нийлбэр"
 LBL_REGISTER_NO = "Регистрийн дугаар"
 LBL_TIN = "ТТД (TIN)"
 LBL_EBARIMT_VAT_PAYER = "НӨАТ төлөгч (ebarimt бүртгэл)"

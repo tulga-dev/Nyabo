@@ -5,6 +5,11 @@ and the primary document. An MNT account renders the МГ-1 columns; a foreign-c
 account adds Ханш / Гүйлгээний дүн гадаад валютаар / төгрөгөөр (МГ-2). Opening and
 closing balances come from ``get_balance_on`` so the form's Эхний / Эцсийн үлдэгдэл rows
 can be printed by the PDF template.
+
+The last row is the form's Нийт дүн line, built here (``gl.totals_row``) and not by
+Frappe's ``add_total_row``, which also totalled the row numbers and, on МГ-2, the exchange
+rates (F10); the report's ``add_total_row`` is 0 and ``execute`` returns ``skip_total_row``
+as well, so a site whose Report row still carries the old flag prints one honest total.
 """
 
 from __future__ import annotations
@@ -71,10 +76,10 @@ def _balance(account: str, on_date: Any, company: str) -> Decimal:
 
 def execute(
 	filters: Any = None,
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]], None, None, list[dict[str, Any]]]:
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], None, None, list[dict[str, Any]], int]:
 	filters = frappe._dict(filters or {})
 	if not (filters.company and filters.from_date and filters.to_date):
-		return columns(False), [], None, None, []
+		return columns(False), [], None, None, [], 1
 	company_currency = frappe.get_cached_value("Company", filters.company, "default_currency")
 	selected = [filters.account] if filters.get("account") else accounts.cash_bank_accounts(filters.company)
 	foreign = any((accounts.account_currency(a) or company_currency) != company_currency for a in selected)
@@ -105,6 +110,12 @@ def execute(
 			entry["amount_fx"] = float(fx_amount)
 			entry["rate"] = float(quantize(mnt_amount / fx_amount)) if fx_amount else None
 		data.append(entry)
+	if data:
+		# The МГ-2 Гүйлгээний дүн гадаад валютаар column is totalled only when every row is in
+		# one currency; mixed currencies have no meaningful sum, and Ханш is never totalled.
+		currencies = {entry.get("currency") for entry in data} if foreign else set()
+		amount_fields = ("debit", "credit") + (("amount_fx",) if len(currencies) == 1 else ())
+		data.append(gl.totals_row(data, label_field="remarks", amount_fields=amount_fields))
 	summary = [
 		{
 			"label": f"{mn.COL_OPENING} ({a})",
@@ -120,4 +131,4 @@ def execute(
 		}
 		for a in selected
 	]
-	return columns(foreign), data, None, None, summary
+	return columns(foreign), data, None, None, summary, 1

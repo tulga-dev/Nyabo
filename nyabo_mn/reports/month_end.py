@@ -167,8 +167,12 @@ def is_vat_payer(company: str, on_date: dt.date) -> bool | None:
 		return None
 
 
-def summaries(company: str, period: str, *, simulation: bool = False) -> dict[str, Any]:
-	"""Chat lines and PDFs for the close card: trial balance + VAT (monthly) or 1% (quarterly)."""
+def summaries(company: str, period: str) -> dict[str, Any]:
+	"""Chat lines and PDFs for the close card: trial balance + VAT (monthly) or 1% (quarterly).
+
+	No ``simulation`` argument (F-11): the verified guard on the 1% rate is decided by
+	``frappe.flags.nyabo_simulation`` alone, so a caller cannot ask for an unguarded figure.
+	"""
 	start, end = gl.range_of(period)
 	tb = trial_balance(company, period)
 	text_lines = [mn.MSG_CLOSE_TRIAL_BALANCE.format(debit=fmt_mnt(tb["debit"]), credit=fmt_mnt(tb["credit"]))]
@@ -189,7 +193,7 @@ def summaries(company: str, period: str, *, simulation: bool = False) -> dict[st
 		)
 	else:
 		quarter = f"{end.year}-Q{quarter_of(end)}"
-		summary = simplified_summary.compute(company, quarter, simulation=simulation)
+		summary = simplified_summary.compute(company, quarter)
 		text_lines.append(
 			mn.MSG_CLOSE_SIMPLIFIED_SUMMARY.format(
 				revenue=fmt_mnt(summary["revenue"]),
@@ -207,7 +211,7 @@ def summaries(company: str, period: str, *, simulation: bool = False) -> dict[st
 		text_lines.extend(summary["warnings"])
 		pdfs["simplified_summary"] = export.report_to_pdf(
 			"Nyabo Simplified Tax Summary",
-			{**filters, "simulation": 1 if simulation else 0},
+			filters,
 			mn.REPORT_SIMPLIFIED_SUMMARY,
 			company,
 			quarter_label(end.year, quarter_of(end)),

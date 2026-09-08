@@ -1,4 +1,6 @@
-// Хялбаршуулсан горимын тойм (1%) — the quarter is derived from to_date; simulation shows unverified rates.
+// Хялбаршуулсан горимын тойм (1%) — the quarter is derived from to_date.
+// No Simulation filter: an unverified statutory rate is refused here too (F-11); only
+// frappe.flags.nyabo_simulation (the simulator, the tests) shows an unverified figure.
 frappe.query_reports["Nyabo Simplified Tax Summary"] = {
 	filters: [
 		{
@@ -22,12 +24,6 @@ frappe.query_reports["Nyabo Simplified Tax Summary"] = {
 			fieldtype: "Date",
 			default: frappe.datetime.quarter_end(),
 			reqd: 1,
-		},
-		{
-			fieldname: "simulation",
-			label: __("Simulation"),
-			fieldtype: "Check",
-			default: 0,
 		},
 	],
 };

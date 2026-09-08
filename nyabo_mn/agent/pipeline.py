@@ -105,7 +105,22 @@ def loads(value: Any) -> Any:
 
 
 def _today(now: dt.datetime | None) -> dt.date:
-	return (now or dt.datetime.now(dt.timezone.utc)).date()
+	"""The site's business date, not UTC's.
+
+	A receipt with no readable date is posted "today", and today in Ulaanbaatar (UTC+8) is
+	already tomorrow's date for eight hours of every UTC day: taking the UTC date would post
+	a night-time receipt into the previous day - and, on the 1st of a month, into a period
+	the accountant may already have closed. ``frappe.utils.nowdate`` is the site's own clock;
+	an explicit ``now`` (the caller's, and the tests') still wins.
+	"""
+	if now is not None:
+		return now.date()
+	try:
+		import frappe
+
+		return dt.date.fromisoformat(frappe.utils.nowdate())
+	except Exception:  # noqa: BLE001 - no site (pure-Python callers): fall back to the local clock
+		return dt.datetime.now().date()
 
 
 def _simulation() -> bool:
@@ -202,8 +217,31 @@ def tax_parameter_rows() -> list[rules_engine.ParameterRow]:
 	return [rules_engine.ParameterRow.from_dict(r) for r in load_seed("tax_parameters")["rows"]]
 
 
-def vat_rate(on_date: dt.date) -> Decimal:
-	return rules_engine.parameter_decimal(tax_parameter_rows(), VAT_RATE_KEY, on_date)
+def tax_parameter(key: str, on_date: dt.date, *, allow_unverified: bool = False) -> rules_engine.ParameterRow:
+	"""The dated tax-parameter row through ``rules.params`` (which applies ``rules.guard``).
+
+	WHY the bridge and not ``rules_engine.parameter_decimal`` on our own rows (F-09): the
+	engine resolves the date but knows nothing about ``verified``, so a rate an admin has
+	not checked would silently size the VAT of a proposal that a tap then posts. ``params.get``
+	is the one guarded lookup (§1.2); its only bypass is ``frappe.flags.nyabo_simulation``,
+	inside ``rules.guard``. Callers that merely build templates or display a value pass
+	``allow_unverified=True`` (setup.taxes does, for exactly that reason).
+	"""
+	try:
+		from nyabo_mn.rules import params as rules_params  # type: ignore[import-not-found]
+	except ImportError:
+		rules_params = None
+	if rules_params is not None and hasattr(rules_params, "get"):
+		return rules_params.get(key, on_date, allow_unverified=allow_unverified)
+	row = rules_engine.resolve_parameter(tax_parameter_rows(), key, on_date)
+	if not allow_unverified:
+		_require_verified_rule(row, key)
+	return row
+
+
+def vat_rate(on_date: dt.date, *, allow_unverified: bool = False) -> Decimal:
+	"""The VAT rate in force on the date, refused when the row is unverified (see ``tax_parameter``)."""
+	return tax_parameter(VAT_RATE_KEY, on_date, allow_unverified=allow_unverified).as_decimal()
 
 
 def _has_rows(doctype: str) -> bool:
@@ -246,20 +284,29 @@ def pattern_by_id(pattern_id: str) -> rules_engine.PatternSpec:
 	)
 
 
-def require_verified(pattern: rules_engine.PatternSpec) -> None:
-	"""``rules.guard.require_verified`` when available; refuses an unverified pattern for a real posting."""
+def _require_verified_rule(rule: Any, label: str) -> None:
+	"""``rules.guard.require_verified`` when the package is importable, else the same check locally.
+
+	One helper for every rule shape (pattern, tax-parameter row) so the guard - and its
+	single ``frappe.flags.nyabo_simulation`` bypass - is applied in exactly one way.
+	"""
 	try:
 		from nyabo_mn.rules import guard  # type: ignore[import-not-found]
 	except ImportError:
 		guard = None
 	if guard is not None and hasattr(guard, "require_verified"):
-		guard.require_verified(pattern)
+		guard.require_verified(rule)
 		return
-	if not pattern.verified:
+	if not getattr(rule, "verified", False):
 		raise UnverifiedRuleError(
-			f"posting pattern {pattern.pattern_id!r} is not verified",
-			mn.MSG_UNVERIFIED_RULE_BLOCKED.format(rule=pattern.pattern_id),
+			f"rule {label!r} is not verified",
+			mn.MSG_UNVERIFIED_RULE_BLOCKED.format(rule=label),
 		)
+
+
+def require_verified(pattern: rules_engine.PatternSpec) -> None:
+	"""``rules.guard.require_verified`` when available; refuses an unverified pattern for a real posting."""
+	_require_verified_rule(pattern, pattern.pattern_id)
 
 
 # --- chart, schemes, code resolution ----------------------------------------------------------------
@@ -666,6 +713,9 @@ def _run(
 	company = document.company
 	settings_row = company_settings(company)
 	site_settings = _settings_obj()
+	# ``now`` is a UTC timestamp for the call records; the *posting date* must be the site's
+	# business date, so ``_today`` is asked only what the caller actually supplied.
+	given_now = now
 	now = now or dt.datetime.now(dt.timezone.utc)
 	warnings: list[str] = []
 	needs_accountant = False
@@ -706,7 +756,7 @@ def _run(
 	# Dates and regime
 	posting_date = receipt.date
 	if posting_date is None:
-		posting_date = _today(now)
+		posting_date = _today(given_now)
 		warnings.append(mn.MSG_DATE_DEFAULTED_TODAY)
 		needs_accountant = True
 	ctx = regime_context(company, posting_date)
@@ -1198,6 +1248,7 @@ __all__ = [
 	"require_verified",
 	"role_code",
 	"send_card",
+	"tax_parameter",
 	"tax_parameter_rows",
 	"vat_rate",
 	"write_event",

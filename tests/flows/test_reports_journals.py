@@ -45,7 +45,7 @@ def test_general_journal_returns_rows_in_form_order(journal):
 		mn.COL_DESCRIPTION,
 	]
 	assert mn.COL_DEBIT in labels and mn.COL_CREDIT in labels and mn.COL_PRIMARY_DOCUMENT in labels
-	rows = result["result"]
+	rows = [r for r in result["result"] if r.get("row_no")]
 	assert len(rows) == 4 and [r["row_no"] for r in rows] == [1, 2, 3, 4]
 	first = [r for r in rows if r["voucher_no"] == je.name]
 	assert {(r["account"], r["debit"], r["credit"]) for r in first} == {
@@ -70,7 +70,7 @@ def test_cash_journal_lists_cash_and_bank_rows_with_balances(journal):
 	result = query_report.run(
 		"Nyabo Cash Journal", filters={"company": company, **FILTERS}, ignore_prepared_report=True
 	)
-	rows = result["result"]
+	rows = [r for r in result["result"] if r.get("row_no")]
 	assert [r["account"] for r in rows] == [CASH, BANK]
 	assert rows[0]["credit"] == 85000.0 and rows[0]["against"] == EXPENSE and rows[0]["voucher_no"] == je.name
 	assert rows[1]["credit"] == 30000.0 and rows[1]["reference"] == "Гэрээ 7"
@@ -84,7 +84,33 @@ def test_cash_journal_lists_cash_and_bank_rows_with_balances(journal):
 		filters={"company": company, "account": BANK, **FILTERS},
 		ignore_prepared_report=True,
 	)
-	assert [r["account"] for r in only_bank["result"]] == [BANK]
+	assert [r["account"] for r in only_bank["result"] if r.get("row_no")] == [BANK]
+
+
+def test_journals_total_only_the_money_columns(journal):
+	"""F10: add_total_row summed the row numbers (and the МГ-2 rate); the forms build their own."""
+	company = journal[0]
+	for report, label_field in (("Nyabo General Journal", "remarks"), ("Nyabo Cash Journal", "remarks")):
+		doc = query_report.get_report_doc(report)
+		assert not int(doc.get("add_total_row") or 0)
+		result = query_report.run(
+			report, filters={"company": company, **FILTERS}, ignore_prepared_report=True
+		)
+		assert result["skip_total_row"] == 1
+		total = result["result"][-1]
+		assert total[label_field] == mn.FORM_LBL_GRAND_TOTAL
+		body = result["result"][:-1]
+		assert total["debit"] == sum(r["debit"] for r in body)
+		assert total["credit"] == sum(r["credit"] for r in body)
+		# nothing else is summed: no row number, no counter-account, no rate
+		assert total.get("row_no") is None and total.get("against") is None
+		assert total.get("rate") is None and total.get("posting_date") is None
+	# the ЕЖ total ties to the trial balance
+	general = query_report.run(
+		"Nyabo General Journal", filters={"company": company, **FILTERS}, ignore_prepared_report=True
+	)
+	total = general["result"][-1]
+	assert total["debit"] == total["credit"] == 115000.0
 
 
 def test_general_journal_pdf_carries_the_mof_header_and_signatures(journal):
