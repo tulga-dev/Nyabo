@@ -12272,6 +12272,77 @@
    }
   ]
  },
+ "UOM": {
+  "autoname": "field:uom_name",
+  "istable": 0,
+  "is_submittable": 0,
+  "track_changes": 0,
+  "permissions": [
+   {
+    "role": "Item Manager",
+    "read": 1,
+    "write": 1,
+    "create": 1,
+    "delete": 1
+   },
+   {
+    "role": "Stock Manager",
+    "read": 1
+   },
+   {
+    "role": "Stock User",
+    "read": 1
+   },
+   {
+    "role": "Sales User",
+    "read": 1
+   },
+   {
+    "role": "Sales Manager",
+    "read": 1
+   }
+  ],
+  "fields": [
+   {
+    "fieldname": "uom_name",
+    "fieldtype": "Data",
+    "reqd": 1,
+    "unique": 1,
+    "label": "UOM Name"
+   },
+   {
+    "fieldname": "symbol",
+    "fieldtype": "Data"
+   },
+   {
+    "fieldname": "common_code",
+    "fieldtype": "Data"
+   },
+   {
+    "fieldname": "description",
+    "fieldtype": "Small Text"
+   },
+   {
+    "fieldname": "column_break_obth",
+    "fieldtype": "Column Break"
+   },
+   {
+    "fieldname": "category",
+    "fieldtype": "Link",
+    "options": "UOM Category"
+   },
+   {
+    "fieldname": "enabled",
+    "fieldtype": "Check",
+    "default": "1"
+   },
+   {
+    "fieldname": "must_be_whole_number",
+    "fieldtype": "Check",
+    "default": "0"
+   }
+  ]
+ },
  "User": {
   "autoname": "",
   "istable": 0,

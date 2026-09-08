@@ -64,6 +64,11 @@ def role_code(role: str, scheme: str) -> str:
 	return str(code)
 
 
+def in_chart(company: str, code: str) -> bool:
+	"""True when the company's installed chart has an account with this number."""
+	return bool(frappe.db.exists("Account", {"company": company, "account_number": str(code)}))
+
+
 def alias_target(company: str, alias_code: str, scheme: str | None = None) -> str | None:
 	"""target_code of an alias row for the company (any alias scheme unless one is given)."""
 	filters: dict[str, Any] = {"company": company, "alias_code": str(alias_code)}
@@ -82,6 +87,13 @@ def resolve_code(company: str, code_or_alias: str, scheme: str | None = None) ->
 	company_scheme = chart_scheme(company)
 	if value.startswith(ROLE_PREFIX):
 		value = role_code(value[len(ROLE_PREFIX) :], company_scheme)
+		if company_scheme != SCHEME_ACCOUNTANT:
+			return value  # the role table already names a code of the installed chart
+		scheme = scheme or ALIAS_SCHEME_TEMPLATE
+	elif in_chart(company, value):
+		# V1 and v0.3 share codes such as 6110 with different meanings: a code that exists in
+		# the installed chart is that account, never an alias (D-017).
+		return value
 	seen = {value}
 	for _ in range(MAX_HOPS):
 		target = alias_target(company, value, scheme)
