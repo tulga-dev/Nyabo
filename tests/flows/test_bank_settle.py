@@ -465,6 +465,45 @@ def test_a_line_a_proposal_already_posted_may_not_also_be_settled(books, banks, 
 	assert get_balance_on(banks["khan_gl"]) == after_proposal
 
 
+def test_the_find_flow_on_an_already_proposed_line_offers_no_settlement(books, banks):
+	"""K4: the existing-proposal gate ``settlement_candidate`` applies was missing from the search.
+
+	A posted bank_line proposal has already credited the bank for this line, so ``settle``
+	refuses it (S10) — but [Баримт хайх] still returned the unpaid invoice with
+	``needs_settlement`` set, and ``match_chosen`` drew a live [Төлбөр бүртгэх] on it. Only the
+	tap said no, after the accountant had been told the button was theirs to press.
+	"""
+	from nyabo_mn.agent import post
+	from nyabo_mn.telegram.handlers import bank as bank_handler
+	from tests.flows.conftest import seed_patterns
+
+	pi = helpers.unpaid_purchase_invoice(books, "Хос ХХК", 50000, "2026-08-20")
+	_import(books, fixtures.khan_xlsx)
+	bt = _bt(withdrawal=50000.0)
+	# Before the proposal the search offers it, which is the behaviour being narrowed.
+	assert [c["voucher_name"] for c in match.find_candidates(bt.name, "Хос")] == [pi.name]
+
+	proposal = match.propose_expense(bt.name, "6210", "Administrator")
+	seed_patterns(verified=True, only=(rules.EXPENSE_PATTERN_ID,))
+	post.post_proposal(proposal, "Administrator")
+	assert rules.existing_proposal(bt.name) == proposal
+	assert match.settlement_candidate(bt.name) is None
+
+	found = match.find_candidates(bt.name, "Хос")
+	assert all(c["voucher_name"] != pi.name for c in found)
+	assert all(c["needs_settlement"] is False for c in found)
+
+	fake_bot.link_user(8109, "Accountant", books)
+	bot = fake_bot.FakeBotApi()
+	with api.use_bot(bot):
+		bank_handler.send_bank_card(bot, 8109, bt.name)
+	fake_bot.run(bot, fake_bot.callback_update(8109, f"b:{bt.name}:find", message_id=77))
+	outcome = fake_bot.run(bot, fake_bot.message_update(8109, "Хос"))
+	assert all(not c["needs_settlement"] for c in outcome["result"]["candidates"])
+	assert pi.name not in bot.last_text
+	assert all(":st:" not in data for data in bot.callback_datas())
+
+
 def test_a_foreign_currency_invoice_is_neither_offered_nor_settled(books, banks, as_user):
 	"""S13: outstanding_amount is in the invoice's currency, the line's amount in the bank's.
 

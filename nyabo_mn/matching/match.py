@@ -576,6 +576,11 @@ def find_candidates(
 	the document behind the line, and refusing to show the very invoice this payment
 	settles would send them away empty-handed. Choosing one leads to [Төлбөр бүртгэх],
 	not to a reconcile — ``reconcile`` refuses it.
+
+	Except on a line a Nyabo Proposal already explains. ``settlement_candidate`` gates on that
+	and ``settle`` refuses it (S10, one statement line is one credit to the bank), so the
+	search must not offer the unpaid invoice either: it rendered a live [Төлбөр бүртгэх] that
+	only the tap turned down, which is a dead end with the button's own promise broken.
 	"""
 	import frappe
 
@@ -588,8 +593,10 @@ def find_candidates(
 	candidates = candidates_for(str(bt["company"]), gl_account, direction=direction)
 	# The open-invoice list is exactly the set that needs a Payment Entry, so membership in it
 	# is the ``needs_settlement`` flag: no ``settlement_needed`` round trip per candidate (S5).
-	open_invoices = open_invoice_candidates(
-		str(bt["company"]), direction=direction, currency=line.currency or None
+	open_invoices = (
+		[]
+		if rules_mod.existing_proposal(bank_transaction_name)
+		else open_invoice_candidates(str(bt["company"]), direction=direction, currency=line.currency or None)
 	)
 	settlement_keys = {(c.doctype, c.name) for c in open_invoices}
 	candidates += open_invoices
