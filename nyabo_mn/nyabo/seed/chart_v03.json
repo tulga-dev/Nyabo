@@ -1,0 +1,666 @@
+{
+  "_comment": "DRAFT v0.3 for nyabo_mn (8 Sep 2026). Re-based on the Ministry of Finance model chart classes (Order 116/2000) as tabulated in docs/mn-rules-reference.md section 2: two-digit class + two-digit sub-account = 4-digit CCSS codes; class groups carry the class code, leaves carry CCSS. Class names are verbatim from the reference; sub-account names are Nyabo drafts (the model only gives guidance, not names) and MUST be reconciled with the accountant's real chart. Classes 13, 18, 32, 52, 71, 84, 87, 92 added per the reference's recommendation. ERPNext account_type values verified against erpnext/accounts/doctype/account/account.json on branch version-16; account_category names are the ones used by erpnext/accounts/doctype/account/chart_of_accounts/verified/standard_chart_of_accounts.py (version-16) and are dropped by chart_db._drop_unknown_categories if a site lacks them. Class 92 sits under the Equity root because ERPNext's Period Closing Voucher requires a Liability/Equity closing account. Root accounts carry no account_number. V1 codes are mapped in aliases_v1_to_v03.json. Every _comment key is stripped by nyabo_mn.setup.chart.normalize before ERPNext sees the tree.",
+  "country_code": "mn",
+  "name": "Монгол - ЖДҮ v0.3 (Nyabo)",
+  "_company_defaults_by_code": {
+    "_comment": "Proposed replacement for COMPANY_DEFAULTS_BY_CODE in setup/provision_company.py (Company fieldnames verified in erpnext/setup/doctype/company/company.json, version-16). Documentation only; the loader ignores this key.",
+    "default_cash_account": "1001",
+    "default_bank_account": "1101",
+    "default_receivable_account": "1201",
+    "default_payable_account": "3101",
+    "default_income_account": "5101",
+    "default_expense_account": "7090",
+    "round_off_account": "7091",
+    "write_off_account": "7014",
+    "exchange_gain_loss_account": "8701",
+    "unrealized_exchange_gain_loss_account": "8701",
+    "accumulated_depreciation_account": "2090",
+    "depreciation_expense_account": "7010",
+    "capital_work_in_progress_account": "2010",
+    "asset_received_but_not_billed": "3103",
+    "disposal_account": "8703",
+    "default_inventory_account": "1501",
+    "stock_received_but_not_billed": "3102",
+    "stock_adjustment_account": "6110",
+    "expenses_included_in_valuation": "6111",
+    "expenses_added_to_stock_account": "6111",
+    "default_deferred_revenue_account": "3202",
+    "default_deferred_expense_account": "1801",
+    "default_discount_account": "5201"
+  },
+  "tree": {
+    "Хөрөнгө": {
+      "root_type": "Asset",
+      "Кассад байгаа бэлэн мөнгө": {
+        "account_number": "10",
+        "Касс МНТ": {
+          "account_number": "1001",
+          "account_type": "Cash",
+          "account_category": "Cash and Cash Equivalents",
+          "_comment": "V1 1110. Company.default_cash_account"
+        },
+        "Жижиг мөнгөн сан": {
+          "account_number": "1002",
+          "account_type": "Cash",
+          "account_category": "Cash and Cash Equivalents",
+          "_comment": "petty cash fund (reference §3: Дт Жижиг мөнгөн сан — Кт Мөнгө)"
+        }
+      },
+      "Банкинд байгаа мөнгө": {
+        "account_number": "11",
+        "Банк МНТ": {
+          "account_number": "1101",
+          "account_type": "Bank",
+          "account_category": "Cash and Cash Equivalents",
+          "_comment": "V1 1120. Company.default_bank_account. Add one leaf per bank per client; FX bank accounts need account_currency != MNT, which chart.py currently overrides"
+        },
+        "Замд яваа мөнгө (карт, QPay төлбөр)": {
+          "account_number": "1102",
+          "account_type": "Bank",
+          "account_category": "Cash and Cash Equivalents",
+          "_comment": "card / QPay / SocialPay settlements not yet in the bank statement; Bank type so Payment Entry can receive into it, then a bank transfer clears it to 1101"
+        }
+      },
+      "Авлага (дансны, бусад)": {
+        "account_number": "12",
+        "Дансны авлага": {
+          "account_number": "1201",
+          "account_type": "Receivable",
+          "account_category": "Trade Receivables",
+          "_comment": "V1 1310. Company.default_receivable_account"
+        },
+        "Ажилтнаас авах авлага": {
+          "account_number": "1202",
+          "account_category": "Other Receivables",
+          "_comment": "staff advances (model guidance for class 12)"
+        },
+        "НӨАТ-ын авлага": {
+          "account_number": "1210",
+          "account_type": "Tax",
+          "account_category": "Other Current Assets",
+          "tax_rate": 10.0,
+          "_comment": "V1 1810. Input VAT; purchase tax template account. tax_rate 10"
+        },
+        "Бусад татварын авлага": {
+          "account_number": "1211",
+          "account_type": "Tax",
+          "account_category": "Other Current Assets",
+          "_comment": "prepaid / overpaid CIT, PIT and other taxes"
+        },
+        "Найдваргүй авлагын хасагдуулга": {
+          "account_number": "1220",
+          "account_category": "Trade Receivables",
+          "_comment": "contra to 1201 (reference §3 bad debts: Кт Найдваргүй авлагын хасагдуулга)"
+        },
+        "Бусад авлага": {
+          "account_number": "1290",
+          "account_category": "Other Receivables"
+        }
+      },
+      "Богино хугацаат хөрөнгө оруулалт": {
+        "account_number": "13",
+        "Банкны хадгаламж": {
+          "account_number": "1301",
+          "account_category": "Short-term Investments",
+          "_comment": "term deposits (model: deposits, securities); class added per reference §2"
+        }
+      },
+      "Түүхий эд, материал": {
+        "account_number": "14",
+        "Түүхий эд, материалын нөөц": {
+          "account_number": "1401",
+          "account_type": "Stock",
+          "account_category": "Stock Assets",
+          "_comment": "raw materials; leaf name differs from class name so chart.validate() sees unique names"
+        }
+      },
+      "Дуусаагүй үйлдвэрлэл, бэлэн бүтээгдэхүүн, бараа, сав баглаа, түлш шатахуун, сэлбэг, мал, ажлын хувцас": {
+        "account_number": "15",
+        "_comment": "class name verbatim from reference §2; ~95 chars, ERPNext name '15 - <name> - <abbr>' stays under the 140-char limit but is unwieldy",
+        "Бараа": {
+          "account_number": "1501",
+          "account_type": "Stock",
+          "account_category": "Stock Assets",
+          "_comment": "V1 1410. Goods for resale; Company.default_inventory_account"
+        },
+        "Бэлэн бүтээгдэхүүн": {
+          "account_number": "1502",
+          "account_type": "Stock",
+          "account_category": "Stock Assets",
+          "_comment": "finished goods"
+        },
+        "Дуусаагүй үйлдвэрлэл": {
+          "account_number": "1503",
+          "account_type": "Stock",
+          "account_category": "Stock Assets",
+          "_comment": "work in progress (reference §3: Дт Зардал/Дуусаагүй үйлдвэрлэл — Кт Бараа материал)"
+        }
+      },
+      "Урьдчилж төлсөн зардал/тооцоо": {
+        "account_number": "18",
+        "_comment": "class added per reference §2",
+        "Урьдчилж төлсөн зардал": {
+          "account_number": "1801",
+          "account_category": "Other Current Assets",
+          "_comment": "prepaid rent/insurance (reference §3); candidate Company.default_deferred_expense_account"
+        },
+        "Нийлүүлэгчид өгсөн урьдчилгаа": {
+          "account_number": "1802",
+          "account_category": "Other Current Assets",
+          "_comment": "advances paid to suppliers; candidate Company.default_advance_paid_account — UNCONFIRMED whether ERPNext v16 requires account_type Payable on it"
+        },
+        "Түр нээлтийн данс": {
+          "account_number": "1890",
+          "account_type": "Temporary",
+          "_comment": "V1 1910. ERPNext Temporary Opening; no MoF class exists for it, parked in 18 (тооцоо). No account_category on purpose"
+        }
+      },
+      "Үндсэн хөрөнгө / элэгдэл": {
+        "account_number": "20",
+        "Барилга, байгууламж": {
+          "account_number": "2001",
+          "account_type": "Fixed Asset",
+          "account_category": "Tangible Assets"
+        },
+        "Машин, тоног төхөөрөмж": {
+          "account_number": "2002",
+          "account_type": "Fixed Asset",
+          "account_category": "Tangible Assets",
+          "_comment": "V1 1510 (single generic fixed-asset account) aliased here"
+        },
+        "Тээврийн хэрэгсэл": {
+          "account_number": "2003",
+          "account_type": "Fixed Asset",
+          "account_category": "Tangible Assets"
+        },
+        "Тавилга, эд хогшил": {
+          "account_number": "2004",
+          "account_type": "Fixed Asset",
+          "account_category": "Tangible Assets"
+        },
+        "Компьютер, оффисын техник": {
+          "account_number": "2005",
+          "account_type": "Fixed Asset",
+          "account_category": "Tangible Assets",
+          "_comment": "separate because CIT tax life for computers/software differs (reference §1.3, VERIFY)"
+        },
+        "Дуусаагүй барилга, хөрөнгө оруулалт": {
+          "account_number": "2010",
+          "account_type": "Capital Work in Progress",
+          "account_category": "Tangible Assets",
+          "_comment": "V1 1530. Company.capital_work_in_progress_account"
+        },
+        "Хуримтлагдсан элэгдэл": {
+          "account_number": "2090",
+          "account_type": "Accumulated Depreciation",
+          "account_category": "Tangible Assets",
+          "_comment": "V1 1519. Company.accumulated_depreciation_account; model says depreciation per class — split into 2091.. later if the accountant wants"
+        }
+      },
+      "Биет бус хөрөнгө": {
+        "account_number": "21",
+        "Программ хангамж, лиценз": {
+          "account_number": "2101",
+          "account_type": "Fixed Asset",
+          "account_category": "Intangible Assets",
+          "_comment": "intangibles use ERPNext Fixed Asset type (standard chart does the same for Software); amortisation goes to 2090 unless an Asset Category overrides it"
+        }
+      },
+      "Хөрөнгө оруулалт (урт хугацаат)": {
+        "account_number": "22",
+        "Урт хугацаат хөрөнгө оруулалт": {
+          "account_number": "2201",
+          "account_category": "Long-term Investments"
+        }
+      }
+    },
+    "Өр төлбөр": {
+      "root_type": "Liability",
+      "Дансны өглөг": {
+        "account_number": "31",
+        "Дансны өглөг (нийлүүлэгч)": {
+          "account_number": "3101",
+          "account_type": "Payable",
+          "account_category": "Trade Payables",
+          "_comment": "V1 2110. Company.default_payable_account. Suffix '(нийлүүлэгч)' only because chart.validate() rejects a leaf named exactly like its class"
+        },
+        "Хүлээн авсан, нэхэмжлээгүй бараа": {
+          "account_number": "3102",
+          "account_type": "Stock Received But Not Billed",
+          "account_category": "Trade Payables",
+          "_comment": "V1 2120. Company.stock_received_but_not_billed"
+        },
+        "Хүлээн авсан, нэхэмжлээгүй үндсэн хөрөнгө": {
+          "account_number": "3103",
+          "account_type": "Asset Received But Not Billed",
+          "account_category": "Trade Payables",
+          "_comment": "ERPNext v16 Company.asset_received_but_not_billed (set_default_accounts looks for this account_type)"
+        },
+        "НӨАТ-ын өглөг": {
+          "account_number": "3110",
+          "account_type": "Tax",
+          "account_category": "Current Tax Liabilities",
+          "tax_rate": 10.0,
+          "_comment": "V1 2210. Output VAT; sales tax template account. tax_rate 10"
+        },
+        "ААНОАТ-ын өглөг": {
+          "account_number": "3111",
+          "account_type": "Tax",
+          "account_category": "Current Tax Liabilities",
+          "_comment": "V1 2220. Corporate income tax payable"
+        },
+        "ХХОАТ-ын өглөг": {
+          "account_number": "3112",
+          "account_type": "Tax",
+          "account_category": "Current Tax Liabilities",
+          "_comment": "PIT withheld from salaries (reference §3 payroll)"
+        },
+        "НДШ-ийн өглөг": {
+          "account_number": "3113",
+          "account_category": "Other Current Liabilities",
+          "_comment": "social insurance payable (employee + employer share)"
+        },
+        "Бусад татвар, хураамжийн өглөг": {
+          "account_number": "3114",
+          "account_type": "Tax",
+          "account_category": "Current Tax Liabilities",
+          "_comment": "property tax and other taxes/fees (reference §3: Кт Хөрөнгийн татварын өглөг)"
+        },
+        "Цалингийн өглөг": {
+          "account_number": "3120",
+          "account_category": "Other Payables",
+          "_comment": "V1 2310. HRMS payroll payable"
+        }
+      },
+      "Бусад өглөг, урьдчилан төлөгдсөн орлого": {
+        "account_number": "32",
+        "_comment": "class added per reference §2",
+        "Худалдан авагчаас авсан урьдчилгаа": {
+          "account_number": "3201",
+          "account_category": "Other Current Liabilities",
+          "_comment": "customer prepayments (reference §3); candidate Company.default_advance_received_account — UNCONFIRMED whether ERPNext v16 requires account_type Receivable on it"
+        },
+        "Урьдчилан төлөгдсөн орлого": {
+          "account_number": "3202",
+          "account_category": "Other Current Liabilities",
+          "_comment": "deferred revenue recognised on delivery; candidate Company.default_deferred_revenue_account"
+        },
+        "Богино хугацаат зээл": {
+          "account_number": "3210",
+          "account_category": "Short-term Borrowings"
+        },
+        "Урт хугацаат зээл": {
+          "account_number": "3220",
+          "account_category": "Long-term Borrowings"
+        },
+        "Эзэмшигчээс авсан зээл": {
+          "account_number": "3230",
+          "account_category": "Other Payables",
+          "_comment": "owner loans to the company, very common in SMEs"
+        },
+        "Бусад өглөг": {
+          "account_number": "3290",
+          "account_category": "Other Payables"
+        }
+      }
+    },
+    "Эзэмшигчийн өмч": {
+      "root_type": "Equity",
+      "Эзэмшигчдийн өмч": {
+        "account_number": "41",
+        "_comment": "class name verbatim (Эзэмшигчдийн) differs from the root name (Эзэмшигчийн) by one letter; see open questions",
+        "Хувь нийлүүлсэн хөрөнгө": {
+          "account_number": "4101",
+          "account_type": "Equity",
+          "account_category": "Share Capital",
+          "_comment": "V1 3110"
+        },
+        "Нэмж төлөгдсөн капитал": {
+          "account_number": "4102",
+          "account_type": "Equity",
+          "account_category": "Share Capital",
+          "_comment": "additional paid-in capital"
+        },
+        "Хуримтлагдсан ашиг": {
+          "account_number": "4110",
+          "account_type": "Equity",
+          "account_category": "Reserves and Surplus",
+          "_comment": "V1 3210. Retained earnings; target of the year-end transfer from 9201"
+        },
+        "Тайлант үеийн цэвэр ашиг": {
+          "account_number": "4111",
+          "account_type": "Equity",
+          "account_category": "Reserves and Surplus",
+          "_comment": "current-year profit line of the MN statement of changes in equity"
+        },
+        "Эзний татан авалт": {
+          "account_number": "4120",
+          "account_type": "Equity",
+          "account_category": "Reserves and Surplus",
+          "_comment": "V1 3120. Owner drawings / dividends paid"
+        }
+      },
+      "Орлого, зарлагын нэгдсэн данс": {
+        "account_number": "92",
+        "_comment": "class added per reference §2; under Equity, not Expense, for ERPNext's closing voucher",
+        "Орлого, зарлагын хаалтын данс": {
+          "account_number": "9201",
+          "account_type": "Equity",
+          "account_category": "Reserves and Surplus",
+          "_comment": "Period Closing Voucher closing_account_head. Placed under the Equity root because erpnext/accounts/doctype/period_closing_voucher/period_closing_voucher.py check_closing_account_type requires root_type Liability or Equity; net result is then transferred to 4110 by journal"
+        }
+      }
+    },
+    "Орлого": {
+      "root_type": "Income",
+      "Борлуулалт": {
+        "account_number": "51",
+        "Борлуулалтын орлого": {
+          "account_number": "5101",
+          "account_type": "Income Account",
+          "account_category": "Revenue from Operations",
+          "_comment": "V1 4110. Company.default_income_account"
+        },
+        "Үйлчилгээний орлого": {
+          "account_number": "5102",
+          "account_type": "Income Account",
+          "account_category": "Revenue from Operations",
+          "_comment": "V1 4120"
+        },
+        "Экспортын борлуулалтын орлого": {
+          "account_number": "5103",
+          "account_type": "Income Account",
+          "account_category": "Revenue from Operations",
+          "_comment": "model: domestic/export split; zero-rated VAT"
+        }
+      },
+      "Борлуулалтын хөнгөлөлт, буцаалт": {
+        "account_number": "52",
+        "_comment": "class added per reference §2",
+        "Борлуулалтын хөнгөлөлт": {
+          "account_number": "5201",
+          "account_type": "Income Account",
+          "account_category": "Revenue from Operations",
+          "_comment": "contra-revenue (reference §3); candidate Company.default_discount_account"
+        },
+        "Борлуулалтын буцаалт": {
+          "account_number": "5202",
+          "account_type": "Income Account",
+          "account_category": "Revenue from Operations",
+          "_comment": "contra-revenue, sales returns"
+        }
+      },
+      "Үндсэн бус үйл ажиллагааны ашиг (олз)": {
+        "account_number": "84",
+        "_comment": "class added per reference §2",
+        "Ханшийн зөрүүний олз": {
+          "account_number": "8401",
+          "account_type": "Income Account",
+          "account_category": "Other Operating Income",
+          "_comment": "FX gains. ERPNext nets FX into one account (8701); reclassify credit balances here at period end if the statement needs the split"
+        },
+        "Хүүгийн орлого": {
+          "account_number": "8402",
+          "account_type": "Income Account",
+          "account_category": "Investment Income"
+        },
+        "Үндсэн хөрөнгө борлуулсны олз": {
+          "account_number": "8403",
+          "account_type": "Income Account",
+          "account_category": "Other Operating Income",
+          "_comment": "asset disposal gains; ERPNext Company.disposal_account is single (8703), reclassify gains here at period end"
+        },
+        "Үндсэн бус үйл ажиллагааны бусад орлого": {
+          "account_number": "8490",
+          "account_type": "Income Account",
+          "account_category": "Other Operating Income"
+        }
+      }
+    },
+    "Зардал": {
+      "root_type": "Expense",
+      "Борлуулсан бүтээгдэхүүний өртөг": {
+        "account_number": "61",
+        "Борлуулсан барааны өртөг": {
+          "account_number": "6101",
+          "account_type": "Cost of Goods Sold",
+          "account_category": "Cost of Goods Sold",
+          "_comment": "V1 5110. COGS for goods"
+        },
+        "Үзүүлсэн үйлчилгээний өртөг": {
+          "account_number": "6102",
+          "account_type": "Cost of Goods Sold",
+          "account_category": "Cost of Goods Sold",
+          "_comment": "direct cost of services"
+        },
+        "Бараа материалын тохируулга": {
+          "account_number": "6110",
+          "account_type": "Stock Adjustment",
+          "account_category": "Other Direct Costs",
+          "_comment": "V1 5120. Company.stock_adjustment_account"
+        },
+        "Үнэлгээнд орсон зардал": {
+          "account_number": "6111",
+          "account_type": "Expenses Included In Valuation",
+          "account_category": "Other Direct Costs",
+          "_comment": "V1 5130. Company.expenses_added_to_stock_account (v16 fieldname)"
+        }
+      },
+      "Удирдлагын зардал": {
+        "account_number": "70",
+        "Цалин хөлс, урамшуулал": {
+          "account_number": "7001",
+          "account_type": "Expense Account",
+          "account_category": "Operating Expenses",
+          "_comment": "V1 6110"
+        },
+        "Нийгмийн даатгалын шимтгэл": {
+          "account_number": "7002",
+          "account_type": "Expense Account",
+          "account_category": "Operating Expenses",
+          "_comment": "V1 6120. Employer social insurance"
+        },
+        "Шатахуун": {
+          "account_number": "7003",
+          "account_type": "Expense Account",
+          "account_category": "Operating Expenses",
+          "_comment": "V1 6210"
+        },
+        "Томилолтын зардал": {
+          "account_number": "7004",
+          "account_type": "Expense Account",
+          "account_category": "Operating Expenses",
+          "_comment": "travel (model guidance for class 70)"
+        },
+        "Түрээс": {
+          "account_number": "7005",
+          "account_type": "Expense Account",
+          "account_category": "Operating Expenses",
+          "_comment": "V1 6310"
+        },
+        "Цахилгаан, дулаан, ус": {
+          "account_number": "7006",
+          "account_type": "Expense Account",
+          "account_category": "Operating Expenses",
+          "_comment": "V1 6320"
+        },
+        "Холбоо, интернет": {
+          "account_number": "7007",
+          "account_type": "Expense Account",
+          "account_category": "Operating Expenses",
+          "_comment": "V1 6410"
+        },
+        "Бичиг хэрэг, оффисын зардал": {
+          "account_number": "7008",
+          "account_type": "Expense Account",
+          "account_category": "Operating Expenses",
+          "_comment": "V1 6510"
+        },
+        "Засвар үйлчилгээ": {
+          "account_number": "7009",
+          "account_type": "Expense Account",
+          "account_category": "Operating Expenses",
+          "_comment": "V1 6520"
+        },
+        "Элэгдэл, хорогдлын зардал": {
+          "account_number": "7010",
+          "account_type": "Depreciation",
+          "account_category": "Operating Expenses",
+          "_comment": "V1 6530. Company.depreciation_expense_account"
+        },
+        "Мэргэжлийн үйлчилгээ": {
+          "account_number": "7011",
+          "account_type": "Expense Account",
+          "account_category": "Operating Expenses",
+          "_comment": "V1 6710. Accounting, legal, consulting"
+        },
+        "Банкны үйлчилгээний хураамж": {
+          "account_number": "7012",
+          "account_type": "Expense Account",
+          "account_category": "Finance Costs",
+          "_comment": "V1 6810"
+        },
+        "Даатгалын зардал": {
+          "account_number": "7013",
+          "account_type": "Expense Account",
+          "account_category": "Operating Expenses"
+        },
+        "Найдваргүй авлагын зардал": {
+          "account_number": "7014",
+          "account_type": "Expense Account",
+          "account_category": "Operating Expenses",
+          "_comment": "V1 6940. Company.write_off_account"
+        },
+        "Хөрөнгийн албан татвар, бусад татвар хураамж": {
+          "account_number": "7015",
+          "account_type": "Expense Account",
+          "account_category": "Operating Expenses",
+          "_comment": "property tax, stamp duties, licence fees (reference §3); NOT income tax (see 9101)"
+        },
+        "Бусад үйл ажиллагааны зардал": {
+          "account_number": "7090",
+          "account_type": "Expense Account",
+          "account_category": "Operating Expenses",
+          "_comment": "V1 6910. Company.default_expense_account"
+        },
+        "Тоймлолтын зөрүү": {
+          "account_number": "7091",
+          "account_type": "Round Off",
+          "account_category": "Operating Expenses",
+          "_comment": "V1 6920. Company.round_off_account"
+        }
+      },
+      "Борлуулалтын зардал": {
+        "account_number": "71",
+        "_comment": "class added per reference §2",
+        "Зар сурталчилгаа, маркетингийн зардал": {
+          "account_number": "7101",
+          "account_type": "Expense Account",
+          "account_category": "Operating Expenses",
+          "_comment": "V1 6610"
+        },
+        "Тээвэр, хүргэлтийн зардал": {
+          "account_number": "7102",
+          "account_type": "Expense Account",
+          "account_category": "Operating Expenses",
+          "_comment": "V1 6220 (Тээврийн зардал) aliased here as delivery cost; see open questions"
+        },
+        "Борлуулалтын ажилтны цалин, урамшуулал": {
+          "account_number": "7103",
+          "account_type": "Expense Account",
+          "account_category": "Operating Expenses",
+          "_comment": "sales staff (model guidance for class 71)"
+        },
+        "Бусад борлуулалтын зардал": {
+          "account_number": "7190",
+          "account_type": "Expense Account",
+          "account_category": "Operating Expenses"
+        }
+      },
+      "Үндсэн бус үйл ажиллагааны алдагдал (гарз)": {
+        "account_number": "87",
+        "_comment": "class added per reference §2",
+        "Ханшийн зөрүүний гарз": {
+          "account_number": "8701",
+          "account_type": "Expense Account",
+          "account_category": "Finance Costs",
+          "_comment": "V1 6930. Company.exchange_gain_loss_account and unrealized_exchange_gain_loss_account (ERPNext posts net gain/loss here; gains reclassified to 8401 if needed)"
+        },
+        "Хүүгийн зардал": {
+          "account_number": "8702",
+          "account_type": "Expense Account",
+          "account_category": "Finance Costs",
+          "_comment": "interest on 3210/3220/3230"
+        },
+        "Үндсэн хөрөнгө данснаас хассаны гарз": {
+          "account_number": "8703",
+          "account_type": "Expense Account",
+          "account_category": "Operating Expenses",
+          "_comment": "Company.disposal_account (ERPNext nets disposal gain/loss here)"
+        },
+        "Үндсэн бус үйл ажиллагааны бусад зардал": {
+          "account_number": "8790",
+          "account_type": "Expense Account",
+          "account_category": "Operating Expenses"
+        }
+      },
+      "Орлогын албан татварын зардал": {
+        "account_number": "91",
+        "Аж ахуйн нэгжийн орлогын албан татвар": {
+          "account_number": "9101",
+          "account_type": "Expense Account",
+          "account_category": "Tax Expense",
+          "_comment": "V1 9110. Дт 9101 — Кт 3111"
+        }
+      }
+    }
+  },
+  "vat": {
+    "_comment": "Same shape as V1; codes re-based. 5103 (export) is zero-rated, not exempt, so it is in none of the three V1 buckets.",
+    "sales_taxes_template": {
+      "name": "НӨАТ 10%",
+      "rate": 10,
+      "account": "3110 НӨАТ-ын өглөг"
+    },
+    "purchase_taxes_template": {
+      "name": "Татан суутгах НӨАТ 10%",
+      "rate": 10,
+      "account": "1210 НӨАТ-ын авлага"
+    },
+    "item_tax_templates": [
+      {
+        "name": "НӨАТ-аас чөлөөлөгдсөн",
+        "rate": 0
+      },
+      {
+        "name": "Тэг хувийн НӨАТ",
+        "rate": 0
+      }
+    ],
+    "account_defaults_from_v1": {
+      "output_vat_10": [
+        "5101",
+        "5102"
+      ],
+      "input_vat_10": [
+        "6101",
+        "7003",
+        "7102",
+        "7005",
+        "7006",
+        "7007",
+        "7008",
+        "7009",
+        "7101",
+        "7011",
+        "7090"
+      ],
+      "exempt": [
+        "7001",
+        "7002",
+        "7012",
+        "9101"
+      ]
+    }
+  }
+}

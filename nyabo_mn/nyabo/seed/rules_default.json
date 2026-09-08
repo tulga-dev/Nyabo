@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "note": "Company-independent Nyabo Rule rows seeded per chart scheme by rules.seed.sync (company and scheme filled at provisioning). match_value of a bank_fee rule is a case-insensitive alternation of narrative keywords (nyabo_mn.core.matching.FEE_KEYWORDS).",
+  "rows": [
+    {
+      "rule_id": "bank_fee_v1",
+      "scheme": "v1",
+      "match_type": "bank_fee",
+      "match_value": "хураамж|шимтгэл|үйлчилгээний төлбөр|үйлчилгээний хураамж|comission|commission|service charge|fee",
+      "target_account_code": "6810",
+      "vat_treatment": "none",
+      "posting_pattern": "bank_fee_expense",
+      "source": "seed",
+      "status": "active",
+      "note": "Bank charges on the statement -> 6810 Банкны үйлчилгээний хураамж; still approved by a tap unless auto_approve_policy allows."
+    },
+    {
+      "rule_id": "bank_fee_v03",
+      "scheme": "v03",
+      "match_type": "bank_fee",
+      "match_value": "хураамж|шимтгэл|үйлчилгээний төлбөр|үйлчилгээний хураамж|comission|commission|service charge|fee",
+      "target_account_code": "7012",
+      "vat_treatment": "none",
+      "posting_pattern": "bank_fee_expense",
+      "source": "seed",
+      "status": "active",
+      "note": "Bank charges on the statement -> 7012 Банкны үйлчилгээний хураамж."
+    }
+  ]
+}
