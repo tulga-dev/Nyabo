@@ -275,7 +275,8 @@ def _find_header_row(rows: Sequence[Sequence[Any]], layout: LayoutSpec) -> int |
 	"""Row index of the header, from the hint or by looking for the mapped header texts."""
 	if layout.header_row_hint is not None and 0 <= layout.header_row_hint < len(rows):
 		return layout.header_row_hint
-	wanted = [norm_header(v) for v in layout.column_map.values() if isinstance(v, str)]
+	# JSON from the desk may carry column indexes as digit strings; those are not header texts.
+	wanted = [norm_header(v) for v in layout.column_map.values() if isinstance(v, str) and not v.isdigit()]
 	if not wanted:
 		wanted = [norm_header(h) for h in layout.header_signature]
 	if not wanted:
