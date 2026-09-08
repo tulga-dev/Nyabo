@@ -20,8 +20,14 @@ TOP_ACCOUNTS = 6
 
 def bank_line_text(txn_name: str) -> str:
 	try:
-		return _deps.render_bank_line(txn_name)
+		rendered = _deps.render_bank_line(txn_name)
 	except DependencyMissing:
+		rendered = None
+	if isinstance(rendered, tuple):  # matching.cards.render_bank_line -> (text, proposal name)
+		return str(rendered[0])
+	if isinstance(rendered, str):
+		return rendered
+	if True:
 		doc = frappe.get_doc(BANK_TRANSACTION, txn_name)
 		data = doc.as_dict()
 		if doc.bank_account:
@@ -42,7 +48,7 @@ def handle_callback(ctx: Ctx, parts: list[str]) -> Any:
 		return None
 	_prefix, name, action, *rest = parts
 	if not frappe.db.exists(BANK_TRANSACTION, name):
-		ctx.answer(mn.MSG_BANK_TRANSACTION_NOT_FOUND, show_alert=True)
+		ctx.answer(mn.MSG_BANK_TRANSACTION_NOT_FOUND.format(name=name), show_alert=True)
 		return None
 	if action == "find":
 		ctx.set_state(STATE_FIND, {"bank_transaction": name, "message_id": ctx.callback_message_id})

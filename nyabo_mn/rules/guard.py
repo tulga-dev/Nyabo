@@ -24,7 +24,10 @@ class UnverifiedRuleError(frappe.ValidationError):
 
 	def __init__(self, rule: str):
 		self.rule = rule
-		super().__init__(mn.MSG_UNVERIFIED_RULE_BLOCKED.format(rule=rule))
+		# `message_mn` is the attribute every Nyabo refusal exposes; the pipeline's failure
+		# handler and the Telegram reply read it without knowing which module raised.
+		self.message_mn = mn.MSG_UNVERIFIED_RULE_BLOCKED.format(rule=rule)
+		super().__init__(self.message_mn)
 
 
 def is_simulation() -> bool:
