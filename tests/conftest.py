@@ -4,6 +4,10 @@ Pure-Python tests (core, agent, ...) need nothing from here beyond the path. Tes
 touch Frappe ask for the ``site`` fixture (fresh stub site) or ``company`` (a provisioned
 "Тест ХХК"), and use ``as_user`` / ``frappe_flags`` / ``frappe_hooks`` to change the
 session, the flags or the hooks for one block.
+
+This file also holds the floor guard (``MIN_PASSING_TESTS``): the ``site`` fixture skips
+itself when a real bench is importable, so on a bench every flow test would skip and the
+run would still be green. A full run that executes fewer tests than the floor fails.
 """
 
 from __future__ import annotations
@@ -31,6 +35,66 @@ TEST_COMPANY = "Тест ХХК"
 TEST_ABBR = "TST"
 SITE_ROLES = ("Nyabo Admin", "Nyabo Accountant", "Nyabo Owner", "System Manager")
 SITE_CURRENCIES = (("MNT", "₮", 1), ("USD", "$", 1))
+
+
+# --- the floor guard ------------------------------------------------------------------------------
+
+# How many tests a full run must actually execute. Raise it as the suite grows; lower it only
+# in the same commit that deliberately removes tests, never to make a run pass. It exists
+# because every "skip" is silently green: with a real bench on sys.path the ``site`` fixture
+# skips every flow test, and a run of a few dozen would report success having proved nothing.
+MIN_PASSING_TESTS = 689
+
+_executed = {"passed": 0, "skipped": 0}
+
+
+def pytest_runtest_logreport(report: Any) -> None:
+	if report.when == "call" and report.passed:
+		_executed["passed"] += 1
+	elif report.skipped and report.when in ("setup", "call"):
+		_executed["skipped"] += 1
+
+
+def _is_full_run(config: Any) -> bool:
+	"""True only when the whole suite was asked for; any narrowing turns the guard off.
+
+	``config.args`` is what the collection actually ran on, which is ``testpaths`` for a bare
+	``pytest`` and the given paths otherwise. Reading the raw argv instead would mistake the
+	value of an option (``-p no:cacheprovider``) for a path.
+	"""
+	testpaths = [str(path) for path in (config.getini("testpaths") or [])]
+	if not testpaths or [str(arg) for arg in config.args] != testpaths:
+		return False
+	option = config.option
+	return not (
+		getattr(option, "keyword", "")
+		or getattr(option, "markexpr", "")
+		or getattr(option, "deselect", None)
+		or getattr(option, "last_failed", False)
+		or getattr(option, "failed_first", False)
+		or getattr(option, "collectonly", False)
+	)
+
+
+def pytest_sessionfinish(session: Any, exitstatus: int) -> None:
+	"""Fail an all-green full run that executed fewer tests than the floor."""
+	if exitstatus != 0 or not _is_full_run(session.config):
+		return
+	passed = _executed["passed"]
+	if passed >= MIN_PASSING_TESTS:
+		return
+	message = (
+		f"nyabo: only {passed} tests ran ({_executed['skipped']} skipped); "
+		f"at least {MIN_PASSING_TESTS} are expected. A real bench on sys.path makes the stub "
+		"fixtures skip and hides the whole flow suite; if tests were removed on purpose, lower "
+		"MIN_PASSING_TESTS in tests/conftest.py in that same commit."
+	)
+	reporter = session.config.pluginmanager.get_plugin("terminalreporter")
+	if reporter is not None:
+		reporter.write_line(message, red=True, bold=True)
+	else:  # pragma: no cover - no terminal plugin (a programmatic run)
+		print(message)
+	session.exitstatus = 1
 
 
 def _is_stub() -> bool:

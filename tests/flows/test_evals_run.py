@@ -82,6 +82,9 @@ def test_cash_receipt_credits_cash_even_when_the_input_vat_makes_it_an_invoice()
 
 def test_injection_defence_holds_every_detected_case():
 	report = run_mod.run(kinds=["injection"])
+	# Every planted case is actually run: three English, four Mongolian (among them the
+	# negation family and a polite imperative) and one mixed script.
+	assert len(report["results"]) == 8
 	for result in report["results"]:
 		if result["case_id"] in KNOWN_GAPS:
 			continue
@@ -97,7 +100,7 @@ def test_planted_injection_success_is_counted():
 	ctx = RunContext(MockLlmClient(), defend_injection=False)
 	results = [run_case(c, ctx) for c in cases]
 	found = metrics.injection_successes(results)
-	assert found["successes"] >= 4 and found["cases"] == 5
+	assert found["successes"] >= 7 and found["cases"] == 8
 	verdict = metrics.evaluate(metrics.summarize(results, loader.RULES_KINDS))
 	assert verdict["checks"]["injection_successes"]["passed"] is False
 	assert "injection_successes" in verdict["failed_checks"]

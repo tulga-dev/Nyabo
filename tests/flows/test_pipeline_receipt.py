@@ -138,11 +138,103 @@ def test_injection_text_sets_warning_and_event(run_receipt):
 	assert proposal.status == "proposed"
 
 
+# --- the QR arm (ARCHITECTURE §5.3 step 1, §7) -----------------------------------------------------
+
+QR_DATA = "0009900000000000000000000000000000000000000000000000000000000000000"
+
+
+def _decoder(monkeypatch, value):
+	"""Stand in for ebarimt.qr.decode; the real one needs pyzbar/zxing and a photo of a QR."""
+	seen: list[bytes] = []
+
+	def _decode(image_bytes: bytes) -> str | None:
+		seen.append(image_bytes)
+		return value
+
+	from nyabo_mn.ebarimt import qr
+
+	monkeypatch.setattr(qr, "decode", _decode)
+	return seen
+
+
+def test_a_decoded_qr_reaches_the_proposal_the_card_and_the_posted_document(run_receipt, monkeypatch):
+	from nyabo_mn.agent import post
+	from nyabo_mn.telegram.handlers.receipt import card_for
+	from tests.flows.conftest import ACCOUNTANT
+
+	seen = _decoder(monkeypatch, QR_DATA)
+	proposal = run_receipt("petrovis_fuel")
+	assert seen and isinstance(seen[0], bytes) and seen[0]  # the photo bytes, before extraction
+	verification = json.loads(proposal.verification_json)
+	assert verification["qr_data"] == QR_DATA
+	# The provider is asked to verify with the payload we read (no endpoint exists yet, §7).
+	assert verification["receipt"]["status"] == "unsupported"
+
+	text, _markup = card_for(proposal)
+	money_line = text.split("\n")[1]
+	assert money_line.endswith(
+		f"{mn.VERIFICATION_SELLER_OK} · {mn.VERIFICATION_RECEIPT_UNCHECKED} · {mn.VERIFICATION_QR_FOUND}"
+	)
+
+	result = post.post_proposal(proposal.name, ACCOUNTANT, approver_telegram_id="700002")
+	posted = frappe.get_doc(result["posted_doctype"], result["posted_name"])
+	assert posted.ebarimt_qr_data == QR_DATA and posted.ebarimt_verified == 1
+
+
+def test_without_a_decodable_qr_the_card_says_so_and_nothing_is_stored(run_receipt, monkeypatch):
+	from nyabo_mn.agent import post
+	from nyabo_mn.telegram.handlers.receipt import card_for
+	from tests.flows.conftest import ACCOUNTANT
+
+	_decoder(monkeypatch, None)
+	proposal = run_receipt("petrovis_fuel")
+	assert json.loads(proposal.verification_json)["qr_data"] is None
+	assert mn.VERIFICATION_QR_MISSING in card_for(proposal)[0]
+	result = post.post_proposal(proposal.name, ACCOUNTANT, approver_telegram_id="700002")
+	assert not frappe.get_doc(result["posted_doctype"], result["posted_name"]).ebarimt_qr_data
+
+
+def test_a_qr_never_contradicts_the_vision_answer(run_receipt, monkeypatch):
+	"""Recorded deviation from §5.3 step 7: the payload is opaque, so no mismatch is asserted.
+
+	The receipt below is read as 85 000₮ while the QR string spells 12 345; if the payload
+	format is ever published, this test is the one that must start expecting the warning.
+	"""
+	_decoder(monkeypatch, "12345")
+	proposal = run_receipt("petrovis_fuel")
+	assert proposal.total == 85000.0
+	assert mn.WARN_QR_VISION_MISMATCH not in json.loads(proposal.warnings_json)
+	read = pipeline.Receipt(
+		seller_name="Петровис ХХК",
+		seller_tin=None,
+		seller_register_no=None,
+		date=None,
+		total=Decimal("85000"),
+		vat_amount=None,
+	)
+	assert pipeline._qr_vision_mismatch("12345", read) is False
+	assert pipeline._qr_vision_mismatch(None, read) is False
+
+
 def test_missing_date_uses_today_and_warns(run_receipt):
 	proposal = run_receipt("petrovis_fuel", date=None)
 	assert mn.MSG_DATE_DEFAULTED_TODAY in json.loads(proposal.warnings_json)
 	assert proposal.needs_accountant == 1
 	assert str(proposal.posting_date) == str(frappe.utils.today())
+
+
+def test_the_defaulted_date_is_the_sites_day_not_utcs(run_receipt, monkeypatch):
+	"""Улаанбаатар is UTC+8: from 08:00 UTC to midnight the UTC day is already yesterday there.
+
+	Dating a receipt by the UTC day would book eight hours of every day one day back — and on
+	the 1st of a month into the previous, possibly closed, period.
+	"""
+	import frappe
+
+	monkeypatch.setattr(frappe.utils, "today", lambda: "2026-03-15")
+	proposal = run_receipt("petrovis_fuel", date=None)
+	assert str(proposal.posting_date) == "2026-03-15"
+	assert mn.MSG_DATE_DEFAULTED_TODAY in json.loads(proposal.warnings_json)
 
 
 def test_existing_supplier_is_matched_by_tin_then_name(run_receipt, books):

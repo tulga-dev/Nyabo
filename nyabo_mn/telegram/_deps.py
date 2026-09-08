@@ -90,6 +90,9 @@ def bank_import_error() -> type[Exception]:
 		return ValueError
 	error = getattr(module, "BankImportError", None)
 	return error if isinstance(error, type) and issubclass(error, Exception) else ValueError
+def recon_status(company: str) -> str:
+	"""The ``/данс`` card: statement vs ledger balance per bank account, as text."""
+	return _call("nyabo_mn.matching.status", "render", company)
 
 
 def render_bank_line(bank_transaction: str) -> str:

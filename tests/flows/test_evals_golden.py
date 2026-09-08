@@ -14,7 +14,7 @@ EXPECTED_COUNTS = {
 	"extraction": 10,
 	"classification": 20,
 	"rules": 10,
-	"injection": 5,
+	"injection": 8,
 	"correction": 5,
 	"document_required": 5,
 	"period_lock": 5,
@@ -43,6 +43,74 @@ def test_classification_cases_cover_both_regimes_for_every_receipt():
 	assert {r for _s, r in pairs} == {"vat_payer", "simplified_1pct"}
 	dates = {c.regime: c.on_date.isoformat() for c in cases}
 	assert dates == {"vat_payer": "2026-06-15", "simplified_1pct": "2027-02-15"}
+
+
+def _chart_leaves(scheme: str) -> dict[str, str]:
+	"""``code -> name`` for the shipped chart of a scheme: v1 = the draft, v03 = the seed."""
+	from nyabo_mn.nyabo.seed import seed_path
+	from nyabo_mn.setup import chart as chart_mod
+
+	path = chart_mod.DEFAULT_CHART_PATH if scheme == "v1" else seed_path("chart_v03")
+	chart = chart_mod.load_chart(path)
+	return {a.number: a.name for a in chart.accounts() if a.number and not a.is_group}
+
+
+def _expected_account_codes(case) -> list[tuple[str, str]]:
+	"""``(code, where)`` for every account a case expects the app to post to."""
+	expected = dict(case.expected_json)
+	found: list[tuple[str, str]] = []
+	if expected.get("account_code"):
+		found.append((str(expected["account_code"]), "account_code"))
+	for key in ("lines", "reversal_lines", "new_entry_lines", "fx_lines"):
+		for index, line in enumerate(expected.get(key) or []):
+			if line.get("account_code"):
+				found.append((str(line["account_code"]), f"{key}[{index}]"))
+	for index, row in enumerate(expected.get("correction_rows") or []):
+		if row.get("field") != "account_code":
+			continue
+		for side in ("proposed_value", "corrected_value"):
+			if row.get(side):
+				found.append((str(row[side]), f"correction_rows[{index}].{side}"))
+	return found
+
+
+def test_every_expected_account_code_is_a_leaf_of_the_shipped_chart():
+	"""An expectation naming an account the chart does not have would pass the eval and then
+	fail on a real site (ERPNext refuses a GL entry on a group account or an unknown one)."""
+	checked = 0
+	for case in loader.load_golden():
+		scheme = str(case.input_json.get("scheme") or "v1")
+		leaves = _chart_leaves(scheme)
+		assert leaves, scheme
+		for code, where in _expected_account_codes(case):
+			assert code in leaves, f"{case.case_id}: {where} = {code} is not a leaf of the {scheme} chart"
+			checked += 1
+	assert checked >= 60, checked  # the 20 classification cases alone carry three lines each
+
+
+def test_every_expected_account_code_also_resolves_on_the_v03_chart():
+	"""The golden set is spelled in V1 codes; a v0.3 site reaches them through the alias table.
+
+	So every code the set expects must have an alias whose target is a v0.3 leaf — otherwise
+	the same approved receipt is postable on one shipped chart and not on the other.
+	"""
+	from nyabo_mn.nyabo.seed import load_seed
+
+	aliases = {
+		k: str(v)
+		for k, v in load_seed("aliases_v1_to_v03").items()
+		if not k.startswith("_") and k != "unmapped"
+	}
+	v03_leaves = _chart_leaves("v03")
+	for case in loader.load_golden():
+		if str(case.input_json.get("scheme") or "v1") != "v1":
+			continue
+		for code, where in _expected_account_codes(case):
+			assert code in aliases, f"{case.case_id}: {where} = {code} has no v0.3 alias"
+			target = aliases[code]
+			assert target in v03_leaves, (
+				f"{case.case_id}: {where} = {code} maps to {target}, which is not a v0.3 leaf"
+			)
 
 
 def test_every_referenced_fixture_exists():
