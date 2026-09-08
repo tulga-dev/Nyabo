@@ -1,0 +1,17 @@
+{
+ "_comment": "Blurry photo: total and date confidence under 0.7, so the accountant must look.",
+ "data": {
+  "seller_name": "Номин Юнайтед ХХК",
+  "seller_register_no": null,
+  "seller_tin": "55555555555",
+  "date": "2026-09-07",
+  "total": 128000,
+  "vat_amount": 11636.36,
+  "lines": [{"description": "Бичиг хэрэг", "qty": null, "amount": 128000}],
+  "payment_method": "card",
+  "receipt_id": null,
+  "lottery_no": null,
+  "confidence": {"seller_name": 0.8, "date": 0.55, "total": 0.6, "vat_amount": 0.4, "lines": 0.5},
+  "notes": "total partly hidden by a fold"
+ }
+}

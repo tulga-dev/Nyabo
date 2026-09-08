@@ -563,7 +563,10 @@ def decide_vat_treatment(
 	Non-VAT companies never withhold (Заавар 116: VAT into cost). A receipt without a
 	printed VAT line has nothing to withhold. A seller the registry says is not a VAT
 	payer cannot have charged VAT, so the printed amount stays in the expense with a
-	warning for the accountant.
+	warning for the accountant. A VAT payer with VAT printed by a VAT-payer seller
+	withholds: the model's "in_expense" is not honoured because the non-deductible
+	categories are a pending 2027 rule (``vat.input_deduction_categories``), not a
+	judgement the model may make; only ``exempt`` / ``zero`` survive.
 	"""
 	warnings: list[str] = []
 	if not ctx.input_vat_recoverable:
@@ -573,9 +576,9 @@ def decide_vat_treatment(
 	if seller_vat_payer is False:
 		warnings.append(mn.WARN_SELLER_NOT_VAT_PAYER)
 		return "in_expense", warnings
-	if proposed in ("withheld", "none"):
-		return "withheld", warnings
-	return proposed, warnings
+	if proposed in ("exempt", "zero"):
+		return proposed, warnings
+	return "withheld", warnings
 
 
 def build_amounts(gross: Decimal, printed_vat: Decimal, treatment: str) -> dict[str, Decimal]:
@@ -672,7 +675,11 @@ def _run(
 	qr_data = qr.decode(image_bytes)
 
 	# 2. Extraction
-	client = client or llm_client(site_settings, collector)
+	if client is None:
+		client = llm_client(site_settings, collector)
+	elif getattr(client, "record_call", None) is None and hasattr(client, "record_call"):
+		# An injected client (tests, simulator) still logs its calls: "every call writes" (§6).
+		client.record_call = collector
 	context = (
 		f"company: {company}\nscheme: {(settings_row.get('chart_scheme') if settings_row else '') or ''}"
 	)
