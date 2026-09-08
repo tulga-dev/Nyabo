@@ -261,3 +261,76 @@ the card never shows `ebarimt ✓`. `RegistryProvider` treats any non-200, non-J
 off-shape body as "not found" and never raises into the pipeline. `PosSdkProvider` raises
 `NotConfigured` at construction: PosAPI 3.0 is merchant-side and needs a local service in
 Mongolia. `qr.decode` tries pyzbar then zxing-cpp and logs `qr_decoder_missing` once.
+## compliance + reports (stage 2)
+
+### D-017 Retention years are a tax parameter, read from the table or the seed
+`compliance.hooks.retention_years()` resolves `retention.years` (Law on Accounting art.
+11.1, the one row shipped `verified: true`) through `core.rules_engine.resolve_parameter`
+on the Nyabo Tax Parameter table and falls back to `seed/tax_parameters.json` only while
+the table has no row for the key, so a document received before the first seed sync still
+gets a date. No constant `10` exists in the code; reverse by seeding another row.
+
+### D-018 The no-edit guard compares field by field, system code may opt out
+`guard_no_edit_after_submit` diffs `get_doc_before_save()` against the document (child
+tables row by row) and lets only `nyabo_*` fields and `remarks` change. ERPNext saves
+submitted documents itself in a few flows (hold/release, clearance); those go through
+`db_set` today, but a future flow that calls `save()` can set
+`frappe.flags.nyabo_allow_submit_edit`. The Nyabo audit fields still need
+`allow_on_submit = 1` in `setup/custom_fields.py` for Frappe's own check to let them
+through — integration request filed.
+
+### D-019 A period locked through Nyabo cannot be deleted; reopen is `disabled = 1`
+The lock/reopen events point at the Accounting Period with a Dynamic Link, which makes
+Frappe's link check refuse a delete anyway; `log_period_delete` turns that into a
+Mongolian refusal before the misleading "deleted" event would be written. Manual desk
+periods keep the name in the event payload instead of a link so they stay deletable
+(and logged). Reopening is ERPNext's `disabled = 1`, never a delete.
+
+### D-020 Reversal helpers run as the session user; the approver is a field
+`make_reverse_journal_entry` / `make_debit_note` check read permission on the source
+under the current session, then the reversal is inserted with `ignore_permissions`. The
+Telegram approver is recorded in `nyabo_approved_by`, Nyabo Correction and the event;
+bot jobs therefore run under a service session that can read the ledger (Administrator
+or an Accounts User), not under the approver's login.
+
+### D-021 Report accounts come from roles, and the scheme is checked against the chart
+`reports.accounts` maps role -> code through `seed/code_roles.json` for the company's
+`chart_scheme`, then to the Account by `account_number`. The settings field defaults to
+v0.3 while Phase-0 companies run the V1 chart, so the configured scheme is trusted only
+when its cash-role code exists in the chart; otherwise v1 then v03 are tried. The
+`accountant` scheme goes through Nyabo Account Alias rows. When `nyabo_mn.rules.aliases`
+lands, `role_account` delegates to it (signatures unchanged).
+
+### D-022 Simplified 1% summary refuses an unverified rate unless simulated
+`simplified_summary.compute` resolves `simplified.rate` on the quarter's last day and
+raises `UnverifiedRuleError` when the row is unverified, exactly like the posting guard,
+because the number goes on a tax return. `simulation=True` (the report's Simulation
+filter, tests, the simulator) shows the figure labelled `LBL_SIMULATION`. The error class
+is imported from `nyabo_mn.rules.guard` when that package exists (`reports.rules_bridge`).
+
+### D-023 Financial report templates: two shipped, two not
+Balance sheet and income statement ship as Financial Report Templates keyed on the 29
+ERPNext account categories only (no account-number tests except the 70/71 split of
+operating expenses), so they render on the V1 and the v0.3 chart. Both open with a
+`ТҮР ЗАГВАР` row. The engine's `report_type` options are `Profit and Loss Statement`,
+`Balance Sheet`, `Cash Flow`, `Custom Financial Statement`
+(erpnext/accounts/doctype/financial_report_template/financial_report_template.py,
+version-16); how a `Cash Flow` template maps rows to cash-flow activities and whether a
+`Custom Financial Statement` can express the MN statement of changes in equity was not
+verified from the engine source, so `nyabo_sme_equity_statement` and `nyabo_sme_cash_flow`
+are not shipped and the readiness checklist reports the four-statement item as failed.
+Known category mismatches in the v0.3 chart (7012 bank fees as Finance Costs, 8703/8790
+as Operating Expenses) are listed as an integration request rather than patched here.
+
+### D-024 Print-format labels come through a whitelisted call, not literal Cyrillic
+Print formats are Jinja files that cannot import `i18n/mn.py`. Frappe's print Jinja
+environment exposes `frappe.call` (safe_exec `get_safe_globals`), so every template
+starts with `{% set L = frappe.call("nyabo_mn.reports.labels.print_labels") %}`. A
+`jinja` hook method would be cleaner; requested from the integrator.
+
+### D-025 Mongolbank fetch is off by default and undocumented
+The rate endpoint (`POST /en/currency-rates/data?startDate&endDate`) is the website's
+internal XHR, not a documented API. `fx_rates.fetch_mongolbank` exists behind the site
+config flag `MONGOLBANK_FETCH_ENABLED`, is marked UNVERIFIED and is never called from
+tests; `import_csv` is the supported path. Rows land in ERPNext's Currency Exchange table
+and the pipeline reads them through `get_exchange_rate`.

@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="utf-8">
+<title>{{ title }}</title>
+<style>
+	body { font-family: "DejaVu Sans", "Noto Sans", sans-serif; font-size: 9.5pt; color: #111; margin: 14mm; }
+	h1 { font-size: 13pt; text-align: center; margin-bottom: 1mm; }
+	.site { text-align: center; color: #444; margin-bottom: 5mm; }
+	table { width: 100%; border-collapse: collapse; }
+	th, td { border: 1px solid #333; padding: 1.5mm 2mm; vertical-align: top; }
+	th { background: #eee; }
+	td.pass { color: #060; font-weight: bold; white-space: nowrap; }
+	td.fail { color: #b00; font-weight: bold; white-space: nowrap; }
+	.footer { margin-top: 6mm; font-size: 7.5pt; color: #444; }
+</style>
+</head>
+<body>
+	<h1>{{ title }}</h1>
+	<div class="site">{{ site_line }} · {{ prepared_on }}</div>
+	<table>
+		<thead>
+			<tr><th>{{ L.item }}</th><th>{{ L.requirement }}</th><th>{{ L.status }}</th><th>{{ L.detail }}</th></tr>
+		</thead>
+		<tbody>
+			{% for row in rows %}
+			<tr>
+				<td>{{ row.label_mn }}</td>
+				<td>{{ row.requirement }}</td>
+				<td class="{{ 'pass' if row.passed else 'fail' }}">{{ row.status_mn }}</td>
+				<td>{{ row.detail }}</td>
+			</tr>
+			{% endfor %}
+		</tbody>
+	</table>
+	<div class="footer">{{ footer }}</div>
+</body>
+</html>

@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="utf-8">
+<title>{{ title }} — {{ company }}</title>
+<style>
+	/* Cyrillic-safe stack: wkhtmltopdf on Frappe Cloud ships DejaVu; Noto Sans covers the rest. */
+	body { font-family: "DejaVu Sans", "Noto Sans", sans-serif; font-size: 9pt; color: #111; margin: 12mm; }
+	h1 { font-size: 13pt; text-align: center; margin: 0 0 2mm 0; letter-spacing: 0.5px; }
+	.watermark { text-align: center; color: #b00; font-size: 8pt; margin-bottom: 4mm; }
+	.header { width: 100%; margin-bottom: 4mm; border-collapse: collapse; }
+	.header td { padding: 1mm 2mm; vertical-align: top; }
+	.header .box { border: 1px solid #333; padding: 1mm 3mm; font-weight: bold; }
+	table.data { width: 100%; border-collapse: collapse; page-break-inside: auto; }
+	table.data th, table.data td { border: 1px solid #333; padding: 1.2mm 1.5mm; vertical-align: top; }
+	table.data th { background: #eee; font-weight: bold; text-align: center; }
+	table.data td.num { text-align: right; white-space: nowrap; }
+	table.data tr { page-break-inside: avoid; }
+	.signatures { margin-top: 10mm; width: 100%; }
+	.signatures td { padding: 3mm 2mm; }
+	.footer { margin-top: 6mm; font-size: 7.5pt; color: #444; }
+</style>
+</head>
+<body>
+	<h1>{{ title }}</h1>
+	<div class="watermark">{{ watermark }}</div>
+	<table class="header">
+		<tr>
+			<td>{{ L.company }}: <b>{{ company }}</b></td>
+			{% if journal_type %}<td class="box">{{ L.journal_type }}: {{ journal_type }}</td>{% endif %}
+			<td>{{ L.period }}: <b>{{ period }}</b></td>
+		</tr>
+		<tr>
+			<td>{{ L.from_date }}: {{ from_date }} — {{ L.to_date }}: {{ to_date }}</td>
+			<td></td>
+			<td>{{ L.prepared_on }}: {{ prepared_on }}</td>
+		</tr>
+	</table>
+	<table class="data">
+		<thead>
+			<tr>
+				{% for col in columns %}<th>{{ col.label }}</th>{% endfor %}
+			</tr>
+		</thead>
+		<tbody>
+			{% for row in rows %}
+			<tr>
+				{% for cell in row %}<td class="{{ 'num' if columns[loop.index0].fieldtype in ('Currency', 'Float', 'Int') else '' }}">{{ cell }}</td>{% endfor %}
+			</tr>
+			{% endfor %}
+		</tbody>
+	</table>
+	<table class="signatures">
+		{% for label, name in signatures %}
+		<tr><td>{{ label }}: ______________________ ( {{ name }} )</td></tr>
+		{% endfor %}
+	</table>
+	<div class="footer">{{ footer }}</div>
+</body>
+</html>

@@ -1,0 +1,69 @@
+{#- Нэхэмжлэх (НХМаягт ТМ-1), Сангийн сайдын 2017 оны 347 дугаар тушаал: sequential number,
+    seller and buyer with register no / TIN, line items, subtotal, НӨАТ = subtotal x rate, total. -#}
+{% set L = frappe.call("nyabo_mn.reports.labels.print_labels") %}
+{% set company = frappe.get_doc("Company", doc.company) %}
+{% set customer = frappe.get_doc("Customer", doc.customer) %}
+<style>
+	.nyabo-form { font-family: "DejaVu Sans", "Noto Sans", sans-serif; font-size: 10pt; }
+	.nyabo-form .watermark { color: #b00; font-size: 8pt; text-align: center; margin-bottom: 4px; }
+	.nyabo-form h3 { text-align: center; margin: 2px 0 8px 0; }
+	.nyabo-form table.f, .nyabo-form table.items { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+	.nyabo-form td, .nyabo-form th { border: 1px solid #333; padding: 4px 6px; vertical-align: top; }
+	.nyabo-form th { background: #eee; }
+	.nyabo-form td.k { width: 22%; background: #f2f2f2; }
+	.nyabo-form td.num, .nyabo-form th.num { text-align: right; white-space: nowrap; }
+	.nyabo-form .sig td { border: none; padding-top: 14px; }
+	.nyabo-form .src { font-size: 7.5pt; color: #444; }
+</style>
+<div class="nyabo-form">
+	<div class="watermark">{{ L.FORM_PROVISIONAL_WATERMARK }}</div>
+	<h3>{{ L.FORM_INVOICE }}</h3>
+	<table class="f">
+		<tr><td class="k">{{ L.FORM_LBL_DOC_NO }}</td><td>{{ doc.name }}</td><td class="k">{{ L.FORM_LBL_DATE }}</td><td>{{ frappe.format(doc.posting_date, {"fieldtype": "Date"}) }}</td></tr>
+		<tr><td class="k">{{ L.FORM_LBL_SELLER }}</td><td>{{ doc.company }}</td><td class="k">{{ L.FORM_LBL_REG_NO }} / {{ L.FORM_LBL_TIN }}</td><td>{{ company.tax_id or "" }}</td></tr>
+		<tr><td class="k">{{ L.FORM_LBL_BUYER }}</td><td>{{ doc.customer_name or doc.customer }}</td><td class="k">{{ L.FORM_LBL_REG_NO }} / {{ L.FORM_LBL_TIN }}</td><td>{{ customer.register_no or "" }} {{ customer.tin or doc.tax_id or "" }}</td></tr>
+		<tr><td class="k">{{ L.FORM_LBL_DUE_DATE }}</td><td>{{ frappe.format(doc.due_date, {"fieldtype": "Date"}) if doc.due_date else "" }}</td><td class="k">{{ L.FORM_LBL_EBARIMT }}</td><td>{{ doc.ebarimt_receipt_id or "" }}</td></tr>
+	</table>
+	<table class="items">
+		<thead>
+			<tr>
+				<th>{{ L.LBL_ROW_NO }}</th>
+				<th>{{ L.FORM_LBL_ITEM }}</th>
+				<th class="num">{{ L.FORM_LBL_QTY }}</th>
+				<th>{{ L.FORM_LBL_UNIT }}</th>
+				<th class="num">{{ L.FORM_LBL_UNIT_PRICE }}</th>
+				<th class="num">{{ L.FORM_LBL_LINE_TOTAL }}</th>
+			</tr>
+		</thead>
+		<tbody>
+			{% for item in doc.items %}
+			<tr>
+				<td>{{ loop.index }}</td>
+				<td>{{ item.item_name or item.item_code }}{% if item.description and item.description != item.item_name %}<br><small>{{ item.description }}</small>{% endif %}</td>
+				<td class="num">{{ item.qty }}</td>
+				<td>{{ item.uom or item.stock_uom or "" }}</td>
+				<td class="num">{{ frappe.format(item.rate, {"fieldtype": "Currency"}) }}</td>
+				<td class="num">{{ frappe.format(item.amount, {"fieldtype": "Currency"}) }}</td>
+			</tr>
+			{% endfor %}
+		</tbody>
+		<tfoot>
+			<tr><td colspan="5" class="num">{{ L.FORM_LBL_SUBTOTAL }}</td><td class="num">{{ frappe.format(doc.net_total, {"fieldtype": "Currency"}) }}</td></tr>
+			{% for tax in doc.taxes %}
+			<tr><td colspan="5" class="num">{{ L.FORM_LBL_VAT }} — {{ tax.description }}{% if tax.rate %} ({{ tax.rate }}%){% endif %}</td><td class="num">{{ frappe.format(tax.tax_amount, {"fieldtype": "Currency"}) }}</td></tr>
+			{% endfor %}
+			<tr><td colspan="5" class="num"><b>{{ L.FORM_LBL_GRAND_TOTAL }}</b></td><td class="num"><b>{{ frappe.format(doc.grand_total, {"fieldtype": "Currency"}) }}</b></td></tr>
+		</tfoot>
+	</table>
+	<table class="f">
+		<tr><td class="k">{{ L.FORM_LBL_AMOUNT_IN_WORDS }}</td><td>{{ doc.in_words or "" }}</td></tr>
+		<tr><td class="k">{{ L.FORM_LBL_BANK_DETAILS }}</td><td>{{ company.default_bank_account or "" }}</td></tr>
+	</table>
+	<table class="f sig">
+		<tr>
+			<td>{{ L.FORM_LBL_DIRECTOR }}: __________________ ({{ L.FORM_LBL_SIGNATURE }})</td>
+			<td>{{ L.FORM_LBL_CHIEF_ACCOUNTANT }}: __________________ ({{ L.FORM_LBL_SIGNATURE }})</td>
+		</tr>
+	</table>
+	<div class="src">{{ L.FORM_SOURCE_ORDER_347 }}</div>
+</div>

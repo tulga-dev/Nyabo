@@ -1,0 +1,44 @@
+{#- Бэлэн мөнгөний орлогын баримт (НХМаягт МХ-1), Сангийн сайдын 2017 оны 347 дугаар тушаал.
+    Two copies, two signatures (chief accountant + cashier), the payer signs the hand-over. -#}
+{% set L = frappe.call("nyabo_mn.reports.labels.print_labels") %}
+{% set debits = doc.accounts | selectattr("debit", "gt", 0) | list %}
+{% set credits = doc.accounts | selectattr("credit", "gt", 0) | list %}
+{% set company = frappe.get_doc("Company", doc.company) %}
+<style>
+	.nyabo-form { font-family: "DejaVu Sans", "Noto Sans", sans-serif; font-size: 10pt; }
+	.nyabo-form .watermark { color: #b00; font-size: 8pt; text-align: center; margin-bottom: 4px; }
+	.nyabo-form h3 { text-align: center; margin: 2px 0 8px 0; }
+	.nyabo-form table.f { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+	.nyabo-form table.f td { border: 1px solid #333; padding: 4px 6px; vertical-align: top; }
+	.nyabo-form td.k { width: 32%; background: #f2f2f2; }
+	.nyabo-form .sig td { border: none; padding-top: 14px; }
+	.nyabo-form .copy { border-bottom: 1px dashed #999; margin: 12px 0; text-align: right; font-size: 8pt; color: #555; }
+	.nyabo-form .src { font-size: 7.5pt; color: #444; }
+</style>
+{% for copy in [L.FORM_LBL_COPY_1, L.FORM_LBL_COPY_2] %}
+<div class="nyabo-form">
+	<div class="watermark">{{ L.FORM_PROVISIONAL_WATERMARK }}</div>
+	<h3>{{ L.FORM_CASH_RECEIPT_VOUCHER }}</h3>
+	<table class="f">
+		<tr><td class="k">{{ L.FORM_LBL_ORG }}</td><td>{{ doc.company }}</td></tr>
+		<tr><td class="k">{{ L.FORM_LBL_REG_NO }} / {{ L.FORM_LBL_TIN }}</td><td>{{ company.tax_id or "" }}</td></tr>
+		<tr><td class="k">{{ L.FORM_LBL_DOC_NO }}</td><td>{{ doc.name }}</td></tr>
+		<tr><td class="k">{{ L.FORM_LBL_DATE }}</td><td>{{ frappe.format(doc.posting_date, {"fieldtype": "Date"}) }}</td></tr>
+		<tr><td class="k">{{ L.FORM_LBL_RECEIVED_FROM }}</td><td>{{ doc.pay_to_recd_from or (credits[0].party if credits and credits[0].party else "") }}</td></tr>
+		<tr><td class="k">{{ L.FORM_LBL_BASIS }}</td><td>{{ doc.user_remark or "" }} {{ doc.nyabo_primary_document_ref or "" }}</td></tr>
+		<tr><td class="k">{{ L.FORM_LBL_AMOUNT }}</td><td>{{ frappe.format(doc.total_debit, {"fieldtype": "Currency"}) }}</td></tr>
+		<tr><td class="k">{{ L.FORM_LBL_AMOUNT_IN_WORDS }}</td><td>{{ doc.total_amount_in_words or "" }}</td></tr>
+		<tr><td class="k">{{ L.FORM_LBL_ACCOUNT_DEBIT }}</td><td>{% for row in debits %}{{ row.account }}: {{ frappe.format(row.debit, {"fieldtype": "Currency"}) }}<br>{% endfor %}</td></tr>
+		<tr><td class="k">{{ L.FORM_LBL_ACCOUNT_CREDIT }}</td><td>{% for row in credits %}{{ row.account }}: {{ frappe.format(row.credit, {"fieldtype": "Currency"}) }}<br>{% endfor %}</td></tr>
+	</table>
+	<table class="f sig">
+		<tr>
+			<td>{{ L.FORM_LBL_CHIEF_ACCOUNTANT }}: __________________ ({{ L.FORM_LBL_SIGNATURE }})</td>
+			<td>{{ L.FORM_LBL_CASHIER }}: __________________ ({{ L.FORM_LBL_SIGNATURE }})</td>
+			<td>{{ L.FORM_LBL_PAID_BY }}: __________________ ({{ L.FORM_LBL_SIGNATURE }})</td>
+		</tr>
+	</table>
+	<div class="src">{{ L.FORM_SOURCE_ORDER_347 }}</div>
+	<div class="copy">{{ copy }}</div>
+</div>
+{% endfor %}
