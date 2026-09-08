@@ -101,6 +101,8 @@ def resolve_code(company: str, code_or_alias: str, scheme: str | None = None) ->
 			break
 		seen.add(target)
 		value = str(target)
+		if in_chart(company, value):
+			break  # an alias target that is a chart account is final; a further hop would re-read it as another scheme's code
 	return value
 
 

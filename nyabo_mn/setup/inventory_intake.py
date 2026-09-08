@@ -51,7 +51,16 @@ HEADER_KEYWORDS: dict[str, tuple[str, ...]] = {
 	"rate": ("үнэ", "нэгж үнэ", "нэгжийн үнэ", "rate", "price", "unit price"),
 	"uom": ("нэгж", "хэмжих нэгж", "uom", "unit"),
 }
-_SEPARATORS = re.compile(r"\s*[,;\t|]\s*")
+# A comma glued to a three-digit group ("12,500") is a thousands separator; ", 100" is a column break.
+_COMMA_SPLIT = re.compile(r"\s*,(?!\d{3}(?!\d))\s*")
+_HARD_SEPARATORS = ("\t", "|", ";")
+
+
+def _split_line(line: str) -> list[str]:
+	for separator in _HARD_SEPARATORS:
+		if separator in line:
+			return [part.strip() for part in line.split(separator)]
+	return [part.strip() for part in _COMMA_SPLIT.split(line)]
 
 
 class IntakeParseError(ValueError):
@@ -117,7 +126,7 @@ def parse_text(text: str) -> list[IntakeRow]:
 		line = raw.strip().strip("`")
 		if not line:
 			continue
-		parts = _SEPARATORS.split(line)
+		parts = _split_line(line)
 		if len(parts) < 3:
 			raise IntakeParseError(mn.MSG_INTAKE_LINE_UNREADABLE.format(line=index, text=line))
 		# A name may itself contain a comma: qty and rate are the last two numeric cells.

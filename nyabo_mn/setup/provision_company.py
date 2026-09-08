@@ -413,6 +413,18 @@ def _ensure_bank_rows(company: str, rows: Iterable[Mapping[str, Any]]) -> list[d
 # --- verify ------------------------------------------------------------------------------------
 
 
+def _expected_default_fields(company: str, scheme: str) -> list[str]:
+	"""Company defaults a scheme must have: on the accountant's chart only roles its aliases reach."""
+	fields = list(company_defaults_by_code(scheme))
+	if scheme != aliases.SCHEME_ACCOUNTANT:
+		return fields
+	return [
+		field
+		for field in fields
+		if aliases.in_chart(company, aliases.resolve_code(company, f"role:{COMPANY_DEFAULTS_BY_ROLE[field]}"))
+	]
+
+
 @frappe.whitelist()
 def verify(company: str) -> dict[str, Any]:
 	"""Compare a company against its chart scheme, the default accounts and the tax templates."""
@@ -434,7 +446,7 @@ def verify(company: str) -> dict[str, Any]:
 	meta = frappe.get_meta("Company")
 	defaults = {
 		fieldname: frappe.db.get_value("Company", company, fieldname)
-		for fieldname in company_defaults_by_code(scheme)
+		for fieldname in _expected_default_fields(company, scheme)
 		if meta.has_field(fieldname)
 	}
 	templates = {
