@@ -131,3 +131,43 @@ Core tests build rows inline (statement rows, receipts, candidates) instead of r
 xlsx fixtures, so a failure shows the input next to the assertion and no binary files
 enter the repo. Real bank exports, once obtained, go under `tests/fixtures/statements/`
 with the layout they verify.
+
+## rules (Frappe side) + setup (stage 2)
+
+### D-017 A code that exists in the installed chart is never treated as an alias
+V1 and v0.3 reuse numbers with different meanings (V1 `6110` is salaries, v0.3 `6110` is
+the stock adjustment). `rules.aliases.resolve_code` therefore checks the company's chart
+first and only consults `Nyabo Account Alias` for codes the chart does not have; an alias
+hop stops as soon as its target is a chart account, so `7003 -> 5101` on an accountant's
+chart is not re-read as the v0.3 `5101` and hopped again. Roles resolve straight through
+`code_roles.json` for v1/v0.3; only the accountant scheme hops through the `mof` aliases
+(v0.3 template code -> accountant code) that CSV import creates from name matches.
+
+### D-018 `provision_company` defaults to the V1 chart until the integrator flips it
+`chart_scheme="v1"` keeps Phase 0 behaviour, the README instructions and the shared
+`company` fixture (58 accounts, code 6210) identical while the other stage-2 modules are
+built against them. `COMPANY_DEFAULTS_BY_CODE` is now derived from `code_roles.json`
+(`company_defaults_by_code("v1")`) and pinned by a test to the Phase 0 literal table.
+Switching the default to v0.3 is one constant (`DEFAULT_SCHEME`) plus that test.
+
+### D-019 Tax parameters fall back to the seed *file* (not to another period) when the DocType is empty
+A site whose install hook has not run yet has no `Nyabo Tax Parameter` rows;
+`rules.params.load_rows` then reads `seed/tax_parameters.json` and logs
+`rules.params.seed_fallback`. The data is identical and every row is unverified, so the
+guard still refuses real postings; provisioning needs `vat.rate` for the templates and
+must not hard-code 10%. The engine's date rules (D-003) are unchanged: no period fallback.
+
+### D-020 Opening stock reconciliation uses the temporary-opening account
+`stock_reconciliation.py` (version-16) refuses a Profit and Loss difference account on an
+"Opening Stock" reconciliation, so `inventory_intake.post_intake` sets `expense_account`
+to the `temporary_opening` role (`Temporary` account type) rather than ERPNext's default
+`stock_adjustment_account`. Without perpetual inventory the opening entry is a submitted
+Journal Entry Дт `inventory_goods` — Кт `temporary_opening` carrying `nyabo_explanation`
+and `nyabo_primary_document_ref = <intake name>` so the document-required hook passes.
+
+### D-021 Bank sub-accounts: next free sub-code under the bank role's parent group
+The scheme's `bank` role is a leaf (1101 / 1120), so the per-bank accounts sit next to it
+under its parent group ("11 Банкинд байгаа мөнгө" on v0.3, "1100 Мөнгөн хөрөнгө" on V1)
+with the next free code of that prefix (1103, 1104 / 1121, 1122). The leaf stays the
+Company default bank account; per-bank balances come from the sub-accounts and the ERPNext
+`Bank Account` rows that link to them. Names are "<Bank MN> <currency> <last 4 digits>".
