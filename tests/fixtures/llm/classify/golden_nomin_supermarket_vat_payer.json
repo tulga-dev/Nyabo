@@ -1,0 +1,9 @@
+{
+ "_comment": "nomin_supermarket under vat_payer",
+ "data": {
+  "account_code": "6510",
+  "vat_treatment": "withheld",
+  "reason_mn": "Оффисын хэрэглээний цай, кофе, цаас тул 6510 Бичиг хэрэг, оффисын зардалд бүртгэнэ.",
+  "confidence": 0.9
+ }
+}

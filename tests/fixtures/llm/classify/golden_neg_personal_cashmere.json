@@ -1,0 +1,9 @@
+{
+ "_comment": "model is unsure: looks personal",
+ "data": {
+  "account_code": "6910",
+  "vat_treatment": "in_expense",
+  "reason_mn": "Хувийн хэрэглээний хувцас байж магадгүй тул нягтлан шалгана.",
+  "confidence": 0.3
+ }
+}

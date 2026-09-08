@@ -1,0 +1,9 @@
+{
+ "_comment": "internet_univision under vat_payer",
+ "data": {
+  "account_code": "6410",
+  "vat_treatment": "withheld",
+  "reason_mn": "Оффисын интернэтийн сарын төлбөр тул 6410 Холбоо, интернет дансанд бүртгэнэ.",
+  "confidence": 0.9
+ }
+}

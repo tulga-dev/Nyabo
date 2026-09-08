@@ -1,0 +1,29 @@
+{
+ "_comment": "Golden extraction answer for internet_univision: Monthly internet bill from Univision.",
+ "data": {
+  "seller_name": "Юнивишн ХХК",
+  "seller_register_no": "2887819",
+  "seller_tin": "37200033344",
+  "date": "2026-06-15",
+  "total": 55000.0,
+  "vat_amount": 5000.0,
+  "lines": [
+   {
+    "description": "Интернэт 100Mbps, 6-р сар",
+    "qty": 1.0,
+    "amount": 55000.0
+   }
+  ],
+  "payment_method": "transfer",
+  "receipt_id": "00067890123456789012345678",
+  "lottery_no": "KL67890123",
+  "confidence": {
+   "seller_name": 0.95,
+   "date": 0.92,
+   "total": 0.98,
+   "vat_amount": 0.9,
+   "lines": 0.85
+  },
+  "notes": null
+ }
+}

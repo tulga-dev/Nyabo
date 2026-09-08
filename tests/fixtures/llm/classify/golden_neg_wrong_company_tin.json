@@ -1,0 +1,9 @@
+{
+ "_comment": "",
+ "data": {
+  "account_code": "6510",
+  "vat_treatment": "withheld",
+  "reason_mn": "Принтерийн хор, хавтас зэрэг бичиг хэргийн зүйл тул 6510 дансанд бүртгэнэ.",
+  "confidence": 0.9
+ }
+}

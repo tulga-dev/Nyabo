@@ -1,0 +1,9 @@
+{
+ "_comment": "office_supplies under simplified_1pct",
+ "data": {
+  "account_code": "6510",
+  "vat_treatment": "in_expense",
+  "reason_mn": "Принтерийн хор, хавтас зэрэг бичиг хэргийн зүйл тул 6510 дансанд бүртгэнэ.",
+  "confidence": 0.9
+ }
+}

@@ -1,0 +1,39 @@
+{
+ "_comment": "Golden extraction answer for nomin_supermarket: Supermarket receipt with several lines; office consumables.",
+ "data": {
+  "seller_name": "Номин Холдинг ХХК",
+  "seller_register_no": "2075873",
+  "seller_tin": "37100012345",
+  "date": "2026-06-15",
+  "total": 46500.0,
+  "vat_amount": 4227.27,
+  "lines": [
+   {
+    "description": "Цай Lipton 100г",
+    "qty": 1.0,
+    "amount": 12500.0
+   },
+   {
+    "description": "Кофе Nescafe 200г",
+    "qty": 1.0,
+    "amount": 24000.0
+   },
+   {
+    "description": "Цаас А4 500ш",
+    "qty": 1.0,
+    "amount": 10000.0
+   }
+  ],
+  "payment_method": "card",
+  "receipt_id": "00023456789012345678901234",
+  "lottery_no": "CD23456789",
+  "confidence": {
+   "seller_name": 0.95,
+   "date": 0.92,
+   "total": 0.98,
+   "vat_amount": 0.9,
+   "lines": 0.85
+  },
+  "notes": null
+ }
+}

@@ -1,0 +1,9 @@
+{
+ "_comment": "rent_invoice under simplified_1pct",
+ "data": {
+  "account_code": "6310",
+  "vat_treatment": "in_expense",
+  "reason_mn": "Оффисын сарын түрээсийн нэхэмжлэх тул 6310 Түрээс дансанд бүртгэнэ.",
+  "confidence": 0.9
+ }
+}

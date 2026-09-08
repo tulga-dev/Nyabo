@@ -1,0 +1,9 @@
+{
+ "_comment": "restaurant under simplified_1pct",
+ "data": {
+  "account_code": "6910",
+  "vat_treatment": "in_expense",
+  "reason_mn": "Харилцагчтай хийсэн бизнес уулзалтын хоол тул 6910 Бусад үйл ажиллагааны зардалд бүртгэнэ.",
+  "confidence": 0.9
+ }
+}

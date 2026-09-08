@@ -250,7 +250,9 @@ def placeholder_image(key: str) -> bytes:
 	return b"NYABO-EVAL-IMAGE:" + hashlib.sha256(key.encode("utf-8")).digest()
 
 
-def script_fixture(client: LlmClient, purpose: str, key: str, fixtures_dir: Path | str = DEFAULT_FIXTURES_DIR) -> None:
+def script_fixture(
+	client: LlmClient, purpose: str, key: str, fixtures_dir: Path | str = DEFAULT_FIXTURES_DIR
+) -> None:
 	"""Make a MockLlmClient answer ``purpose`` with the fixture; a real client is left alone."""
 	if isinstance(client, MockLlmClient):
 		client.add(purpose, load_fixture(key, fixtures_dir))
@@ -344,7 +346,13 @@ class Prior:
 		data = data or {}
 		receipts = set()
 		for row in data.get("receipts") or []:
-			receipts.add((str(row.get("seller_tin") or ""), str(row.get("date") or ""), str(quantize(to_decimal(row.get("total") or 0)))))
+			receipts.add(
+				(
+					str(row.get("seller_tin") or ""),
+					str(row.get("date") or ""),
+					str(quantize(to_decimal(row.get("total") or 0))),
+				)
+			)
 		return cls(
 			file_hashes=frozenset(str(h) for h in data.get("file_hashes") or []),
 			receipt_ids=frozenset(str(r) for r in data.get("receipt_ids") or []),
@@ -394,7 +402,9 @@ class ProposeInput:
 	scheme: str = DEFAULT_SCHEME
 
 	@classmethod
-	def from_case(cls, input_json: Mapping[str, Any], regime: str, on_date: dt.date, company: str) -> ProposeInput:
+	def from_case(
+		cls, input_json: Mapping[str, Any], regime: str, on_date: dt.date, company: str
+	) -> ProposeInput:
 		receipt = dict(input_json.get("receipt") or {})
 		if "date" not in receipt or receipt.get("date") is None:
 			receipt["date"] = on_date.isoformat()
@@ -440,7 +450,9 @@ def propose(
 	# Injection scan covers every free-text field the model could have copied from the paper.
 	texts = [str(receipt.get("seller_name") or ""), str(receipt.get("notes") or "")]
 	texts += [str(line.get("description") or "") for line in receipt.get("lines") or []]
-	fragment = receipt.get("injection_fragment") or next((f for f in (find_injection(t) for t in texts) if f), None)
+	fragment = receipt.get("injection_fragment") or next(
+		(f for f in (find_injection(t) for t in texts) if f), None
+	)
 	injection = bool(receipt.get("injection_suspected")) or fragment is not None
 	if injection:
 		flags.append(FLAG_INJECTION)
@@ -457,7 +469,11 @@ def propose(
 		confidence = float((receipt.get("confidence") or {}).get(name, 0.0))
 		if confidence < CONFIDENCE_MIN:
 			flags.append(f"{FLAG_LOW_CONFIDENCE}:{name}")
-			warnings.append(mn.WARN_LOW_CONFIDENCE.format(field=mn.FIELD_LABELS.get(name, name), confidence=int(confidence * 100)))
+			warnings.append(
+				mn.WARN_LOW_CONFIDENCE.format(
+					field=mn.FIELD_LABELS.get(name, name), confidence=int(confidence * 100)
+				)
+			)
 	if not spec.supplier_known:
 		flags.append(FLAG_NEW_SUPPLIER)
 		warnings.append(mn.WARN_NEW_SUPPLIER)
@@ -478,12 +494,14 @@ def propose(
 	account_code = default_code
 	reason_mn = mn.AGENT_REASON_UNAVAILABLE
 	confidence = 0.0
-	vat_treatment = "in_expense" if receipt.get("vat_amount") else "none"
+	vat_treatment = default_vat_treatment(receipt, ctx, spec.seller_vat_payer)
 	source = "default"
 	if client is not None:
 		if spec.classify_fixture:
 			script_fixture(client, classify_mod.PURPOSE, spec.classify_fixture, fixtures_dir)
-		outcome = classify_mod.classify_full(client, receipt, rules.leaf_list(), list(spec.examples), classify_ctx)
+		outcome = classify_mod.classify_full(
+			client, receipt, rules.leaf_list(), list(spec.examples), classify_ctx
+		)
 		llm.append(outcome.llm)
 		warnings.extend(outcome.warnings)
 		account_code = outcome.result.account_code
@@ -492,16 +510,19 @@ def propose(
 		vat_treatment = outcome.result.vat_treatment
 		source = "model"
 	if injection and defend_injection:
-		# The instructed content may be exactly what came back: drop the model's choice.
+		# The instructed content may be exactly what came back: drop the model's whole answer.
 		account_code = default_code
 		reason_mn = mn.AGENT_REASON_UNAVAILABLE
 		confidence = 0.0
+		vat_treatment = default_vat_treatment(receipt, ctx, spec.seller_vat_payer)
 		source = "default"
 	elif source == "model" and confidence < CLASSIFICATION_CONFIDENCE_MIN:
 		# The prompt asks for < 0.5 when guessing (personal-looking purchases, unknown sellers).
 		flags.append(FLAG_LOW_CLASSIFICATION)
 
-	vat_treatment, vat_flags = _settle_vat(vat_treatment, receipt, ctx, spec.seller_vat_payer, rules, spec.on_date)
+	vat_treatment, vat_flags = _settle_vat(
+		vat_treatment, receipt, ctx, spec.seller_vat_payer, rules, spec.on_date
+	)
 	flags.extend(vat_flags)
 	warnings.extend(mn.WARN_SELLER_NOT_VAT_PAYER for f in vat_flags if f == FLAG_SELLER_NOT_VAT_PAYER)
 
@@ -513,7 +534,9 @@ def propose(
 	document_kind: str | None = None
 	if receipt.get("total") is not None and account_code:
 		try:
-			entry, amount_mnt = _build_entry(spec, receipt, ctx, rules, account_code, vat_treatment, reason_mn, adapters, flags)
+			entry, amount_mnt = _build_entry(
+				spec, receipt, ctx, rules, account_code, vat_treatment, reason_mn, adapters, flags
+			)
 		except (re_.RuleError, LookupError) as exc:
 			problems = (str(getattr(exc, "message_mn", exc)),)
 			flags.append(FLAG_ENTRY_INVALID)
@@ -561,6 +584,17 @@ def propose(
 	)
 
 
+def default_vat_treatment(
+	receipt: Mapping[str, Any], ctx: RegimeContext, seller_vat_payer: bool | None
+) -> str:
+	"""The treatment code derives without a model: withheld only when every condition holds."""
+	if not receipt.get("vat_amount"):
+		return "none"
+	if ctx.input_vat_recoverable and seller_vat_payer:
+		return "withheld"
+	return "in_expense"
+
+
 def _settle_vat(
 	treatment: str,
 	receipt: Mapping[str, Any],
@@ -580,7 +614,9 @@ def _settle_vat(
 			treatment = "in_expense" if vat else "none"
 		elif not vat:
 			treatment = "none"
-		elif receipt.get("total") is not None and not vat_consistent(receipt["total"], vat, rules.vat_rate(on_date)):
+		elif receipt.get("total") is not None and not vat_consistent(
+			receipt["total"], vat, rules.vat_rate(on_date)
+		):
 			flags.append(FLAG_VAT_INCONSISTENT)
 	return treatment, flags
 
@@ -634,7 +670,9 @@ def _build_entry(
 		explanation="",
 		vat_treatment=vat_treatment,  # type: ignore[arg-type]
 		supplier=str(receipt.get("seller_name") or "") or None,
-		description=str((receipt.get("lines") or [{}])[0].get("description") or "") if receipt.get("lines") else "",
+		description=str((receipt.get("lines") or [{}])[0].get("description") or "")
+		if receipt.get("lines")
+		else "",
 	)
 	# The model's one line, then the VAT sentence code owns, then the citation (§1.4).
 	parts = [reason_mn.strip()]
@@ -665,7 +703,9 @@ def _apply_alternatives(pattern: re_.PatternSpec, conditions: set[str]) -> re_.P
 		if chosen is None:
 			lines.append(line)
 			continue
-		lines.append(dataclasses.replace(line, account_class=chosen.account_class, role=chosen.role, alternatives=()))
+		lines.append(
+			dataclasses.replace(line, account_class=chosen.account_class, role=chosen.role, alternatives=())
+		)
 	return dataclasses.replace(pattern, lines=tuple(lines))
 
 
@@ -740,12 +780,16 @@ def correct(
 	reversal = adapters.reverse_entry(original.entry, reversal_date, reason_text)
 	warnings: list[str] = []
 	if not in_original:
-		warnings.append(mn.MSG_CORRECTION_PERIOD_CLOSED.format(period=original.entry.posting_date.strftime("%Y-%m")))
+		warnings.append(
+			mn.MSG_CORRECTION_PERIOD_CLOSED.format(period=original.entry.posting_date.strftime("%Y-%m"))
+		)
 
 	rows: list[dict[str, str]] = []
 	new_entry: ProposedEntry | None = None
 	if reason == "dup":
-		rows.append({"field": "reversed", "proposed_value": original.entry.pattern_id, "corrected_value": "duplicate"})
+		rows.append(
+			{"field": "reversed", "proposed_value": original.entry.pattern_id, "corrected_value": "duplicate"}
+		)
 	else:
 		field_name = str(correction.get("field") or "")
 		corrected = correction.get("corrected_value")
@@ -765,7 +809,9 @@ def correct(
 		elif field_name == "posting_date":
 			proposed_value = original.entry.posting_date.isoformat()
 			new_spec = dataclasses.replace(new_spec, on_date=_date(corrected))
-		rows.append({"field": field_name, "proposed_value": str(proposed_value), "corrected_value": str(corrected)})
+		rows.append(
+			{"field": field_name, "proposed_value": str(proposed_value), "corrected_value": str(corrected)}
+		)
 		new_entry = _rebuild(original, new_spec, field_name, corrected, adapters)
 	return CorrectionOutcome(reversal, new_entry, tuple(rows), in_original, tuple(warnings))
 
@@ -781,7 +827,9 @@ def _rebuild(
 	vat_treatment = str(corrected) if field_name == "vat_treatment" else original.vat_treatment
 	if vat_treatment == "withheld" and not ctx.input_vat_recoverable:
 		vat_treatment = "in_expense"
-	entry, _amount = _build_entry(spec, receipt, ctx, rules, account_code, vat_treatment, original.reason_mn, adapters, [])
+	entry, _amount = _build_entry(
+		spec, receipt, ctx, rules, account_code, vat_treatment, original.reason_mn, adapters, []
+	)
 	return entry
 
 
@@ -800,7 +848,9 @@ def posting_allowed_in_period(
 ) -> tuple[bool, str | None]:
 	adapters = adapters or default_adapters()
 	if adapters.period_is_closed(list(closed_periods), on_date):
-		return False, mn.MSG_POSTING_IN_CLOSED_PERIOD.format(date=on_date.isoformat(), period=on_date.strftime("%Y-%m"))
+		return False, mn.MSG_POSTING_IN_CLOSED_PERIOD.format(
+			date=on_date.isoformat(), period=on_date.strftime("%Y-%m")
+		)
 	return True, None
 
 
@@ -824,7 +874,12 @@ class FxOutcome:
 
 
 def convert_fx(
-	input_json: Mapping[str, Any], regime: str, on_date: dt.date, *, adapters: Adapters | None = None, company: str = "Тест ХХК"
+	input_json: Mapping[str, Any],
+	regime: str,
+	on_date: dt.date,
+	*,
+	adapters: Adapters | None = None,
+	company: str = "Тест ХХК",
 ) -> FxOutcome:
 	"""Mongolbank rate on the transaction date; on settlement the difference goes to fx_gain / fx_loss."""
 	adapters = adapters or default_adapters()
@@ -846,14 +901,20 @@ def convert_fx(
 			ctx = regime_context(regime, settlement_day)
 			family = "fx"
 			wanted = "fx_loss" if difference > ZERO else "fx_gain"
-			pattern = re_.select_pattern(rules.patterns, "journal_entry", ctx, {"family": family, "pattern_id": wanted})
-			pattern = _apply_alternatives(pattern, {"fx_payable"} if input_json.get("side", "payable") == "payable" else set())
+			pattern = re_.select_pattern(
+				rules.patterns, "journal_entry", ctx, {"family": family, "pattern_id": wanted}
+			)
+			pattern = _apply_alternatives(
+				pattern, {"fx_payable"} if input_json.get("side", "payable") == "payable" else set()
+			)
 
 			def resolve(selector: str) -> str:
 				if selector.startswith("role:"):
 					code = rules.role_code(selector[5:])
 					if code is None:
-						raise re_.MissingAmountError(selector, mn.MSG_ACCOUNT_UNKNOWN.format(account=selector))
+						raise re_.MissingAmountError(
+							selector, mn.MSG_ACCOUNT_UNKNOWN.format(account=selector)
+						)
 					return code
 				return selector
 
@@ -863,7 +924,9 @@ def convert_fx(
 				resolve,
 				company=company,
 				posting_date=settlement_day,
-				explanation=mn.EXPL_EXPENSE.format(what=pattern.name_mn, debit_code=pattern.lines[0].role or "", credit_name=""),
+				explanation=mn.EXPL_EXPENSE.format(
+					what=pattern.name_mn, debit_code=pattern.lines[0].role or "", credit_name=""
+				),
 			)
 	return FxOutcome(rate, amount_mnt, settlement_rate, difference, fx_entry)
 
@@ -884,7 +947,10 @@ def _date(value: Any) -> dt.date | None:
 def _lines(entry: ProposedEntry | None) -> list[dict[str, str]]:
 	if entry is None:
 		return []
-	return [{"account_code": line.account_code, "debit": str(line.debit), "credit": str(line.credit)} for line in entry.lines]
+	return [
+		{"account_code": line.account_code, "debit": str(line.debit), "credit": str(line.credit)}
+		for line in entry.lines
+	]
 
 
 def lines_of(entry: ProposedEntry | None) -> list[dict[str, str]]:

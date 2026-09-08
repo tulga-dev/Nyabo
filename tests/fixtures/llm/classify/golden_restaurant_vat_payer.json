@@ -1,0 +1,9 @@
+{
+ "_comment": "restaurant under vat_payer",
+ "data": {
+  "account_code": "6910",
+  "vat_treatment": "withheld",
+  "reason_mn": "Харилцагчтай хийсэн бизнес уулзалтын хоол тул 6910 Бусад үйл ажиллагааны зардалд бүртгэнэ.",
+  "confidence": 0.9
+ }
+}
