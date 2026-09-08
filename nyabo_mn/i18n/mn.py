@@ -262,6 +262,7 @@ MSG_PERIOD_UNVERIFIED_RULES = (
 	"Баталгаажаагүй дүрмээр хийсэн бичилт байна; админ дүрмийг баталгаажуулах шаардлагатай."
 )
 MSG_PERIOD_REOPENED = "🔓 {period} сарыг дахин нээлээ. Шалтгаан: {reason}"
+MSG_PERIOD_DELETE_BLOCKED = "Нябо-гоор хаасан тайлант үеийг ({name}) устгахгүй; шаардлагатай бол дахин нээнэ."
 MSG_POSTING_IN_CLOSED_PERIOD = "{date} огноо хаагдсан {period} сард байна. Бичилт хийх боломжгүй."
 MSG_CLOSE_SIMPLIFIED_MONTH_LINE = "• {month}: орлого {revenue}₮"
 MSG_CLOSE_TRIAL_BALANCE_SOURCE_FALLBACK = (

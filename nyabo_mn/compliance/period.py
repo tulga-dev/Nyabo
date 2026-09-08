@@ -167,24 +167,34 @@ def _changed(doc: Any) -> dict[str, Any]:
 
 
 def log_period_change(doc: Any, method: str | None = None) -> None:
-	"""on_update: skipped when lock()/reopen() already wrote the specific event."""
+	"""on_update: skipped when lock()/reopen() already wrote the specific event.
+
+	The period is named in the payload, not in ``ref_name``: a Dynamic Link from an event
+	would make Frappe refuse to delete the period later (link check), and manual desk
+	periods must stay deletable. Periods locked through Nyabo *are* linked on purpose.
+	"""
 	if frappe.flags.get("nyabo_period_action"):
 		return
 	events.log(
 		mn.EVENT_PERIOD_CHANGED,
 		company=doc.get("company"),
-		ref_doctype="Accounting Period",
-		ref_name=doc.name,
-		payload=_changed(doc),
+		payload={"accounting_period": doc.name, "period": doc.get("period_name"), **_changed(doc)},
 	)
 
 
 def log_period_delete(doc: Any, method: str | None = None) -> None:
-	"""on_trash: deleting a period silently reopens the month, so it is logged."""
+	"""on_trash: a period Nyabo locked is never deleted (reopen instead); others are logged."""
+	if frappe.db.exists(
+		"Nyabo Event", {"ref_doctype": "Accounting Period", "ref_name": doc.name, "event_type": mn.EVENT_PERIOD_LOCKED}
+	):
+		frappe.throw(mn.MSG_PERIOD_DELETE_BLOCKED.format(name=doc.name))
 	events.log(
 		mn.EVENT_PERIOD_DELETED,
 		company=doc.get("company"),
-		ref_doctype="Accounting Period",
-		ref_name=doc.name,
-		payload={"period": doc.get("period_name"), "start_date": str(doc.get("start_date"))},
+		payload={
+			"accounting_period": doc.name,
+			"period": doc.get("period_name"),
+			"start_date": str(doc.get("start_date")),
+			"action": "deleted",
+		},
 	)

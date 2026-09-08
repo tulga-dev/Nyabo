@@ -9,58 +9,12 @@ from frappe.utils import add_years, getdate
 from nyabo_mn.compliance import hooks as compliance_hooks
 from nyabo_mn.i18n import mn
 
-EXPENSE = "6210 - Шатахуун - TST"
-CASH = "1110 - Касс - TST"
-
-
-def make_je(company, amount=85000, posting_date="2026-03-05", **extra):
-	return frappe.get_doc(
-		{
-			"doctype": "Journal Entry",
-			"voucher_type": "Journal Entry",
-			"company": company,
-			"posting_date": posting_date,
-			"user_remark": "Тест",
-			"accounts": [
-				{"account": EXPENSE, "debit_in_account_currency": amount},
-				{"account": CASH, "credit_in_account_currency": amount},
-			],
-			**extra,
-		}
-	)
-
-
-def make_nyabo_document(company, **extra):
-	return frappe.get_doc(
-		{
-			"doctype": "Nyabo Document",
-			"company": company,
-			"doc_type": "receipt",
-			"file": "/private/files/receipt.jpg",
-			"status": "received",
-			"received_at": "2026-03-05 10:00:00",
-			**extra,
-		}
-	).insert()
+from compliance_helpers import CASH, make_je, make_nyabo_document, make_pi, make_supplier
 
 
 @pytest.fixture
 def supplier(company):
-	return frappe.get_doc({"doctype": "Supplier", "supplier_name": "Петровис ХХК", "tin": "12345678"}).insert()
-
-
-def make_pi(company, supplier, **extra):
-	return frappe.get_doc(
-		{
-			"doctype": "Purchase Invoice",
-			"company": company,
-			"supplier": supplier.name,
-			"posting_date": "2026-03-10",
-			"bill_no": "AB-1",
-			"items": [{"item_name": "Бензин", "qty": 2, "rate": 42500, "expense_account": EXPENSE}],
-			**extra,
-		}
-	)
+	return make_supplier()
 
 
 def test_journal_entry_without_primary_document_is_refused(company):
