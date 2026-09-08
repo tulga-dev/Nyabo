@@ -34,10 +34,14 @@ def _entry() -> m.ProposedEntry:
 		lines=(
 			m.ProposedLine("6210", Decimal("77272.73"), Decimal("0.00"), "Шатахуун"),
 			m.ProposedLine("1810", Decimal("7727.27"), Decimal("0.00"), "НӨАТ"),
-			m.ProposedLine("2110", Decimal("0.00"), Decimal("85000.00"), party_type="Supplier", party="Петровис ХХК"),
+			m.ProposedLine(
+				"2110", Decimal("0.00"), Decimal("85000.00"), party_type="Supplier", party="Петровис ХХК"
+			),
 		),
 		pattern_id="purchase_expense_vat_payer",
-		citation=m.Citation("Заавар 116 (2000)", None, False, url="https://legalinfo.mn/mn/detail?lawId=205201"),
+		citation=m.Citation(
+			"Заавар 116 (2000)", None, False, url="https://legalinfo.mn/mn/detail?lawId=205201"
+		),
 		explanation="Шатахуун авсан тул 6210 дебетлэв.",
 		document_kind="purchase_invoice",
 		vat_treatment="withheld",
@@ -129,7 +133,9 @@ def test_bank_line_and_match_result_round_trip():
 		row_index=7,
 		row_hash="abc",
 	)
-	candidate = m.MatchCandidate("Purchase Invoice", "ACC-PINV-0001", dt.date(2026, 9, 1), Decimal("-85000.00"), "Петровис ХХК")
+	candidate = m.MatchCandidate(
+		"Purchase Invoice", "ACC-PINV-0001", dt.date(2026, 9, 1), Decimal("-85000.00"), "Петровис ХХК"
+	)
 	result = m.MatchResult(line, candidate, 0.94, "exact", "дүн таарч")
 	back = _round_trip(result)
 	assert back == result
