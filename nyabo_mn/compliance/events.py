@@ -8,10 +8,11 @@ hook handlers below enforce that regardless of who holds which role.
 
 An event points at its document with a Dynamic Link, and an undeletable event made every
 document it named undeletable too - a draft proposal, a test receipt, a mistyped journal
-entry - because Frappe refuses to delete a row another row links to (F11).
-``allow_delete_despite_events`` is the fix, and it changes nothing about the audit trail:
-the event still exists and still names the document. Which documents may be deleted at
-all stays where it belongs, in ``compliance.hooks`` (retention, posted documents).
+entry - because Frappe refuses to delete a row another row links to (F11). The fix is the
+``ignore_links_on_delete`` hook in ``nyabo_mn/hooks.py``, which is what Frappe reads when
+deleting; it changes nothing about the audit trail: the event still exists and still names
+the document. Which documents may be deleted at all stays where it belongs, in
+``compliance.hooks`` (retention, posted documents).
 """
 
 from __future__ import annotations
@@ -68,24 +69,3 @@ def enforce_append_only(doc: Any, method: str | None = None) -> None:
 def block_delete(doc: Any, method: str | None = None) -> None:
 	"""on_trash: events are never deleted, not even by Administrator."""
 	frappe.throw(mn.MSG_EVENT_APPEND_ONLY)
-
-
-def allow_delete_despite_events(doc: Any, method: str | None = None) -> None:
-	"""on_trash of every doctype: an audit event must not be what keeps a document alive (F11).
-
-	``frappe.model.delete_doc.check_if_doc_is_linked`` refuses to delete a row that another
-	row links to, and skips the doctypes named in the document's ``ignore_linked_doctypes``
-	(the same attribute ERPNext's controllers set for GL Entry and Payment Ledger Entry).
-	Because a Nyabo Event can never be deleted, without this every document an event has
-	ever named would be undeletable for ever - drafts, rejected proposals, test data.
-
-	This does not decide what may be deleted. The retention and posted-document guards in
-	``compliance.hooks`` run as ``on_trash`` handlers too and still refuse; all this says is
-	that once they have allowed a deletion, the audit log will not veto it. The event row
-	survives with the document's type and name still written on it, which is exactly what an
-	audit trail is for: it records what happened, it does not hold the world in place.
-	"""
-	ignored = list(doc.get("ignore_linked_doctypes") or [])
-	if EVENT_DOCTYPE not in ignored:
-		ignored.append(EVENT_DOCTYPE)
-	doc.ignore_linked_doctypes = ignored

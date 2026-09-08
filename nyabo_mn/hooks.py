@@ -65,18 +65,21 @@ doc_events = {
 		"before_save": "nyabo_mn.compliance.events.enforce_append_only",
 		"on_trash": "nyabo_mn.compliance.events.block_delete",
 	},
-	# Every doctype, on_trash (Frappe runs "*" handlers after the doctype's own, and both run
-	# before delete_doc's link check): an audit event never deleted must not make the document
-	# it names undeletable for ever. What may be deleted at all is still decided by the
-	# handlers above and by compliance.hooks. See compliance/events.py (F11).
-	"*": {
-		"on_trash": "nyabo_mn.compliance.events.allow_delete_despite_events",
-	},
 	"Accounting Period": {
 		"on_update": "nyabo_mn.compliance.period.log_period_change",
 		"on_trash": "nyabo_mn.compliance.period.log_period_delete",
 	},
 }
+
+# A Nyabo Event points at its document with a Dynamic Link and can never be deleted, so
+# without this every document an event has ever named would be undeletable for ever - drafts,
+# rejected proposals, test data (F11). This is the hook Frappe reads when *deleting*
+# (frappe/model/delete_doc.py, get_linked_docs: `if method == "Delete":
+# ignored_doctypes.update(frappe.get_hooks("ignore_links_on_delete"))`; the document-level
+# `ignore_linked_doctypes` attribute is consulted only for Cancel). It removes the referential
+# veto, nothing else: events stay append-only and undeletable, still naming the document, and
+# what may be deleted at all is decided by the on_trash guards above.
+ignore_links_on_delete = ["Nyabo Event"]
 
 scheduler_events = {
 	"daily": [

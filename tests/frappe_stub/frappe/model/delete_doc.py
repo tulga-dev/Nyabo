@@ -99,10 +99,20 @@ def delete_doc(
 
 
 def _check_if_doc_is_linked(doc: Any, ignore_doctypes: list[str]) -> None:
+	"""frappe/model/delete_doc.py ``get_linked_docs`` (version-16), for ``method = "Delete"``.
+
+	The two ways a linking doctype is ignored differ by method, and the stub keeps the
+	difference: ``if method == "Delete": ignored_doctypes.update(frappe.get_hooks(
+	"ignore_links_on_delete"))``, while the document's own ``ignore_linked_doctypes``
+	attribute is read only ``if method == "Cancel"`` (``Document.check_no_back_links_exist``
+	in this stub). ``doc.get("ignore_linked_doctypes")`` is honoured here as well because
+	ERPNext's controllers set it in ``on_trash`` too and the stub was written that way.
+	"""
 	import frappe
 
+	ignored = set(ignore_doctypes) | set(frappe.get_hooks("ignore_links_on_delete") or [])
 	for other_doctype, fieldname, other_name in frappe._stub.find_links_to(doc.doctype, doc.name):
-		if other_doctype in ignore_doctypes or other_doctype in (doc.get("ignore_linked_doctypes") or []):
+		if other_doctype in ignored or other_doctype in (doc.get("ignore_linked_doctypes") or []):
 			continue
 		if other_doctype == doc.doctype and other_name == doc.name:
 			continue
