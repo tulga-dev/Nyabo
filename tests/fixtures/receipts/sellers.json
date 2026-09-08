@@ -1,0 +1,6 @@
+{
+  "_comment": "MockProvider seller fixtures keyed by TIN: name, vat_payer, register_no. Not real registry data.",
+  "37200019261": {"name": "Петровис ХХК", "vat_payer": true, "register_no": "2550385"},
+  "12345678901": {"name": "Ганбат ганцаарчилсан үйлдвэр", "vat_payer": false, "register_no": "9988776"},
+  "55555555555": {"name": "Номин Юнайтед ХХК", "vat_payer": true, "register_no": "2044455"}
+}

@@ -200,3 +200,64 @@ under its parent group ("11 Банкинд байгаа мөнгө" on v0.3, "11
 with the next free code of that prefix (1103, 1104 / 1121, 1122). The leaf stays the
 Company default bank account; per-bank balances come from the sub-accounts and the ERPNext
 `Bank Account` rows that link to them. Names are "<Bank MN> <currency> <last 4 digits>".
+## agent pipeline + posting + ebarimt (stage 2)
+
+### D-017 The pipeline bridges to `nyabo_mn.rules` and falls back to the core engine on the same rows
+`nyabo_mn.rules` (regime, patterns, guard) was not in the tree when the pipeline was
+written. `agent.pipeline.regime_context` uses `rules.regime.posting_context` and
+`agent.pipeline.require_verified` uses `rules.guard.require_verified` / `UnverifiedRuleError`
+when they are importable (the names ARCHITECTURE §1 fixes); otherwise the same DocType
+rows (`Nyabo Company Settings.regimes`, `Nyabo Posting Pattern`, `Nyabo Tax Parameter`,
+seed JSON when a table is empty) are fed to `core.rules_engine`. There is no second rule
+set to drift. Reverse by deleting the fallback branches once the rules package lands.
+
+### D-018 VAT treatment is decided by code, the model only suggests
+`decide_vat_treatment`: a non-VAT company never withholds; no printed VAT means nothing
+to withhold; a seller the registry marks as non-VAT-payer keeps the printed VAT in the
+expense with `WARN_SELLER_NOT_VAT_PAYER`; a VAT payer with printed VAT from a VAT-payer
+seller withholds even when the model said `in_expense`, because the non-deductible
+categories are a pending 2027 parameter (`vat.input_deduction_categories`), not a model
+judgement. Only `exempt` / `zero` survive from the model.
+
+### D-019 Purchase Invoice always credits the payable; a Journal Entry credits cash only for cash
+The bank statement flow settles the payable through ERPNext, so crediting the bank
+account directly on a card/QPay/transfer receipt would double count when the statement
+line arrives. Cash receipts (`payment_method == "cash"`) booked as a Journal Entry credit
+the cash role instead (`make_resolver(overrides={"payable": "cash"})`).
+
+### D-020 The classified account replaces the pattern's primary debit line
+A pattern's first debit line carrying `net`/`gross` (the class-70 line, or the
+`inventory_goods` / `fixed_asset` role) is resolved to the account the rule or the model
+chose; the family (`purchase_expense` / `purchase_inventory` / `fixed_asset_acquire`) is
+derived from that account's ERPNext `account_type` (`Stock`, `Fixed Asset`, `Capital Work
+in Progress`), never from the model's words. Other roles resolve through
+`code_roles.json` for the settings' scheme; when the settings say `v03` but the chart is
+the V1 draft (provisioning today), `chart_scheme` picks the scheme whose payable role
+exists in the chart rather than posting to a code the chart does not have.
+
+### D-021 Supplier matching: identifiers first, names at 0.9 with an exact-name tie-break
+`tin` / `tax_id` / `register_no` decide before names. The token-set ratio scores a subset
+("Петровис" vs "Петровис Ойл ХХК") as 1.0, so ties are broken by exact normalised
+equality and then the plain character ratio. New suppliers carry
+`nyabo_pending_confirmation = 1` and the registry answer (`ebarimt_vat_payer`,
+`ebarimt_checked_at`, 30-day cache) when the seller was found.
+
+### D-022 Learned rules key on the supplier's register number, then its name, then the description
+Two `Nyabo Correction(field=account_code)` rows agreeing on the target for the same
+supplier create one `Nyabo Rule(source=learned, status=pending_confirmation)` listing the
+corrections; an existing active/pending rule for the same key blocks duplicates. A pending
+rule never matches (`match_rule` reads `status = active` only) until `confirm_rule`.
+
+### D-023 LLM call rows are written after the proposal exists, with its name
+`Nyabo LLM Call` needs the proposal link, which does not exist while the model runs, so
+the pipeline buffers `CallRecord`s and flushes them with the proposal name (or without
+one when the pipeline fails). An injected client without a recorder (tests, simulator)
+gets the pipeline's recorder, so "every call writes" holds there too.
+
+### D-024 ebarimt: registry only, receipt verification "unsupported", POS SDK refuses to start
+No buyer-side verification endpoint exists (ARCHITECTURE §2), so every provider answers
+`ReceiptVerification(status="unsupported", reason=VERIFICATION_RECEIPT_UNCHECKED)` and
+the card never shows `ebarimt ✓`. `RegistryProvider` treats any non-200, non-JSON or
+off-shape body as "not found" and never raises into the pipeline. `PosSdkProvider` raises
+`NotConfigured` at construction: PosAPI 3.0 is merchant-side and needs a local service in
+Mongolia. `qr.decode` tries pyzbar then zxing-cpp and logs `qr_decoder_missing` once.
