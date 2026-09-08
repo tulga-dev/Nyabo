@@ -117,6 +117,26 @@ def test_reverse_purchase_invoice_creates_a_debit_note(company, supplier):
 		reversal.reverse("Sales Invoice", pi.name, "dup", "", "Administrator")
 
 
+def test_reverse_cash_paid_purchase_invoice_gives_the_cash_back(company, supplier):
+	"""A cash receipt is posted as ERPNext's paid invoice (D-019), so its debit note has to put
+	the money back in the till, not leave a negative payable behind."""
+	pi = make_pi(
+		company,
+		supplier,
+		nyabo_primary_document_ref="AB-2",
+		is_paid=1,
+		cash_bank_account=CASH,
+		paid_amount=85000,
+	).insert()
+	pi.submit()
+	assert pi.status == "Paid" and get_balance_on(CASH, "2026-03-31") == -85000.0
+	result = reversal.reverse("Purchase Invoice", pi.name, "dup", "давхар илгээсэн", "Administrator")
+	note = frappe.get_doc("Purchase Invoice", result["reversal_name"])
+	assert note.is_return == 1 and note.paid_amount == -85000.0
+	assert get_balance_on(CASH, "2026-03-31") == 0.0
+	assert get_balance_on(PAYABLE, "2026-03-31") == 0.0
+
+
 def test_draft_cannot_be_reversed(company):
 	je = make_je(company).insert()
 	with pytest.raises(frappe.ValidationError) as exc:

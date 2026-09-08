@@ -812,9 +812,10 @@ def _run(
 		if treatment == "withheld" and "Purchase Invoice" in pattern.document_types
 		else "journal_entry"
 	)
-	overrides = (
-		{"payable": "cash"} if document_kind == "journal_entry" and receipt.payment_method == "cash" else {}
-	)
+	# A cash receipt credits cash whatever the document kind: no bank statement line will ever
+	# arrive to settle a payable that was paid over the counter (D-019). The Purchase Invoice
+	# books it as ERPNext's paid invoice (``is_paid``) in ``post.build_purchase_invoice``.
+	overrides = {"payable": "cash"} if receipt.payment_method == "cash" else {}
 	resolver = make_resolver(
 		company, scheme, leaf_codes, code, primary_selectors=primary_selectors(pattern), overrides=overrides
 	)

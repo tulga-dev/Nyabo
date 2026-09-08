@@ -38,6 +38,8 @@ POSTABLE_STATUSES = ("proposed", "approved")
 # are filled by calculate_taxes_and_totals on a bench. Booking a fixed-asset family proposal through
 # a plain item row (no is_fixed_asset item) has not been run on a real site.
 ITEM_UOM = "Nos"
+# A credit on one of these account types means the receipt was already paid (ERPNext's is_paid).
+CASH_ACCOUNT_TYPES = ("Cash", "Bank")
 LEARN_MIN_CORRECTIONS = 2
 TOP_ACCOUNTS_DAYS = 90
 SEARCH_LIMIT = 10
@@ -219,6 +221,20 @@ def _split_lines(
 	return [line for line in debits if line is not vat_line], vat_line, credits
 
 
+def _cash_or_bank_credit(company: str, credits: list[ProposedLine]) -> tuple[str, float] | None:
+	"""``(account name, amount)`` when the proposal's single credit is cash/bank, else None.
+
+	A receipt paid over the counter credits the cash role (``pipeline`` swaps the payable for a
+	cash payment method), and an invoice that credits cash is ERPNext's ``is_paid`` invoice.
+	"""
+	if len(credits) != 1:
+		return None
+	line = credits[0]
+	if _account_type(company, line.account_code) not in CASH_ACCOUNT_TYPES:
+		return None
+	return _account_name(company, line.account_code), float(line.credit)
+
+
 def build_purchase_invoice(proposal: Any, entry: ProposedEntry, approver_user: str) -> dict[str, Any]:
 	import frappe
 
@@ -227,7 +243,7 @@ def build_purchase_invoice(proposal: Any, entry: ProposedEntry, approver_user: s
 		raise ApprovalError(mn.MSG_SUPPLIER_REQUIRED_FOR_INVOICE, code="supplier_required")
 	extracted = pipeline.loads(proposal.extracted_json) or {}
 	verification = pipeline.loads(proposal.verification_json) or {}
-	debits, vat_line, _credits = _split_lines(company, entry)
+	debits, vat_line, credits = _split_lines(company, entry)
 	if not debits:
 		raise ApprovalError(mn.MSG_PROPOSAL_NOT_POSTABLE.format(status=proposal.status), code="no_lines")
 	lines = extracted.get("lines") or []
@@ -279,6 +295,18 @@ def build_purchase_invoice(proposal: Any, entry: ProposedEntry, approver_user: s
 		"remarks": proposal.explanation,
 		**audit_fields(proposal, approver_user, extracted, verification),
 	}
+	paid_from = _cash_or_bank_credit(company, credits)
+	if paid_from is not None:
+		# The proposal credits cash, so the invoice is ERPNext's paid invoice: make_payment_gl_entries
+		# debits credit_to and credits the cash account for paid_amount, which nets the payable to
+		# zero and leaves the cash movement the accountant can see (D-019).
+		# UNVERIFIED: is_paid / cash_bank_account / paid_amount are Purchase Invoice fields in
+		# erpnext_meta.json and validate_cash only requires cash_bank_account, but an "Actual" tax row
+		# on a paid invoice has not been run on a bench.
+		account, amount = paid_from
+		doc["is_paid"] = 1
+		doc["cash_bank_account"] = account
+		doc["paid_amount"] = amount
 	if template_name:
 		# UNVERIFIED: ERPNext's set_taxes() only appends template rows when the taxes table is empty
 		# (controllers/accounts_controller.py); the explicit "Actual" row above is expected to survive.

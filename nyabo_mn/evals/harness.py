@@ -760,12 +760,11 @@ def _build_entry(
 		amounts["net"] = gross
 
 	pattern = re_.select_pattern(rules.patterns, "purchase_invoice", ctx, {"family": "purchase_expense"})
-	# A Purchase Invoice always credits the supplier (ERPNext's credit_to). A Journal Entry
-	# credits cash only for a cash receipt; card/QPay/transfer keep the payable so the bank
-	# statement can settle it (D-019). agent.pipeline.propose does exactly this, and the
-	# simulator must show what the pipeline would post.
-	if vat_treatment != "withheld":
-		pattern = _apply_alternatives(pattern, _conditions(receipt))
+	# A cash receipt credits cash whatever the document kind (the Purchase Invoice is posted as
+	# ERPNext's paid invoice); card/QPay/transfer keep the payable so the bank statement can
+	# settle it (D-019). agent.pipeline.propose does exactly this, and the simulator must show
+	# what the pipeline would post.
+	pattern = _apply_alternatives(pattern, _conditions(receipt))
 
 	def resolve(selector: str) -> str:
 		if selector.startswith("role:"):

@@ -315,8 +315,10 @@ def expected_lines(r: dict[str, Any], regime: str, date: str) -> tuple[str, str,
 	if r.get("currency", "MNT") != "MNT":
 		rate = next(Decimal(x["exchange_rate"]) for x in r["fx_rates"] if x["date"] == date)
 		gross = quantize(gross * rate)
-	# D-019: only a cash receipt credits CASH. Card, QPay and transfer keep the PAYABLE so the
-	# bank statement settles it; crediting the bank here would double count that line.
+	# D-019: only a cash receipt credits CASH — whatever the document kind, since a Purchase
+	# Invoice for a cash receipt is posted as ERPNext's paid invoice. Card, QPay and transfer
+	# keep the PAYABLE so the bank statement settles it; crediting the bank here would double
+	# count that line.
 	credit = CASH if r["payment_method"] == "cash" else PAYABLE
 	if regime == "vat_payer":
 		treatment = r.get("vat_treatment", "withheld")
@@ -330,7 +332,7 @@ def expected_lines(r: dict[str, Any], regime: str, date: str) -> tuple[str, str,
 				[
 					{"account_code": r["account"], "debit": money(net), "credit": "0.00"},
 					{"account_code": INPUT_VAT, "debit": money(vat), "credit": "0.00"},
-					{"account_code": PAYABLE, "debit": "0.00", "credit": money(gross)},
+					{"account_code": credit, "debit": "0.00", "credit": money(gross)},
 				],
 			)
 		pattern = "purchase_expense_vat_payer"

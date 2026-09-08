@@ -219,11 +219,17 @@ seller withholds even when the model said `in_expense`, because the non-deductib
 categories are a pending 2027 parameter (`vat.input_deduction_categories`), not a model
 judgement. Only `exempt` / `zero` survive from the model.
 
-### D-019 Purchase Invoice always credits the payable; a Journal Entry credits cash only for cash
+### D-019 A cash receipt credits cash; card / QPay / transfer keep the payable
 The bank statement flow settles the payable through ERPNext, so crediting the bank
 account directly on a card/QPay/transfer receipt would double count when the statement
-line arrives. Cash receipts (`payment_method == "cash"`) booked as a Journal Entry credit
-the cash role instead (`make_resolver(overrides={"payable": "cash"})`).
+line arrives. A cash receipt (`payment_method == "cash"`) has no statement line to wait
+for, so it credits the cash role whatever the document kind
+(`make_resolver(overrides={"payable": "cash"})`): a Journal Entry credits cash directly,
+and a Purchase Invoice (input VAT withheld) is posted as ERPNext's paid invoice —
+`agent.post.build_purchase_invoice` sets `is_paid = 1`, `cash_bank_account` and
+`paid_amount` from that credit line, so `make_payment_gl_entries` nets the payable to
+zero and credits cash. Amended after review: crediting the payable on a cash purchase
+left an open supplier balance that nothing in the product could ever settle.
 
 ### D-020 The classified account replaces the pattern's primary debit line
 A pattern's first debit line carrying `net`/`gross` (the class-70 line, or the

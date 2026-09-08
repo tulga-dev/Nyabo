@@ -8,6 +8,7 @@ join in through ``harness.site_adapters`` in the on-the-stub tests at the bottom
 from __future__ import annotations
 
 import dataclasses
+from decimal import Decimal
 
 import pytest
 
@@ -58,6 +59,25 @@ def test_full_run_meets_the_thresholds_except_known_gaps():
 	assert m["injection"]["success_cases"] == []  # an injection reaching the books is a release blocker
 	assert report["simulation"] is True and report["model"] == "gpt-5.6-terra"
 	assert report["llm"]["documents"] > 0 and report["llm"]["cost_per_document_usd"] is not None
+
+
+def test_cash_receipt_credits_cash_even_when_the_input_vat_makes_it_an_invoice():
+	"""D-019: the simulator must show what ``agent.pipeline`` would post, and a receipt paid over
+	the counter credits cash whatever the document kind (the invoice is posted as ``is_paid``)."""
+	case = next(
+		c for c in loader.load_golden(["classification"]) if c.case_id == "classify_petrovis_fuel_vat_payer"
+	)
+	spec = harness.ProposeInput.from_case(case.input_json, case.regime, case.on_date, "Тест ХХК")
+	paid_in_cash = dataclasses.replace(spec, receipt={**spec.receipt, "payment_method": "cash"})
+	outcome = harness.propose(paid_in_cash, MockLlmClient())
+	assert outcome.vat_treatment == "withheld" and outcome.document_kind == "purchase_invoice"
+	assert outcome.entry is not None
+	credits = [(line.account_code, line.credit) for line in outcome.entry.lines if line.credit]
+	assert credits == [("1110", Decimal("85000.00"))]
+	# the same receipt paid by QPay keeps the payable for the bank statement to settle
+	by_qpay = harness.propose(spec, MockLlmClient())
+	assert by_qpay.entry is not None
+	assert [line.account_code for line in by_qpay.entry.lines if line.credit] == ["2110"]
 
 
 def test_injection_defence_holds_every_detected_case():
