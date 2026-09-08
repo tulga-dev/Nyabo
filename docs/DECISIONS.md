@@ -131,3 +131,33 @@ Core tests build rows inline (statement rows, receipts, candidates) instead of r
 xlsx fixtures, so a failure shows the input next to the assertion and no binary files
 enter the repo. Real bank exports, once obtained, go under `tests/fixtures/statements/`
 with the layout they verify.
+
+## integration (stage 1 → stage 2)
+
+### D-017 One company-level regime for the MVP, two derived axes
+The founder's onboarding asks one question ("НӨАТ төлөгч үү?"). `Nyabo Company Settings.regimes`
+therefore stores `vat_payer` or `simplified_1pct`; `RegimeContext` derives `is_vat_payer` and the
+CIT axis from it. A non-VAT company on regular CIT is not representable yet; when such a client
+appears, add `cit_regime` to the settings and to `regime_on` (D-005 keeps the pattern axes
+separate, so no pattern changes are needed).
+
+### D-018 Matching threshold stays 0.8 with name-or-reference required
+D-010 stands. If real statements (Phase 3 checkpoint) show narratives without counterparty
+names pushing auto-match below 80%, the fix is a per-company threshold on Nyabo Company
+Settings, not a weaker default.
+
+### D-019 v0.3 is the production chart scheme; v1 stays for the test company
+`code_roles.json` nulls under `v1` (D-013) are accepted: the v1 draft is only used by the
+Phase 0 test company. New companies are provisioned with `chart_scheme = v03` unless the
+accountant supplies a CSV chart.
+
+### D-020 Pattern line columns added to the DocType
+`role`, `v1_code_hint`, `v1_code_range`, `class_assumed` on Nyabo Posting Pattern Line and
+`family`, `reference_bullet`, `citation_instrument_full` on Nyabo Posting Pattern were added
+(supersedes D-015). `rules.seed.sync` writes them directly.
+
+### D-021 Placeholders keep hooks importable during parallel builds
+`nyabo_mn/compliance/{hooks,events,period}.py`, `evals/corrections_job.py`, `agent/few_shot.py`
+and `telegram/state.py` exist as no-op placeholders named in hooks.py, so every stage-2 worktree
+imports cleanly; the owning agents replace them. A placeholder that survives to a release is a
+bug; `compliance.readiness` must report it.
