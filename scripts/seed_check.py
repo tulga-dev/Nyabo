@@ -89,8 +89,10 @@ LINE_KEYS = {
 	"v1_code_range",
 	"class_assumed",
 }
-APPLIES_TO_VAT = {"any", "vat_payer", "non_vat"}
-APPLIES_TO_CIT = {"any", "regular", "simplified_1pct"}
+# The vocabulary the engine actually matches on, read from it rather than retyped (F-12):
+# the two selective values are the regime names.
+APPLIES_TO_VAT = {rules_engine.ANY, rules_engine.VAT_STATUS_PAYER, rules_engine.VAT_STATUS_NON_VAT}
+APPLIES_TO_CIT = {rules_engine.ANY, rules_engine.CIT_REGULAR, rules_engine.CIT_SIMPLIFIED}
 DOCUMENT_TYPES = {"Purchase Invoice", "Sales Invoice", "Journal Entry", "Payment Entry", "Bank Transaction"}
 BANKS = {"Khan Bank", "TDB", "Golomt Bank", "Trans Bank", "XacBank", "Other"}
 RULE_MATCH_TYPES = {

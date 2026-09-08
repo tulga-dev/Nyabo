@@ -19,13 +19,16 @@ from nyabo_mn.agent.extract import extract_receipt_full
 from nyabo_mn.agent.llm_client import LlmClient
 from nyabo_mn.agent.mock_client import MockLlmClient
 from nyabo_mn.core import matching as matching_mod
-from nyabo_mn.core.models import BankLine, MatchCandidate
+from nyabo_mn.core.models import BankLine, MatchCandidate, Regime
 from nyabo_mn.core.money import quantize, to_decimal
 from nyabo_mn.evals import harness
 from nyabo_mn.evals.loader import EvalCase
 from nyabo_mn.evals.metrics import CaseResult, compare_extraction
 
 DEFAULT_COMPANY = "Тест ХХК"
+# A case without an explicit regime is read under the VAT-payer profile; the name comes from
+# the Regime enum that ``rules.regime`` re-exports, never from a literal (F-12).
+DEFAULT_REGIME = Regime.VAT_PAYER.value
 
 
 class RunContext:
@@ -320,7 +323,7 @@ def run_period_lock(case: EvalCase, ctx: RunContext) -> CaseResult:
 def run_fx(case: EvalCase, ctx: RunContext) -> CaseResult:
 	outcome = harness.convert_fx(
 		case.input_json,
-		case.regime or "vat_payer",
+		case.regime or DEFAULT_REGIME,
 		case.on_date or dt.date.today(),
 		adapters=ctx.adapters,
 		company=ctx.company,

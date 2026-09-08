@@ -30,9 +30,19 @@ REGIME_NAMES: tuple[str, ...] = tuple(r.value for r in Regime)
 HistoryRow = tuple[str, dt.date | None, dt.date | None]
 
 
+def name_for_vat_status(is_vat_payer: bool) -> str:
+	"""The regime name a VAT-registration answer implies.
+
+	The one place that turns "is this company a VAT withholding payer?" into a regime
+	*name*, so no caller has to spell one (F-12): the names live in this module and in the
+	``Regime`` enum it re-exports, nowhere else.
+	"""
+	return REGIME_VAT_PAYER if is_vat_payer else REGIME_SIMPLIFIED
+
+
 def initial_regime(vat_registered: bool) -> str:
 	"""Onboarding step 2 (§5.2): a VAT payer files monthly, everyone else starts on the 1% regime."""
-	return REGIME_VAT_PAYER if vat_registered else REGIME_SIMPLIFIED
+	return name_for_vat_status(vat_registered)
 
 
 def validate_regime_name(regime: str) -> str:

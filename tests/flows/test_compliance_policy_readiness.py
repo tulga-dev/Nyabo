@@ -6,6 +6,7 @@ import frappe
 
 from nyabo_mn.compliance import policy_doc, readiness
 from nyabo_mn.i18n import mn
+from nyabo_mn.rules import regime
 
 
 def _settings(company, **values):
@@ -23,7 +24,7 @@ def _settings(company, **values):
 def test_policy_pdf_renders_from_settings_with_placeholders(company):
 	# provisioning already records the first regime (simplified 1% for a non-VAT company)
 	ctx = policy_doc.context(company)
-	assert ctx["values"]["regime"] == mn.POLICY_REGIME_LABELS["simplified_1pct"]
+	assert ctx["values"]["regime"] == policy_doc.POLICY_REGIME_LABELS[regime.REGIME_SIMPLIFIED]
 	# a company whose onboarding has not reached the regime step renders the placeholder
 	_settings(company, regimes=[])
 	ctx = policy_doc.context(company)
@@ -50,7 +51,7 @@ def test_policy_pdf_renders_from_settings_with_placeholders(company):
 	assert "accountant" not in ctx["missing"] and "regime" not in ctx["missing"]
 	html = policy_doc.generate_pdf(company).decode("utf-8")
 	assert "Б. Батаа" in html and "MICPA-123" in html and "FIFO" in html
-	assert mn.POLICY_REGIME_LABELS["simplified_1pct"] in html
+	assert policy_doc.POLICY_REGIME_LABELS[regime.REGIME_SIMPLIFIED] in html
 	assert mn.POLICY_DEPRECIATION_LABELS["Straight Line"] in html
 
 

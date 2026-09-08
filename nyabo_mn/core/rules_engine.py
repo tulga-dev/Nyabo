@@ -40,9 +40,12 @@ from nyabo_mn.i18n import mn
 SUMMARY_VAT_MONTHLY = "vat_monthly"
 SUMMARY_SIMPLIFIED_QUARTERLY = "simplified_quarterly"
 
+# A pattern's applies_to_vat / applies_to_cit vocabulary. The two selective values *are* the
+# regime names (a pattern that applies to a VAT payer, one that applies to the 1% regime), so
+# they are read off the Regime enum instead of being spelled again (F-12).
 CIT_REGULAR = "regular"
-CIT_SIMPLIFIED = "simplified_1pct"
-VAT_STATUS_PAYER = "vat_payer"
+CIT_SIMPLIFIED = Regime.SIMPLIFIED_1PCT.value
+VAT_STATUS_PAYER = Regime.VAT_PAYER.value
 VAT_STATUS_NON_VAT = "non_vat"
 ANY = "any"
 

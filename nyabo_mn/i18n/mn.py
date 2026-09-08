@@ -376,10 +376,10 @@ POLICY_CHART_SCHEME_LABELS = {
 	"v03": "Сангийн яамны үлгэрчилсэн дансны төлөвлөгөө (Тушаал 116/2000) дээр суурилсан бүтэц",
 	"accountant": "Нягтлан бодогчийн өөрийн дансны төлөвлөгөө (Нябо-гийн зүйлчлэлтэй)",
 }
-POLICY_REGIME_LABELS = {
-	"vat_payer": "НӨАТ төлөгч; НӨАТ-ын тайланг сар бүр гаргана",
-	"simplified_1pct": "НӨАТ төлөгч бус; хялбаршуулсан 1%-ийн горим (улирал бүр)",
-}
+# Keyed by the regime name in nyabo_mn.rules.regime, which builds the mapping (F-12): this
+# module holds the wording, never the rule keys.
+POLICY_REGIME_VAT_PAYER = "НӨАТ төлөгч; НӨАТ-ын тайланг сар бүр гаргана"
+POLICY_REGIME_SIMPLIFIED = "НӨАТ төлөгч бус; хялбаршуулсан 1%-ийн горим (улирал бүр)"
 POLICY_INVENTORY_LABELS = {
 	"FIFO": "Эхэлж авснаа эхэлж зарлагадах (FIFO)",
 	"Weighted Average": "Жигнэсэн дундаж өртөг",
