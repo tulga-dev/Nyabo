@@ -53,7 +53,7 @@
   },
   {
    "fieldname": "note",
-   "fieldtype": "Data",
+   "fieldtype": "Small Text",
    "label": "Тэмдэглэл"
   }
  ],
@@ -61,7 +61,7 @@
  "index_web_pages_for_search": 0,
  "istable": 0,
  "links": [],
- "modified": "2026-09-08 00:00:00.000000",
+ "modified": "2026-09-08 17:24:34.803304",
  "modified_by": "Administrator",
  "module": "Nyabo",
  "name": "Nyabo Account Alias",

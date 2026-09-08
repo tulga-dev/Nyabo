@@ -88,7 +88,9 @@ def write_doctype(name: str, spec: dict, check: bool) -> bool:
 		return changed
 	if changed:
 		folder.mkdir(parents=True, exist_ok=True)
-		json_path.write_text(json.dumps(new_doc, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+		json_path.write_text(
+			json.dumps(new_doc, ensure_ascii=False, indent=1) + "\n", encoding="utf-8", newline="\n"
+		)
 	if not init_path.exists():
 		folder.mkdir(parents=True, exist_ok=True)
 		init_path.write_text("", encoding="utf-8")

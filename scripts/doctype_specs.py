@@ -90,7 +90,7 @@ doctype(
 		F("regime", "Select", "Татварын горим", options=REGIMES, reqd=1, in_list_view=1),
 		F("effective_from", "Date", "Эхлэх огноо", reqd=1, in_list_view=1),
 		F("effective_to", "Date", "Дуусах огноо", in_list_view=1),
-		F("note", "Data", "Тэмдэглэл", in_list_view=1),
+		F("note", "Small Text", "Тэмдэглэл", in_list_view=1),
 	],
 )
 
@@ -109,7 +109,10 @@ doctype(
 doctype(
 	"Nyabo User Company",
 	istable=1,
-	fields=[F("company", "Link", "Компани", options="Company", reqd=1, in_list_view=1)],
+	fields=[
+		F("company", "Link", "Компани", options="Company", reqd=1, in_list_view=1),
+		F("role", "Select", "Үүрэг", options="\nOwner\nAccountant\nAdmin", in_list_view=1),
+	],
 )
 
 doctype(
@@ -243,6 +246,9 @@ doctype(
 		F("payload_json", "JSON", "Өгөгдөл"),
 		F("last_update_id", "Int", "Сүүлийн update_id"),
 		F("updated_at", "Datetime", "Шинэчилсэн"),
+		# The link-code lockout: wrong codes are counted and the chat is blocked for a while.
+		F("link_attempts", "Int", "Буруу холбох код"),
+		F("link_blocked_until", "Datetime", "Холбох код хаагдсан хүртэл"),
 	],
 )
 
@@ -524,7 +530,7 @@ doctype(
 			default="fraction",
 		),
 		SB("sb_source", "Эх сурвалж"),
-		F("source_text", "Data", "Хууль, заалт"),
+		F("source_text", "Small Text", "Хууль, заалт"),
 		F("source_url", "Data", "URL"),
 		F("article", "Data", "Зүйл, заалт"),
 		F("quote_mn", "Small Text", "Иш татсан текст"),
@@ -590,7 +596,7 @@ doctype(
 		F("alias_code", "Data", "Код (хуучин)", reqd=1, in_list_view=1),
 		F("target_code", "Data", "Код (загвар)", reqd=1, in_list_view=1),
 		F("target_account", "Link", "Данс", options="Account"),
-		F("note", "Data", "Тэмдэглэл"),
+		F("note", "Small Text", "Тэмдэглэл"),
 	],
 )
 

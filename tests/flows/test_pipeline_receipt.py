@@ -173,7 +173,9 @@ def test_a_decoded_qr_reaches_the_proposal_the_card_and_the_posted_document(run_
 	text, _markup = card_for(proposal)
 	# UX-10 moved the three verification facts off the money line onto their own line so the
 	# money line stays readable on a phone; the QR fact sits next to the unchecked-receipt one.
-	expected = f"{mn.VERIFICATION_SELLER_OK} · {mn.VERIFICATION_RECEIPT_UNCHECKED} · {mn.VERIFICATION_QR_FOUND}"
+	expected = (
+		f"{mn.VERIFICATION_SELLER_OK} · {mn.VERIFICATION_RECEIPT_UNCHECKED} · {mn.VERIFICATION_QR_FOUND}"
+	)
 	assert any(line.endswith(expected) for line in text.split("\n")), text
 
 	result = post.post_proposal(proposal.name, ACCOUNTANT, approver_telegram_id="700002")
