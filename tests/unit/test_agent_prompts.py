@@ -27,9 +27,7 @@ def test_exact_version_and_missing_prompt():
 
 
 def test_version_line_must_match_file_name(tmp_path):
-	(tmp_path / "x.v2.md").write_text(
-		"version: 3\nhello\n===USER===\n{{UNTRUSTED}}\n{{NOW}}\n", encoding="utf-8"
-	)
+	(tmp_path / "x.v2.md").write_text("version: 3\nhello\n===USER===\n{{UNTRUSTED}}\n{{NOW}}\n", encoding="utf-8")
 	with pytest.raises(prompts.PromptError, match="declares version 3"):
 		prompts.load("x", prompts_dir=tmp_path)
 	(tmp_path / "y.v1.md").write_text("hello\n", encoding="utf-8")
@@ -39,9 +37,7 @@ def test_version_line_must_match_file_name(tmp_path):
 
 def test_highest_version_is_picked(tmp_path):
 	for n in (1, 3, 2):
-		(tmp_path / f"z.v{n}.md").write_text(
-			f"version: {n}\nv{n}\n===USER===\n{{{{UNTRUSTED}}}}\n{{{{NOW}}}}\n", encoding="utf-8"
-		)
+		(tmp_path / f"z.v{n}.md").write_text(f"version: {n}\nv{n}\n===USER===\n{{{{UNTRUSTED}}}}\n{{{{NOW}}}}\n", encoding="utf-8")
 	text, version = prompts.load("z", prompts_dir=tmp_path)
 	assert version == 3 and text.startswith("v3")
 	assert prompts.available(tmp_path) == {"z": [1, 2, 3]}
@@ -55,20 +51,9 @@ def test_fill_refuses_unfilled_slots():
 
 def test_extraction_prompt_encodes_the_receipt_rules():
 	text, _ = prompts.load("receipt_extract")
-	for token in (
-		"Төлөх дүн",
-		"Төлсөн",
-		"Бүртгэгдсэн дүн",
-		"НӨАТ",
-		"НХАТ",
-		"Сугалааны дугаар",
-		"ДДТД",
-		"ТТД",
-		"РД",
-		"QPay",
-	):
+	for token in ("Төлөх дүн", "Төлсөн", "Бүртгэгдсэн дүн", "НӨАТ", "НХАТ", "Сугалааны дугаар", "ДДТД", "ТТД", "РД", "QPay"):
 		assert token in text, token
-	assert 'NOT "card"' in text or 'NOT "card"' in text
+	assert "NOT \"card\"" in text or 'NOT "card"' in text
 
 
 def test_classification_prompt_encodes_the_guard_rules():
