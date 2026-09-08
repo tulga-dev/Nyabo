@@ -1,8 +1,8 @@
 """``evals.run`` on the golden set: rules-only passes, the model kinds hit the brief's thresholds.
 
-Dependency modules missing in this worktree (``nyabo_mn.rules``, ``agent.pipeline``,
-``compliance.reversal``) are covered by ``harness.Adapters`` fallbacks; ``fake_adapters``
-below shows how a test plugs the real ones in once they land.
+``harness.default_adapters()`` wires ``nyabo_mn.rules.guard`` (the stub makes ``frappe``
+importable, so the real guard runs here); the compliance functions that need a company
+join in through ``harness.site_adapters`` in the on-the-stub tests at the bottom.
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ def test_rules_only_passes_without_any_model():
 	assert report["failures"] == []
 	assert report["metrics"]["rules"]["rate"] == 1.0
 	assert report["passed"] is True
-	assert report["adapters"] == "nyabo_mn.rules.guard"  # the real guard, bypassed by the simulation flag
+	assert report["adapters"] == harness.SOURCE_MODULES  # the real rules guard, no site needed
 
 
 def test_rules_only_accepts_injected_adapters():
@@ -189,6 +189,17 @@ def test_period_lock_cases_agree_with_erpnext_on_the_stub(company, frappe_hooks)
 			else:
 				with pytest.raises(frappe.ValidationError, match="closed Accounting Period"):
 					je.insert()
+
+
+def test_document_required_cases_agree_with_the_compliance_hook_on_the_stub(company):
+	"""``site_adapters`` runs ``compliance.hooks.require_primary_document`` on the case fields."""
+	adapters = harness.site_adapters(company)
+	assert adapters.require_primary_document is harness.hook_require_primary_document
+	report = run_mod.run(kinds=["document_required"], company=company, adapters=adapters)
+	assert report["passed"] and report["cases"] == 5
+	refused = {r["case_id"]: r["actual"]["message"] for r in report["results"] if not r["actual"]["allowed"]}
+	assert set(refused) == {"docreq_je_nothing", "docreq_nyabo_without_explanation"}
+	assert all("13.7" in message for message in refused.values())
 
 
 def test_site_eval_cases_are_included_when_a_company_is_given(company):
