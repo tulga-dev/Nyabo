@@ -23,8 +23,10 @@ A value the text does not state ships as `status: pending` with `value: null`.
 A human compared the value with the primary legal text: `source_text` names the
 instrument, `article` the article, `source_url` the legalinfo.mn / parliament.mn page,
 and the row carries the verbatim Mongolian sentence the value was read from — the quote
-is stored in `citation.quote` for posting patterns and, until `quote_mn` joins the
-tax-parameter schema, as the first element of `note` (`«…» — remarks`). A row is
+is stored in `citation.quote` for posting patterns and in `quote_mn` for tax parameters
+(rows written before that key joined the schema keep it as the first element of `note`,
+`«…» — remarks`; `nyabo_mn.nyabo.seed.tax_parameter_quote` reads either shape and
+`rules.seed.sync` writes it to `Nyabo Tax Parameter.quote_mn`). A row is
 verified only when the quoted sentence states the value exactly; derived numbers (sums of
 printed rows, a percentage of another figure), figures from a draft law, single-reader
 section mappings and values the text contradicts stay `false`. An admin flips `verified`
@@ -52,7 +54,7 @@ One row per `(key, effective_from)`; DocType name is `{key}:{effective_from}`.
 | `effective_from` / `effective_to` | ISO dates; `effective_to` null = open-ended. A row starting on `horizon_start` was in force before Nyabo's coverage; its legal in-force date is not asserted. `tax_debt.enforcement_split` starts on the package's adoption date (2026-06-26, quoted). |
 | `status` | `active` (usable) or `pending` (known change, text not encoded: `resolve_parameter` raises `PendingRuleError`) |
 | `verified` | see above |
-| `source_text`, `source_url`, `article`, `note` | provenance; a verified row's `note` starts with the verbatim quote `«…» — `, the rest explains derivations, contradictions and every UNCONFIRMED item |
+| `source_text`, `source_url`, `article`, `quote_mn`, `note` | provenance; `quote_mn` (optional key, never an empty string) is the verbatim sentence the value was read from — required on a verified row, where it may still sit at the start of `note` as `«…» — ` instead; the rest of `note` explains derivations, contradictions and every UNCONFIRMED item |
 
 Keys worth knowing: social insurance is per fund (`si.employee.pension`, `si.employer.benefit`,
 `si.accident_tiers` …, General Law on Social Insurance art. 18.1) and the totals
@@ -155,9 +157,10 @@ rule (`match_value` is the keyword alternation of `core.matching.FEE_KEYWORDS`,
 
 - every file is valid JSON with the documented top-level shape and no unknown keys;
 - unique `pattern_id`, `layout_id`, `rule_id`; no overlapping periods per tax-parameter key;
-- pending rows have `value: null`; active rows have a value; verified rows cite a URL and
-  an article; values match their `unit` (thresholds carry a comparator, deadlines carry the
-  three fields, schedules end with `up_to: null`);
+- pending rows have `value: null`; active rows have a value; verified rows cite a URL, an
+  article and the verbatim quote (`quote_mn`, or the `«…» — ` prefix of `note`); a `quote_mn`
+  key is never an empty string; values match their `unit` (thresholds carry a comparator,
+  deadlines carry the three fields, schedules end with `up_to: null`);
 - both charts load through `nyabo_mn.setup.chart.load_chart` without warnings; v0.3 groups
   are two-digit classes and leaves four-digit `CCSS` codes under their class;
 - aliases cover all 40 V1 leaves and point at v0.3 leaves;
@@ -183,8 +186,9 @@ rule (`match_value` is the keyword alternation of `core.matching.FEE_KEYWORDS`,
 3. The adopted 2 July 2026 Social Insurance amendment (2026 employer unemployment 0.5 vs
    0.6), the Health Insurance Law (`emd.*`), the Government resolution mapping occupations
    to accident tiers, the Ulaanbaatar property-tax rate annex (`property_tax.rate`).
-4. Move the tax-parameter quotes from `note` into a `quote_mn` key once
-   `scripts/seed_check.py` and `rules.seed.sync` accept it (the DocType field exists).
+4. Move the tax-parameter quotes from `note` into the `quote_mn` key (`scripts/seed_check.py`
+   and `rules.seed.sync` accept both shapes now; `tests/unit/test_seed_citations.py` still
+   reads the note prefix and moves with the data).
 5. Reconcile the v0.3 class names with the instrument's own table (mismatches listed in
    `docs/legal/order116.md` §2) when the accountant's real chart arrives; sample statement
    exports from each bank to replace the placeholders.

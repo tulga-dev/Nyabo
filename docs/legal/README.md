@@ -48,11 +48,12 @@ written so the founder can hand it to the accountant and to the ministry reviewe
 
 ## Where the quotes live in the seed
 
-`posting_patterns.json` stores the quote in `citation.quote`. `tax_parameters.json` has no
-`quote_mn` key yet (the schema in `docs/seed/README.md` and `scripts/seed_check.py` predates
-this pass), so the quote is the first element of `note`, in guillemets: `«…» — remarks`.
-The Nyabo Tax Parameter DocType already has a `quote_mn` field; moving the quote there is
-listed as an integration request.
+`posting_patterns.json` stores the quote in `citation.quote`. `tax_parameters.json` rows of
+this pass keep the quote as the first element of `note`, in guillemets: `«…» — remarks`.
+The schema now also accepts a `quote_mn` key (`scripts/seed_check.py` requires one shape or
+the other on a verified row) and `rules.seed.sync` writes whichever is present to the
+`Nyabo Tax Parameter.quote_mn` field; moving the quotes into the key is open item 4 of
+`docs/seed/README.md`.
 
 ## Still open after this pass
 

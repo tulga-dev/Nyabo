@@ -148,6 +148,7 @@ def books(company: str) -> str:
 	settings.chart_scheme = "v1"
 	settings.default_expense_code = "6910"
 	settings.accountant_user = _ensure_user(ACCOUNTANT)
+	settings.regimes = []  # provisioning wrote an open simplified_1pct row; this fixture owns the history
 	settings.append(
 		"regimes", {"regime": "vat_payer", "effective_from": "2026-01-01", "effective_to": "2026-12-31"}
 	)

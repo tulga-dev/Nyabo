@@ -43,6 +43,7 @@ def books(company):
 
 
 def _settings(company, regime):
+	"""Replace the regime history (provisioning wrote the first row) with one open row, or none."""
 	name = frappe.db.get_value("Nyabo Company Settings", {"company": company}, "name")
 	doc = (
 		frappe.get_doc("Nyabo Company Settings", name)
@@ -50,10 +51,27 @@ def _settings(company, regime):
 		else frappe.get_doc({"doctype": "Nyabo Company Settings", "company": company})
 	)
 	doc.regimes = []
-	doc.append("regimes", {"regime": regime, "effective_from": "2026-01-01"})
+	if regime:
+		doc.append("regimes", {"regime": regime, "effective_from": "2026-01-01"})
 	doc.accountant_of_record_name = "Б. Батаа"
 	doc.save()
 	return doc
+
+
+def _rate_row(verified: int):
+	"""An explicit simplified.rate row: the shipped seed row is verified, the guard test needs both."""
+	return frappe.get_doc(
+		{
+			"doctype": "Nyabo Tax Parameter",
+			"key": "simplified.rate",
+			"effective_from": "2026-01-01",
+			"value_json": "0.01",
+			"unit": "fraction",
+			"status": "active",
+			"verified": verified,
+			"source_text": "ААНОАТ-ын тухай хууль",
+		}
+	).insert()
 
 
 def test_vat_summary_from_gl_rows(books):
@@ -69,9 +87,12 @@ def test_vat_summary_from_gl_rows(books):
 
 
 def test_simplified_summary_uses_the_parameter_row_and_refuses_unverified(books):
+	# the site's own (unverified) row wins over the shipped seed row, and is refused for a real figure
+	row = _rate_row(verified=0)
 	with pytest.raises(rules_bridge.UnverifiedRuleError) as exc:
 		simplified_summary.compute(books, "2026-Q1")
 	assert "simplified.rate" in str(exc.value)
+	assert isinstance(exc.value, frappe.ValidationError)
 	simulated = simplified_summary.compute(books, "2026-Q1", simulation=True)
 	assert simulated["revenue"] == Decimal("200000.00")
 	assert simulated["tax_1pct"] == Decimal("2000.00")
@@ -79,22 +100,19 @@ def test_simplified_summary_uses_the_parameter_row_and_refuses_unverified(books)
 	assert [m["period"] for m in simulated["months"]] == ["2026-01", "2026-02", "2026-03"]
 	assert simulated["months"][2]["revenue"] == Decimal("200000.00")
 
-	frappe.get_doc(
-		{
-			"doctype": "Nyabo Tax Parameter",
-			"key": "simplified.rate",
-			"effective_from": "2026-01-01",
-			"value_json": "0.01",
-			"unit": "fraction",
-			"status": "active",
-			"verified": 1,
-			"source_text": "ААНОАТ-ын тухай хууль",
-		}
-	).insert()
+	row.verified = 1  # the admin checked the primary text
+	row.save()
 	real = simplified_summary.compute(books, "2026-Q1")
 	assert real["tax_1pct"] == Decimal("2000.00") and real["rate_row"]["verified"] is True
 	with pytest.raises(frappe.ValidationError):
 		simplified_summary.compute(books, "2026-Q9")
+
+
+def test_simplified_summary_reads_the_shipped_seed_before_the_first_sync(books):
+	"""No Nyabo Tax Parameter row yet: the seed file's (verified) simplified.rate drives the figure."""
+	real = simplified_summary.compute(books, "2026-Q1")
+	assert real["tax_1pct"] == Decimal("2000.00") and real["rate_row"]["verified"] is True
+	assert real["rate_row"]["article"]
 
 
 def test_month_end_checklist_and_trial_balance(books):
@@ -121,7 +139,12 @@ def test_month_end_checklist_and_trial_balance(books):
 
 
 def test_month_end_summaries_pick_the_regime(books):
-	assert month_end.summaries(books, "2026-03")["is_vat_payer"] is None
+	# provisioning recorded simplified 1% (vat_registered=0); without any regime row the close says so
+	assert month_end.summaries(books, "2026-03", simulation=True)["is_vat_payer"] is False
+	_settings(books, None)
+	out = month_end.summaries(books, "2026-03")
+	assert out["is_vat_payer"] is None and out["pdfs"] == {}
+	assert any("2026-03-31" in line for line in out["text_lines"])
 	_settings(books, "vat_payer")
 	out = month_end.summaries(books, "2026-03")
 	assert out["is_vat_payer"] is True and set(out["pdfs"]) == {"vat_summary"}
@@ -135,6 +158,7 @@ def test_month_end_summaries_pick_the_regime(books):
 	assert any("1% татвар" in line for line in out["text_lines"])
 	html = out["pdfs"]["simplified_summary"].decode("utf-8")
 	assert mn.LBL_SIMULATION in html and mn.JOURNAL_KEPT_BY in html
+	_rate_row(verified=0)  # the site's own unverified rate row: refused outside the Simulation filter
 	with pytest.raises(rules_bridge.UnverifiedRuleError):
 		month_end.summaries(books, "2026-03")
 

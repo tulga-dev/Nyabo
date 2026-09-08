@@ -29,7 +29,7 @@ def test_rules_only_passes_without_any_model():
 	assert report["failures"] == []
 	assert report["metrics"]["rules"]["rate"] == 1.0
 	assert report["passed"] is True
-	assert report["adapters"] == "fallback"  # nyabo_mn.rules is not in this worktree
+	assert report["adapters"] == "nyabo_mn.rules.guard"  # the real guard, bypassed by the simulation flag
 
 
 def test_rules_only_accepts_injected_adapters():
