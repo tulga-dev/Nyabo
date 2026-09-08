@@ -64,7 +64,9 @@ def make_autoname(key: str = "", doctype: str = "", doc: Any = "", *, ignore_val
 	return parse_naming_series(key, doctype=doctype, doc=doc)
 
 
-def parse_naming_series(parts: list[str] | str, doctype: str | None = None, doc: Any = None, number_generator: Any = None) -> str:
+def parse_naming_series(
+	parts: list[str] | str, doctype: str | None = None, doc: Any = None, number_generator: Any = None
+) -> str:
 	name = ""
 	sentinel = object()
 	if isinstance(parts, str):
@@ -202,5 +204,7 @@ def validate_name(doctype: str, name: Any) -> str:
 		raise ValidationError(f"No Name Specified for {doctype}")
 	name = cstr(name).strip()
 	if name.startswith("New " + doctype):
-		raise ValidationError(f"There were some errors setting the name, please contact the administrator ({name})")
+		raise ValidationError(
+			f"There were some errors setting the name, please contact the administrator ({name})"
+		)
 	return name

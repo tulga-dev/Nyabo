@@ -34,7 +34,9 @@ def get_report_doc(report_name: str) -> _dict:
 	if frappe.db.exists("Report", report_name):
 		doc = frappe.get_doc("Report", report_name)
 		return _dict(doc.as_dict())
-	path = frappe.get_app_path("nyabo_mn", "nyabo", "report", _scrub(report_name), f"{_scrub(report_name)}.json")
+	path = frappe.get_app_path(
+		"nyabo_mn", "nyabo", "report", _scrub(report_name), f"{_scrub(report_name)}.json"
+	)
 	if os.path.exists(path):
 		with open(path, encoding="utf-8") as f:
 			raw = json.load(f)

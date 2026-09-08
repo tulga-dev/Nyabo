@@ -26,7 +26,16 @@ OPERATORS = frozenset(
 	{"=", "!=", "<>", "==", "in", "not in", ">", ">=", "<", "<=", "like", "not like", "between", "is"}
 )
 UNSUPPORTED_OPERATORS = frozenset(
-	{"descendants of", "ancestors of", "not descendants of", "not ancestors of", "timespan", "previous", "next", "descendants of (inclusive)"}
+	{
+		"descendants of",
+		"ancestors of",
+		"not descendants of",
+		"not ancestors of",
+		"timespan",
+		"previous",
+		"next",
+		"descendants of (inclusive)",
+	}
 )
 DEFAULT_ORDER = object()
 # Column types of the standard fields (frappe/database/schema.py): timestamps compare as datetimes.
@@ -152,11 +161,15 @@ class Database:
 	def delete_row(self, doctype: str, name: str) -> None:
 		self.table(doctype).pop(name, None)
 
-	def child_rows(self, parenttype: str, parent: str, parentfield: str, child_doctype: str) -> list[dict[str, Any]]:
+	def child_rows(
+		self, parenttype: str, parent: str, parentfield: str, child_doctype: str
+	) -> list[dict[str, Any]]:
 		rows = [
 			r
 			for r in self.rows(child_doctype)
-			if r.get("parent") == parent and r.get("parenttype") == parenttype and r.get("parentfield") == parentfield
+			if r.get("parent") == parent
+			and r.get("parenttype") == parenttype
+			and r.get("parentfield") == parentfield
 		]
 		rows.sort(key=lambda r: (r.get("idx") or 0, r["_seq"]))
 		return rows
@@ -172,8 +185,10 @@ class Database:
 		if isinstance(filters, dict):
 			for key, value in filters.items():
 				if isinstance(value, (list, tuple)):
-					if len(value) == 2 and isinstance(value[0], str) and (
-						value[0].lower() in OPERATORS or value[0].lower() in UNSUPPORTED_OPERATORS
+					if (
+						len(value) == 2
+						and isinstance(value[0], str)
+						and (value[0].lower() in OPERATORS or value[0].lower() in UNSUPPORTED_OPERATORS)
 					):
 						out.append(Filter(key, value[0], value[1]))
 					else:
@@ -234,7 +249,11 @@ class Database:
 			return low <= stored <= high
 
 		if op in ("like", "not like"):
-			pattern = re.escape(str(flt.value if flt.value is not None else "")).replace("%", ".*").replace("_", ".")
+			pattern = (
+				re.escape(str(flt.value if flt.value is not None else ""))
+				.replace("%", ".*")
+				.replace("_", ".")
+			)
 			text = "" if stored is None else str(stored)
 			hit = re.fullmatch(pattern, text, re.IGNORECASE | re.DOTALL) is not None
 			return hit if op == "like" else not hit
@@ -294,7 +313,9 @@ class Database:
 		if order_by is DEFAULT_ORDER or order_by is None:
 			if meta.istable:
 				return sorted(rows, key=lambda r: ((r.get("idx") or 0), r.get("_seq", 0)))
-			return sorted(rows, key=lambda r: (self._sort_key(r.get("modified")), r.get("_seq", 0)), reverse=True)
+			return sorted(
+				rows, key=lambda r: (self._sort_key(r.get("modified")), r.get("_seq", 0)), reverse=True
+			)
 		clauses = []
 		for part in str(order_by).split(","):
 			part = part.strip()
@@ -385,7 +406,11 @@ class Database:
 		meta = self.meta(doctype) if doctype != "DocType" else self.registry.get("DocType")
 		rows = self.order_rows(doctype, self.filter_rows(doctype, filters), order_by)
 		offset = start if start is not None else limit_start or 0
-		length = limit if limit is not None else (limit_page_length if limit_page_length is not None else page_length)
+		length = (
+			limit
+			if limit is not None
+			else (limit_page_length if limit_page_length is not None else page_length)
+		)
 		if offset:
 			rows = rows[offset:]
 		if length is not None and length != 0:
@@ -532,7 +557,9 @@ class Database:
 			raise ValidationError(f"frappe stub: {doctype} is not a Single DocType")
 		return self.singles.get(doctype, {}).get(fieldname)
 
-	def set_single_value(self, doctype: str, fieldname: Any, value: Any = None, *args: Any, **kwargs: Any) -> None:
+	def set_single_value(
+		self, doctype: str, fieldname: Any, value: Any = None, *args: Any, **kwargs: Any
+	) -> None:
 		meta = self.registry.get(doctype)
 		if meta is None:
 			meta = self.registry.register_single(doctype)
@@ -544,7 +571,9 @@ class Database:
 	def get_default(self, key: str, parent: str = "__default") -> Any:
 		return self.defaults.get(key)
 
-	def set_default(self, key: str, val: Any, parent: str = "__default", parenttype: str | None = None) -> None:
+	def set_default(
+		self, key: str, val: Any, parent: str = "__default", parenttype: str | None = None
+	) -> None:
 		self.defaults[key] = val
 
 	def sql(self, *args: Any, **kwargs: Any) -> Any:

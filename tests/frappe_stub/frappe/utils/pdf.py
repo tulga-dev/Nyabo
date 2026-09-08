@@ -11,10 +11,14 @@ from __future__ import annotations
 from typing import Any
 
 
-def get_pdf(html: str, options: dict[str, Any] | None = None, output: Any = None, smart_shrinking: bool = False) -> bytes:
+def get_pdf(
+	html: str, options: dict[str, Any] | None = None, output: Any = None, smart_shrinking: bool = False
+) -> bytes:
 	import frappe
 
-	frappe._stub.record_call("get_pdf", html=html, options=dict(options or {}), smart_shrinking=smart_shrinking)
+	frappe._stub.record_call(
+		"get_pdf", html=html, options=dict(options or {}), smart_shrinking=smart_shrinking
+	)
 	if output is not None:
 		raise NotImplementedError("frappe stub: get_pdf(output=PdfWriter) merging is not implemented")
 	return html.encode("utf-8")

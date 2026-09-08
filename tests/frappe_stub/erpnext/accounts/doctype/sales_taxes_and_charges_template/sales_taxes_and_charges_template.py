@@ -18,6 +18,8 @@ class SalesTaxesandChargesTemplate(Document):
 
 		if self.is_default:
 			for name in frappe.get_all(
-				self.doctype, filters={"is_default": 1, "company": self.company, "name": ["!=", self.name]}, pluck="name"
+				self.doctype,
+				filters={"is_default": 1, "company": self.company, "name": ["!=", self.name]},
+				pluck="name",
 			):
 				frappe.db.set_value(self.doctype, name, "is_default", 0)

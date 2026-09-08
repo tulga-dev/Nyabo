@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-import pytest
-
 import frappe
+import pytest
 from erpnext.accounts.doctype.journal_entry.journal_entry import make_reverse_journal_entry
 from erpnext.accounts.doctype.purchase_invoice.purchase_invoice import make_debit_note
 from erpnext.accounts.utils import get_balance_on
@@ -51,7 +50,11 @@ def test_journal_entry_submit_writes_gl_and_balance(books):
 	assert je.total_debit == 85000 and je.difference == 0
 	assert frappe.db.count("GL Entry", {"voucher_no": je.name}) == 0
 	je.submit()
-	rows = frappe.get_all("GL Entry", filters={"voucher_no": je.name}, fields=["account", "debit", "credit", "is_cancelled", "docstatus"])
+	rows = frappe.get_all(
+		"GL Entry",
+		filters={"voucher_no": je.name},
+		fields=["account", "debit", "credit", "is_cancelled", "docstatus"],
+	)
 	assert {(r.account, r.debit, r.credit) for r in rows} == {(EXPENSE, 85000.0, 0.0), (CASH, 0.0, 85000.0)}
 	assert all(r.is_cancelled == 0 and r.docstatus == 1 for r in rows)
 	assert get_balance_on(EXPENSE, "2026-03-31") == 85000.0
@@ -60,7 +63,9 @@ def test_journal_entry_submit_writes_gl_and_balance(books):
 	assert get_balance_on(EXPENSE, "2025-12-31") == 0.0  # before any fiscal year
 	assert get_balance_on("Зардал - TST") == 85000.0  # group account
 	je.cancel()
-	rows = frappe.get_all("GL Entry", filters={"voucher_no": je.name}, fields=["account", "debit", "credit", "is_cancelled"])
+	rows = frappe.get_all(
+		"GL Entry", filters={"voucher_no": je.name}, fields=["account", "debit", "credit", "is_cancelled"]
+	)
 	assert len(rows) == 4 and all(r.is_cancelled == 1 for r in rows)
 	assert (CASH, 85000.0, 0.0) in {(r.account, r.debit, r.credit) for r in rows}
 	assert get_balance_on(EXPENSE) == 0.0
@@ -112,7 +117,11 @@ def test_reverse_journal_entry_helper(books):
 
 
 def _purchase_invoice(company, vat=True):
-	taxes = [{"account_head": INPUT_VAT, "charge_type": "On Net Total", "rate": 10, "description": "НӨАТ 10%"}] if vat else []
+	taxes = (
+		[{"account_head": INPUT_VAT, "charge_type": "On Net Total", "rate": 10, "description": "НӨАТ 10%"}]
+		if vat
+		else []
+	)
 	return frappe.get_doc(
 		{
 			"doctype": "Purchase Invoice",
@@ -132,7 +141,12 @@ def test_purchase_invoice_gl_and_debit_note(books):
 	assert pi.credit_to == PAYABLE and pi.status == "Draft"
 	assert pi.naming_series == "ACC-PINV-.YYYY.-" and pi.name.startswith("ACC-PINV-2026-")
 	pi.submit()
-	rows = {(r.account, r.debit, r.credit) for r in frappe.get_all("GL Entry", filters={"voucher_no": pi.name}, fields=["account", "debit", "credit"])}
+	rows = {
+		(r.account, r.debit, r.credit)
+		for r in frappe.get_all(
+			"GL Entry", filters={"voucher_no": pi.name}, fields=["account", "debit", "credit"]
+		)
+	}
 	assert rows == {(EXPENSE, 85000.0, 0.0), (INPUT_VAT, 8500.0, 0.0), (PAYABLE, 0.0, 93500.0)}
 	assert frappe.db.get_value("Purchase Invoice", pi.name, "status") == "Unpaid"
 	assert get_balance_on(PAYABLE, "2026-03-31", party_type="Supplier", party="Петровис ХХК") == -93500.0
@@ -145,7 +159,12 @@ def test_purchase_invoice_gl_and_debit_note(books):
 	note.submit()
 	assert frappe.db.get_value("Purchase Invoice", pi.name, "status") == "Debit Note Issued"
 	assert frappe.db.get_value("Purchase Invoice", note.name, "status") == "Return"
-	rows = {(r.account, r.debit, r.credit) for r in frappe.get_all("GL Entry", filters={"voucher_no": note.name}, fields=["account", "debit", "credit"])}
+	rows = {
+		(r.account, r.debit, r.credit)
+		for r in frappe.get_all(
+			"GL Entry", filters={"voucher_no": note.name}, fields=["account", "debit", "credit"]
+		)
+	}
 	assert rows == {(EXPENSE, 0.0, 85000.0), (INPUT_VAT, 0.0, 8500.0), (PAYABLE, 93500.0, 0.0)}
 	assert get_balance_on(PAYABLE, "2026-03-31") == 0.0
 	assert get_balance_on(EXPENSE, "2026-03-31") == 0.0
@@ -159,19 +178,37 @@ def test_sales_invoice_gl(books):
 			"customer": "Хэрэглэгч ХХК",
 			"posting_date": "2026-03-15",
 			"items": [{"item_name": "Үйлчилгээ", "qty": 1, "rate": 200000, "income_account": INCOME}],
-			"taxes": [{"account_head": OUTPUT_VAT, "charge_type": "On Net Total", "rate": 10, "description": "НӨАТ 10%"}],
+			"taxes": [
+				{
+					"account_head": OUTPUT_VAT,
+					"charge_type": "On Net Total",
+					"rate": 10,
+					"description": "НӨАТ 10%",
+				}
+			],
 		}
 	).insert()
 	assert si.debit_to == RECEIVABLE and si.grand_total == 220000.0
 	si.submit()
-	rows = {(r.account, r.debit, r.credit) for r in frappe.get_all("GL Entry", filters={"voucher_no": si.name}, fields=["account", "debit", "credit"])}
+	rows = {
+		(r.account, r.debit, r.credit)
+		for r in frappe.get_all(
+			"GL Entry", filters={"voucher_no": si.name}, fields=["account", "debit", "credit"]
+		)
+	}
 	assert rows == {(RECEIVABLE, 220000.0, 0.0), (INCOME, 0.0, 200000.0), (OUTPUT_VAT, 0.0, 20000.0)}
 	assert get_balance_on(INCOME, "2026-03-31") == -200000.0
 
 
 def test_closed_accounting_period_blocks_postings(books):
 	frappe.get_doc(
-		{"doctype": "Accounting Period", "period_name": "2026-02", "company": books, "start_date": "2026-02-01", "end_date": "2026-02-28"}
+		{
+			"doctype": "Accounting Period",
+			"period_name": "2026-02",
+			"company": books,
+			"start_date": "2026-02-01",
+			"end_date": "2026-02-28",
+		}
 	).insert()
 	with pytest.raises(frappe.ValidationError, match="closed Accounting Period <b>2026-02 - TST</b>"):
 		_je(books, EXPENSE, CASH, 100, posting_date="2026-02-10").insert()
@@ -182,11 +219,23 @@ def test_closed_accounting_period_blocks_postings(books):
 	_je(books, EXPENSE, CASH, 100, posting_date="2026-03-01").insert()
 	with pytest.raises(frappe.ValidationError, match="future date"):
 		frappe.get_doc(
-			{"doctype": "Accounting Period", "period_name": "2099-01", "company": books, "start_date": "2099-01-01", "end_date": "2099-01-31"}
+			{
+				"doctype": "Accounting Period",
+				"period_name": "2099-01",
+				"company": books,
+				"start_date": "2099-01-01",
+				"end_date": "2099-01-31",
+			}
 		).insert()
 	with pytest.raises(frappe.ValidationError, match="overlaps"):
 		frappe.get_doc(
-			{"doctype": "Accounting Period", "period_name": "2026-02b", "company": books, "start_date": "2026-02-15", "end_date": "2026-03-15"}
+			{
+				"doctype": "Accounting Period",
+				"period_name": "2026-02b",
+				"company": books,
+				"start_date": "2026-02-15",
+				"end_date": "2026-03-15",
+			}
 		).insert()
 	period = frappe.get_doc("Accounting Period", "2026-02 - TST")
 	period.disabled = 1
@@ -197,10 +246,26 @@ def test_closed_accounting_period_blocks_postings(books):
 def test_exchange_rate_from_currency_exchange_rows(books):
 	assert get_exchange_rate("MNT", "MNT") == 1
 	frappe.get_doc(
-		{"doctype": "Currency Exchange", "date": "2026-03-01", "from_currency": "USD", "to_currency": "MNT", "exchange_rate": 3450, "for_buying": 1, "for_selling": 1}
+		{
+			"doctype": "Currency Exchange",
+			"date": "2026-03-01",
+			"from_currency": "USD",
+			"to_currency": "MNT",
+			"exchange_rate": 3450,
+			"for_buying": 1,
+			"for_selling": 1,
+		}
 	).insert()
 	frappe.get_doc(
-		{"doctype": "Currency Exchange", "date": "2026-03-10", "from_currency": "USD", "to_currency": "MNT", "exchange_rate": 3500, "for_buying": 1, "for_selling": 1}
+		{
+			"doctype": "Currency Exchange",
+			"date": "2026-03-10",
+			"from_currency": "USD",
+			"to_currency": "MNT",
+			"exchange_rate": 3500,
+			"for_buying": 1,
+			"for_selling": 1,
+		}
 	).insert()
 	assert get_exchange_rate("USD", "MNT", "2026-03-05") == 3450.0
 	assert get_exchange_rate("USD", "MNT", "2026-03-12") == 3500.0
@@ -214,7 +279,14 @@ def test_exchange_rate_from_currency_exchange_rows(books):
 def test_bank_transaction_add_payment_entries_reconciles(books):
 	bank = frappe.get_doc({"doctype": "Bank", "bank_name": "Khan Bank"}).insert()
 	bank_account = frappe.get_doc(
-		{"doctype": "Bank Account", "account_name": "Хаан MNT", "bank": bank.name, "account": BANK, "company": books, "is_company_account": 1}
+		{
+			"doctype": "Bank Account",
+			"account_name": "Хаан MNT",
+			"bank": bank.name,
+			"account": BANK,
+			"company": books,
+			"is_company_account": 1,
+		}
 	).insert()
 	je = _je(books, EXPENSE, BANK, 50000, posting_date="2026-03-20").insert()
 	je.submit()

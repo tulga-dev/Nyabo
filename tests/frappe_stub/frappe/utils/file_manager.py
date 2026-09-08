@@ -70,13 +70,17 @@ def save_file(
 def get_file_data_from_hash(content_hash: str, is_private: int = 0) -> dict[str, Any] | bool:
 	import frappe
 
-	for name in frappe.get_all("File", {"content_hash": content_hash, "is_private": is_private}, pluck="name"):
+	for name in frappe.get_all(
+		"File", {"content_hash": content_hash, "is_private": is_private}, pluck="name"
+	):
 		b = frappe.get_doc("File", name)
 		return {"file_name": b.file_name, "file_url": b.file_url}
 	return False
 
 
-def save_file_on_filesystem(fname: str, content: bytes, content_type: str | None = None, is_private: int = 0) -> dict[str, str]:
+def save_file_on_filesystem(
+	fname: str, content: bytes, content_type: str | None = None, is_private: int = 0
+) -> dict[str, str]:
 	fpath = write_file(content, fname, is_private)
 	file_url = f"/private/files/{fname}" if is_private else f"/files/{fname}"
 	return {"file_name": os.path.basename(fpath), "file_url": file_url}
@@ -101,7 +105,11 @@ def get_file_name(fname: str, optional_suffix: str) -> str:
 
 	fname = str(fname)
 	n_records = frappe.get_all("File", {"file_name": fname}, pluck="name")
-	if n_records or os.path.exists(get_files_path(fname)) or os.path.exists(get_files_path(fname, is_private=True)):
+	if (
+		n_records
+		or os.path.exists(get_files_path(fname))
+		or os.path.exists(get_files_path(fname, is_private=True))
+	):
 		partial, dot, extn = fname.rpartition(".")
 		if not dot:
 			partial, extn = fname, ""
@@ -114,7 +122,9 @@ def get_file_name(fname: str, optional_suffix: str) -> str:
 def get_file(fname: str) -> tuple[str, bytes]:
 	import frappe
 
-	name = frappe.db.get_value("File", {"file_url": fname}, "name") or frappe.db.get_value("File", {"file_name": fname}, "name")
+	name = frappe.db.get_value("File", {"file_url": fname}, "name") or frappe.db.get_value(
+		"File", {"file_name": fname}, "name"
+	)
 	if not name:
 		raise frappe.DoesNotExistError(f"File {fname} not found")
 	doc = frappe.get_doc("File", name)

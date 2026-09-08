@@ -4,10 +4,8 @@ from __future__ import annotations
 
 import datetime
 
-import pytest
-
 import frappe
-
+import pytest
 
 DT = "Nyabo LLM Call"
 
@@ -23,7 +21,14 @@ def calls(site):
 	out = []
 	for purpose, model, company, error_class, when in rows:
 		doc = frappe.get_doc(
-			{"doctype": DT, "purpose": purpose, "model": model, "company": company, "error_class": error_class, "tokens_in": 10}
+			{
+				"doctype": DT,
+				"purpose": purpose,
+				"model": model,
+				"company": company,
+				"error_class": error_class,
+				"tokens_in": 10,
+			}
 		)
 		doc.flags.ignore_links = True
 		doc.insert()
@@ -62,7 +67,9 @@ def test_fields_star_pluck_order_and_limits(calls):
 	assert rows[0].purpose == "eval"
 	assert "cost_usd" in rows[0]
 	assert frappe.get_all(DT, pluck="purpose", order_by="creation asc", limit=2) == ["extract", "classify"]
-	assert frappe.get_all(DT, pluck="purpose", order_by="creation asc", limit_start=1, limit_page_length=2) == [
+	assert frappe.get_all(
+		DT, pluck="purpose", order_by="creation asc", limit_start=1, limit_page_length=2
+	) == [
 		"classify",
 		"question",
 	]

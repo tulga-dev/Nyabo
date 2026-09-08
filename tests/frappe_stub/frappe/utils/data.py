@@ -28,7 +28,14 @@ _NUMBER = re.compile(r"^-?\d+(\.\d+)?$")
 
 def _parse_date_string(text: str) -> datetime.date:
 	text = text.strip()
-	for fmt in ("%Y-%m-%d", "%Y-%m-%d %H:%M:%S.%f", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%d-%m-%Y", "%Y/%m/%d"):
+	for fmt in (
+		"%Y-%m-%d",
+		"%Y-%m-%d %H:%M:%S.%f",
+		"%Y-%m-%d %H:%M:%S",
+		"%Y-%m-%dT%H:%M:%S",
+		"%d-%m-%Y",
+		"%Y/%m/%d",
+	):
 		try:
 			return datetime.datetime.strptime(text[:26], fmt).date()
 		except ValueError:
@@ -63,7 +70,13 @@ def get_datetime(datetime_str: Any = None) -> datetime.datetime | None:
 		return datetime.datetime.combine(datetime_str, datetime.time())
 	if isinstance(datetime_str, str):
 		text = datetime_str.strip()
-		for fmt in ("%Y-%m-%d %H:%M:%S.%f", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
+		for fmt in (
+			"%Y-%m-%d %H:%M:%S.%f",
+			"%Y-%m-%d %H:%M:%S",
+			"%Y-%m-%dT%H:%M:%S",
+			"%Y-%m-%d %H:%M",
+			"%Y-%m-%d",
+		):
 			try:
 				return datetime.datetime.strptime(text, fmt)
 			except ValueError:
@@ -136,7 +149,9 @@ def add_to_date(
 ) -> Any:
 	"""Same rules as Frappe (which uses dateutil.relativedelta): months clip to the month end."""
 	is_datetime = isinstance(date, datetime.datetime) or (isinstance(date, str) and " " in date.strip())
-	value = get_datetime(date) if (is_datetime or hours or minutes or seconds or as_datetime) else getdate(date)
+	value = (
+		get_datetime(date) if (is_datetime or hours or minutes or seconds or as_datetime) else getdate(date)
+	)
 	if years or months:
 		total = value.month - 1 + months + 12 * years
 		year = value.year + total // 12
@@ -145,7 +160,11 @@ def add_to_date(
 		value = value.replace(year=year, month=month, day=day)
 	value = value + datetime.timedelta(weeks=weeks, days=days, hours=hours, minutes=minutes, seconds=seconds)
 	if as_string:
-		return value.strftime(DATETIME_FORMAT) if isinstance(value, datetime.datetime) else value.strftime(DATE_FORMAT)
+		return (
+			value.strftime(DATETIME_FORMAT)
+			if isinstance(value, datetime.datetime)
+			else value.strftime(DATE_FORMAT)
+		)
 	return value
 
 
@@ -202,7 +221,15 @@ def get_year_ending(dt: Any) -> datetime.date:
 	return datetime.date(getdate(dt).year, 12, 31)
 
 
-_JAVA_TO_STRFTIME = (("yyyy", "%Y"), ("yy", "%y"), ("MM", "%m"), ("dd", "%d"), ("HH", "%H"), ("mm", "%M"), ("ss", "%S"))
+_JAVA_TO_STRFTIME = (
+	("yyyy", "%Y"),
+	("yy", "%y"),
+	("MM", "%m"),
+	("dd", "%d"),
+	("HH", "%H"),
+	("mm", "%M"),
+	("ss", "%S"),
+)
 
 
 def formatdate(string_date: Any = "", format_string: str | None = None) -> str:
@@ -294,7 +321,9 @@ def round_based_on_smallest_currency_fraction(value: float, currency: str, preci
 	return rounded(value, precision)
 
 
-def fmt_money(amount: Any, precision: int | None = None, currency: str | None = None, format: str | None = None) -> str:  # noqa: A002
+def fmt_money(
+	amount: Any, precision: int | None = None, currency: str | None = None, format: str | None = None
+) -> str:  # noqa: A002
 	"""``#,###.##`` with the currency symbol as a suffix when one is given (Frappe uses the Currency doc)."""
 	if precision is None:
 		precision = 2
@@ -305,8 +334,12 @@ def fmt_money(amount: Any, precision: int | None = None, currency: str | None = 
 	return text
 
 
-def money_in_words(number: Any, main_currency: str | None = None, fraction_currency: str | None = None) -> str:
-	raise NotImplementedError("frappe stub: money_in_words is not implemented (Mongolian number words are not in Frappe)")
+def money_in_words(
+	number: Any, main_currency: str | None = None, fraction_currency: str | None = None
+) -> str:
+	raise NotImplementedError(
+		"frappe stub: money_in_words is not implemented (Mongolian number words are not in Frappe)"
+	)
 
 
 def get_number_format_info(number_format: str) -> tuple[str, str, int]:
@@ -395,7 +428,7 @@ def get_url(uri: str | None = None, full_address: bool = False) -> str:
 
 
 def get_link_to_form(doctype: str, name: Any, label: str | None = None) -> str:
-	return f"<a href=\"/app/{doctype.lower().replace(' ', '-')}/{name}\">{label or name}</a>"
+	return f'<a href="/app/{doctype.lower().replace(" ", "-")}/{name}">{label or name}</a>'
 
 
 def get_url_to_form(doctype: str, name: Any) -> str:

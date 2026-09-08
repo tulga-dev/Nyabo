@@ -75,7 +75,9 @@ def get_sanitized_sheet_name(sheet_name: str) -> str:
 	return re.sub(r"[\\/*?:\[\]]", "", sheet_name)[:31] or "Sheet1"
 
 
-def read_xlsx_file_from_attached_file(file_url: str | None = None, fcontent: bytes | None = None, filepath: str | None = None) -> list[list[Any]]:
+def read_xlsx_file_from_attached_file(
+	file_url: str | None = None, fcontent: bytes | None = None, filepath: str | None = None
+) -> list[list[Any]]:
 	import openpyxl
 
 	if fcontent is not None:

@@ -13,10 +13,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from erpnext.controllers.accounts_controller import AccountsController
 from frappe._stub.dictlike import _dict
 from frappe.exceptions import PermissionError, ValidationError
 from frappe.utils.data import flt
+
+from erpnext.controllers.accounts_controller import AccountsController
 
 
 class JournalEntry(AccountsController):
@@ -44,7 +45,9 @@ class JournalEntry(AccountsController):
 			if not d.exchange_rate:
 				d.exchange_rate = 1.0
 			if d.account_currency != company_currency and flt(d.exchange_rate) == 1.0:
-				raise ValidationError(f"Row {d.idx}: Exchange Rate is mandatory for account {d.account} in {d.account_currency}")
+				raise ValidationError(
+					f"Row {d.idx}: Exchange Rate is mandatory for account {d.account} in {d.account_currency}"
+				)
 			# a row entered in company currency only: mirror it into the account-currency columns
 			if not flt(d.debit_in_account_currency) and flt(d.debit):
 				d.debit_in_account_currency = flt(d.debit) / flt(d.exchange_rate)
@@ -53,8 +56,12 @@ class JournalEntry(AccountsController):
 
 	def set_amounts_in_company_currency(self) -> None:
 		for d in self.accounts:
-			d.debit_in_account_currency = flt(d.debit_in_account_currency, d.precision("debit_in_account_currency"))
-			d.credit_in_account_currency = flt(d.credit_in_account_currency, d.precision("credit_in_account_currency"))
+			d.debit_in_account_currency = flt(
+				d.debit_in_account_currency, d.precision("debit_in_account_currency")
+			)
+			d.credit_in_account_currency = flt(
+				d.credit_in_account_currency, d.precision("credit_in_account_currency")
+			)
 			d.debit = flt(d.debit_in_account_currency * flt(d.exchange_rate), d.precision("debit"))
 			d.credit = flt(d.credit_in_account_currency * flt(d.exchange_rate), d.precision("credit"))
 
@@ -76,7 +83,9 @@ class JournalEntry(AccountsController):
 
 	def validate_total_debit_and_credit(self) -> None:
 		if self.difference:
-			raise ValidationError(f"Total Debit must be equal to Total Credit. The difference is {self.difference}")
+			raise ValidationError(
+				f"Total Debit must be equal to Total Credit. The difference is {self.difference}"
+			)
 
 	def set_against_account(self) -> None:
 		accounts_debited = [d.account for d in self.accounts if flt(d.debit) > 0]
@@ -116,8 +125,12 @@ class JournalEntry(AccountsController):
 							"debit": flt(d.debit, d.precision("debit")),
 							"credit": flt(d.credit, d.precision("credit")),
 							"account_currency": d.account_currency,
-							"debit_in_account_currency": flt(d.debit_in_account_currency, d.precision("debit_in_account_currency")),
-							"credit_in_account_currency": flt(d.credit_in_account_currency, d.precision("credit_in_account_currency")),
+							"debit_in_account_currency": flt(
+								d.debit_in_account_currency, d.precision("debit_in_account_currency")
+							),
+							"credit_in_account_currency": flt(
+								d.credit_in_account_currency, d.precision("credit_in_account_currency")
+							),
 							"against_voucher_type": d.reference_type,
 							"against_voucher": d.reference_name,
 							"remarks": self.user_remark or self.remark or "No Remarks",
@@ -143,14 +156,14 @@ def make_reverse_journal_entry(source_name: str, target_doc: Any = None) -> Any:
 	reversal_of = frappe.db.get_value("Journal Entry", source_name, "reversal_of")
 	if reversal_of:
 		raise ValidationError(
-			"{0} is already a Reverse Journal Entry of {1}. Cancel it instead of reversing it.".format(
+			"{} is already a Reverse Journal Entry of {}. Cancel it instead of reversing it.".format(
 				get_link_to_form("Journal Entry", source_name), get_link_to_form("Journal Entry", reversal_of)
 			)
 		)
 	existing_reverse = frappe.db.exists("Journal Entry", {"reversal_of": source_name, "docstatus": 1})
 	if existing_reverse:
 		raise ValidationError(
-			"A Reverse Journal Entry {0} already exists for this Journal Entry.".format(
+			"A Reverse Journal Entry {} already exists for this Journal Entry.".format(
 				get_link_to_form("Journal Entry", existing_reverse)
 			)
 		)

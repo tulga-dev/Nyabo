@@ -73,7 +73,9 @@ def expand_doc_events(doc_events: dict[Any, Any]) -> dict[str, dict[str, list[st
 	return out
 
 
-def get_hooks(hook: str | None = None, default: Any = "_KEEP_DEFAULT_LIST", app_name: str | None = None) -> Any:
+def get_hooks(
+	hook: str | None = None, default: Any = "_KEEP_DEFAULT_LIST", app_name: str | None = None
+) -> Any:
 	import frappe
 
 	local = frappe.local
@@ -113,7 +115,9 @@ def clear_hooks_cache() -> None:
 
 
 @contextmanager
-def temporary_hooks(replace: bool = False, without_apps: tuple[str, ...] = (), **hooks: Any) -> Iterator[None]:
+def temporary_hooks(
+	replace: bool = False, without_apps: tuple[str, ...] = (), **hooks: Any
+) -> Iterator[None]:
 	"""Add hooks for the duration of the block; optionally drop some apps' hooks meanwhile.
 
 	``replace=True`` uses only the given hooks; ``without_apps=("nyabo_mn",)`` keeps

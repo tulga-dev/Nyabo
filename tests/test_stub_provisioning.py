@@ -5,13 +5,13 @@ from __future__ import annotations
 import sys
 import types
 
-import pytest
-
 import frappe
+import pytest
 from erpnext.accounts.doctype.financial_report_template.financial_report_template import (
 	sync_financial_report_templates,
 )
 from frappe.desk import query_report
+
 from nyabo_mn.setup import chart as chart_mod
 from nyabo_mn.setup.chart_db import account_for_code
 from nyabo_mn.setup.provision_company import COMPANY_DEFAULTS_BY_CODE, provision_company, verify
@@ -46,13 +46,25 @@ def test_provisioning_is_idempotent_and_refuses_standard_chart(company, site):
 	assert again["created"]["company"] is False and again["verify"]["ok"]
 	with pytest.raises(NotImplementedError, match="Standard chart"):
 		frappe.get_doc(
-			{"doctype": "Company", "company_name": "Хоёр ХХК", "abbr": "HOY", "country": "Mongolia", "default_currency": "MNT"}
+			{
+				"doctype": "Company",
+				"company_name": "Хоёр ХХК",
+				"abbr": "HOY",
+				"country": "Mongolia",
+				"default_currency": "MNT",
+			}
 		).insert()
 	with pytest.raises(frappe.ValidationError, match="Abbreviation already used"):
 		frappe.local.flags.ignore_chart_of_accounts = True
 		try:
 			frappe.get_doc(
-				{"doctype": "Company", "company_name": "Гурав ХХК", "abbr": "TST", "country": "Mongolia", "default_currency": "MNT"}
+				{
+					"doctype": "Company",
+					"company_name": "Гурав ХХК",
+					"abbr": "TST",
+					"country": "Mongolia",
+					"default_currency": "MNT",
+				}
 			).insert()
 		finally:
 			frappe.local.flags.ignore_chart_of_accounts = False
@@ -68,7 +80,9 @@ def test_after_install_creates_custom_field_rows(site):
 	after_install()  # idempotent
 	assert frappe.db.count("Custom Field", {"dt": "Supplier"}) == 5
 	with pytest.raises(frappe.ValidationError, match="already exists"):
-		frappe.get_doc({"doctype": "Custom Field", "dt": "Supplier", "fieldname": "supplier_name", "fieldtype": "Data"}).insert()
+		frappe.get_doc(
+			{"doctype": "Custom Field", "dt": "Supplier", "fieldname": "supplier_name", "fieldtype": "Data"}
+		).insert()
 	from frappe.custom.doctype.property_setter.property_setter import make_property_setter
 
 	make_property_setter("Supplier", "supplier_type", "reqd", 0, "Check")
@@ -94,7 +108,14 @@ def test_query_report_runs_nyabo_script_reports_only(site):
 	sys.modules[module.__name__] = module
 	try:
 		frappe.get_doc(
-			{"doctype": "Report", "report_name": "Stub Probe", "ref_doctype": "Account", "is_standard": "Yes", "report_type": "Script Report", "module": "Nyabo"}
+			{
+				"doctype": "Report",
+				"report_name": "Stub Probe",
+				"ref_doctype": "Account",
+				"is_standard": "Yes",
+				"report_type": "Script Report",
+				"module": "Nyabo",
+			}
 		).insert()
 		out = query_report.run("Stub Probe", filters={"account": "1110"}, ignore_prepared_report=True)
 	finally:

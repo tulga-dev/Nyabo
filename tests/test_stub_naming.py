@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-import pytest
-
 import frappe
+import pytest
 
 
 def test_series_counter_is_zero_padded_per_prefix(site):
@@ -79,12 +78,18 @@ def test_erpnext_names_follow_abbreviation(site, company):
 	with temporary_hooks(without_apps=("nyabo_mn",)):
 		period.insert()
 	assert period.name == "2026-01 - TST"
-	assert [d.document_type for d in period.closed_documents][:3] == ["Sales Invoice", "Purchase Invoice", "Journal Entry"]
+	assert [d.document_type for d in period.closed_documents][:3] == [
+		"Sales Invoice",
+		"Purchase Invoice",
+		"Journal Entry",
+	]
 	assert frappe.db.exists("Fiscal Year", "2026")
 
 
 def test_file_name_is_hash_and_file_name_kept(site):
-	doc = frappe.get_doc({"doctype": "File", "file_name": "receipt.jpg", "content": b"jpeg", "is_private": 1}).insert()
+	doc = frappe.get_doc(
+		{"doctype": "File", "file_name": "receipt.jpg", "content": b"jpeg", "is_private": 1}
+	).insert()
 	assert len(doc.name) == 10
 	assert doc.file_name == "receipt.jpg"
 	assert doc.file_url == "/private/files/receipt.jpg"

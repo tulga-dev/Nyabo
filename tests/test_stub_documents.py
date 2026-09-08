@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import json
 
-import pytest
-
 import frappe
+import pytest
 from frappe.utils.file_manager import save_file
 
 
@@ -47,7 +46,9 @@ def test_link_check_depends_on_target_rows_and_strict_flag(site, frappe_flags):
 	# ... but in strict mode every Link is checked, and a target without any meta is refused
 	with frappe_flags(stub_strict_links=True):
 		with pytest.raises(frappe.LinkValidationError):
-			frappe.get_doc({"doctype": "Nyabo LLM Call", "purpose": "extract", "company": "Байхгүй ХХК"}).insert()
+			frappe.get_doc(
+				{"doctype": "Nyabo LLM Call", "purpose": "extract", "company": "Байхгүй ХХК"}
+			).insert()
 		with pytest.raises(frappe.DoesNotExistError):
 			frappe.get_doc({"doctype": "Supplier", "supplier_name": "X", "country": "Mongolia"}).insert()
 
@@ -126,13 +127,18 @@ def test_version_rows_and_comments(site, company):
 	before = frappe.db.count("Version", {"ref_doctype": "Nyabo Company Settings", "docname": company})
 	settings.default_expense_code = "6220"
 	settings.save()
-	versions = frappe.get_all("Version", filters={"ref_doctype": "Nyabo Company Settings", "docname": company}, fields=["data"])
+	versions = frappe.get_all(
+		"Version", filters={"ref_doctype": "Nyabo Company Settings", "docname": company}, fields=["data"]
+	)
 	assert len(versions) == before + 1
 	changed = json.loads(versions[-1].data)["changed"]
 	assert [c for c in changed if c[0] == "default_expense_code"][0][2] == "6220"
 	comment = settings.add_comment("Comment", "Данс солив")
 	assert comment.reference_name == company
-	assert frappe.db.count("Comment", {"reference_doctype": "Nyabo Company Settings", "reference_name": company}) == 1
+	assert (
+		frappe.db.count("Comment", {"reference_doctype": "Nyabo Company Settings", "reference_name": company})
+		== 1
+	)
 
 
 def test_db_set_get_doc_before_save_and_has_value_changed(site, company):
@@ -172,7 +178,9 @@ def _delete_supplier_with_file():
 	import os
 
 	assert not os.path.exists(path)
-	deleted = frappe.get_all("Deleted Document", filters={"deleted_doctype": "Supplier"}, fields=["deleted_name", "data"])
+	deleted = frappe.get_all(
+		"Deleted Document", filters={"deleted_doctype": "Supplier"}, fields=["deleted_name", "data"]
+	)
 	assert deleted[0].deleted_name == supplier.name
 	assert json.loads(deleted[0].data)["supplier_name"] == "Устгах ХХК"
 
@@ -181,7 +189,9 @@ def test_file_content_roundtrip_via_save_file(site):
 	doc = save_file("statement.csv", "огноо,дүн\n2026-03-01,85000\n", "Role", "System Manager", is_private=1)
 	assert doc.file_url.startswith("/private/files/")
 	assert doc.get_content().decode("utf-8").startswith("огноо")
-	again = save_file("statement.csv", "огноо,дүн\n2026-03-01,85000\n", "Role", "System Manager", is_private=1)
+	again = save_file(
+		"statement.csv", "огноо,дүн\n2026-03-01,85000\n", "Role", "System Manager", is_private=1
+	)
 	assert again.file_url == doc.file_url  # same hash -> same file on disk
 
 
@@ -219,7 +229,8 @@ def test_permissions_follow_doctype_roles(site, as_user):
 
 def test_request_response_and_misc_api(site):
 	frappe.local.request = frappe.Request(
-		data=json.dumps({"update_id": 1}), headers={"X-Telegram-Bot-Api-Secret-Token": "s", "Content-Type": "application/json"}
+		data=json.dumps({"update_id": 1}),
+		headers={"X-Telegram-Bot-Api-Secret-Token": "s", "Content-Type": "application/json"},
 	)
 	assert frappe.request.headers.get("x-telegram-bot-api-secret-token") == "s"
 	assert frappe.get_request_header("X-Telegram-Bot-Api-Secret-Token") == "s"
@@ -241,4 +252,6 @@ def test_request_response_and_misc_api(site):
 	assert frappe.db.count("Error Log") == 1
 	assert frappe.conf.telegram_bot_token == "test-bot-token"
 	assert frappe.utils.pdf.get_pdf("<h1>Тайлан</h1>") == "<h1>Тайлан</h1>".encode()
-	assert frappe.utils.xlsxutils.make_xlsx([["Данс", "Дүн"], ["1110", 85000]], "Тайлан").getvalue()[:2] == b"PK"
+	assert (
+		frappe.utils.xlsxutils.make_xlsx([["Данс", "Дүн"], ["1110", 85000]], "Тайлан").getvalue()[:2] == b"PK"
+	)

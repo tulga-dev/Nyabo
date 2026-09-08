@@ -69,7 +69,9 @@ class CustomField(Document):
 		meta = frappe.get_meta(self.dt)
 		existing = meta.get_field(self.fieldname)
 		if self.is_new() and existing is not None and not existing.get("is_custom_field"):
-			raise ValidationError(f"A field with the name <b>{self.fieldname}</b> already exists in {self.dt}")
+			raise ValidationError(
+				f"A field with the name <b>{self.fieldname}</b> already exists in {self.dt}"
+			)
 		if self.insert_after == "append":
 			self.insert_after = meta.fields[-1].fieldname
 		if self.insert_after and self.insert_after in [f.fieldname for f in meta.fields]:
@@ -94,7 +96,9 @@ class CustomField(Document):
 			meta._fields_by_name.pop(self.fieldname, None)
 
 
-def create_custom_field(doctype: str, df: dict[str, Any], ignore_validate: bool = False, is_system_generated: bool = True) -> Any:
+def create_custom_field(
+	doctype: str, df: dict[str, Any], ignore_validate: bool = False, is_system_generated: bool = True
+) -> Any:
 	import frappe
 
 	df = _dict(df)
@@ -130,7 +134,9 @@ def get_existing_custom_fields(custom_fields: dict[Any, Any]) -> dict[tuple[str,
 	return out
 
 
-def create_custom_fields(custom_fields: dict[Any, Any], ignore_validate: bool = False, update: bool = True) -> None:
+def create_custom_fields(
+	custom_fields: dict[Any, Any], ignore_validate: bool = False, update: bool = True
+) -> None:
 	"""``{'Sales Invoice': [dict(fieldname='test')]}`` -> Custom Field rows + meta update."""
 	import frappe
 

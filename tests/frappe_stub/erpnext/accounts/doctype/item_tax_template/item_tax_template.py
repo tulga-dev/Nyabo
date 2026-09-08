@@ -23,7 +23,9 @@ class ItemTaxTemplate(Document):
 		for row in self.taxes:
 			account = frappe.db.get_value("Account", row.tax_type, ["is_group", "company"], as_dict=True)
 			if account and account.is_group:
-				raise ValidationError(f"Item Tax Row {row.idx} must have account of type Tax or Income or Expense or Chargeable")
+				raise ValidationError(
+					f"Item Tax Row {row.idx} must have account of type Tax or Income or Expense or Chargeable"
+				)
 			if account and self.company and account.company != self.company:
 				raise ValidationError(f"Account {row.tax_type} does not belong to company {self.company}")
 			if row.tax_type in seen:

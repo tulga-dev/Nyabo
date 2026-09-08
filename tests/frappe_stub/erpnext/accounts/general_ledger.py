@@ -41,7 +41,9 @@ def toggle_debit_credit_if_negative(gl_map: list[_dict]) -> list[_dict]:
 	return gl_map
 
 
-def process_gl_map(gl_map: list[_dict], merge_entries: bool = True, precision: int | None = None, from_repost: bool = False) -> list[_dict]:
+def process_gl_map(
+	gl_map: list[_dict], merge_entries: bool = True, precision: int | None = None, from_repost: bool = False
+) -> list[_dict]:
 	if not gl_map:
 		return []
 	return toggle_debit_credit_if_negative([_dict(e) for e in gl_map])
@@ -54,13 +56,20 @@ def validate_accounting_period(gl_map: list[_dict]) -> None:
 		voucher_type = entry.get("voucher_type")
 		posting_date = getdate(entry.get("posting_date"))
 		for period in frappe.get_all(
-			"Accounting Period", fields=["name", "start_date", "end_date"], filters={"company": entry.get("company"), "disabled": 0}
+			"Accounting Period",
+			fields=["name", "start_date", "end_date"],
+			filters={"company": entry.get("company"), "disabled": 0},
 		):
 			if not (getdate(period.start_date) <= posting_date <= getdate(period.end_date)):
 				continue
 			closed = frappe.get_all(
 				"Closed Document",
-				filters={"parent": period.name, "parenttype": "Accounting Period", "document_type": voucher_type, "closed": 1},
+				filters={
+					"parent": period.name,
+					"parenttype": "Accounting Period",
+					"document_type": voucher_type,
+					"closed": 1,
+				},
 			)
 			if closed:
 				raise ValidationError(
@@ -69,10 +78,14 @@ def validate_accounting_period(gl_map: list[_dict]) -> None:
 
 
 def raise_debit_credit_not_equal_error(debit_credit_diff: float, voucher_type: str, voucher_no: str) -> None:
-	raise ValidationError(f"Debit and Credit not equal for {voucher_type} #{voucher_no}. Difference is {debit_credit_diff}.")
+	raise ValidationError(
+		f"Debit and Credit not equal for {voucher_type} #{voucher_no}. Difference is {debit_credit_diff}."
+	)
 
 
-def make_entry(args: dict[str, Any], adv_adj: bool = False, update_outstanding: str = "Yes", from_repost: bool = False) -> Any:
+def make_entry(
+	args: dict[str, Any], adv_adj: bool = False, update_outstanding: str = "Yes", from_repost: bool = False
+) -> Any:
 	"""``frappe.new_doc("GL Entry").update(args).submit()``: keys the GL Entry has no column for are dropped."""
 	import frappe
 
@@ -93,7 +106,9 @@ def set_as_cancel(voucher_type: str, voucher_no: str) -> None:
 	import frappe
 
 	for name in frappe.get_all(
-		"GL Entry", filters={"voucher_type": voucher_type, "voucher_no": voucher_no, "is_cancelled": 0}, pluck="name"
+		"GL Entry",
+		filters={"voucher_type": voucher_type, "voucher_no": voucher_no, "is_cancelled": 0},
+		pluck="name",
 	):
 		frappe.db.set_value("GL Entry", name, "is_cancelled", 1)
 
@@ -141,7 +156,9 @@ def make_reverse_gl_entries(
 		gl_entries = [
 			_dict(r)
 			for r in frappe.get_all(
-				"GL Entry", fields=["*"], filters={"voucher_type": voucher_type, "voucher_no": voucher_no, "is_cancelled": 0}
+				"GL Entry",
+				fields=["*"],
+				filters={"voucher_type": voucher_type, "voucher_no": voucher_no, "is_cancelled": 0},
 			)
 		]
 	if not gl_entries:
@@ -158,7 +175,10 @@ def make_reverse_gl_entries(
 		new_gle["name"] = None
 		debit, credit = new_gle.get("debit", 0), new_gle.get("credit", 0)
 		dac, cac = new_gle.get("debit_in_account_currency", 0), new_gle.get("credit_in_account_currency", 0)
-		dtc, ctc = new_gle.get("debit_in_transaction_currency", 0), new_gle.get("credit_in_transaction_currency", 0)
+		dtc, ctc = (
+			new_gle.get("debit_in_transaction_currency", 0),
+			new_gle.get("credit_in_transaction_currency", 0),
+		)
 		new_gle["debit"], new_gle["credit"] = credit, debit
 		new_gle["debit_in_account_currency"], new_gle["credit_in_account_currency"] = cac, dac
 		new_gle["debit_in_transaction_currency"], new_gle["credit_in_transaction_currency"] = ctc, dtc

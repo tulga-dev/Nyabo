@@ -58,7 +58,9 @@ DOCUMENT_ATTRS = frozenset(
 		"__run_link_triggers",
 	}
 )
-RESERVED_KEYWORDS = frozenset({"meta", "as_dict", "get", "set", "append", "save", "insert", "submit", "cancel"})
+RESERVED_KEYWORDS = frozenset(
+	{"meta", "as_dict", "get", "set", "append", "save", "insert", "submit", "cancel"}
+)
 
 
 class Document:
@@ -129,7 +131,12 @@ class Document:
 		return frappe.get_meta(self.doctype)
 
 	def _allowed_attr(self, key: str) -> bool:
-		if key.startswith("_") or key in DEFAULT_FIELDS or key in DOCUMENT_ATTRS or key in self._stub_extra_fields:
+		if (
+			key.startswith("_")
+			or key in DEFAULT_FIELDS
+			or key in DOCUMENT_ATTRS
+			or key in self._stub_extra_fields
+		):
 			return True
 		meta = self.meta
 		if meta.get("permissive"):
@@ -332,7 +339,11 @@ class Document:
 				value = 1 if cint(value) else 0
 			elif df.fieldtype == "Int" and value is not None:
 				value = cint(value)
-			elif df.fieldtype in ("Currency", "Float", "Percent") and value is not None and not isinstance(value, float):
+			elif (
+				df.fieldtype in ("Currency", "Float", "Percent")
+				and value is not None
+				and not isinstance(value, float)
+			):
 				value = flt(value)
 			elif df.fieldtype == "JSON" and isinstance(value, (dict, list)):
 				value = json.dumps(value, ensure_ascii=False)
@@ -466,7 +477,9 @@ class Document:
 			if not row.name:
 				row.name = frappe.generate_hash(length=10)
 
-	def set_new_name(self, force: bool = False, set_name: str | None = None, set_child_names: bool = True) -> None:
+	def set_new_name(
+		self, force: bool = False, set_name: str | None = None, set_child_names: bool = True
+	) -> None:
 		from frappe.model.naming import set_new_name
 
 		if self.flags.name_set and not force:
@@ -564,7 +577,11 @@ class Document:
 			if not table and not strict:
 				continue
 			row = table.get(docname)
-			label = f"Row #{self.idx}: {df.label}: {docname}" if self.get("parentfield") else f"{df.label}: {docname}"
+			label = (
+				f"Row #{self.idx}: {df.label}: {docname}"
+				if self.get("parentfield")
+				else f"{df.label}: {docname}"
+			)
 			if row is None:
 				invalid.append((df.fieldname, docname, label))
 			elif (
@@ -870,7 +887,9 @@ class Document:
 		self.docstatus = DocStatus(2)
 		return self.save()
 
-	def delete(self, ignore_permissions: bool = False, force: bool = False, *, delete_permanently: bool = False) -> None:
+	def delete(
+		self, ignore_permissions: bool = False, force: bool = False, *, delete_permanently: bool = False
+	) -> None:
 		import frappe
 
 		frappe.delete_doc(
@@ -1052,7 +1071,11 @@ class Document:
 		if before is None:
 			if not self.flags.updater_reference:
 				return
-			data = {"creation": str(self.creation), "updater_reference": self.flags.updater_reference, "created_by": self.owner}
+			data = {
+				"creation": str(self.creation),
+				"updater_reference": self.flags.updater_reference,
+				"created_by": self.owner,
+			}
 		else:
 			diff = get_diff(before, self)
 			if not diff:
@@ -1098,10 +1121,19 @@ class Document:
 		"""Frappe runs the action in a background job; the stub runs it inline (enqueue does too)."""
 		return getattr(self, action)(**kwargs)
 
-	def validate_value(self, fieldname: str, condition: str, val2: Any, doc: Any = None, raise_exception: Any = None) -> None:
+	def validate_value(
+		self, fieldname: str, condition: str, val2: Any, doc: Any = None, raise_exception: Any = None
+	) -> None:
 		import operator
 
-		ops = {"=": operator.eq, "!=": operator.ne, "<": operator.lt, ">": operator.gt, "<=": operator.le, ">=": operator.ge}
+		ops = {
+			"=": operator.eq,
+			"!=": operator.ne,
+			"<": operator.lt,
+			">": operator.gt,
+			"<=": operator.le,
+			">=": operator.ge,
+		}
 		doc = doc or self
 		if not ops[condition](doc.get(fieldname), val2):
 			raise ValidationError(f"{doc.doctype} {fieldname}: value must be {condition} {val2}")
@@ -1168,7 +1200,11 @@ def _resolve_default(doc: Document, df: Any, default: Any, frappe: Any) -> Any:
 		if text.startswith(":"):
 			source_doctype = text[1:]
 			source_name = doc.get(frappe.scrub(source_doctype)) if source_doctype != doc.doctype else None
-			if source_name and frappe.db.has_table(source_doctype) and frappe.get_meta(source_doctype).has_field(df.fieldname):
+			if (
+				source_name
+				and frappe.db.has_table(source_doctype)
+				and frappe.get_meta(source_doctype).has_field(df.fieldname)
+			):
 				return frappe.db.get_value(source_doctype, source_name, df.fieldname)
 			return None
 	if df.fieldtype == "Check" or df.fieldtype == "Int":

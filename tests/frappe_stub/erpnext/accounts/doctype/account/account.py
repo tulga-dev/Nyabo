@@ -47,13 +47,17 @@ class Account(Document):
 
 		if not self.parent_account:
 			return
-		par = frappe.get_cached_value("Account", self.parent_account, ["name", "is_group", "company"], as_dict=1)
+		par = frappe.get_cached_value(
+			"Account", self.parent_account, ["name", "is_group", "company"], as_dict=1
+		)
 		if not par:
 			raise ValidationError(f"Account {self.name}: Parent account {self.parent_account} does not exist")
 		if par.name == self.name:
 			raise ValidationError(f"Account {self.name}: You can not assign itself as parent account")
 		if not par.is_group:
-			raise ValidationError(f"Account {self.name}: Parent account {self.parent_account} can not be a ledger")
+			raise ValidationError(
+				f"Account {self.name}: Parent account {self.parent_account} can not be a ledger"
+			)
 		if par.company != self.company:
 			raise ValidationError(
 				f"Account {self.name}: Parent account {self.parent_account} does not belong to company: {self.company}"
@@ -81,13 +85,17 @@ class Account(Document):
 		import frappe
 
 		if self.parent_account:
-			par = frappe.get_cached_value("Account", self.parent_account, ["report_type", "root_type"], as_dict=1)
+			par = frappe.get_cached_value(
+				"Account", self.parent_account, ["report_type", "root_type"], as_dict=1
+			)
 			if par.report_type:
 				self.report_type = par.report_type
 			if par.root_type:
 				self.root_type = par.root_type
 		if self.root_type and not self.report_type:
-			self.report_type = "Balance Sheet" if self.root_type in BALANCE_SHEET_ROOT_TYPES else "Profit and Loss"
+			self.report_type = (
+				"Balance Sheet" if self.root_type in BALANCE_SHEET_ROOT_TYPES else "Profit and Loss"
+			)
 
 	def validate_mandatory(self) -> None:
 		if not self.root_type:
@@ -100,9 +108,13 @@ class Account(Document):
 
 		if not self.account_currency:
 			self.account_currency = frappe.get_cached_value("Company", self.company, "default_currency")
-		gl_currency = frappe.db.get_value("GL Entry", {"account": self.name, "is_cancelled": 0}, "account_currency")
+		gl_currency = frappe.db.get_value(
+			"GL Entry", {"account": self.name, "is_cancelled": 0}, "account_currency"
+		)
 		if gl_currency and self.account_currency != gl_currency:
-			raise ValidationError("Currency can not be changed after making entries using some other currency")
+			raise ValidationError(
+				"Currency can not be changed after making entries using some other currency"
+			)
 
 	def on_trash(self) -> None:
 		import frappe

@@ -14,10 +14,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from erpnext.controllers.accounts_controller import AccountsController
 from frappe._stub.dictlike import _dict
 from frappe.exceptions import ValidationError
 from frappe.utils.data import flt
+
+from erpnext.controllers.accounts_controller import AccountsController
 
 
 class PurchaseInvoice(AccountsController):
@@ -47,7 +48,9 @@ class PurchaseInvoice(AccountsController):
 		for item in self.items:
 			if not item.expense_account:
 				if not default_expense:
-					raise ValidationError(f"Row {item.idx}: Expense Account is mandatory (no default on Company {self.company})")
+					raise ValidationError(
+						f"Row {item.idx}: Expense Account is mandatory (no default on Company {self.company})"
+					)
 				item.expense_account = default_expense
 			if not item.cost_center:
 				item.cost_center = self.cost_center
@@ -76,13 +79,19 @@ class PurchaseInvoice(AccountsController):
 			if not original:
 				raise ValidationError(f"Return Against Purchase Invoice {self.return_against} does not exist")
 			if int(original.docstatus) != 1:
-				raise ValidationError(f"Return Against Purchase Invoice {self.return_against} must be submitted")
+				raise ValidationError(
+					f"Return Against Purchase Invoice {self.return_against} must be submitted"
+				)
 			if original.supplier != self.supplier or original.company != self.company:
-				raise ValidationError(f"Return Against Purchase Invoice {self.return_against} belongs to another party")
+				raise ValidationError(
+					f"Return Against Purchase Invoice {self.return_against} belongs to another party"
+				)
 			if flt(self.grand_total) > 0:
 				raise ValidationError("A return (Debit Note) must have a negative grand total")
 
-	def set_status(self, update: bool = False, status: str | None = None, update_modified: bool = True) -> None:
+	def set_status(
+		self, update: bool = False, status: str | None = None, update_modified: bool = True
+	) -> None:
 		import frappe
 
 		if status:
@@ -159,7 +168,9 @@ class PurchaseInvoice(AccountsController):
 		from erpnext.accounts.utils import get_account_currency
 
 		if self.update_stock:
-			raise NotImplementedError("frappe stub: Purchase Invoice with update_stock (stock GL) is not implemented")
+			raise NotImplementedError(
+				"frappe stub: Purchase Invoice with update_stock (stock GL) is not implemented"
+			)
 		for item in self.items:
 			if not flt(item.base_net_amount):
 				continue

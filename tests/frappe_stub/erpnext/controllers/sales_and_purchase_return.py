@@ -13,7 +13,9 @@ from typing import Any
 from frappe.utils.data import flt
 
 
-def make_return_doc(doctype: str, source_name: str, target_doc: Any = None, return_against_rejected_qty: bool = False) -> Any:
+def make_return_doc(
+	doctype: str, source_name: str, target_doc: Any = None, return_against_rejected_qty: bool = False
+) -> Any:
 	import frappe
 	from frappe.model.mapper import get_mapped_doc
 

@@ -12,7 +12,9 @@ class CurrencyExchange(Document):
 		purpose = ""
 		if not cint(self.for_buying) == cint(self.for_selling):
 			purpose = "-Buying" if cint(self.for_buying) else "-Selling"
-		self.name = "{}-{}-{}{}".format(formatdate(self.date, "yyyy-MM-dd"), self.from_currency, self.to_currency, purpose)
+		self.name = "{}-{}-{}{}".format(
+			formatdate(self.date, "yyyy-MM-dd"), self.from_currency, self.to_currency, purpose
+		)
 
 	def validate(self) -> None:
 		if flt(self.exchange_rate) <= 0:

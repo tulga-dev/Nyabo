@@ -46,15 +46,33 @@ class FlakyClient(BaseClient):
 
 	def _structured_once(self, *, system, user, schema, schema_name, temperature):
 		data = self._request(self._raw)
-		return LlmResult(data=data, text="{}", tokens_in=10, tokens_out=5, latency_ms=0, model=self.model, provider=self.provider)
+		return LlmResult(
+			data=data,
+			text="{}",
+			tokens_in=10,
+			tokens_out=5,
+			latency_ms=0,
+			model=self.model,
+			provider=self.provider,
+		)
 
 	def _with_tools_once(self, *, system, user, tools, handler, max_turns):
 		data = self._request(self._raw)
-		return LlmResult(data=data, text="ok", tokens_in=1, tokens_out=1, latency_ms=0, model=self.model, provider=self.provider)
+		return LlmResult(
+			data=data,
+			text="ok",
+			tokens_in=1,
+			tokens_out=1,
+			latency_ms=0,
+			model=self.model,
+			provider=self.provider,
+		)
 
 
 def _policy(sleeps: list[float]) -> RetryPolicy:
-	return RetryPolicy(max_retries=3, backoff_base_s=1.0, backoff_max_s=20.0, sleep=sleeps.append, rng=lambda: 0.5)
+	return RetryPolicy(
+		max_retries=3, backoff_base_s=1.0, backoff_max_s=20.0, sleep=sleeps.append, rng=lambda: 0.5
+	)
 
 
 def _call(client: BaseClient) -> LlmResult:
@@ -115,15 +133,26 @@ def test_record_call_receives_success_and_failure_records():
 	ticks = iter([0.0, 0.25, 1.0, 1.5])
 	client = FlakyClient([], record_call=records.append, retry=_policy([]), clock=lambda: next(ticks))
 	result = client.structured(
-		purpose="classify", system="s", user=[TextPart("u")], schema={}, schema_name="x", prompt_version="classify.v1"
+		purpose="classify",
+		system="s",
+		user=[TextPart("u")],
+		schema={},
+		schema_name="x",
+		prompt_version="classify.v1",
 	)
-	assert result.latency_ms == 250 and result.purpose == "classify" and result.prompt_version == "classify.v1"
+	assert (
+		result.latency_ms == 250 and result.purpose == "classify" and result.prompt_version == "classify.v1"
+	)
 	assert records[0].ok and records[0].tokens_in == 10 and records[0].prompt_version == "classify.v1"
 
-	client = FlakyClient([LlmProviderError("bad", status_code=400)], record_call=records.append, retry=_policy([]))
+	client = FlakyClient(
+		[LlmProviderError("bad", status_code=400)], record_call=records.append, retry=_policy([])
+	)
 	with pytest.raises(LlmProviderError):
 		_call(client)
-	assert not records[1].ok and records[1].error_class == "LlmProviderError" and records[1].purpose == "extract"
+	assert (
+		not records[1].ok and records[1].error_class == "LlmProviderError" and records[1].purpose == "extract"
+	)
 
 
 def test_record_call_failure_does_not_break_the_call(caplog):
@@ -139,7 +168,14 @@ def test_record_call_failure_does_not_break_the_call(caplog):
 def test_with_tools_requires_positive_max_turns():
 	client = FlakyClient([], retry=_policy([]))
 	with pytest.raises(ValueError):
-		client.with_tools(purpose="question", system="s", user=[TextPart("u")], tools=[], handler=lambda n, a: {}, max_turns=0)
+		client.with_tools(
+			purpose="question",
+			system="s",
+			user=[TextPart("u")],
+			tools=[],
+			handler=lambda n, a: {},
+			max_turns=0,
+		)
 
 
 def test_hash_parts_is_stable_and_sensitive():
@@ -205,7 +241,12 @@ def test_get_client_factory_routes_by_provider():
 
 
 def test_get_client_reads_model_overrides_from_plain_mapping():
-	conf = {"OPENAI_API_KEY": "sk", "OPENAI_MODEL": "gpt-5.6-luna", "ANTHROPIC_API_KEY": "ak", "ANTHROPIC_MODEL": "claude-opus-5"}
+	conf = {
+		"OPENAI_API_KEY": "sk",
+		"OPENAI_MODEL": "gpt-5.6-luna",
+		"ANTHROPIC_API_KEY": "ak",
+		"ANTHROPIC_MODEL": "claude-opus-5",
+	}
 	assert get_client(conf).model == "gpt-5.6-luna"
 	assert get_client(conf, provider="anthropic").model == "claude-opus-5"
 

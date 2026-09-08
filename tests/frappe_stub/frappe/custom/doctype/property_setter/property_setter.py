@@ -26,7 +26,9 @@ class PropertySetter(Document):
 		if self.doctype_or_field == "DocField" and self.flags.validate_fields_for_doctype is not False:
 			meta = frappe.get_meta(self.doc_type)
 			if not self.field_name or not meta.has_field(self.field_name):
-				raise ValidationError(f"{self.doc_type} has no field {self.field_name!r} for the Property Setter")
+				raise ValidationError(
+					f"{self.doc_type} has no field {self.field_name!r} for the Property Setter"
+				)
 
 	def on_update(self) -> None:
 		import frappe

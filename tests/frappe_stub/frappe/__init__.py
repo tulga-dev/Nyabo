@@ -84,7 +84,9 @@ def msgprint(
 ) -> None:
 	if isinstance(msg, (list, tuple)) and as_list:
 		msg = "\n".join(str(m) for m in msg)
-	entry = _dict(message=str(msg), title=title, indicator=indicator, raise_exception=1 if raise_exception else 0)
+	entry = _dict(
+		message=str(msg), title=title, indicator=indicator, raise_exception=1 if raise_exception else 0
+	)
 	local.message_log.append(entry)
 	if raise_exception:
 		if inspect.isclass(raise_exception) and issubclass(raise_exception, Exception):
@@ -163,7 +165,9 @@ def get_doc(*args: Any, **kwargs: Any) -> Any:
 			raise DoesNotExistError(f"{doctype} {name} not found")
 		name = found
 	if name is None:
-		raise ValidationError(f"frappe stub: get_doc({doctype!r}) needs a name (use new_doc for a new document)")
+		raise ValidationError(
+			f"frappe stub: get_doc({doctype!r}) needs a name (use new_doc for a new document)"
+		)
 	return get_controller(doctype)(doctype, name, for_update=kwargs.get("for_update"))
 
 
@@ -175,7 +179,9 @@ def get_single(doctype: str) -> Any:
 	return get_doc(doctype)
 
 
-def new_doc(doctype: str, parent_doc: Any = None, parentfield: str | None = None, as_dict: bool = False, **kwargs: Any) -> Any:
+def new_doc(
+	doctype: str, parent_doc: Any = None, parentfield: str | None = None, as_dict: bool = False, **kwargs: Any
+) -> Any:
 	from frappe._stub.controllers import get_controller
 
 	doc = get_controller(doctype)(doctype)
@@ -237,7 +243,9 @@ def get_system_settings(key: str) -> Any:
 	return db.get_single_value("System Settings", key)
 
 
-def get_last_doc(doctype: str, filters: Any = None, order_by: str = "creation desc", *, for_update: bool = False) -> Any:
+def get_last_doc(
+	doctype: str, filters: Any = None, order_by: str = "creation desc", *, for_update: bool = False
+) -> Any:
 	names = get_all(doctype, filters=filters, order_by=order_by, limit=1, pluck="name")
 	if not names:
 		raise DoesNotExistError(f"{doctype} not found")
@@ -290,7 +298,9 @@ def generate_hash(txt: str | None = None, length: int = 56) -> str:
 # --- hooks, modules, jobs -----------------------------------------------------------------
 
 
-def get_hooks(hook: str | None = None, default: Any = "_KEEP_DEFAULT_LIST", app_name: str | None = None) -> Any:
+def get_hooks(
+	hook: str | None = None, default: Any = "_KEEP_DEFAULT_LIST", app_name: str | None = None
+) -> Any:
 	from frappe._stub.hooks import get_hooks as _get_hooks
 
 	return _get_hooks(hook, default, app_name)
@@ -331,7 +341,9 @@ def get_attr(method_string: str) -> Any:
 	try:
 		return getattr(module, attr)
 	except AttributeError as exc:
-		raise AttributeError(f"frappe stub: {module_name} has no attribute {attr!r} (handler {method_string!r})") from exc
+		raise AttributeError(
+			f"frappe stub: {module_name} has no attribute {attr!r} (handler {method_string!r})"
+		) from exc
 
 
 def call(fn: Any, *args: Any, **kwargs: Any) -> Any:
@@ -401,9 +413,24 @@ def enqueue(
 	return _dict(id=job_id or job_name or record.method, result=record.result, is_finished=True)
 
 
-def enqueue_doc(doctype: str, name: str, method: str, queue: str = "default", timeout: int | None = None, now: bool = False, **kwargs: Any) -> Any:
+def enqueue_doc(
+	doctype: str,
+	name: str,
+	method: str,
+	queue: str = "default",
+	timeout: int | None = None,
+	now: bool = False,
+	**kwargs: Any,
+) -> Any:
 	doc = get_doc(doctype, name)
-	return enqueue(getattr(doc, method), queue=queue, timeout=timeout, now=now, job_name=f"{doctype}:{name}:{method}", **kwargs)
+	return enqueue(
+		getattr(doc, method),
+		queue=queue,
+		timeout=timeout,
+		now=now,
+		job_name=f"{doctype}:{name}:{method}",
+		**kwargs,
+	)
 
 
 def whitelist(allow_guest: bool = False, xss_safe: bool = False, methods: Any = None) -> Any:
@@ -545,7 +572,9 @@ def log_error(
 ) -> Any:
 	if message is None:
 		message = get_traceback()
-	entry = _dict(title=title, message=message, reference_doctype=reference_doctype, reference_name=reference_name)
+	entry = _dict(
+		title=title, message=message, reference_doctype=reference_doctype, reference_name=reference_name
+	)
 	local.error_log.append(entry)
 	doc = get_doc(
 		{
@@ -573,7 +602,12 @@ def sendmail(**kwargs: Any) -> None:
 # --- templates, json, misc ---------------------------------------------------------------------
 
 
-def render_template(template: str, context: dict[str, Any] | None = None, is_path: bool | None = None, safe_render: bool = True) -> str:
+def render_template(
+	template: str,
+	context: dict[str, Any] | None = None,
+	is_path: bool | None = None,
+	safe_render: bool = True,
+) -> str:
 	"""Jinja2 with ``_`` and ``frappe`` in the context; a ``.html`` path is read from the app."""
 	try:
 		import jinja2
@@ -585,14 +619,18 @@ def render_template(template: str, context: dict[str, Any] | None = None, is_pat
 	context = dict(context or {})
 	context.setdefault("_", _)
 	context.setdefault("frappe", sys.modules[__name__])
-	if is_path or (is_path is None and template.endswith(".html") and "\n" not in template and "{" not in template):
+	if is_path or (
+		is_path is None and template.endswith(".html") and "\n" not in template and "{" not in template
+	):
 		parts = template.split("/")
 		path = get_app_path(parts[0], *parts[1:]) if len(parts) > 1 else template
 		if not os.path.exists(path):
 			raise DoesNotExistError(f"frappe stub: template {template!r} not found at {path}")
 		with open(path, encoding="utf-8") as f:
 			template = f.read()
-	env = jinja2.Environment(autoescape=False, undefined=jinja2.Undefined if safe_render else jinja2.StrictUndefined)
+	env = jinja2.Environment(
+		autoescape=False, undefined=jinja2.Undefined if safe_render else jinja2.StrictUndefined
+	)
 	return env.from_string(template).render(**context)
 
 
@@ -607,7 +645,14 @@ def unscrub(txt: str) -> str:
 def as_json(obj: Any, indent: int | None = 1, separators: Any = None, ensure_ascii: bool = True) -> str:
 	from frappe.utils.data import json_default
 
-	return json.dumps(obj, indent=indent, sort_keys=True, default=json_default, separators=separators, ensure_ascii=ensure_ascii)
+	return json.dumps(
+		obj,
+		indent=indent,
+		sort_keys=True,
+		default=json_default,
+		separators=separators,
+		ensure_ascii=ensure_ascii,
+	)
 
 
 def parse_json(val: Any) -> Any:
@@ -671,7 +716,9 @@ class _Cache:
 	def _store(self) -> dict:
 		return local.cache_store
 
-	def get_value(self, key: Any, generator: Any = None, user: Any = None, expires: bool = False, shared: bool = False) -> Any:
+	def get_value(
+		self, key: Any, generator: Any = None, user: Any = None, expires: bool = False, shared: bool = False
+	) -> Any:
 		store = self._store()
 		if key in store:
 			return store[key]
@@ -680,7 +727,9 @@ class _Cache:
 			return store[key]
 		return None
 
-	def set_value(self, key: Any, val: Any, user: Any = None, expires_in_sec: int | None = None, shared: bool = False) -> None:
+	def set_value(
+		self, key: Any, val: Any, user: Any = None, expires_in_sec: int | None = None, shared: bool = False
+	) -> None:
 		self._store()[key] = val
 
 	def delete_value(self, keys: Any, user: Any = None, make_keys: bool = True, shared: bool = False) -> None:
@@ -754,7 +803,9 @@ class _Defaults:
 		db.set_default(key, value)
 
 	@staticmethod
-	def set_user_default(key: str, value: Any, user: str | None = None, parenttype: str | None = None) -> None:
+	def set_user_default(
+		key: str, value: Any, user: str | None = None, parenttype: str | None = None
+	) -> None:
 		db.set_default(key, value)
 
 	@staticmethod
@@ -769,7 +820,9 @@ class _Defaults:
 defaults = _Defaults()
 
 
-def init(site: str = DEFAULT_SITE, sites_path: str = ".", new_site: bool = False, force: bool = False) -> None:
+def init(
+	site: str = DEFAULT_SITE, sites_path: str = ".", new_site: bool = False, force: bool = False
+) -> None:
 	"""On a bench ``frappe.init`` + ``frappe.connect`` open the site; here ``_stub.reset`` does both."""
 	_stub.reset(site)
 

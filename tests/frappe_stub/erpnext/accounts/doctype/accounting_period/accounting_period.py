@@ -36,9 +36,7 @@ class AccountingPeriod(Document):
 			raise ValidationError("Start Date cannot be after End Date")
 		if getdate(self.end_date) > getdate(nowdate()):
 			raise ValidationError(
-				"Accounting Period cannot be created for a future date. End Date {0} is after today.".format(
-					frappe.bold(formatdate(self.end_date))
-				)
+				f"Accounting Period cannot be created for a future date. End Date {frappe.bold(formatdate(self.end_date))} is after today."
 			)
 
 	def before_insert(self) -> None:
@@ -71,14 +69,19 @@ class AccountingPeriod(Document):
 	def get_doctypes_for_closing(self) -> list[dict[str, Any]]:
 		import frappe
 
-		return [{"document_type": doctype, "closed": 1} for doctype in frappe.get_hooks("period_closing_doctypes")]
+		return [
+			{"document_type": doctype, "closed": 1} for doctype in frappe.get_hooks("period_closing_doctypes")
+		]
 
 	def bootstrap_doctypes_for_closing(self) -> None:
 		if len(self.closed_documents or []) == 0:
 			for doctype_for_closing in self.get_doctypes_for_closing():
 				self.append(
 					"closed_documents",
-					{"document_type": doctype_for_closing["document_type"], "closed": doctype_for_closing["closed"]},
+					{
+						"document_type": doctype_for_closing["document_type"],
+						"closed": doctype_for_closing["closed"],
+					},
 				)
 
 
@@ -109,7 +112,12 @@ def validate_accounting_period_on_doc_save(doc: Any, method: str | None = None) 
 			continue
 		closed = frappe.get_all(
 			"Closed Document",
-			filters={"parent": period.name, "parenttype": "Accounting Period", "document_type": doc.doctype, "closed": 1},
+			filters={
+				"parent": period.name,
+				"parenttype": "Accounting Period",
+				"document_type": doc.doctype,
+				"closed": 1,
+			},
 		)
 		if not closed:
 			continue

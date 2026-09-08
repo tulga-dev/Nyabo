@@ -79,7 +79,9 @@ def delete_doc(
 	frappe.db.delete_row(doctype, name)
 	doc.run_method("after_delete")
 
-	for file_name in frappe.get_all("File", {"attached_to_doctype": doctype, "attached_to_name": name}, pluck="name"):
+	for file_name in frappe.get_all(
+		"File", {"attached_to_doctype": doctype, "attached_to_name": name}, pluck="name"
+	):
 		delete_doc("File", file_name, ignore_permissions=True, force=True)
 	frappe.db.delete("Comment", {"reference_doctype": doctype, "reference_name": name})
 	frappe.db.delete("Version", {"ref_doctype": doctype, "docname": name})

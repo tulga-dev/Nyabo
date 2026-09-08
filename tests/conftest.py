@@ -48,10 +48,18 @@ def site() -> Iterator[Any]:
 		pytest.skip("the site fixture drives the in-memory stub; run bench tests on a real site instead")
 	local = frappe._stub.reset()
 	for role in SITE_ROLES:
-		frappe.get_doc({"doctype": "Role", "role_name": role, "desk_access": 1}).insert(ignore_permissions=True)
+		frappe.get_doc({"doctype": "Role", "role_name": role, "desk_access": 1}).insert(
+			ignore_permissions=True
+		)
 	for name, symbol, enabled in SITE_CURRENCIES:
 		frappe.get_doc(
-			{"doctype": "Currency", "currency_name": name, "symbol": symbol, "enabled": enabled, "fraction_units": 100}
+			{
+				"doctype": "Currency",
+				"currency_name": name,
+				"symbol": symbol,
+				"enabled": enabled,
+				"fraction_units": 100,
+			}
 		).insert(ignore_permissions=True)
 	for email, first_name in (("admin@example.com", "Administrator"), ("guest@example.com", "Guest")):
 		user = frappe.get_doc({"doctype": "User", "email": email, "first_name": first_name})

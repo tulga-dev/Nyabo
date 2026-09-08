@@ -95,7 +95,14 @@ def get_fiscal_year(
 	truncate: bool = False,
 ) -> Any:
 	fiscal_years = get_fiscal_years(
-		date, fiscal_year, label, verbose, company, as_dict=as_dict, boolean=boolean, raise_on_missing=raise_on_missing
+		date,
+		fiscal_year,
+		label,
+		verbose,
+		company,
+		as_dict=as_dict,
+		boolean=boolean,
+		raise_on_missing=raise_on_missing,
 	)
 	if fiscal_years:
 		return fiscal_years[0]

@@ -14,7 +14,9 @@ from typing import Any
 from frappe.utils.data import add_days, cint, flt, get_datetime_str, nowdate
 
 
-def get_exchange_rate(from_currency: str, to_currency: str, transaction_date: Any = None, args: Any = None) -> Any:
+def get_exchange_rate(
+	from_currency: str, to_currency: str, transaction_date: Any = None, args: Any = None
+) -> Any:
 	import frappe
 
 	if not (from_currency and to_currency):
@@ -41,7 +43,9 @@ def get_exchange_rate(from_currency: str, to_currency: str, transaction_date: An
 		checkpoint_date = add_days(transaction_date, -stale_days)
 		filters.append(["date", ">", get_datetime_str(checkpoint_date)])
 
-	entries = frappe.get_all("Currency Exchange", fields=["exchange_rate"], filters=filters, order_by="date desc", limit=1)
+	entries = frappe.get_all(
+		"Currency Exchange", fields=["exchange_rate"], filters=filters, order_by="date desc", limit=1
+	)
 	if entries:
 		return flt(entries[0].exchange_rate)
 	if frappe.get_single_value("Currency Exchange Settings", "disabled"):

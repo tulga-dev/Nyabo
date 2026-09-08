@@ -14,11 +14,15 @@ import os
 from typing import Any
 
 
-def sync_financial_report_templates(chart_of_accounts: str | None = None, existing_company: str | None = None) -> None:
+def sync_financial_report_templates(
+	chart_of_accounts: str | None = None, existing_company: str | None = None
+) -> None:
 	import frappe
 
 	frappe._stub.record_call(
-		"sync_financial_report_templates", chart_of_accounts=chart_of_accounts, existing_company=existing_company
+		"sync_financial_report_templates",
+		chart_of_accounts=chart_of_accounts,
+		existing_company=existing_company,
 	)
 	if existing_company:
 		return
@@ -61,6 +65,6 @@ def import_account_categories(template_path: str) -> None:
 	for row in rows:
 		name = row.get("account_category_name") or row.get("name")
 		if name and not frappe.db.exists("Account Category", name):
-			frappe.get_doc({"doctype": "Account Category", **{k: v for k, v in row.items() if k != "doctype"}}).insert(
-				ignore_permissions=True
-			)
+			frappe.get_doc(
+				{"doctype": "Account Category", **{k: v for k, v in row.items() if k != "doctype"}}
+			).insert(ignore_permissions=True)

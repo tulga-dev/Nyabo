@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-import pytest
-
 import frappe
+import pytest
 
 
 def record(doc, method=None):
@@ -17,13 +16,17 @@ def test_real_hooks_are_loaded_from_nyabo_hooks_py(site):
 	assert hooks.after_install == ["nyabo_mn.setup.install.after_install"]
 	assert "Purchase Invoice" in frappe.get_hooks("period_closing_doctypes")
 	doc_hooks = frappe.get_doc_hooks()
-	assert "nyabo_mn.compliance.hooks.validate_accounting_document" in doc_hooks["Purchase Invoice"]["validate"]
+	assert (
+		"nyabo_mn.compliance.hooks.validate_accounting_document" in doc_hooks["Purchase Invoice"]["validate"]
+	)
 	assert doc_hooks["Journal Entry"]["validate"][0].startswith("erpnext.accounts.doctype.accounting_period")
 
 
 def test_temporary_hooks_dispatch_to_dummy_handler(site, frappe_hooks):
 	path = f"{record.__module__}.record"
-	with frappe_hooks(doc_events={"Nyabo LLM Call": {"before_insert": path, "after_insert": path, "on_update": path}}):
+	with frappe_hooks(
+		doc_events={"Nyabo LLM Call": {"before_insert": path, "after_insert": path, "on_update": path}}
+	):
 		doc = frappe.get_doc({"doctype": "Nyabo LLM Call", "purpose": "extract"}).insert()
 	calls = frappe._stub.calls("dummy_hook")
 	assert [c.method for c in calls] == ["before_insert", "after_insert", "on_update"]

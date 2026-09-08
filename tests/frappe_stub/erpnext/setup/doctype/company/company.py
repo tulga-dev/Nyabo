@@ -19,7 +19,11 @@ class Company(Document):
 		import frappe
 
 		self.validate_abbr()
-		if self.default_currency and frappe.db.table("Currency") and not frappe.db.exists("Currency", self.default_currency):
+		if (
+			self.default_currency
+			and frappe.db.table("Currency")
+			and not frappe.db.exists("Currency", self.default_currency)
+		):
 			raise ValidationError(f"Currency {self.default_currency} does not exist")
 
 	def validate_abbr(self) -> None:
@@ -57,7 +61,9 @@ class Company(Document):
 			{"warehouse_name": "Finished Goods", "is_group": 0},
 			{"warehouse_name": "Goods In Transit", "is_group": 0, "warehouse_type": "Transit"},
 		]:
-			if frappe.db.exists("Warehouse", {"warehouse_name": wh_detail["warehouse_name"], "company": self.name}):
+			if frappe.db.exists(
+				"Warehouse", {"warehouse_name": wh_detail["warehouse_name"], "company": self.name}
+			):
 				continue
 			warehouse = frappe.get_doc(
 				{
@@ -81,7 +87,12 @@ class Company(Document):
 
 		cc_list = [
 			{"cost_center_name": self.name, "company": self.name, "is_group": 1, "parent_cost_center": None},
-			{"cost_center_name": "Main", "company": self.name, "is_group": 0, "parent_cost_center": self.name + " - " + self.abbr},
+			{
+				"cost_center_name": "Main",
+				"company": self.name,
+				"is_group": 0,
+				"parent_cost_center": self.name + " - " + self.abbr,
+			},
 		]
 		for cc in cc_list:
 			cc.update({"doctype": "Cost Center"})

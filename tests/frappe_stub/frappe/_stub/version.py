@@ -9,7 +9,11 @@ from frappe._stub.meta import NO_VALUE_FIELDS, TABLE_FIELDS
 
 
 def _row_dict(row: Any) -> dict[str, Any]:
-	return row.as_dict(no_default_fields=True, no_child_table_fields=True) if hasattr(row, "as_dict") else dict(row)
+	return (
+		row.as_dict(no_default_fields=True, no_child_table_fields=True)
+		if hasattr(row, "as_dict")
+		else dict(row)
+	)
 
 
 def get_diff(old: Any, new: Any, for_child: bool = False, compare_cancelled: bool = False) -> _dict | None:

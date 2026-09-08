@@ -31,4 +31,10 @@ doc_events = {
 	},
 }
 
-bank_reconciliation_doctypes = ["Payment Entry", "Journal Entry", "Purchase Invoice", "Sales Invoice", "Bank Transaction"]
+bank_reconciliation_doctypes = [
+	"Payment Entry",
+	"Journal Entry",
+	"Purchase Invoice",
+	"Sales Invoice",
+	"Bank Transaction",
+]

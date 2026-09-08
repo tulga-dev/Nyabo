@@ -51,7 +51,13 @@ class File(Document):
 			raise ValidationError("frappe stub: a File needs `content` or a `file_url`")
 		self.save_file(content=content)
 
-	def save_file(self, content: bytes | str | None = None, decode: bool = False, ignore_existing_file_check: bool = False, overwrite: bool = False) -> None:
+	def save_file(
+		self,
+		content: bytes | str | None = None,
+		decode: bool = False,
+		ignore_existing_file_check: bool = False,
+		overwrite: bool = False,
+	) -> None:
 		if self.is_remote_file:
 			return
 		if content is not None:
@@ -124,7 +130,9 @@ class File(Document):
 
 		if self.is_folder or self.is_remote_file:
 			return
-		others = frappe.get_all("File", {"content_hash": self.content_hash, "name": ["!=", self.name]}, pluck="name")
+		others = frappe.get_all(
+			"File", {"content_hash": self.content_hash, "name": ["!=", self.name]}, pluck="name"
+		)
 		if others or not self.content_hash:
 			return
 		path = self.get_full_path()

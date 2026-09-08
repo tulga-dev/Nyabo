@@ -11,10 +11,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from erpnext.controllers.accounts_controller import AccountsController
 from frappe._stub.dictlike import _dict
 from frappe.exceptions import ValidationError
 from frappe.utils.data import flt
+
+from erpnext.controllers.accounts_controller import AccountsController
 
 
 class SalesInvoice(AccountsController):
@@ -50,7 +51,9 @@ class SalesInvoice(AccountsController):
 		for item in self.items:
 			if not item.income_account:
 				if not default_income:
-					raise ValidationError(f"Row {item.idx}: Income Account is mandatory (no default on Company {self.company})")
+					raise ValidationError(
+						f"Row {item.idx}: Income Account is mandatory (no default on Company {self.company})"
+					)
 				item.income_account = default_income
 			if not item.cost_center:
 				item.cost_center = self.cost_center
@@ -69,13 +72,21 @@ class SalesInvoice(AccountsController):
 		import frappe
 
 		if self.is_return and self.return_against:
-			original = frappe.db.get_value("Sales Invoice", self.return_against, ["docstatus", "customer"], as_dict=True)
+			original = frappe.db.get_value(
+				"Sales Invoice", self.return_against, ["docstatus", "customer"], as_dict=True
+			)
 			if not original or int(original.docstatus) != 1:
-				raise ValidationError(f"Return Against Sales Invoice {self.return_against} must exist and be submitted")
+				raise ValidationError(
+					f"Return Against Sales Invoice {self.return_against} must exist and be submitted"
+				)
 			if original.customer != self.customer:
-				raise ValidationError(f"Return Against Sales Invoice {self.return_against} belongs to another customer")
+				raise ValidationError(
+					f"Return Against Sales Invoice {self.return_against} belongs to another customer"
+				)
 
-	def set_status(self, update: bool = False, status: str | None = None, update_modified: bool = True) -> None:
+	def set_status(
+		self, update: bool = False, status: str | None = None, update_modified: bool = True
+	) -> None:
 		import frappe
 
 		if status:
@@ -176,7 +187,9 @@ class SalesInvoice(AccountsController):
 		from erpnext.accounts.utils import get_account_currency
 
 		if self.update_stock:
-			raise NotImplementedError("frappe stub: Sales Invoice with update_stock (stock GL) is not implemented")
+			raise NotImplementedError(
+				"frappe stub: Sales Invoice with update_stock (stock GL) is not implemented"
+			)
 		for item in self.items:
 			if not flt(item.base_net_amount):
 				continue

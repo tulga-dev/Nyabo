@@ -104,7 +104,9 @@ class AccountsController(Document):
 			total_taxes += sign * amount
 		self.total_taxes_and_charges = flt(total_taxes, self.precision("total_taxes_and_charges"))
 		self.grand_total = flt(self.net_total + self.total_taxes_and_charges, self.precision("grand_total"))
-		self.base_grand_total = flt(self.grand_total * flt(self.conversion_rate), self.precision("base_grand_total"))
+		self.base_grand_total = flt(
+			self.grand_total * flt(self.conversion_rate), self.precision("base_grand_total")
+		)
 		self.rounded_total = self.grand_total
 		self.base_rounded_total = self.base_grand_total
 		if self.meta.has_field("rounding_adjustment"):
@@ -113,9 +115,13 @@ class AccountsController(Document):
 		if self.meta.has_field("outstanding_amount") and self.docstatus == 0:
 			company_currency = self.get_company_currency()
 			party_currency = self.get("party_account_currency") or company_currency
-			self.outstanding_amount = self.base_grand_total if party_currency == company_currency else self.grand_total
+			self.outstanding_amount = (
+				self.base_grand_total if party_currency == company_currency else self.grand_total
+			)
 
-	def get_gl_dict(self, args: dict[str, Any], account_currency: str | None = None, item: Any = None) -> _dict:
+	def get_gl_dict(
+		self, args: dict[str, Any], account_currency: str | None = None, item: Any = None
+	) -> _dict:
 		from erpnext.accounts.utils import get_account_currency, get_fiscal_year
 
 		company_currency = self.get_company_currency()
@@ -156,7 +162,9 @@ class AccountsController(Document):
 		gl_dict.transaction_currency = self.get("currency") or company_currency
 		gl_dict.transaction_exchange_rate = flt(self.get("conversion_rate")) or 1.0
 		gl_dict.debit_in_transaction_currency = gl_dict.get("debit_in_transaction_currency") or gl_dict.debit
-		gl_dict.credit_in_transaction_currency = gl_dict.get("credit_in_transaction_currency") or gl_dict.credit
+		gl_dict.credit_in_transaction_currency = (
+			gl_dict.get("credit_in_transaction_currency") or gl_dict.credit
+		)
 		return gl_dict
 
 	def make_gl_entries(self, gl_entries: list[Any] | None = None, from_repost: bool = False) -> None:

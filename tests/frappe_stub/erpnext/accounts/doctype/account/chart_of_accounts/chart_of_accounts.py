@@ -66,7 +66,9 @@ def create_charts(
 		return
 	accounts: list[str] = []
 
-	def _import_accounts(children: dict[str, Any], parent: str | None, root_type: str | None, root_account: bool = False) -> None:
+	def _import_accounts(
+		children: dict[str, Any], parent: str | None, root_type: str | None, root_account: bool = False
+	) -> None:
 		for account_name, child in children.items():
 			if root_account:
 				root_type = child.get("root_type")
@@ -75,7 +77,9 @@ def create_charts(
 			account_number = cstr(child.get("account_number")).strip()
 			account_name, account_name_in_db = add_suffix_if_duplicate(account_name, account_number, accounts)
 			is_group = identify_is_group(child)
-			report_type = "Balance Sheet" if root_type in ["Asset", "Liability", "Equity"] else "Profit and Loss"
+			report_type = (
+				"Balance Sheet" if root_type in ["Asset", "Liability", "Equity"] else "Profit and Loss"
+			)
 			account = frappe.get_doc(
 				{
 					"doctype": "Account",

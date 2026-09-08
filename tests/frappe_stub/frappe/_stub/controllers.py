@@ -82,7 +82,11 @@ def get_controller(doctype: str) -> type[Document]:
 			found = getattr(module, wanted, None)
 			if found is None:
 				for value in vars(module).values():
-					if isinstance(value, type) and issubclass(value, Document) and value.__module__ == module_name:
+					if (
+						isinstance(value, type)
+						and issubclass(value, Document)
+						and value.__module__ == module_name
+					):
 						found = value
 						break
 			if found is None:

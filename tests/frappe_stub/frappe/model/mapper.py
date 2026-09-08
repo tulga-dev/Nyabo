@@ -95,7 +95,9 @@ def map_doc(source_doc: Any, target_doc: Any, table_map: dict[str, Any], source_
 	if table_map.get("validation"):
 		for key, condition in table_map["validation"].items():
 			if condition[0] == "=" and source_doc.get(key) != condition[1]:
-				raise ValidationError(f"Cannot map because following condition fails: {key}={cstr(condition[1])}")
+				raise ValidationError(
+					f"Cannot map because following condition fails: {key}={cstr(condition[1])}"
+				)
 	map_fields(source_doc, target_doc, table_map, source_parent)
 	if "postprocess" in table_map:
 		table_map["postprocess"](source_doc, target_doc, source_parent)
@@ -133,7 +135,9 @@ def map_fields(source_doc: Any, target_doc: Any, table_map: dict[str, Any], sour
 		target_doc.idx = source_doc.idx
 
 
-def map_child_doc(source_d: Any, target_parent: Any, table_map: dict[str, Any], source_parent: Any = None) -> Any:
+def map_child_doc(
+	source_d: Any, target_parent: Any, table_map: dict[str, Any], source_parent: Any = None
+) -> Any:
 	import frappe
 
 	target_child_doctype = table_map["doctype"]
