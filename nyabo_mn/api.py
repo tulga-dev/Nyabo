@@ -1,10 +1,15 @@
-"""Browser-callable diagnostics.
+"""Browser-callable setup and diagnostics.
 
-A Frappe Cloud site on the plans Nyabo targets gives the founder no shell, so the checks
-the RUNBOOK reaches with ``bench execute`` need a second door: the desk console, through
-``frappe.call``. Only read-only checks belong here, only for a System Manager, and never
-one that returns a secret. Anything that writes stays a bench entry point, where the
-person running it has already proved they own the server.
+A Frappe Cloud site on the plans Nyabo targets gives the founder no shell: the site's
+Actions tab offers migrations, backups and a SQL playground, and no Python console. So
+everything the RUNBOOK reaches with ``bench execute`` needs a second door — the desk
+console, through ``frappe.call``. Without it the bot could never be pointed at the site
+at all.
+
+What belongs here: the read-only checks, and the one-off setup calls that configure
+Nyabo's own Telegram bot. What does not: anything that posts to the ledger (a human taps
+for that, principle 3), anything that returns a secret, and anything a person who is not a
+System Manager should be able to run. Every function here guards on that role first.
 """
 
 from __future__ import annotations
@@ -36,3 +41,26 @@ def readiness() -> list[dict[str, Any]]:
 	from nyabo_mn.compliance import readiness as readiness_mod
 
 	return readiness_mod.run()
+
+
+@frappe.whitelist(methods=["POST"])
+def setup_webhook(site_url: str | None = None) -> dict[str, Any]:
+	"""Point the Telegram bot at this site. Idempotent; answers the URL Telegram accepted.
+
+	POST only, because it changes where Telegram delivers every update. It reaches nothing
+	but the founder's own bot, and the token never leaves the site: ``set_webhook`` sends
+	the secret to Telegram, and what comes back here names only the URL.
+	"""
+	_only_system_manager()
+	from nyabo_mn.telegram import webhook as webhook_mod
+
+	return webhook_mod.setup_webhook(site_url)
+
+
+@frappe.whitelist(methods=["POST"])
+def setup_commands() -> dict[str, Any]:
+	"""Register the ☰ command menu with Telegram. Idempotent; answers the commands sent."""
+	_only_system_manager()
+	from nyabo_mn.telegram import commands as commands_mod
+
+	return commands_mod.setup_commands()

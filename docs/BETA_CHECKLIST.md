@@ -21,8 +21,11 @@ marked with the reason.
       Key, Type *String*, Value. Only the founder does this; the keys are secrets.
 - [ ] Config check shows no missing key for `telegram` and `llm`. From the desk console:
       `frappe.call("nyabo_mn.api.config_check").then(r => console.log(r.message))`.
-- [ ] Webhook set (`setup_webhook`) and `/start` answers.
-- [ ] Command menu registered (`nyabo_mn.telegram.commands.setup_commands`); the ☰ button lists the commands.
+- [ ] Webhook set and `/start` answers. From the desk console:
+      `frappe.call("nyabo_mn.api.setup_webhook").then(r => console.log(r.message))`.
+- [ ] Command menu registered:
+      `frappe.call("nyabo_mn.api.setup_commands").then(r => console.log(r.message))`;
+      the ☰ button next to the message box then lists the commands.
 - [ ] Bot token regenerated after it was pasted into chat; old token invalid.
 
 ## B. Books (founder + accountant)
@@ -48,7 +51,10 @@ marked with the reason.
 - [ ] `/данс` shows statement vs ledger per bank account.
 - [ ] `/хаалт` for a finished month: checklist, trial balance, VAT or 1% summary PDF, lock; a back-dated posting is refused afterwards.
 - [ ] Засах on a posted entry: reversal pair with reason and approver; new proposal card.
-- [ ] Posting without a document is refused in Mongolian (desk test with a manual Journal Entry).
+- [x] Posting without a document is refused in Mongolian. Checked on the live site: a manual
+      Journal Entry in Тест ХХК was refused with «Анхан шатны баримтгүйгээр гүйлгээ бүртгэхийг
+      хориглоно (Нягтлан бодох бүртгэлийн тухай хууль 13.7)». A plain Payment Entry that Nyabo
+      did not make still submits, so the guard does not block the site's own payments.
 - [ ] `/бодлого` PDF opens and the accountant fills the placeholders.
 - [ ] A question in free text gets a read-only answer; nothing is posted.
 

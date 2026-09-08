@@ -1,8 +1,12 @@
 # Nyabo runbook (operations)
 
 Written for the founder. Every step is one action, followed by what you should see.
-Commands marked `bench` run in the Frappe Cloud bench console (Site → Actions → Bench
-Console, or SSH) or in the browser console as noted.
+
+A Frappe Cloud site on our plan has **no bench console** and no SSH: its Actions tab offers
+migrations, backups and a SQL playground only. So every step below that shows a `bench`
+command also gives the browser route, and the browser route is the one to use. It means:
+log in to the site as a System Manager, press **F12**, open the **Console** tab, paste the
+line and press Enter.
 
 ## 1. Deploy a new version
 
@@ -51,18 +55,21 @@ compliance readiness table the same way.
 
 Run once after the first deploy, and again if you regenerate the bot token or the secret:
 
-```bash
-bench --site nyabo.s.frappe.cloud execute nyabo_mn.telegram.webhook.setup_webhook
+```javascript
+frappe.call("nyabo_mn.api.setup_webhook").then(r => console.log(r.message))
 ```
 
-You should see: `{"ok": true, "url": "https://<site>/api/method/nyabo_mn.telegram.webhook.webhook"}`.
+(or `bench --site nyabo.s.frappe.cloud execute nyabo_mn.telegram.webhook.setup_webhook`
+where a shell exists.)
+
+You should see: an object whose `url` is `https://nyabo.s.frappe.cloud/api/method/nyabo_mn.telegram.webhook.webhook`.
 Then send `/start` to the bot. You should see: the welcome message and your Telegram ID.
 
 Register the command menu (the ☰ button next to the message box) at the same time, and
 again whenever a command is added or renamed:
 
-```bash
-bench --site nyabo.s.frappe.cloud execute nyabo_mn.telegram.commands.setup_commands
+```javascript
+frappe.call("nyabo_mn.api.setup_commands").then(r => console.log(r.message))
 ```
 
 Telegram accepts only lowercase Latin command names, so the menu shows `/bank`, `/close`,
@@ -126,8 +133,8 @@ Files (receipt images, statements, PDFs) are private Frappe files and are includ
 
 ## 9. Certification readiness
 
-```bash
-bench --site nyabo.s.frappe.cloud execute nyabo_mn.compliance.readiness.run
+```javascript
+frappe.call("nyabo_mn.api.readiness").then(r => console.table(r.message))
 ```
 
 You should see: a table with one line per checklist item, ТЭНЦСЭН or ДУТУУ, a note per item,

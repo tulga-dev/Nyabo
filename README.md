@@ -16,9 +16,15 @@ validates, the accountant disposes.
 
 ## Status
 
-All modules are built and the suite is green (601 tests, no bench required). What remains
-before real books: deploy to the private bench, verify the seed rules in the desk, and walk
-`docs/BETA_CHECKLIST.md`.
+All modules are built and the suite is green (821 tests, no bench required).
+
+Nyabo is deployed and running: bench `nyabo` on Frappe Cloud (Singapore) with Frappe 16.33,
+ERPNext 16.34 and `nyabo_mn`, site `nyabo.s.frappe.cloud`, and the test company **Тест ХХК**
+provisioned on the v0.3 chart (114 accounts, `verify()` clean). The seed is loaded: 59 tax
+parameters, 44 posting patterns, 6 bank layouts.
+
+What remains before real books: add the five Site Config keys, point the bot at the site,
+verify the seed rules in the desk, and walk `docs/BETA_CHECKLIST.md`.
 
 ## What is in the repo
 
@@ -46,7 +52,7 @@ nyabo_mn/
                             financial report templates, seed JSON
 docs/                       ARCHITECTURE, DECISIONS, RUNBOOK, BETA_CHECKLIST,
                             mn-rules-reference, legal/ (verbatim quotes per instrument)
-tests/                      601 tests; tests/frappe_stub is an in-memory Frappe
+tests/                      821 tests; tests/frappe_stub is an in-memory Frappe
 ```
 
 Read `docs/ARCHITECTURE.md` before changing anything: it is the build contract, and section 2
@@ -67,7 +73,7 @@ python -m pip install pytest ruff openpyxl jinja2 pydantic
 python -m pytest -q
 ```
 
-You should see: `601 passed`. No bench, no network, no API keys.
+You should see: `821 passed`. No bench, no network, no API keys.
 
 ## Deploy to Frappe Cloud
 
@@ -91,6 +97,12 @@ has Frappe and ERPNext.
    MNT; the real company comes from the provisioning script below.
 5. **Site → Site Config** → add the keys in *Site config keys*.
 6. Point Telegram at the site:
+
+```javascript
+frappe.call("nyabo_mn.api.setup_webhook").then(r => console.log(r.message))
+```
+
+from the desk console (F12 → Console), or where a shell exists:
 
 ```bash
 bench --site nyabo.s.frappe.cloud execute nyabo_mn.telegram.webhook.setup_webhook
