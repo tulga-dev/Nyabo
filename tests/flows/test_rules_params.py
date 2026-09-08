@@ -22,19 +22,26 @@ def test_params_get_is_dated_and_never_falls_back(seeded):
 		"vat.registration_threshold", dt.date(2027, 1, 1), allow_unverified=True
 	) == Decimal("400000000")
 	assert params.get("vat.rate", dt.date(2027, 6, 1), allow_unverified=True).as_decimal() == Decimal("0.1")
+	# the 2027 simplified-regime change is still a Government bill: pending, value null (D-012)
 	with pytest.raises(PendingRuleError):
-		params.get("cit.brackets", dt.date(2027, 3, 1), allow_unverified=True)
+		params.get("simplified.revenue_threshold", dt.date(2027, 3, 1), allow_unverified=True)
 	with pytest.raises(MissingRuleError):
 		params.get("vat.registration_threshold", dt.date(2025, 12, 31), allow_unverified=True)
 	# verified Law on Accounting rows pass the guard without any flag
 	assert params.get_decimal("retention.years", dt.date(2026, 1, 1)) == Decimal("10")
 	assert [r.effective_from.year for r in params.history("vat.registration_threshold")] == [2026, 2027]
+	# the seed quote reaches the DocType (quote_mn), verified rows always carry one
+	assert frappe.db.get_value("Nyabo Tax Parameter", "retention.years:2016-01-01", "quote_mn").startswith(
+		"11.1."
+	)
 
 
 def test_guard_refuses_unverified_rules_with_the_mongolian_message(seeded, frappe_flags):
+	# si.employee_rate is a derived total (sum of the per-fund rows) and ships unverified
+	assert not frappe.db.get_value("Nyabo Tax Parameter", "si.employee_rate:2026-01-01", "verified")
 	with pytest.raises(guard.UnverifiedRuleError) as excinfo:
-		params.get("vat.rate", dt.date(2026, 3, 1))
-	assert str(excinfo.value) == mn.MSG_UNVERIFIED_RULE_BLOCKED.format(rule="vat.rate")
+		params.get("si.employee_rate", dt.date(2026, 3, 1))
+	assert str(excinfo.value) == mn.MSG_UNVERIFIED_RULE_BLOCKED.format(rule="si.employee_rate")
 	assert isinstance(excinfo.value, frappe.ValidationError)
 
 	with pytest.raises(guard.UnverifiedRuleError, match="bank_fee_expense"):
@@ -55,8 +62,30 @@ def test_guard_refuses_unverified_rules_with_the_mongolian_message(seeded, frapp
 	with frappe_flags(nyabo_simulation=True):
 		assert guard.is_simulation()
 		guard.require_verified("payable_pay", ("Nyabo Bank Layout", "generic_mn"))
-		assert params.get("vat.rate", dt.date(2026, 3, 1)).as_decimal() == Decimal("0.1")
+		assert params.get("si.employee_rate", dt.date(2026, 3, 1)).as_decimal() == Decimal("0.095")
 	assert not guard.is_simulation()
+
+
+def test_guard_accepts_every_rule_shape(seeded):
+	"""The evals harness passes a core PatternSpec; the pipeline a document; period checks a name."""
+	spec = patterns.load("purchase_expense_vat_payer")
+	with pytest.raises(guard.UnverifiedRuleError, match="purchase_expense_vat_payer"):
+		guard.require_verified(spec)
+	with pytest.raises(guard.UnverifiedRuleError, match="purchase_expense_vat_payer"):
+		guard.require_verified(frappe.get_doc("Nyabo Posting Pattern", "purchase_expense_vat_payer"))
+	with pytest.raises(guard.UnverifiedRuleError, match="purchase_expense_vat_payer"):
+		guard.require_verified(("Nyabo Posting Pattern", "purchase_expense_vat_payer"))
+	with pytest.raises(guard.UnverifiedRuleError, match="purchase_expense_vat_payer"):
+		guard.require_verified("purchase_expense_vat_payer")
+	verified_spec = patterns.load("sale_cash_vat_payer")
+	assert verified_spec.verified
+	guard.require_verified(
+		verified_spec,
+		frappe.get_doc("Nyabo Posting Pattern", "sale_cash_vat_payer"),
+		("Nyabo Posting Pattern", "sale_cash_vat_payer"),
+		"sale_cash_vat_payer",
+		[params.get("retention.years", dt.date(2026, 1, 1))],
+	)
 
 
 def test_posting_context_follows_a_regime_switch(company_v03):

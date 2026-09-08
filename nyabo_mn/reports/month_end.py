@@ -3,8 +3,8 @@
 The checklist counts what still blocks a clean close; the trial balance prefers ERPNext's
 own report and falls back to a GL aggregation where the report is unavailable (the test
 stub, or a site where the report is disabled); the summaries pick VAT or the 1% quarter
-by the company's regime history — the only regime lookup outside the rules package, done
-through ``core.rules_engine.regime_on`` so the regime names stay in one place.
+by the company's regime history, read through ``rules.regime`` so the regime names and
+the settings lookup stay in one place.
 """
 
 from __future__ import annotations
@@ -141,12 +141,10 @@ def trial_balance(company: str, period: str) -> dict[str, Any]:
 
 
 def regime_history(company: str) -> list[tuple[str, Any, Any]]:
-	rows = frappe.get_all(
-		"Nyabo Tax Regime Period",
-		filters={"parenttype": "Nyabo Company Settings", "parent": company},
-		fields=["regime", "effective_from", "effective_to"],
-	)
-	return [(r.regime, r.effective_from, r.effective_to) for r in rows]
+	"""(regime, effective_from, effective_to) rows from ``rules.regime`` (the settings' child table)."""
+	from nyabo_mn.rules import regime
+
+	return list(regime.history(company))
 
 
 def is_vat_payer(company: str, on_date: dt.date) -> bool | None:

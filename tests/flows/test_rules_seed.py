@@ -7,7 +7,7 @@ import json
 import frappe
 import pytest
 
-from nyabo_mn.nyabo.seed import load_seed
+from nyabo_mn.nyabo.seed import load_seed, tax_parameter_quote
 from nyabo_mn.rules import seed
 
 
@@ -41,13 +41,17 @@ def test_sync_inserts_every_row_and_is_idempotent(site):
 
 def test_sync_never_overwrites_a_verified_row_unless_forced(site):
 	seed.sync()
+	seed_rows = {r["pattern_id"]: r for r in load_seed("posting_patterns")["rows"]}
+	seed_verified = sum(1 for r in seed_rows.values() if r["verified"])
+	# both rows below ship unverified (Заавар 116 section not settled, docs/seed/README.md open items)
+	assert not seed_rows["bank_fee_expense"]["verified"] and not seed_rows["vat_settle"]["verified"]
 	doc = frappe.get_doc("Nyabo Posting Pattern", "bank_fee_expense")
 	doc.verified = 1
 	doc.citation_section = "5.3"
 	doc.notes = "checked against the instrument"
 	doc.save()
 	counts = seed.sync()
-	assert counts["Nyabo Posting Pattern"]["skipped_verified"] == 1
+	assert counts["Nyabo Posting Pattern"]["skipped_verified"] == seed_verified + 1
 	kept = frappe.get_doc("Nyabo Posting Pattern", "bank_fee_expense")
 	assert kept.verified == 1 and kept.citation_section == "5.3"
 
@@ -62,6 +66,24 @@ def test_sync_never_overwrites_a_verified_row_unless_forced(site):
 	assert "skipped_verified" not in forced["Nyabo Posting Pattern"]
 	reset = frappe.get_doc("Nyabo Posting Pattern", "bank_fee_expense")
 	assert reset.verified == 0 and not reset.citation_section
+
+
+def test_sync_maps_the_citations_into_the_doctype_fields(site):
+	"""citation.{section,quote,url} -> citation_*; the tax-parameter quote -> quote_mn."""
+	seed.sync()
+	verified = [r for r in load_seed("posting_patterns")["rows"] if r["verified"]]
+	assert verified
+	for row in verified:
+		doc = frappe.get_doc("Nyabo Posting Pattern", row["pattern_id"])
+		assert doc.verified == 1
+		assert doc.citation_section == row["citation"]["section"]
+		assert doc.citation_quote == row["citation"]["quote"] and doc.citation_url == row["citation"]["url"]
+	for row in load_seed("tax_parameters")["rows"]:
+		quote = frappe.db.get_value("Nyabo Tax Parameter", seed.tax_parameter_name(row), "quote_mn")
+		if row["verified"]:
+			assert quote and quote == tax_parameter_quote(row), row["key"]
+		else:
+			assert (quote or "") == (tax_parameter_quote(row) or ""), row["key"]
 
 
 def test_seed_default_rules_per_company_and_scheme(company_v03):

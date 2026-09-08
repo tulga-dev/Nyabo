@@ -25,6 +25,7 @@ if str(REPO) not in sys.path:
 	sys.path.insert(0, str(REPO))
 
 from nyabo_mn.core import rules_engine, statements  # noqa: E402
+from nyabo_mn.nyabo.seed import tax_parameter_quote  # noqa: E402
 from nyabo_mn.setup import chart as chart_mod  # noqa: E402
 
 SEED_DIR = REPO / "nyabo_mn" / "nyabo" / "seed"
@@ -56,6 +57,7 @@ PARAMETER_KEYS = {
 	"source_text",
 	"source_url",
 	"article",
+	"quote_mn",
 	"note",
 }
 PATTERN_KEYS = {
@@ -296,9 +298,16 @@ def check_tax_parameters(seed_dir: Path, report: Report) -> None:
 			report.problem(where, "pending rows must have value null")
 		if status == "active" and value is None:
 			report.problem(where, "active rows must have a value (or be marked pending)")
+		quote_mn = row.get("quote_mn")
+		if quote_mn is not None and (not isinstance(quote_mn, str) or not quote_mn.strip()):
+			report.problem(where, "quote_mn must be a non-empty string or absent")
 		if row.get("verified") is True:
 			if not row.get("source_url") or not row.get("article"):
 				report.problem(where, "verified rows need source_url and article (see verified_means)")
+			if not tax_parameter_quote(row):
+				report.problem(
+					where, "verified rows need the verbatim quote (quote_mn, or «…» — at the start of note)"
+				)
 			if status != "active":
 				report.problem(where, "verified rows must be active")
 		_check_parameter_value(where, row.get("unit"), value, report)

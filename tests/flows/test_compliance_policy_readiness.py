@@ -21,6 +21,11 @@ def _settings(company, **values):
 
 
 def test_policy_pdf_renders_from_settings_with_placeholders(company):
+	# provisioning already records the first regime (simplified 1% for a non-VAT company)
+	ctx = policy_doc.context(company)
+	assert ctx["values"]["regime"] == mn.POLICY_REGIME_LABELS["simplified_1pct"]
+	# a company whose onboarding has not reached the regime step renders the placeholder
+	_settings(company, regimes=[])
 	ctx = policy_doc.context(company)
 	assert ctx["title"] == mn.POLICY_TITLE and ctx["watermark"] == mn.POLICY_DRAFT_WATERMARK
 	assert [s["key"] for s in ctx["sections"]] == [s["key"] for s in mn.POLICY_SECTIONS]

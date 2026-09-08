@@ -140,6 +140,23 @@ def test_overlapping_and_malformed_tax_parameters(seed_check, seed_copy: Path):
 	assert any("unknown keys ['surprise']" in p for p in problems)
 
 
+def test_verified_tax_parameter_needs_its_quote_in_quote_mn_or_the_note(seed_check, seed_copy: Path):
+	def mutate(d):
+		rows = [r for r in d["rows"] if r["verified"]]
+		assert len(rows) >= 3
+		rows[0]["note"] = "remarks without the guillemet prefix"  # quote lost
+		rows[1]["note"] = "remarks only"
+		rows[1]["quote_mn"] = "«Иш татсан өгүүлбэр.»"  # quote moved into the key: fine
+		rows[2]["quote_mn"] = ""  # the key must not be an empty string
+
+	_edit(seed_copy, "tax_parameters", mutate)
+	problems = seed_check.run(seed_copy).problems
+	quote_problems = [p for p in problems if "verified rows need the verbatim quote" in p]
+	assert len(quote_problems) == 1
+	assert any("quote_mn must be a non-empty string" in p for p in problems)
+	assert not any("unknown keys ['quote_mn']" in p for p in problems)
+
+
 def test_chart_and_role_problems(seed_check, seed_copy: Path):
 	def find(node: dict, number: str) -> dict | None:
 		for value in node.values():

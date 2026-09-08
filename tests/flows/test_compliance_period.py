@@ -68,6 +68,8 @@ def test_lock_needs_an_accountant_role(company, as_user):
 def test_lock_refuses_when_a_posted_proposal_used_an_unverified_pattern(company):
 	_pattern("test_unverified", 0)
 	_pattern("test_verified", 1)
+	# the proposal controller refuses "posted" without the document it posted (see nyabo_proposal.py)
+	posted = make_je(company, posting_date="2026-02-12", nyabo_primary_document_ref="x").insert()
 	frappe.get_doc(
 		{
 			"doctype": "Nyabo Proposal",
@@ -76,6 +78,8 @@ def test_lock_refuses_when_a_posted_proposal_used_an_unverified_pattern(company)
 			"status": "posted",
 			"posting_date": "2026-02-12",
 			"posting_pattern": "test_unverified",
+			"posted_doctype": "Journal Entry",
+			"posted_name": posted.name,
 		}
 	).insert()
 	with pytest.raises(frappe.ValidationError) as exc:

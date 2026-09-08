@@ -1,12 +1,10 @@
 """Role -> ERPNext Account for reports (input_vat, output_vat, cash, bank, ...).
 
-The report code never names an account: it asks for a *role* and this module maps the
-role to a code through ``seed/code_roles.json`` for the company's chart scheme, then to
-the Account row by ``account_number``. The ``accountant`` scheme goes through Nyabo
-Account Alias rows (the accountant's own codes mapped to v0.3 codes).
-
-INTEGRATION: when ``nyabo_mn.rules.aliases`` (core+rules stage) lands, ``role_account``
-should delegate to it; the public signatures here stay.
+The report code never names an account: it asks for a *role*; ``nyabo_mn.rules.aliases``
+maps the role to a code (``seed/code_roles.json`` for the company's chart scheme, Nyabo
+Account Alias rows for the ``accountant`` scheme) and this module finds the Account row by
+``account_number``. What stays here is the chart probe (D-021): the configured scheme is
+trusted only when its cash-role code exists in the installed chart.
 """
 
 from __future__ import annotations
@@ -15,20 +13,17 @@ from typing import Any
 
 import frappe
 
+from nyabo_mn.core.rules_engine import MissingRuleError
 from nyabo_mn.i18n import mn
-from nyabo_mn.nyabo.seed import load_seed
+from nyabo_mn.rules import aliases
 
-DEFAULT_SCHEME = "v1"
+DEFAULT_SCHEME = aliases.SCHEME_V1
 CASH_BANK_TYPES: tuple[str, ...] = ("Cash", "Bank")
-
-
-def _schemes() -> dict[str, dict[str, str | None]]:
-	return load_seed("code_roles")["schemes"]
 
 
 def _scheme_matches_chart(company: str, scheme: str) -> bool:
 	"""A scheme fits the installed chart when its cash-role code is an account of the company."""
-	code = _schemes().get("v03" if scheme == "accountant" else scheme, {}).get("cash")
+	code = aliases.code_roles().get(aliases.role_scheme(scheme), {}).get("cash")
 	return bool(code) and account_by_number(company, code) is not None
 
 
@@ -44,23 +39,26 @@ def chart_scheme(company: str) -> str:
 		configured = frappe.db.get_value("Nyabo Company Settings", {"company": company}, "chart_scheme")
 	if configured and _scheme_matches_chart(company, configured):
 		return configured
-	for scheme in (DEFAULT_SCHEME, "v03"):
+	for scheme in (DEFAULT_SCHEME, aliases.SCHEME_V03):
 		if _scheme_matches_chart(company, scheme):
 			return scheme
 	return configured or DEFAULT_SCHEME
 
 
 def role_code(company: str, role: str) -> str | None:
-	"""Account code for the role in the company's scheme, or None when the scheme has none."""
+	"""Account code for the role in the company's (probed) scheme, or None when the scheme has none.
+
+	``rules.aliases`` owns the role table and the alias hops; a null role (D-013) is
+	reported as None here so the caller can refuse with the Mongolian message.
+	"""
 	scheme = chart_scheme(company)
-	lookup_scheme = "v03" if scheme == "accountant" else scheme
-	code = _schemes().get(lookup_scheme, {}).get(role)
-	if code is None or scheme != "accountant":
+	try:
+		code = aliases.role_code(role, scheme)
+	except MissingRuleError:
+		return None
+	if scheme != aliases.SCHEME_ACCOUNTANT:
 		return code
-	target = frappe.db.get_value(
-		"Nyabo Account Alias", {"company": company, "scheme": "accountant", "alias_code": code}, "target_code"
-	)
-	return target or code
+	return aliases.alias_target(company, code, aliases.ALIAS_SCHEME_TEMPLATE) or code
 
 
 def account_by_number(company: str, code: str) -> str | None:

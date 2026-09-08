@@ -19,7 +19,7 @@ from typing import Any
 import frappe
 
 from nyabo_mn.log import log_event
-from nyabo_mn.nyabo.seed import load_seed
+from nyabo_mn.nyabo.seed import load_seed, tax_parameter_quote
 
 TAX_PARAMETER = "Nyabo Tax Parameter"
 POSTING_PATTERN = "Nyabo Posting Pattern"
@@ -55,6 +55,9 @@ def tax_parameter_values(row: Mapping[str, Any]) -> dict[str, Any]:
 		"source_text": row.get("source_text") or "",
 		"source_url": row.get("source_url") or "",
 		"article": row.get("article") or "",
+		# The verbatim sentence a verified value was read from (`quote_mn`, or the «…» note prefix
+		# of the legal-citation pass) lands in the DocType's quote_mn field.
+		"quote_mn": tax_parameter_quote(row) or "",
 		"note": row.get("note") or "",
 	}
 
