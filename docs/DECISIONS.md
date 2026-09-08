@@ -469,3 +469,13 @@ The documented fallback caught `DoesNotExistError` only, while the realistic fai
 a disabled report (`ValidationError`) and `FiscalYearError`. `trial_balance` now logs and
 falls back to the GL aggregation on any exception: `/хаалт` must not die on a report the
 app does not need.
+
+### D-R06 The readiness checklist cites no instrument it has not read
+`readiness.py` claimed conformity with numbered items of "MoF Order 47/2018 annex 1", an
+instrument absent from `docs/legal/` and from `docs/mn-rules-reference.md`, whose §6.1 lists
+the certification procedure «Нягтлан бодох бүртгэлийн программ хангамжид хяналт тавих журам»
+as still to obtain. The requirement column, the item-number map, the invented annex module
+list and the order named in the report footers are gone; the table is labelled Nyabo's own
+internal readiness list (`READINESS_SOURCE_PENDING`) and reports with no MoF form behind them
+are footed `FORM_SOURCE_INTERNAL`. When the procedure text is fetched, the rows are mapped to
+it with the verbatim quotes `docs/legal/README.md` requires.

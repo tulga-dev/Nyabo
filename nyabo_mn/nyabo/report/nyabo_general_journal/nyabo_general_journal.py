@@ -3,8 +3,8 @@
 One row per ledger line (the ЕЖ form's Дүн / Дебет / Кредит columns are split into
 debit and credit amounts so the report totals reconcile with the trial balance). Each
 row carries the art. 13.7 primary-document reference, who prepared the voucher (owner)
-and who approved it (``nyabo_approved_by``) — the audit-friendly data source Order
-47/2018 annex 1 item 1.10 asks for.
+and who approved it (``nyabo_approved_by``), so the journal shows the audit trail the
+Law on Accounting asks of the ledger.
 """
 
 from __future__ import annotations

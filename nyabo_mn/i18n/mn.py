@@ -644,46 +644,17 @@ READINESS_FAIL = "ДУТУУ"
 READINESS_COL_ITEM = "Шалгуур"
 READINESS_COL_STATUS = "Төлөв"
 READINESS_COL_DETAIL = "Тайлбар"
-READINESS_COL_REQUIREMENT = "Тушаал 47/2018, хавсралт 1"
 READINESS_E_SIGNATURE_PENDING = (
 	"Хэрэгжээгүй; Сангийн яамны цахим гарын үсгийн техникийн шаардлага хүлээгдэж байна."
 )
 READINESS_SITE_LINE = "Сайт: {site}"
-READINESS_REQUIREMENT_MAP = {
-	"general_journal": "1.4, 3.13",
-	"cash_journal": "1.4, 3.1",
-	"general_ledger": "3.13",
-	"trial_balance": "3.13",
-	"statements": "1.11, 3.14",
-	"primary_forms": "1.4",
-	"audit_trail": "1.8, 1.10",
-	"retention": "2.10, 2.14",
-	"corrections": "1.9",
-	"period_lock": "2.14",
-	"primary_document_required": "1.10",
-	"e_signature": "1.5, 1.16",
-	"accountant_of_record": "5",
-	"policy_document": "1.3",
-	"rules_verified": "1.6, 3.12",
-}
-READINESS_MODULES = {
-	"3.1": "мөнгөн хөрөнгийн бүртгэл",
-	"3.2": "борлуулалтын бүртгэл",
-	"3.3": "авлагын бүртгэл",
-	"3.4": "бараа материалын бүртгэл",
-	"3.5": "өглөгийн бүртгэл",
-	"3.6": "цалин хөлсний бүртгэл",
-	"3.7": "үндсэн хөрөнгийн бүртгэл",
-	"3.8": "зардлын бүртгэл",
-	"3.9": "санхүүгийн хэрэглүүрийн бүртгэл",
-	"3.10": "биет бус хөрөнгийн бүртгэл",
-	"3.11": "эздийн өмчийн бүртгэл",
-	"3.12": "албан татвар, хураамж, НДШ-ийн бүртгэл",
-	"3.13": "ерөнхий дансны хөтлөлт",
-	"3.14": "санхүүгийн тайлан, тодруулга",
-	"3.15": "санхүүгийн ба татварын тайлангийн зөрүүгийн тайлан",
-	"3.16": "бусад",
-}
+# The checklist is Nyabo's own: the MoF certification procedure has not been obtained, so no
+# requirement numbering is claimed (docs/mn-rules-reference.md §6.1, docs/legal/README.md).
+READINESS_SOURCE_PENDING = (
+	"Энэ бол Нябо-гийн дотоод бэлэн байдлын жагсаалт. Сангийн яамны «Нягтлан бодох бүртгэлийн "
+	"программ хангамжид хяналт тавих журам»-ын эх бичвэрийг хараахан аваагүй тул албан ёсны "
+	"шаардлагын дугаарлалтыг заагаагүй; журмыг авсны дараа мөр бүрийг түүнтэй тулгана."
+)
 READINESS_DETAIL_OK = "Байна"
 READINESS_DETAIL_MISSING = "Алга: {what}"
 READINESS_DETAIL_COUNT = "{count} мөр"
@@ -691,7 +662,9 @@ READINESS_DETAIL_ERPNEXT_REPORT = "ERPNext-ийн стандарт тайлан 
 READINESS_DETAIL_HOOK = "Хук: {handler}"
 READINESS_DETAIL_COMPANIES = "Компани: {ok}/{total} тохируулсан"
 READINESS_DETAIL_STATEMENTS = "Загвар: {present}; дутуу: {missing}"
-FORM_SOURCE_ORDER_47 = "Сангийн сайдын 2018 оны 47 дугаар тушаал (программд тавигдах шаардлага)"
+# Reports with no MoF form behind them (VAT and 1% summaries, the readiness table) say so
+# instead of naming an instrument nobody has read.
+FORM_SOURCE_INTERNAL = "Нябо-гийн дотоод загвар (батлагдсан маягтын эх сурвалж тодорхойгүй)"
 READINESS_ITEMS = {
 	"general_journal": "Ерөнхий журнал",
 	"cash_journal": "Мөнгөн гүйлгээний журнал",
