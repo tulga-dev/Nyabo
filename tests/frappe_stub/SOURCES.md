@@ -46,6 +46,7 @@ ERPNext base: `https://raw.githubusercontent.com/frappe/erpnext/version-16/`
 | Accounting Period | erpnext/accounts/doctype/accounting_period/accounting_period.json |
 | Closed Document | erpnext/accounts/doctype/closed_document/closed_document.json |
 | Currency Exchange | erpnext/setup/doctype/currency_exchange/currency_exchange.json |
+| Currency Exchange Settings (Single) | erpnext/accounts/doctype/currency_exchange_settings/currency_exchange_settings.json (read 2026-09-08; the `help` HTML and the layout breaks are dropped, `issingle` is kept so `after_install` can be asserted to disable it) |
 | Warehouse | erpnext/stock/doctype/warehouse/warehouse.json |
 | Stock Reconciliation | erpnext/stock/doctype/stock_reconciliation/stock_reconciliation.json |
 | Stock Reconciliation Item | erpnext/stock/doctype/stock_reconciliation_item/stock_reconciliation_item.json |

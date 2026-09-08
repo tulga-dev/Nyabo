@@ -2058,6 +2058,77 @@
   ],
   "track_changes": 0
  },
+ "Currency Exchange Settings": {
+  "fields": [
+   {
+    "fieldname": "api_endpoint",
+    "fieldtype": "Data",
+    "label": "API Endpoint",
+    "reqd": 1
+   },
+   {
+    "fieldname": "url",
+    "fieldtype": "Data",
+    "label": "Example URL",
+    "read_only": 1
+   },
+   {
+    "fieldname": "req_params",
+    "fieldtype": "Table",
+    "label": "Parameters",
+    "options": "Currency Exchange Settings Details",
+    "reqd": 1
+   },
+   {
+    "fieldname": "result_key",
+    "fieldtype": "Table",
+    "label": "Result Key",
+    "options": "Currency Exchange Settings Result",
+    "reqd": 1
+   },
+   {
+    "fieldname": "service_provider",
+    "fieldtype": "Select",
+    "label": "Service Provider",
+    "options": "frankfurter.dev\nexchangerate.host\nfrankfurter.dev - v2\nCustom",
+    "reqd": 1
+   },
+   {
+    "default": "0",
+    "fieldname": "disabled",
+    "fieldtype": "Check",
+    "label": "Disabled"
+   },
+   {
+    "fieldname": "access_key",
+    "fieldtype": "Data",
+    "label": "Access Key"
+   },
+   {
+    "default": "0",
+    "fieldname": "use_http",
+    "fieldtype": "Check",
+    "label": "Use HTTP Protocol"
+   }
+  ],
+  "is_submittable": 0,
+  "issingle": 1,
+  "istable": 0,
+  "permissions": [
+   {
+    "create": 1,
+    "delete": 1,
+    "read": 1,
+    "role": "System Manager",
+    "write": 1
+   },
+   {
+    "read": 1,
+    "role": "Accounts User"
+   }
+  ],
+  "track_changes": 1
+ },
  "Custom Field": {
   "autoname": "",
   "fields": [
