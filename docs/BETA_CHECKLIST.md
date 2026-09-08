@@ -2,19 +2,36 @@
 
 Tick every line before inviting the first real accountant. "Who" says who does it.
 
+The state below was verified on the live site on 9 September 2026. Anything still open is
+marked with the reason.
+
 ## A. Infrastructure (founder)
 
-- [ ] Frappe Cloud bench `nyabo` deployed with Frappe, ERPNext, `nyabo_mn` (Benches → nyabo → Apps all *Deployed*).
-- [ ] Site on the bench (new site or moved), plan USD 25 or higher, daily backups on.
-- [ ] Site Config keys set: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `ADMIN_TELEGRAM_IDS`, `OPENAI_API_KEY`, `EBARIMT_API_BASE`.
-- [ ] `bench execute nyabo_mn.config.check` shows no missing key for `telegram` and `llm`.
+- [x] Frappe Cloud bench `nyabo` (release group `bench-47533`, Singapore) deployed with
+      Frappe 16.33.0, ERPNext 16.34.2, `nyabo_mn` and Email Delivery Service.
+- [x] Site `nyabo.s.frappe.cloud` moved onto that bench (internal name
+      `erpnext-eap-naf.s.frappe.cloud`) and `nyabo_mn` installed on it.
+      The trial site arrived with `myinvois_erpgulf` (Malaysian e-invoicing), which had to
+      be uninstalled before Frappe Cloud would move the site; Email Delivery Service was
+      added to the bench instead so the site kept it.
+- [ ] Plan USD 25 or higher after the trial, daily backups on.
+- [ ] Site Config keys set: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`,
+      `ADMIN_TELEGRAM_IDS`, `OPENAI_API_KEY`, `EBARIMT_API_BASE`.
+      Frappe Cloud → the site → **Site Config** → **Add Config**, one key at a time:
+      Key, Type *String*, Value. Only the founder does this; the keys are secrets.
+- [ ] Config check shows no missing key for `telegram` and `llm`. From the desk console:
+      `frappe.call("nyabo_mn.api.config_check").then(r => console.log(r.message))`.
 - [ ] Webhook set (`setup_webhook`) and `/start` answers.
 - [ ] Command menu registered (`nyabo_mn.telegram.commands.setup_commands`); the ☰ button lists the commands.
 - [ ] Bot token regenerated after it was pasted into chat; old token invalid.
 
 ## B. Books (founder + accountant)
 
-- [ ] Company provisioned with the v0.3 chart (or the accountant's CSV) and `verify()["ok"] == true`.
+- [x] Company provisioned with the v0.3 chart: **Тест ХХК** (TST), 114 accounts, fiscal
+      year 2026, four VAT templates, `verify()["ok"] == true` with nothing missing or extra.
+      The seed loaded on the site: 59 tax parameters, 44 posting patterns, 6 bank layouts.
+      The setup wizard's own **Nyabo** company still carries ERPNext's standard chart and is
+      not the one to test against.
 - [ ] Onboarding done: regime, banks, inventory, accountant of record.
 - [ ] Test Purchase Invoice with VAT posts to the input VAT and payable accounts (README Phase 0 check).
 - [ ] Accountant confirms the chart names and the account categories in the Balance Sheet template (Financial Report Template "Nyabo SME Balance Sheet (MN)").
