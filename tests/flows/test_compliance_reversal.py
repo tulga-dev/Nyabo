@@ -122,3 +122,46 @@ def test_draft_cannot_be_reversed(company):
 	with pytest.raises(frappe.ValidationError) as exc:
 		reversal.reverse("Journal Entry", je.name, "other", "x", "Administrator")
 	assert je.name in str(exc.value)
+
+
+def test_a_linked_accountant_has_the_erpnext_access_a_correction_needs(company):
+	"""The bot runs as the linked user, so the link must grant real ERPNext access (F2).
+
+	Only ``ensure_frappe_user`` decides what a Telegram accountant may do on a real site;
+	the Nyabo roles ship with no DocPerms, so with them alone ERPNext refuses
+	``make_reverse_journal_entry`` and every Nyabo report.
+	"""
+	from nyabo_mn.reports import export
+	from nyabo_mn.telegram import state as chat_state
+
+	for role_name in ("Accounts User", "Accounts Manager"):
+		frappe.get_doc({"doctype": "Role", "role_name": role_name, "desk_access": 1}).insert()
+	je = _posted_je(company)
+	code = chat_state.issue_link_code("Accountant", company, issued_by="Administrator")
+	link = chat_state.consume_link_code(code.code, {"id": 4242, "first_name": "Сараа"})
+	assert set(frappe.get_roles(link.user)) >= {"Nyabo Accountant", "Accounts User"}
+
+	previous = frappe.session.user
+	frappe.set_user(link.user)
+	try:
+		result = reversal.reverse("Journal Entry", je.name, "account", "буруу данс", link.user, 4242)
+		columns, _rows = export.run_report(
+			"Nyabo General Journal",
+			{"company": company, "from_date": "2026-03-01", "to_date": "2026-03-31"},
+		)
+	finally:
+		frappe.set_user(previous)
+	assert frappe.db.get_value("Journal Entry", result["reversal_name"], "docstatus") == 1
+	assert columns
+
+
+def test_an_owner_link_grants_no_ledger_access(company):
+	"""An owner only taps cards; they must not get ERPNext ledger roles."""
+	from nyabo_mn.telegram import state as chat_state
+
+	frappe.get_doc({"doctype": "Role", "role_name": "Accounts User", "desk_access": 1}).insert()
+	code = chat_state.issue_link_code("Owner", company, issued_by="Administrator")
+	link = chat_state.consume_link_code(code.code, {"id": 4243, "first_name": "Бат"})
+	roles = set(frappe.get_roles(link.user))
+	assert "Nyabo Owner" in roles
+	assert not roles & {"Accounts User", "Accounts Manager"}

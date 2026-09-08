@@ -30,6 +30,15 @@ LINK_BLOCK_MINUTES = 60
 
 # Link Code / User Link ``role`` (Select) -> Frappe Role (fixtures in nyabo_mn/fixtures/role.json)
 ROLE_TO_FRAPPE_ROLE = {"Owner": "Nyabo Owner", "Accountant": "Nyabo Accountant", "Admin": "Nyabo Admin"}
+# The Nyabo roles ship with no DocPerms, so on their own they cannot read a Journal Entry.
+# ERPNext refuses make_reverse_journal_entry / make_debit_note and query_report.run without
+# these, and the bot runs every handler as the linked user, so corrections and the month-end
+# journals would fail for every accountant. An owner gets nothing: they only tap cards.
+ROLE_TO_ERPNEXT_ROLES: dict[str, tuple[str, ...]] = {
+	"Owner": (),
+	"Accountant": ("Accounts User",),
+	"Admin": ("Accounts User", "Accounts Manager"),
+}
 # Words an admin may type in ``/link <role> <company>``; ASCII aliases for admins on Latin keyboards
 ROLE_WORDS = {
 	"нягтлан": "Accountant",
@@ -229,8 +238,13 @@ def ensure_frappe_user(telegram_user: dict[str, Any], role: str) -> str:
 		user.flags.ignore_permissions = True
 		user.flags.no_welcome_mail = True
 		user.insert()
-	if frappe_role not in frappe.get_roles(email):
-		user.add_roles(frappe_role)
+	held = set(frappe.get_roles(email))
+	wanted = [frappe_role, *ROLE_TO_ERPNEXT_ROLES.get(role, ())]
+	# A role missing from the site (ERPNext not installed, or a stripped test site) is skipped
+	# rather than failing the link: the Nyabo role is what the bot itself gates on.
+	missing = [r for r in wanted if r not in held and frappe.db.exists("Role", r)]
+	if missing:
+		user.add_roles(*missing)
 	return email
 
 
