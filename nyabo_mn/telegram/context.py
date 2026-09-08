@@ -32,6 +32,7 @@ class Ctx:
 	text: str = ""
 	link: Any | None = None
 	company: str | None = None
+	answered: bool = False
 
 	# --- identity ------------------------------------------------------------------------------
 
@@ -127,8 +128,11 @@ class Ctx:
 		return self.bot.send_document(self.chat_id, content, filename, caption=caption)
 
 	def answer(self, text: str | None = None, show_alert: bool = False) -> None:
-		if self.callback and self.callback.get("id"):
-			self.bot.answer_callback_query(self.callback["id"], text=text, show_alert=show_alert)
+		"""Answer the callback query once; Telegram ignores a second answer, so the first wins."""
+		if not self.callback or not self.callback.get("id") or self.answered:
+			return
+		self.answered = True
+		self.bot.answer_callback_query(self.callback["id"], text=text, show_alert=show_alert)
 
 	# --- state ---------------------------------------------------------------------------------
 

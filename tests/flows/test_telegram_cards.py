@@ -48,7 +48,14 @@ def test_receipt_card_anatomy():
 
 
 def test_receipt_card_without_vat_and_with_rule():
-	data = dict(SAMPLE, vat_amount="0", vat_treatment="none", rule_applied="NYR-00007", warnings_json=[], supplier_is_new=0)
+	data = dict(
+		SAMPLE,
+		vat_amount="0",
+		vat_treatment="none",
+		rule_applied="NYR-00007",
+		warnings_json=[],
+		supplier_is_new=0,
+	)
 	text = cards.receipt_card(data)
 	assert "НӨАТ-гүй" in text
 	assert mn.CARD_REASON_RULE.format(rule="NYR-00007") in text
@@ -75,7 +82,13 @@ def test_posted_and_rejected_footers():
 
 def test_bank_line_card():
 	text = cards.bank_line_card(
-		{"bank": "Khan Bank", "date": "2026-08-03", "deposit": 0, "withdrawal": 120000, "description": "Түлш"},
+		{
+			"bank": "Khan Bank",
+			"date": "2026-08-03",
+			"deposit": 0,
+			"withdrawal": 120000,
+			"description": "Түлш",
+		},
 		{"account_code": "6210", "account_name": "Шатахуун", "rule_applied": "bank_fee"},
 	)
 	assert text.split("\n")[0] == "🏦 Khan Bank · 2026-08-03 · -120 000₮ · «Түлш»"
@@ -86,8 +99,17 @@ def test_close_card_december_adds_inventory_line():
 	text = cards.close_card(
 		"Тест ХХК",
 		"2026-12",
-		{"open_proposals": 1, "unmatched_bank_lines": 2, "unverified_documents": 0, "pending_suppliers": 0, "unverified_rules_used": 0},
-		{"trial_balance": {"debit": 1000, "credit": 1000}, "simplified": {"revenue": 500, "tax": 5, "quarter": "2026 оны 4-р улирал"}},
+		{
+			"open_proposals": 1,
+			"unmatched_bank_lines": 2,
+			"unverified_documents": 0,
+			"pending_suppliers": 0,
+			"unverified_rules_used": 0,
+		},
+		{
+			"trial_balance": {"debit": 1000, "credit": 1000},
+			"simplified": {"revenue": 500, "tax": 5, "quarter": "2026 оны 4-р улирал"},
+		},
 	)
 	assert mn.MSG_CLOSE_INVENTORY_COUNT in text
 	assert "Гүйлгээ баланс: дебет 1 000₮ · кредит 1 000₮" in text
@@ -97,7 +119,14 @@ def test_close_card_december_adds_inventory_line():
 
 def test_onboarding_summary():
 	text = cards.onboarding_summary(
-		{"vat_registered": False, "banks": [{"bank": "Khan Bank", "currencies": ["MNT", "USD"]}], "has_inventory": True, "inventory_count": 3, "accountant_name": "Сараа", "micpa": "A-12"},
+		{
+			"vat_registered": False,
+			"banks": [{"bank": "Khan Bank", "currencies": ["MNT", "USD"]}],
+			"has_inventory": True,
+			"inventory_count": 3,
+			"accountant_name": "Сараа",
+			"micpa": "A-12",
+		},
 		"Тест ХХК",
 	)
 	assert mn.ONB_SUMMARY_REGIME_SIMPLIFIED in text
@@ -137,7 +166,12 @@ def test_encode_refuses_long_data_and_separator():
 		keyboards.encode("p", "N" * 70, "ap")
 	with pytest.raises(ValueError):
 		keyboards.encode("p", "a:b", "ap")
-	assert keyboards.decode(keyboards.encode("p", "NYP-00001", "acc", "6210")) == ["p", "NYP-00001", "acc", "6210"]
+	assert keyboards.decode(keyboards.encode("p", "NYP-00001", "acc", "6210")) == [
+		"p",
+		"NYP-00001",
+		"acc",
+		"6210",
+	]
 
 
 def test_primary_button_alone_on_top():

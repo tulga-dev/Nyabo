@@ -83,7 +83,9 @@ def do_reverse(ctx: Ctx, doctype: str, name: str, code: str, reason_text: str) -
 	ctx.clear_state()
 	result = _deps.reverse(doctype, name, code, reason_text, ctx.user) or {}
 	reversal = result.get("reversal_name") or result.get("name") or "—"
-	approver = ctx.sender.get("first_name") or ctx.user
+	from nyabo_mn.telegram.handlers.approve import approver_name
+
+	approver = approver_name(ctx)
 	ctx.reply(mn.MSG_CORRECTION_DONE.format(reversal=reversal, reason=reason_text, approver=approver))
 	if result.get("period_closed"):
 		ctx.reply(mn.MSG_CORRECTION_PERIOD_CLOSED.format(period=result.get("original_period") or "—"))

@@ -40,7 +40,9 @@ class FakeBotApi:
 
 	def last_markup(self) -> dict[str, Any] | None:
 		for m, kw in reversed(self.calls):
-			if m in ("send_message", "edit_message_text", "edit_message_reply_markup") and kw.get("reply_markup"):
+			if m in ("send_message", "edit_message_text", "edit_message_reply_markup") and kw.get(
+				"reply_markup"
+			):
 				return kw["reply_markup"]
 		return None
 
@@ -59,15 +61,21 @@ class FakeBotApi:
 		return {"message_id": self._next_message_id, "chat": {"id": chat_id}, "text": text}
 
 	def edit_message_text(self, chat_id, message_id, text, reply_markup=None, parse_mode=None):
-		self._record("edit_message_text", chat_id=chat_id, message_id=message_id, text=text, reply_markup=reply_markup)
+		self._record(
+			"edit_message_text", chat_id=chat_id, message_id=message_id, text=text, reply_markup=reply_markup
+		)
 		return {"message_id": message_id, "chat": {"id": chat_id}, "text": text}
 
 	def edit_message_reply_markup(self, chat_id, message_id, reply_markup):
-		self._record("edit_message_reply_markup", chat_id=chat_id, message_id=message_id, reply_markup=reply_markup)
+		self._record(
+			"edit_message_reply_markup", chat_id=chat_id, message_id=message_id, reply_markup=reply_markup
+		)
 		return True
 
 	def answer_callback_query(self, callback_query_id, text=None, show_alert=False):
-		self._record("answer_callback_query", callback_query_id=callback_query_id, text=text, show_alert=show_alert)
+		self._record(
+			"answer_callback_query", callback_query_id=callback_query_id, text=text, show_alert=show_alert
+		)
 		return True
 
 	def send_document(self, chat_id, content, filename, caption=None):
@@ -135,8 +143,20 @@ def message_update(
 		message["text"] = text
 	if photo_file_id:
 		message["photo"] = [
-			{"file_id": photo_file_id + "-s", "file_unique_id": "u1", "width": 90, "height": 120, "file_size": 100},
-			{"file_id": photo_file_id, "file_unique_id": "u2", "width": 900, "height": 1200, "file_size": 1000},
+			{
+				"file_id": photo_file_id + "-s",
+				"file_unique_id": "u1",
+				"width": 90,
+				"height": 120,
+				"file_size": 100,
+			},
+			{
+				"file_id": photo_file_id,
+				"file_unique_id": "u2",
+				"width": 900,
+				"height": 1200,
+				"file_size": 1000,
+			},
 		]
 	if document:
 		message["document"] = document
@@ -144,7 +164,12 @@ def message_update(
 
 
 def callback_update(
-	user_id: int, data: str, *, chat_id: int | None = None, message_id: int = 101, update_id: int | None = None
+	user_id: int,
+	data: str,
+	*,
+	chat_id: int | None = None,
+	message_id: int = 101,
+	update_id: int | None = None,
 ) -> dict[str, Any]:
 	return {
 		"update_id": update_id or _next_update_id(),

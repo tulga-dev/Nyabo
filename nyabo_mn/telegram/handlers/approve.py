@@ -25,6 +25,14 @@ PROPOSAL = "Nyabo Proposal"
 TOP_ACCOUNTS = 6
 
 
+def approver_name(ctx: Ctx) -> str:
+	"""The name stored at link time (what the admin vetted), not whatever Telegram sends now."""
+	link = ctx.link
+	if link is not None and (link.first_name or link.telegram_username):
+		return link.first_name or f"@{link.telegram_username}"
+	return ctx.sender.get("first_name") or ctx.user
+
+
 # --- permissions -----------------------------------------------------------------------------------
 
 
@@ -128,7 +136,7 @@ def approve(ctx: Ctx, proposal: Any) -> Any:
 	posted_doctype = result.get("posted_doctype") or proposal.posted_doctype or ""
 	posted_name = result.get("posted_name") or proposal.posted_name or "—"
 	data = receipt.proposal_to_dict(proposal)
-	approver = ctx.sender.get("first_name") or ctx.sender.get("username") or ctx.user
+	approver = approver_name(ctx)
 	ctx.edit(
 		ctx.callback_message_id,
 		cards.posted_card(data, posted_name, approver),

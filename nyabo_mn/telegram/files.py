@@ -120,12 +120,25 @@ def save_document(
 	if existing:
 		raise DuplicateDocument(existing)
 	mime = mime or guess_mime(filename)
+	# `file` is mandatory on Nyabo Document, so the File is written first and attached after
+	# the document has a name (Frappe allows attaching by db_set; the stub mirrors that).
+	attachment = frappe.get_doc(
+		{
+			"doctype": "File",
+			"file_name": _safe_filename(filename, file_hash[:8]),
+			"content": content,
+			"is_private": 1,
+		}
+	)
+	attachment.flags.ignore_permissions = True
+	attachment.insert()
 	doc = frappe.get_doc(
 		{
 			"doctype": DOCUMENT,
 			"company": company,
 			"doc_type": kind,
 			"status": "received",
+			"file": attachment.file_url,
 			"file_hash": file_hash,
 			"mime_type": mime,
 			"size_bytes": len(content),
@@ -139,20 +152,10 @@ def save_document(
 	)
 	doc.flags.ignore_permissions = True
 	doc.insert()
-	attachment = frappe.get_doc(
-		{
-			"doctype": "File",
-			"file_name": _safe_filename(filename, doc.name),
-			"content": content,
-			"is_private": 1,
-			"attached_to_doctype": DOCUMENT,
-			"attached_to_name": doc.name,
-			"attached_to_field": "file",
-		}
+	attachment.db_set(
+		{"attached_to_doctype": DOCUMENT, "attached_to_name": doc.name, "attached_to_field": "file"},
+		update_modified=False,
 	)
-	attachment.flags.ignore_permissions = True
-	attachment.insert()
-	doc.db_set("file", attachment.file_url)
 	log_event("telegram.document.saved", document=doc.name, company=company, kind=kind, size=len(content))
 	return doc
 

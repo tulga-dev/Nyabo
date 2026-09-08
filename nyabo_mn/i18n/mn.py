@@ -517,6 +517,7 @@ MSG_STATUS = (
 MSG_ACCOUNT_SEARCH_RESULTS = "Олдсон данс:"
 MSG_REJECT_TEXT_ASK = "Татгалзсан шалтгаанаа нэг өгүүлбэрээр бичнэ үү:"
 MSG_ONBOARDING_APPLY_PENDING = "Хариултуудыг хадгаллаа; дансны бүртгэлийг админ дуусгасны дараа мэдэгдэнэ."
+MSG_ONBOARDING_ALREADY_DONE = "Тохиргоо аль хэдийн хийгдсэн. Дахин хийх бол «/эхлэх дахин» гэж бичнэ үү."
 MSG_ONBOARDING_INVENTORY_NEED_FILE = "Excel/CSV файл эсвэл мөр бүрт `нэр, тоо, үнэ` гэсэн текст илгээнэ үү."
 ONB_SUMMARY_INVENTORY_NONE = "байхгүй"
 ONB_SUMMARY_INVENTORY_COUNT = "{count} бараа"
