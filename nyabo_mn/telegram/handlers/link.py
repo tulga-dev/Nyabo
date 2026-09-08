@@ -44,14 +44,15 @@ def handle_code(ctx: Ctx) -> Any:
 	ctx.link = link
 	ctx.company = chat_state.active_company(link)
 	frappe.set_user(link.user)
-	ctx.reply(mn.MSG_LINKED.format(role=mn.ROLE_LABELS.get(link.role, link.role), company=ctx.company or "—"))
-	if link.role == "Accountant" and ctx.company and not _onboarding_done(ctx.company):
+	role = chat_state.role_for(link, ctx.company) or link.role
+	ctx.reply(mn.MSG_LINKED.format(role=mn.ROLE_LABELS.get(role, role), company=ctx.company or "—"))
+	if role == "Accountant" and ctx.company and not _onboarding_done(ctx.company):
 		from nyabo_mn.telegram.handlers import onboarding
 
 		onboarding.start(ctx)
 	else:
 		ctx.reply(mn.MSG_MENU)
-	return {"linked": True, "role": link.role, "company": ctx.company}
+	return {"linked": True, "role": role, "company": ctx.company}
 
 
 def _notify_admins_of_guessing(ctx: Ctx, attempts: int) -> None:

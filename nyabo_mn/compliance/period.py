@@ -14,6 +14,7 @@ from typing import Any
 import frappe
 from frappe.utils import formatdate, getdate, nowdate
 
+from nyabo_mn import access
 from nyabo_mn.compliance import events
 from nyabo_mn.core.dates import period_bounds
 from nyabo_mn.i18n import mn
@@ -77,6 +78,7 @@ def lock(company: str, period: str, user: str, telegram_id: str | int | None = N
 	unverified pattern: locking would freeze books built on a rule nobody checked.
 	"""
 	_require_role(user, LOCK_ROLES)
+	access.require_company(user, company)  # the Frappe role is site-wide; the link is per company
 	start, end = _period_dates(period)
 	today = getdate(nowdate())
 	if today < end:

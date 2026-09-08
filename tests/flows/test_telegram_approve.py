@@ -258,3 +258,46 @@ def test_rejection_stores_the_tapped_code_not_its_label(company):
 	assert frappe.db.get_value("Nyabo Proposal", other.name, "rejection_reason") == (
 		"Энэ бол ажилтны хувийн зардал"
 	)
+
+
+def _second_company() -> str:
+	from nyabo_mn.setup.provision_company import provision_company
+
+	provision_company("Хоёр ХХК", "HOY", vat_registered=0)
+	return "Хоёр ХХК"
+
+
+def test_accountant_code_for_one_company_does_not_promote_the_other(company, monkeypatch):
+	"""An owner who keeps another company's books stays an owner in their own (SEC-04)."""
+	from nyabo_mn.agent import post as agent_post
+	from nyabo_mn.telegram import state as chat_state
+
+	calls = _fake_pipeline(monkeypatch)
+	link_user(2201, "Owner", company)
+	other = _second_company()
+	link_user(2201, "Accountant", other)  # a code issued by the other company's admin
+
+	link = frappe.get_doc("Nyabo User Link", "2201")
+	assert sorted((row.company, row.role) for row in link.companies) == [
+		(company, "Owner"),
+		(other, "Accountant"),
+	]
+	assert chat_state.role_for(link, company) == "Owner"
+	assert chat_state.role_for(link, other) == "Accountant"
+	assert agent_post.approver_kind(company, "tg-2201@nyabo.local") == "owner"
+	assert agent_post.approver_kind(other, "tg-2201@nyabo.local") == "accountant"
+
+	# the Telegram tap on his own company's accountant-only proposal is still refused
+	proposal = make_proposal(company, needs_accountant=1)
+	bot = FakeBotApi()
+	outcome = run(bot, callback_update(2201, f"p:{proposal.name}:ap"))
+	assert outcome["result"] == {"approved": False}
+	assert bot.last_text == mn.MSG_ACCOUNTANT_ONLY
+	assert calls["post"] == []
+	assert frappe.db.get_value("Nyabo Proposal", proposal.name, "status") == "proposed"
+
+	# and it goes through for the company he really is the accountant of
+	run(bot, message_update(2201, f"/компани {other}"))
+	theirs = make_proposal(other, needs_accountant=1)
+	run(bot, callback_update(2201, f"p:{theirs.name}:ap"))
+	assert frappe.db.get_value("Nyabo Proposal", theirs.name, "status") == "posted"

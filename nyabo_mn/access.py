@@ -12,12 +12,39 @@ own permission layer.
 
 from __future__ import annotations
 
+from typing import Any
+
 import frappe
 
 from nyabo_mn.i18n import mn
 
 LINK_DOCTYPE = "Nyabo User Link"
 LINK_COMPANY_DOCTYPE = "Nyabo User Company"
+
+
+def user_link(user: str) -> Any | None:
+	"""The user's active ``Nyabo User Link``, or None."""
+	if not user:
+		return None
+	name = frappe.db.get_value(LINK_DOCTYPE, {"user": user, "status": "active"}, "name")
+	return frappe.get_doc(LINK_DOCTYPE, name) if name else None
+
+
+def role_for(link: Any, company: str | None = None) -> str | None:
+	"""The link's role *on this company*.
+
+	A person is often the owner of their own company and the bookkeeper of another, so the
+	role lives on the ``Nyabo User Company`` row. The link-level role is the fallback: it is
+	what a link with no companies carries, and what rows written before the per-company role
+	existed fall back to.
+	"""
+	if link is None:
+		return None
+	if company:
+		for row in link.get("companies") or []:
+			if row.company == company:
+				return row.get("role") or link.role
+	return link.role
 
 
 def link_companies(user: str) -> list[str] | None:
@@ -45,4 +72,4 @@ def require_company(user: str | None, company: str) -> None:
 		frappe.throw(mn.MSG_NO_PERMISSION, frappe.PermissionError)
 
 
-__all__ = ["link_companies", "may_use_company", "require_company"]
+__all__ = ["link_companies", "may_use_company", "require_company", "role_for", "user_link"]

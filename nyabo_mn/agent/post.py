@@ -82,23 +82,33 @@ def _user_link(user: str) -> Any | None:
 
 
 def approver_kind(company: str, user: str) -> str | None:
-	"""``accountant`` / ``owner`` / ``None``: who this user is for the company (§5.3 step 7)."""
+	"""``accountant`` / ``owner`` / ``None``: who this user is for the company (§5.3 step 7).
+
+	A Telegram link is asked first and decides on its own: its role is per company, while the
+	Frappe roles are site-wide, so consulting them first would make an owner of one company an
+	accountant everywhere the moment they are linked as accountant somewhere else (SEC-04).
+	The Frappe roles remain the answer for desk users, who have no link.
+	"""
 	import frappe
+
+	from nyabo_mn import access
 
 	settings = pipeline.company_settings(company)
 	if settings and settings.get("accountant_user") == user:
 		return "accountant"
-	roles = set(frappe.get_roles(user))
-	if roles & {ROLE_ACCOUNTANT, ROLE_ADMIN, ROLE_SYSTEM} or user == "Administrator":
-		return "accountant"
 	link = _user_link(user)
 	if link is not None:
 		companies = {row.company for row in (link.get("companies") or [])}
-		if not companies or company in companies:
-			if link.role in ("Accountant", "Admin"):
-				return "accountant"
-			if link.role == "Owner":
-				return "owner"
+		if companies and company not in companies:
+			return None
+		role = access.role_for(link, company)
+		if role in ("Accountant", "Admin"):
+			return "accountant"
+		if role == "Owner":
+			return "owner"
+	roles = set(frappe.get_roles(user))
+	if roles & {ROLE_ACCOUNTANT, ROLE_ADMIN, ROLE_SYSTEM} or user == "Administrator":
+		return "accountant"
 	if ROLE_OWNER in roles:
 		return "owner"
 	return None

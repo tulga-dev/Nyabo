@@ -6,7 +6,8 @@
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
-  "company"
+  "company",
+  "role"
  ],
  "fields": [
   {
@@ -15,6 +16,13 @@
    "label": "Компани",
    "options": "Company",
    "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "role",
+   "fieldtype": "Select",
+   "label": "Үүрэг",
+   "options": "\nOwner\nAccountant\nAdmin",
    "in_list_view": 1
   }
  ],

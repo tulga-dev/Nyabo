@@ -16,6 +16,7 @@ from typing import Any
 import frappe
 from frappe.utils import add_to_date, cint, get_datetime, now_datetime
 
+from nyabo_mn import access
 from nyabo_mn.log import log_event
 
 CHAT_STATE = "Nyabo Chat State"
@@ -256,14 +257,22 @@ def consume_link_code(code: str, telegram_user: dict[str, Any]) -> Any:
 	link.telegram_username = telegram_user.get("username")
 	link.first_name = telegram_user.get("first_name")
 	link.user = user
-	link.role = _highest_role(link.role, link_code.role)
 	link.status = "active"
 	link.linked_at = now_datetime()
 	if link_code.company:
-		if link_code.company not in {row.company for row in link.get("companies") or []}:
-			link.append("companies", {"company": link_code.company})
+		# The role belongs to the company the code names. Someone who owns their own company
+		# and keeps another's books must not become an accountant everywhere (SEC-04), so the
+		# link-level role is only set when the link has no company of its own yet.
+		row = next((r for r in link.get("companies") or [] if r.company == link_code.company), None)
+		if row is None:
+			row = link.append("companies", {"company": link_code.company})
+		row.role = link_code.role
+		if not link.role:
+			link.role = link_code.role
 		if not link.active_company:
 			link.active_company = link_code.company
+	else:
+		link.role = _highest_role(link.role, link_code.role)
 	link.flags.ignore_permissions = True
 	link.save()
 
@@ -312,6 +321,11 @@ def get_link(telegram_id: int | str) -> Any | None:
 		return None
 	link = frappe.get_doc(USER_LINK, name)
 	return link if link.status == "active" else None
+
+
+def role_for(link: Any, company: str | None = None) -> str | None:
+	"""The link's role on ``company``; see ``nyabo_mn.access.role_for``."""
+	return access.role_for(link, company)
 
 
 def user_companies(link: Any) -> list[str]:

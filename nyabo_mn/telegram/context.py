@@ -38,7 +38,8 @@ class Ctx:
 
 	@property
 	def role(self) -> str | None:
-		return self.link.role if self.link is not None else None
+		"""The role on the *active* company: someone may own one company and keep another's books."""
+		return chat_state.role_for(self.link, self.company) if self.link is not None else None
 
 	@property
 	def is_accountant(self) -> bool:
