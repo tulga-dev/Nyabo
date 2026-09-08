@@ -54,6 +54,14 @@ doc_events = {
 		"before_update_after_submit": "nyabo_mn.compliance.hooks.guard_no_edit_after_submit",
 		"on_trash": "nyabo_mn.compliance.hooks.block_delete_of_posted",
 	},
+	# A settlement (matching.match.settle) posts to the ledger like any other Nyabo document,
+	# so it carries the same four guards and the same nyabo_* trail (COMP-10 / BANK-09).
+	"Payment Entry": {
+		"validate": "nyabo_mn.compliance.hooks.validate_accounting_document",
+		"before_submit": "nyabo_mn.compliance.hooks.require_primary_document",
+		"before_update_after_submit": "nyabo_mn.compliance.hooks.guard_no_edit_after_submit",
+		"on_trash": "nyabo_mn.compliance.hooks.block_delete_of_posted",
+	},
 	"File": {
 		"on_trash": "nyabo_mn.compliance.hooks.block_retained_file_delete",
 	},

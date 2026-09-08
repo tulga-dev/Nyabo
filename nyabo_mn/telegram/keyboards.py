@@ -124,13 +124,37 @@ def correction_reasons(posted_name: str) -> dict[str, Any]:
 # --- bank lines ------------------------------------------------------------------------------------
 
 
-def bank_line_keyboard(bank_transaction: str) -> dict[str, Any]:
+def bank_line_keyboard(bank_transaction: str, settle: tuple[str, str] | None = None) -> dict[str, Any]:
+	"""``settle`` is (voucher doctype, voucher name) when the line clearly pays an unpaid invoice.
+
+	The settlement button carries the voucher itself (short doctype + name), not an index
+	into the chat state, so the tap still works on a card the accountant opens tomorrow.
+	"""
+	settle_row: list[dict[str, str]] = []
+	if settle is not None:
+		short = DOCTYPE_SHORT.get(settle[0])
+		if short:
+			settle_row = [
+				button(mn.BTN_RECORD_PAYMENT, encode(PREFIX_BANK, bank_transaction, "st", short, settle[1]))
+			]
 	return markup(
+		settle_row,
 		[button(mn.BTN_FIND_DOCUMENT, encode(PREFIX_BANK, bank_transaction, "find"))],
 		[
 			button(mn.BTN_RECORD_EXPENSE, encode(PREFIX_BANK, bank_transaction, "exp")),
 			button(mn.BTN_LATER, encode(PREFIX_BANK, bank_transaction, "later")),
 		],
+	)
+
+
+def bank_settle(bank_transaction: str, voucher_doctype: str, voucher_name: str) -> dict[str, Any]:
+	"""The [Төлбөр бүртгэх] offer shown after [Баримт хайх] picked an unpaid invoice."""
+	short = DOCTYPE_SHORT.get(voucher_doctype)
+	if not short:
+		return empty_markup()
+	return markup(
+		[button(mn.BTN_RECORD_PAYMENT, encode(PREFIX_BANK, bank_transaction, "st", short, voucher_name))],
+		[button(mn.BTN_LATER, encode(PREFIX_BANK, bank_transaction, "later"))],
 	)
 
 

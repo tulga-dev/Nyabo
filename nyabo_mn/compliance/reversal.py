@@ -19,6 +19,15 @@ from nyabo_mn.compliance import events
 from nyabo_mn.compliance.period import is_locked
 from nyabo_mn.i18n import mn
 
+# Payment Entry is deliberately NOT here (COMP-10). Every entry in this tuple has an ERPNext
+# constructor that builds a *counter-document* leaving the original in place -
+# ``make_reverse_journal_entry``, ``make_debit_note``. A Payment Entry has none: ERPNext undoes
+# one by cancelling it, which is what re-opens the invoice through the Payment Ledger and, via
+# ``remove_from_bank_transaction``, releases the statement line. A hand-built reversing Journal
+# Entry would move the bank and the payable back while leaving ``outstanding_amount`` saying
+# "Paid", which is a worse book than the mistake. A mis-tapped settlement is therefore corrected
+# by cancelling the Payment Entry (the line returns to Unreconciled and can be settled again) or,
+# when the invoice itself was wrong, by reversing the invoice - which this module does support.
 SUPPORTED: tuple[str, ...] = ("Journal Entry", "Purchase Invoice")
 REVERSAL_ROLES: tuple[str, ...] = ("Nyabo Accountant", "Nyabo Admin", "System Manager")
 

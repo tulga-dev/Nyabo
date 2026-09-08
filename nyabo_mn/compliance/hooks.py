@@ -33,8 +33,13 @@ RETAINED_PARENTS: dict[str, str] = {
 	"Purchase Invoice": "nyabo_retain_until",
 	"Journal Entry": "nyabo_retain_until",
 	"Sales Invoice": "nyabo_retain_until",
+	"Payment Entry": "nyabo_retain_until",
 }
-PRIMARY_DOCUMENT_DOCTYPES: frozenset[str] = frozenset({"Purchase Invoice", "Journal Entry"})
+PRIMARY_DOCUMENT_DOCTYPES: frozenset[str] = frozenset({"Purchase Invoice", "Journal Entry", "Payment Entry"})
+# Fields that mark a document as Nyabo's own: the proposal it came from, the Nyabo Document
+# behind it, or the Mongolian explanation every Nyabo posting carries. A settlement Payment
+# Entry has no proposal, so asking for that alone left it deletable after cancel (COMP-10).
+NYABO_TRAIL_FIELDS: tuple[str, ...] = ("nyabo_proposal", "source_document", "nyabo_explanation")
 # Journal Entries ERPNext builds and submits itself: asset depreciation and disposal
 # (erpnext/assets/doctype/asset/depreciation.py, a daily scheduler job), exchange-rate
 # revaluation and its gain/loss entry (erpnext/accounts/utils.py), and opening entries.
@@ -239,8 +244,10 @@ def guard_no_edit_after_submit(doc: Any, method: str | None = None) -> None:
 
 
 def block_delete_of_posted(doc: Any, method: str | None = None) -> None:
-	"""on_trash: a submitted or cancelled document that came from a Nyabo proposal stays."""
-	if int(doc.docstatus or 0) in (1, 2) and doc.get("nyabo_proposal"):
+	"""on_trash: a submitted or cancelled document Nyabo posted stays (art. 11.1)."""
+	if int(doc.docstatus or 0) not in (1, 2):
+		return
+	if any(str(doc.get(field) or "").strip() for field in NYABO_TRAIL_FIELDS):
 		frappe.throw(mn.MSG_POSTED_DELETE_BLOCKED)
 
 

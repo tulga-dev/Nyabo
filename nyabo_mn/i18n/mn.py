@@ -18,6 +18,7 @@ BTN_REJECT = "Татгалзах"
 BTN_LATER = "Дараа"
 BTN_FIND_DOCUMENT = "Баримт хайх"
 BTN_RECORD_EXPENSE = "Зардал бүртгэх"
+BTN_RECORD_PAYMENT = "Төлбөр бүртгэх"
 BTN_CONFIRM = "Баталгаажуулах"
 BTN_CANCEL = "Цуцлах"
 BTN_BACK = "Буцах"
@@ -854,6 +855,7 @@ MATCH_REASON_TRANSFER = "өөрийн дансууд хоорондын шилж
 MATCH_REASON_NONE = "тохирох баримт олдсонгүй"
 MATCH_REASON_AMBIGUOUS = "хэд хэдэн баримт адилхан тохирч байна; нягтлан сонгоно"
 MATCH_REASON_LOW_SCORE = "хамгийн ойрын баримт {score}% тохирч байна (босго {threshold}%)"
+MATCH_REASON_SETTLED = "{name} баримтын төлбөрөөр бүртгэв"
 
 # --- rules (Frappe side: params, regime, patterns, guard, seed, aliases) --------------------------
 MSG_ROLE_UNRESOLVED = "«{role}» дансны үүрэгт {scheme} схемд данс байхгүй тул нягтлан данс сонгоно уу."
@@ -918,6 +920,41 @@ MSG_LAYOUT_LEARNED_NOTE = "{company} компанийн {document} хуулга�
 MSG_BANK_LINE_ALREADY_RECONCILED = "Энэ гүйлгээ аль хэдийн тулгагдсан байна."
 MSG_BANK_VOUCHER_NOT_FOUND = "{doctype} {name} олдсонгүй."
 MSG_BANK_VOUCHER_NOT_ALLOWED = "{doctype} төрлийн баримтыг банкны гүйлгээтэй тулгах боломжгүй."
+MSG_BANK_NEEDS_PAYMENT_ENTRY = (
+	"{doctype} {name} нэхэмжлэх төлөгдөөгүй байна: өглөг хаагдаагүй тул шууд тулгаж болохгүй. "
+	"«Төлбөр бүртгэх» товчийг дарж төлбөрийн баримт үүсгэсний дараа гүйлгээ тулгагдана."
+)
+MSG_BANK_SETTLE_NOT_NEEDED = "{doctype} {name} нэхэмжлэхэд төлөх үлдэгдэл алга; төлбөр бүртгэх шаардлагагүй."
+MSG_BANK_SETTLE_OVER_ALLOCATION = (
+	"Гүйлгээний дүн {amount}₮ нь {name} нэхэмжлэхийн үлдэгдэл {outstanding}₮-оос их байна. "
+	"Өөр баримт сонгох эсвэл нягтлан гараар хуваан бүртгэнэ үү."
+)
+MSG_BANK_SETTLE_ERPNEXT_PERMISSION = (
+	"Төлбөрийн баримт үүсгэх ERPNext эрх (Accounts User) байхгүй байна. Админд хандана уу."
+)
+MSG_BANK_SETTLE_WRONG_DIRECTION = (
+	"Зарлагын гүйлгээгээр зөвхөн худалдан авалтын нэхэмжлэх, орлогын гүйлгээгээр зөвхөн "
+	"борлуулалтын нэхэмжлэх төлөгдөнө. {doctype} {name} энэ гүйлгээний чиглэлд тохирохгүй."
+)
+MSG_BANK_SETTLE_CURRENCY_MISMATCH = (
+	"Валют таарахгүй байна: гүйлгээ {bank}, нэхэмжлэх {invoice}, харилцагчийн данс {party}. "
+	"Нягтлан гараар бүртгэнэ үү."
+)
+MSG_BANK_SETTLE_ALREADY_PROPOSED = (
+	"Энэ гүйлгээнд аль хэдийн бичилтийн санал ({proposal}) байна; банкны данс дахин кредитлэгдэхгүй."
+)
+MSG_BANK_SETTLE_NO_BANK_ACCOUNT = (
+	"Энэ гүйлгээний банкны дансанд ерөнхий дэвтрийн данс тохируулаагүй байна. Админд хандана уу."
+)
+MSG_BANK_SETTLE_REVERSED = "{doctype} {name} буцаагдсан/залруулагдсан тул төлбөр бүртгэх боломжгүй."
+MSG_BANK_SETTLED = "💸 Төлбөр бүртгэлээ: {payment} · {voucher}"
+CARD_BANK_SETTLE_HINT = "💸 Төлөгдөөгүй баримт: {voucher} · {party} · {amount}₮"
+EXPL_BANK_SETTLE = (
+	"«{description}» гүйлгээгээр {voucher} нэхэмжлэхийн өглөгийг хааж, банкны данс {credit_code} кредитлэв."
+)
+EXPL_BANK_SETTLE_RECEIVE = (
+	"«{description}» гүйлгээгээр {voucher} нэхэмжлэхийн авлагыг хааж, банкны данс {debit_code} дебетлэв."
+)
 EXPL_BANK_FEE = "Банкны хураамж тул {debit_code} дебетлэж, банкны данс {credit_code} кредитлэв."
 EXPL_BANK_LINE_EXPENSE = (
 	"«{description}» гүйлгээг {debit_code} дансанд бүртгэж, банкны данс {credit_code} кредитлэв."

@@ -16,7 +16,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 import re
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from decimal import Decimal
 from typing import Any
 
@@ -185,12 +185,33 @@ def default_expense(company: str) -> tuple[str | None, str | None]:
 	return account, common.account_code_of(account) or None
 
 
-def existing_proposal(bank_transaction: str) -> str | None:
+# A proposal in any of these states already speaks for the line: "proposed" and "approved"
+# are on their way to the ledger, "posted" is in it. Only "rejected" and "failed" leave the
+# line unexplained and open to a fresh proposal, a card or a settlement (BANK-09).
+LIVE_PROPOSAL_STATUSES: tuple[str, ...] = ("proposed", "approved", "posted")
+
+
+def existing_proposal(bank_transaction: str, *, statuses: Sequence[str] | None = None) -> str | None:
+	"""The proposal that already explains this statement line, or None.
+
+	The lookup used to ask for status "proposed" only, so a *posted* bank-line proposal made
+	the line look untouched: ``run`` re-carded it and the card offered [Төлбөр бүртгэх], which
+	credited the bank a second time for one statement line (review finding S10). It now asks
+	for every status that means the line is spoken for.
+	"""
 	import frappe
 
-	return frappe.db.get_value(
-		PROPOSAL_DOCTYPE, {"bank_transaction": bank_transaction, "status": "proposed"}, "name"
+	rows = frappe.get_all(
+		PROPOSAL_DOCTYPE,
+		filters={
+			"bank_transaction": bank_transaction,
+			"status": ["in", list(statuses or LIVE_PROPOSAL_STATUSES)],
+		},
+		fields=["name"],
+		order_by="creation asc",
+		limit=1,
 	)
+	return str(rows[0]["name"]) if rows else None
 
 
 def source_document_of(bank_transaction: str) -> str | None:
@@ -585,6 +606,7 @@ __all__ = [
 	"FEE_PATTERN_ID",
 	"INCOME_PATTERN_ID",
 	"KIND",
+	"LIVE_PROPOSAL_STATUSES",
 	"TRANSFER_PATTERN_ID",
 	"ProposalError",
 	"bank_fee_rule",

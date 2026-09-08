@@ -111,6 +111,26 @@ def reconcile(bank_transaction: str, voucher_doctype: str, voucher_name: str, us
 	)
 
 
+def settle(
+	bank_transaction: str, voucher_doctype: str, voucher_name: str, user: str, telegram_id: str
+) -> Any:
+	"""[Төлбөр бүртгэх]: the Payment Entry that pays an open invoice from this statement line."""
+	return _call(
+		"nyabo_mn.matching.match",
+		"settle",
+		bank_transaction,
+		voucher_doctype,
+		voucher_name,
+		user,
+		telegram_id=telegram_id,
+	)
+
+
+def settlement_candidate(bank_transaction: str) -> Any:
+	"""The open invoice this line clearly pays, or None (a button, never a posting)."""
+	return _call("nyabo_mn.matching.match", "settlement_candidate", bank_transaction)
+
+
 def propose_bank_expense(bank_transaction: str, account_code: str, user: str) -> str:
 	# UNVERIFIED: not in the stated contract; the matching agent owns the shape. Returns a proposal name.
 	return _call("nyabo_mn.matching.match", "propose_expense", bank_transaction, account_code, user)
