@@ -11,7 +11,9 @@
   "state",
   "payload_json",
   "last_update_id",
-  "updated_at"
+  "updated_at",
+  "link_attempts",
+  "link_blocked_until"
  ],
  "fields": [
   {
@@ -45,6 +47,16 @@
    "fieldname": "updated_at",
    "fieldtype": "Datetime",
    "label": "Шинэчилсэн"
+  },
+  {
+   "fieldname": "link_attempts",
+   "fieldtype": "Int",
+   "label": "Буруу холбох код"
+  },
+  {
+   "fieldname": "link_blocked_until",
+   "fieldtype": "Datetime",
+   "label": "Холбох код хаагдсан хүртэл"
   }
  ],
  "idx": 0,

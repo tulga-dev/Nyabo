@@ -22,6 +22,10 @@ CHAT_STATE = "Nyabo Chat State"
 LINK_CODE = "Nyabo Link Code"
 USER_LINK = "Nyabo User Link"
 LINK_CODE_MINUTES = 30
+# A six-digit code is a credential for a company's books, so guessing is capped per chat:
+# five wrong codes and the chat may not try again for an hour (10^6 space, ~30 min of open codes).
+LINK_ATTEMPT_LIMIT = 5
+LINK_BLOCK_MINUTES = 60
 
 # Link Code / User Link ``role`` (Select) -> Frappe Role (fixtures in nyabo_mn/fixtures/role.json)
 ROLE_TO_FRAPPE_ROLE = {"Owner": "Nyabo Owner", "Accountant": "Nyabo Accountant", "Admin": "Nyabo Admin"}
@@ -149,6 +153,38 @@ def issue_link_code(role: str, company: str | None, issued_by: str, minutes: int
 	doc.insert()
 	log_event("telegram.link_code.issued", role=role, company=company, issued_by=issued_by)
 	return doc
+
+
+def link_blocked_for(chat_id: int | str) -> Any | None:
+	"""The moment the chat may try a link code again, or ``None`` when it may try now."""
+	doc = _chat_doc(chat_id)
+	if doc is None or not doc.link_blocked_until:
+		return None
+	until = get_datetime(doc.link_blocked_until)
+	return until if until and until > now_datetime() else None
+
+
+def record_link_failure(chat_id: int | str) -> int:
+	"""Count one wrong code; blocks the chat once ``LINK_ATTEMPT_LIMIT`` is reached."""
+	doc = _chat_doc(chat_id, create=True)
+	attempts = cint(doc.link_attempts) + 1
+	doc.link_attempts = attempts
+	if attempts >= LINK_ATTEMPT_LIMIT:
+		doc.link_blocked_until = add_to_date(now_datetime(), minutes=LINK_BLOCK_MINUTES)
+		doc.link_attempts = 0
+	doc.flags.ignore_permissions = True
+	doc.save()
+	return attempts
+
+
+def clear_link_failures(chat_id: int | str) -> None:
+	doc = _chat_doc(chat_id)
+	if doc is None or not (cint(doc.link_attempts) or doc.link_blocked_until):
+		return
+	doc.link_attempts = 0
+	doc.link_blocked_until = None
+	doc.flags.ignore_permissions = True
+	doc.save()
 
 
 def expire_link_codes() -> None:
