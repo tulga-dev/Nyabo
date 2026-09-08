@@ -14,6 +14,7 @@ from typing import Any
 import frappe
 from frappe.utils import getdate, nowdate
 
+from nyabo_mn import access
 from nyabo_mn.compliance import events
 from nyabo_mn.compliance.period import is_locked
 from nyabo_mn.i18n import mn
@@ -33,12 +34,7 @@ def require_rights(user: str, company: str) -> None:
 		return
 	if not set(REVERSAL_ROLES).intersection(frappe.get_roles(user)):
 		frappe.throw(mn.MSG_NO_PERMISSION, frappe.PermissionError)
-	link = frappe.db.get_value("Nyabo User Link", {"user": user, "status": "active"}, "name")
-	if not link:
-		return  # a desk user with the role and no Telegram link is scoped by ERPNext permissions
-	companies = frappe.get_all("Nyabo User Company", filters={"parent": link}, pluck="company")
-	if companies and company not in companies:
-		frappe.throw(mn.MSG_NO_PERMISSION, frappe.PermissionError)
+	access.require_company(user, company)
 
 
 def reason_label(reason_code: str) -> str:

@@ -432,6 +432,54 @@ def test_bank_card_find_and_reconcile(company, monkeypatch):
 	assert bot.sent("answer_callback_query")[-1]["text"] == mn.MSG_BANK_LATER
 
 
+def test_bank_callbacks_refuse_another_companys_line(company, monkeypatch):
+	"""Bank Transaction names are a global sequence; the line's own company is not authority (SEC-02)."""
+	calls: dict[str, list] = {"top": [], "propose": [], "reconcile": [], "find": []}
+	monkeypatch.setattr(_deps, "top_accounts", lambda c, n=6: calls["top"].append(c) or [("6210", "Ш")])
+	monkeypatch.setattr(_deps, "propose_bank_expense", lambda *a: calls["propose"].append(a) or None)
+	monkeypatch.setattr(_deps, "reconcile", lambda *a: calls["reconcile"].append(a))
+	monkeypatch.setattr(_deps, "find_candidates", lambda *a: calls["find"].append(a) or [])
+
+	other = _second_company()
+	victim = _bank_transaction(other)
+	link_user(8040, "Accountant", company)
+	bot = FakeBotApi()
+	for action in ("find", "exp", "later"):
+		run(bot, callback_update(8040, f"b:{victim}:{action}", message_id=51))
+		assert bot.sent("answer_callback_query")[-1]["text"] == mn.MSG_NO_PERMISSION
+	run(bot, callback_update(8040, f"b:{victim}:acc:6210", message_id=51))
+	assert bot.sent("answer_callback_query")[-1]["text"] == mn.MSG_NO_PERMISSION
+	run(bot, callback_update(8040, f"b:{victim}:m:0", message_id=51))
+	assert bot.sent("answer_callback_query")[-1]["text"] == mn.MSG_NO_PERMISSION
+	assert calls == {"top": [], "propose": [], "reconcile": [], "find": []}
+	assert frappe.db.get_value("Nyabo Chat State", {"chat_id": "8040"}, "state") in (None, "")
+
+
+def test_owner_cannot_reconcile_a_bank_line(company, monkeypatch):
+	"""Reconciliation writes to the ledger with no approval step, so it is accountant-only."""
+	monkeypatch.setattr(_deps, "reconcile", lambda *a: pytest.fail("reconcile must not run"))
+	link_user(8041, "Owner", company)
+	txn = _bank_transaction(company)
+	bot = FakeBotApi()
+	run(bot, callback_update(8041, f"b:{txn}:m:0", message_id=52))
+	assert bot.sent("answer_callback_query")[-1]["text"] == mn.MSG_NO_PERMISSION
+
+
+def test_reconcile_refuses_a_company_the_user_is_not_linked_to(company, as_user):
+	"""matching.match guards itself, so the invariant does not rest on one handler."""
+	from nyabo_mn.matching import match as match_mod
+
+	other = _second_company()
+	victim = _bank_transaction(other)
+	voucher = _posted_je(other)
+	link_user(8042, "Accountant", company)
+	with as_user("tg-8042@nyabo.local", ["Nyabo Accountant"]) as user:
+		with pytest.raises(frappe.PermissionError):
+			match_mod.reconcile(victim, "Journal Entry", voucher, user)
+		with pytest.raises(frappe.PermissionError):
+			match_mod.propose_expense(victim, "6210", user)
+
+
 # --- misc commands -----------------------------------------------------------------------------------
 
 

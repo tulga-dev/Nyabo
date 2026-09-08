@@ -19,6 +19,7 @@ from collections.abc import Iterable, Sequence
 from decimal import Decimal
 from typing import Any
 
+from nyabo_mn import access
 from nyabo_mn.core import matching as core_matching
 from nyabo_mn.core.models import BankLine, MatchCandidate
 from nyabo_mn.core.money import quantize, to_decimal
@@ -379,6 +380,11 @@ def propose_expense(bank_transaction_name: str, account_code: str, user: str | N
 	pipeline (a Nyabo Correction is recorded, like on a receipt card) instead of a
 	second proposal. Returns the proposal name.
 	"""
+	import frappe
+
+	access.require_company(
+		user, str(frappe.db.get_value("Bank Transaction", bank_transaction_name, "company") or "")
+	)
 	existing = rules_mod.existing_proposal(bank_transaction_name)
 	if existing:
 		from nyabo_mn.agent import post
@@ -407,6 +413,9 @@ def reconcile(
 	if not frappe.db.exists("Bank Transaction", bank_transaction_name):
 		raise MatchError(mn.MSG_BANK_TRANSACTION_NOT_FOUND.format(name=bank_transaction_name))
 	transaction = frappe.get_doc("Bank Transaction", bank_transaction_name)
+	# The company is taken from the line, so a named caller must be linked to it (SEC-02);
+	# ``user`` is None for the automatic matcher, which already runs per company.
+	access.require_company(user, str(transaction.company or ""))
 	if float(transaction.unallocated_amount or 0) <= 0:
 		raise MatchError(mn.MSG_BANK_LINE_ALREADY_RECONCILED)
 	line = common.line_from_transaction(transaction.as_dict())
