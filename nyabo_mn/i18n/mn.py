@@ -466,6 +466,27 @@ AGENT_ANSWER_INJECTION_REFUSED = (
 )
 AGENT_ANSWER_TOOL_ERROR = "Дэвтрээс мэдээлэл авахад алдаа гарлаа. Дахин оролдоно уу."
 
+# --- pipeline, posting, supplier, ebarimt (receipt flow on the Frappe side) ------------------------
+SUPPLIER_GROUP_DEFAULT = "Нийлүүлэгч"
+SUPPLIER_NAME_UNKNOWN = "Тодорхойгүй худалдагч"
+MSG_RECEIPT_AMOUNT_MISSING = "Баримтын нийт дүнг уншиж чадсангүй; нягтлан гараар шалгана уу."
+MSG_DATE_DEFAULTED_TODAY = "Огноо уншигдаагүй тул өнөөдрийн огноог ашиглав"
+WARN_ENTRY_INVALID = "Бичилт шалгалтад тэнцсэнгүй: {problem}"
+WARN_ACCOUNT_ROLE_MISSING = "«{role}» үүрэгтэй данс энэ дансны төлөвлөгөөнд алга; нягтлан данс сонгоно"
+MSG_PROPOSAL_NOT_POSTABLE = "Санал {status} төлөвтэй тул бүртгэх боломжгүй."
+MSG_SUPPLIER_REQUIRED_FOR_INVOICE = "Худалдан авалтын нэхэмжлэхэд харилцагч заавал хэрэгтэй."
+MSG_ACCOUNT_CODE_INVALID = "{code} код дансны төлөвлөгөөний бичилт хийх данс биш."
+MSG_CORRECTION_ORIGINAL_NOT_NYABO = "{name} баримт Нябо саналгүй тул залруулгын санал үүсгэх боломжгүй."
+MSG_RULE_CONFIRMED = "Дүрэм {rule} идэвхжлээ."
+MSG_RULE_LEARNED = "Хоёр ижил залруулгаас шинэ дүрэм үүсгэлээ; нягтлан баталгаажуулна: {rule}"
+EXPL_RULE_APPLIED = "«{rule}» дүрмээр {code} данс сонгов."
+EXPL_CORRECTION_PREFIX = "Залруулга ({reason}): "
+FAQ_NOT_FOUND = "Энэ асуултад тохирох тайлбар олдсонгүй."
+LAST_ENTRY_LINE = "{date} · {doctype} {name} · {amount}₮"
+LAST_ENTRIES_NONE = "{supplier} харилцагчийн бүртгэл олдсонгүй."
+UNMATCHED_ANSWER = "Тулгагдаагүй банкны гүйлгээ: {count}"
+SUPPLIER_NOT_FOUND_ANSWER = "{supplier} нэртэй харилцагч олдсонгүй."
+
 # --- explanation templates (LLM fills only the bracketed part) -----------------------------------
 EXPL_EXPENSE = "{what} тул {debit_code} дебетлэж, {credit_name} кредитлэв."
 EXPL_SUFFIX_CITATION = " — {instrument}, {section}"
