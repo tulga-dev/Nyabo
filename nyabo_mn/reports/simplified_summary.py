@@ -1,9 +1,11 @@
 """Quarterly 1% summary for a company on the simplified regime.
 
-Revenue is the quarter's net credit on every Income-root ledger account; the rate is the
-``simplified.rate`` tax parameter in force on the quarter's last day. An unverified rate
-row is refused for a statutory figure (``UnverifiedRuleError``) unless ``simulation`` is
-set, mirroring the posting guard: a number nobody checked must not reach a tax return.
+Revenue is the quarter's net credit on the company's revenue-role accounts; the rate is
+the ``simplified.rate`` tax parameter in force on the quarter's last day. An unverified
+rate row is refused for a statutory figure (``UnverifiedRuleError``), mirroring the
+posting guard: a number nobody checked must not reach a tax return. The one bypass is
+``frappe.flags.nyabo_simulation`` (the simulator and the tests); there is deliberately no
+argument and no report filter for it (F-11), only the ``simulation`` label in the output.
 
 The regime's own conditions are looked up the same way, before anything is computed:
 ``simplified.requires_not_vat_registered`` (CIT art. 29.3.1) and
@@ -54,7 +56,7 @@ def _threshold(row: ParameterRow) -> tuple[Decimal | None, str]:
 	)
 
 
-def eligibility(company: str, end: dt.date, *, simulation: bool = False) -> dict[str, Any]:
+def eligibility(company: str, end: dt.date) -> dict[str, Any]:
 	"""The regime's conditions on the quarter's last day (CIT art. 29.1, 29.3.1).
 
 	Both parameters are resolved and guarded before any figure is computed, so a period whose
@@ -67,7 +69,7 @@ def eligibility(company: str, end: dt.date, *, simulation: bool = False) -> dict
 	rows = {}
 	for key in ELIGIBILITY_KEYS:
 		row = rules_bridge.parameter_on(key, end)
-		rules_bridge.require_verified(row, simulation=simulation)
+		rules_bridge.require_verified(row)
 		rows[key] = row
 	try:
 		vat_payer: bool | None = _regime_is_vat_payer(company, end)
@@ -106,13 +108,14 @@ def _regime_is_vat_payer(company: str, on_date: dt.date) -> bool:
 	return regime.is_vat_payer(company, on_date)
 
 
-def compute(company: str, quarter: str, *, simulation: bool = False) -> dict[str, Any]:
+def compute(company: str, quarter: str) -> dict[str, Any]:
 	"""{revenue, tax_1pct, rate_row, eligibility, warnings, months, from/to_date, quarter, simulation}."""
 	year, q = parse_quarter(quarter)
 	start, end = quarter_bounds(year, q)
-	eligible = eligibility(company, end, simulation=simulation)
+	simulation = rules_bridge.is_simulation()
+	eligible = eligibility(company, end)
 	rate_row = rules_bridge.parameter_on(RATE_KEY, end)
-	rules_bridge.require_verified(rate_row, simulation=simulation)
+	rules_bridge.require_verified(rate_row)
 	rate = rate_row.as_decimal()
 	income_accounts = accounts.accounts_by_root_type(company, ("Income",))
 	rows = gl.rows(company, start, end, accounts=income_accounts)
