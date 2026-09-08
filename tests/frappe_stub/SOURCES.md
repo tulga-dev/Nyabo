@@ -196,3 +196,20 @@ not mirrored: the first is a no-op in the stub, the second is skipped.
 | `delete_doc` | Deletes attached Files, Comments and Versions and writes a Deleted Document (`delete_dynamic_links` in frappe/model/delete_doc.py). |
 | `Company.on_update` | Raises `NotImplementedError` instead of creating the Standard chart unless `frappe.local.flags.ignore_chart_of_accounts` is set; `create_default_cost_center` runs like on a site. |
 | `Accounts Settings.allow_stale` | Unset in the stub means 1 (the field default in ERPNext); set it to 0 to test stale-rate refusal. |
+
+## Purchase Invoice paid-invoice branch (added by the bank-matching author)
+
+`validate_cash` and `make_payment_gl_entries` in the stub's `purchase_invoice.py` are quoted
+from `erpnext/accounts/doctype/purchase_invoice/purchase_invoice.py` (version-16, read
+2026-09-08): a Purchase Invoice with `is_paid = 1`, `cash_bank_account` and `paid_amount`
+credits the bank account and debits the payable on submit, which is the GL row the Bank
+Transaction allocator (`get_related_bank_gl_entries`) looks for. `set_paid_amounts` is a
+stub reduction of the paid-amount arithmetic in `calculate_taxes_and_totals`
+(`base_paid_amount = paid_amount * conversion_rate`, outstanding reduced by it).
+Bank Statement Import submits the Bank Transactions it creates
+(`bank_statement_import.json`: `submit_after_import` default `1`, hidden), so Nyabo's
+importer inserts and submits too. `reconcile_vouchers` in
+`bank_reconciliation_tool.py` (version-16) is the sequence Nyabo's `matching.match.reconcile`
+mirrors: `add_payment_entries(vouchers, is_new_voucher)`, `validate_duplicate_references()`,
+`allocate_payment_entries()`, `update_allocated_amount()`, `set_status()`, `save()`, with
+vouchers shaped `{"payment_doctype", "payment_name", "amount"}`.
