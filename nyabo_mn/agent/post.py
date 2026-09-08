@@ -33,7 +33,11 @@ ROLE_ADMIN = "Nyabo Admin"
 ROLE_OWNER = "Nyabo Owner"
 ROLE_SYSTEM = "System Manager"
 POSTABLE_STATUSES = ("proposed", "approved")
-ITEM_UOM = "Nos"  # ERPNext's stock UOM default; present on every site's UOM list
+# UNVERIFIED: a Purchase Invoice Item without item_code needs item_name, qty, uom, rate (reqd in
+# erpnext_meta.json); "Nos" is in ERPNext's installed UOM list, and conversion_factor / stock_qty
+# are filled by calculate_taxes_and_totals on a bench. Booking a fixed-asset family proposal through
+# a plain item row (no is_fixed_asset item) has not been run on a real site.
+ITEM_UOM = "Nos"
 LEARN_MIN_CORRECTIONS = 2
 TOP_ACCOUNTS_DAYS = 90
 SEARCH_LIMIT = 10
@@ -276,6 +280,8 @@ def build_purchase_invoice(proposal: Any, entry: ProposedEntry, approver_user: s
 		**audit_fields(proposal, approver_user, extracted, verification),
 	}
 	if template_name:
+		# UNVERIFIED: ERPNext's set_taxes() only appends template rows when the taxes table is empty
+		# (controllers/accounts_controller.py); the explicit "Actual" row above is expected to survive.
 		doc["taxes_and_charges"] = template_name
 	return doc
 
