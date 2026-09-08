@@ -234,7 +234,9 @@ def test_run_import_reports_a_missing_bank_account_in_mongolian(books):
 	helpers.register_layouts()  # the Golomt layout is known; no Golomt account is configured
 	name = helpers.statement_document(books, *fixtures.golomt_xlsx())
 	result, bot = _run_import(name, 3103)
-	assert result == {"ok": False}
+	# The refusal text travels back with the result so the caller can log why, and the
+	# accountant sees the Mongolian reason rather than the generic error.
+	assert result["ok"] is False and "Голомт банк" in result["refused"]
 	assert bot.last_text != mn.MSG_ERROR_ADMIN_NOTIFIED and "Голомт банк" in bot.last_text
 
 

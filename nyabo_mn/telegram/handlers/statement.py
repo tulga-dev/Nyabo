@@ -107,12 +107,16 @@ def run_import(document_name: str, chat_id: int | str) -> dict[str, Any]:
 		log_error("telegram.statement.import_failed", exc, document=document_name)
 		bot.send_message(chat_id, getattr(exc, "message_mn", None) or mn.MSG_ERROR_ADMIN_NOTIFIED)
 		return {"ok": False}
-	if summary.get("unknown_layout"):
-		start_layout_mapping(bot, chat_id, document_name, summary)
-		return {"ok": True, "mapping": True}
+	# The importer sets ``unknown_layout`` for both cases, so the more specific one is asked
+	# first: a layout that was mapped once but is not verified must not re-ask the accountant,
+	# it needs an admin to tick Баталгаажсан on the Nyabo Bank Layout row.
+	status = summary.get("status")
 	if status == "unverified_layout":
 		bot.send_message(chat_id, mn.MSG_STATEMENT_LAYOUT_UNVERIFIED)
 		return {"ok": True, "unverified": True}
+	if summary.get("unknown_layout"):
+		start_layout_mapping(bot, chat_id, document_name, summary)
+		return {"ok": True, "mapping": True}
 	bank_name = summary.get("bank") or ""
 	bot.send_message(
 		chat_id,
