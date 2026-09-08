@@ -80,7 +80,7 @@ def setup_banks(company: str) -> dict[str, Any]:
 		names[bank] = name
 	settings = frappe.get_doc("Nyabo Company Settings", company)
 	if not settings.get("bank_accounts"):
-		for account_name, bank, gl, number in specs:
+		for _label, bank, gl, number in specs:
 			settings.append(
 				"bank_accounts",
 				{

@@ -21,7 +21,7 @@ from decimal import Decimal
 from typing import Any
 
 from nyabo_mn.core.models import BankLine
-from nyabo_mn.core.statements import LayoutError, LayoutSpec, parse_rows
+from nyabo_mn.core.statements import LayoutError, LayoutSpec, parse_rows, resolve_columns
 from nyabo_mn.i18n import mn
 from nyabo_mn.log import log_event
 from nyabo_mn.matching import common
@@ -92,10 +92,18 @@ def resolve_bank_row(
 	bank: str,
 	currency: str,
 	rows: Sequence[Sequence[Any]],
+	header_index: int | None = None,
 ) -> dict[str, Any] | None:
-	"""Settings row for the statement: by the account number in the file, else bank + currency."""
+	"""Settings row for the statement: by the account number in the title block, else bank + currency.
+
+	Only rows above the header are searched for an account number: a transfer narrative
+	in the data rows names the *other* account and must not redirect the whole import.
+	"""
 	settings_rows = [r for r in common.bank_rows(company) if r.get("erpnext_bank_account")]
-	number = detect_mod.find_account_number(rows, [r.get("account_number") or "" for r in settings_rows])
+	title_rows = list(rows)[:header_index] if header_index is not None else list(rows)
+	number = detect_mod.find_account_number(
+		title_rows, [r.get("account_number") or "" for r in settings_rows]
+	)
 	if number:
 		for row in settings_rows:
 			if str(row.get("account_number") or "") == number:
@@ -296,7 +304,8 @@ def import_statement(document_name: str, *, run_matching: bool = True) -> dict[s
 		raise BankImportError(mn.MSG_STATEMENT_NO_LINES)
 
 	currency = statement_currency(lines, layout)
-	row = resolve_bank_row(company, layout.bank, currency, rows)
+	header_index, _columns = resolve_columns(rows, layout)
+	row = resolve_bank_row(company, layout.bank, currency, rows, header_index)
 	if row is None:
 		message = mn.MSG_STATEMENT_NO_BANK_ACCOUNT.format(bank=mn.BANK_NAMES_MN.get(layout.bank, layout.bank))
 		_set_status(doc, "failed", message)
@@ -326,7 +335,7 @@ def import_statement(document_name: str, *, run_matching: bool = True) -> dict[s
 		"closing_date": closing.date.isoformat() if closing else max(line.date for line in lines).isoformat(),
 	}
 	if run_matching and created:
-		stats = match_mod.run(company, bank_account, transactions=created)
+		stats = match_mod.run(company, bank_account, transactions=created, document=document_name)
 		summary["match"] = {k: v for k, v in stats.items() if k != "details"}
 		summary["matched"] = int(stats["matched"]) + int(stats["transfers"])
 		summary["unmatched"] = int(stats["unmatched"]) + int(stats["fee_proposals"])

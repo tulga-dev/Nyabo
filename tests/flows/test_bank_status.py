@@ -47,7 +47,7 @@ def test_status_math_after_an_import(books):
 	assert khan["unmatched"] == 4  # five lines, one reconciled against the invoice
 	assert tdb["statement_balance"] == 0 and tdb["unmatched"] == 0
 	text = status.render(books, today=dt.date(2026, 9, 30))
-	assert "Хаан банк MNT" in text and "1 905 000" in text and "-93 500" in text and "2026-09-06" in text
+	assert "Хаан банк MNT" in text and "1 905 000" in text and "-93 500" in text and "2026-09-30" in text
 	assert pi.name  # keeps the reference alive for readers of the assertion above
 
 

@@ -122,8 +122,15 @@ def test_statement_account_number_selects_the_settings_row(books):
 	from nyabo_mn.parsers import excel
 
 	rows = excel.read_rows(data, filename)
-	row = bank_import.resolve_bank_row(books, "TDB", "MNT", rows)
-	assert row is not None and row["erpnext_bank_account"] == banks["khan"]  # the file names Khan's account
+	row = bank_import.resolve_bank_row(books, "TDB", "MNT", rows, header_index=3)
+	assert (
+		row is not None and row["erpnext_bank_account"] == banks["khan"]
+	)  # the title block names Khan's account
+	# Data rows are never searched: the transfer narrative names the other account.
+	assert (
+		bank_import.resolve_bank_row(books, "TDB", "MNT", rows[4:], header_index=0)["erpnext_bank_account"]
+		== banks["tdb"]
+	)
 	assert (
 		bank_import.resolve_bank_row(books, "TDB", "MNT", [["no numbers here"]])["erpnext_bank_account"]
 		== banks["tdb"]

@@ -49,8 +49,27 @@ class ProposalError(ValueError):
 # --- rule lookup ------------------------------------------------------------------------------------
 
 
+def _code_in_chart(company: str, code: str | None) -> bool:
+	import frappe
+
+	return bool(code) and bool(frappe.db.exists("Account", {"company": company, "account_number": str(code)}))
+
+
 def chart_scheme(company: str) -> str:
-	return str(common.settings_value(company, "chart_scheme", DEFAULT_SCHEME) or DEFAULT_SCHEME)
+	"""The scheme whose role codes exist in the company's chart.
+
+	Nyabo Company Settings.chart_scheme is the declared value, but provisioning may have
+	installed a different tree (V1 today, v0.3 later); the ``bank`` and ``receivable``
+	roles are probed so a stale setting cannot send a fee to a code the chart lacks.
+	"""
+	schemes = load_seed("code_roles")["schemes"]
+	declared = str(common.settings_value(company, "chart_scheme", DEFAULT_SCHEME) or DEFAULT_SCHEME)
+	order = [declared] + [s for s in schemes if s != declared]
+	for scheme in order:
+		roles = schemes.get(scheme, {})
+		if _code_in_chart(company, roles.get("bank")) and _code_in_chart(company, roles.get("receivable")):
+			return scheme
+	return declared
 
 
 def role_code(company: str, role: str) -> str | None:
@@ -340,7 +359,7 @@ def _load_transaction(name: str) -> dict[str, Any]:
 	return frappe.get_doc("Bank Transaction", name).as_dict()
 
 
-def propose_for_line(bank_transaction_name: str) -> str:
+def propose_for_line(bank_transaction_name: str, *, document: str | None = None) -> str:
 	"""Create (or return) the bank_line proposal for one Bank Transaction.
 
 	Fee lines follow the bank_fee rule; other outflows are classified by the model
@@ -437,7 +456,7 @@ def propose_for_line(bank_transaction_name: str) -> str:
 	needs_accountant = bool(warnings) or confidence < 0.7
 	return _insert_proposal(
 		{
-			"document": source_document_of(bank_transaction_name),
+			"document": document or source_document_of(bank_transaction_name),
 			"company": company,
 			"bank_transaction": bank_transaction_name,
 			"needs_accountant": 1 if needs_accountant else 0,
@@ -464,7 +483,7 @@ def propose_for_line(bank_transaction_name: str) -> str:
 	)
 
 
-def propose_transfer(withdrawal_name: str, deposit_name: str) -> str:
+def propose_transfer(withdrawal_name: str, deposit_name: str, *, document: str | None = None) -> str:
 	"""One proposal for an own-account transfer: Дт bank B (deposit) / Кт bank A (withdrawal).
 
 	Linked to the withdrawal transaction; the deposit side is named in the entry so the
@@ -508,7 +527,7 @@ def propose_transfer(withdrawal_name: str, deposit_name: str) -> str:
 	payload["transfer"] = {"withdrawal": withdrawal_name, "deposit": deposit_name}
 	return _insert_proposal(
 		{
-			"document": source_document_of(withdrawal_name),
+			"document": document or source_document_of(withdrawal_name),
 			"company": company,
 			"bank_transaction": withdrawal_name,
 			"needs_accountant": 1 if warnings else 0,

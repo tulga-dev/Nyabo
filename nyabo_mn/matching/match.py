@@ -235,6 +235,7 @@ def run(
 	*,
 	transactions: Iterable[str] | None = None,
 	send_cards: bool = True,
+	document: str | None = None,
 ) -> dict[str, Any]:
 	"""Match every unallocated Bank Transaction of the company (or one account / list).
 
@@ -262,7 +263,7 @@ def run(
 		if out_name not in {r["name"] for r in rows} and in_name not in {r["name"] for r in rows}:
 			continue
 		try:
-			proposal = rules_mod.propose_transfer(out_name, in_name)
+			proposal = rules_mod.propose_transfer(out_name, in_name, document=document)
 		except rules_mod.ProposalError as exc:
 			stats["errors"] += 1
 			log_error("bank.transfer_proposal_failed", exc, withdrawal=out_name, deposit=in_name)
@@ -293,7 +294,7 @@ def run(
 				stats["matched"] += 1
 				detail["voucher"] = f"{result.candidate.doctype} {result.candidate.name}"
 			elif result.kind == "fee":
-				detail["proposal"] = rules_mod.propose_for_line(name)
+				detail["proposal"] = rules_mod.propose_for_line(name, document=document)
 				stats["fee_proposals"] += 1
 			else:
 				stats["unmatched"] += 1
