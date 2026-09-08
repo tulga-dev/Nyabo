@@ -16,10 +16,19 @@ https://developers.openai.com/api/docs/guides/structured-outputs:
   ``output`` items (``message`` with ``output_text`` parts) and
   ``usage.input_tokens`` / ``usage.output_tokens``.
 
-The SDK (``openai``, PyPI 3.8.0 on the check date, ``client.responses.create``) is imported
+The SDK (``openai``, PyPI ``info.version`` 3.8.0 on 2026-09-08, Python >= 3.10) is imported
 lazily so this module loads without it; tests inject a fake ``transport`` exposing the same
-``responses.create(**kwargs)`` method. The SDK's own retries are disabled because
-``BaseClient`` retries with the policy the architecture asks for.
+``responses.create(**kwargs)`` method. Verified in the openai-python README the same day:
+``OpenAI(api_key=..., timeout=..., max_retries=...)``, ``client.responses.create(model=...,
+input=...)`` with ``output_text`` on the response, and the exception classes
+``APIConnectionError`` (no status), ``RateLimitError`` (429), ``APIStatusError`` (4xx/5xx,
+``.status_code``) and ``APITimeoutError``. The SDK's own retries are disabled
+(``max_retries=0``) because ``BaseClient`` retries with the policy the architecture asks for.
+
+Model ids: the founder's ``gpt-5.6-terra`` (default, "$2 / Input MTok, $12 / Output MTok",
+"balances intelligence and cost") and ``gpt-5.6-luna`` ("$0.20 / $1.20", "optimized for
+cost-sensitive workloads") are both listed on the models page on the check date, next to
+``gpt-5.6-sol`` and ``gpt-6-astra``; all four share a 1.05M context window.
 """
 
 from __future__ import annotations

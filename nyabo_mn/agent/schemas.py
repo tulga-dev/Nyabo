@@ -12,7 +12,13 @@ described in the field description so the model still sees them. Sources:
   nullable via ``anyOf`` with ``{"type": "null"}``, ``$defs``/``$ref`` supported,
   ``minLength``/``maxLength``/``pattern``/``minimum``/``maximum``/``format`` unsupported).
 - https://platform.claude.com/docs/en/api/messages (tool ``input_schema`` is plain JSON
-  Schema; the same object works as a forced tool's schema).
+  Schema; the same object works as a forced tool's schema, and with ``strict: true`` the
+  API guarantees the input validates against it).
+- openai-python ``src/openai/lib/_pydantic.py`` (``to_strict_json_schema``, read
+  2026-09-08): the vendor's own converter keeps pydantic's ``anyOf: [{type}, {type: null}]``
+  for Optional fields, recurses into every ``anyOf`` variant, sets ``additionalProperties:
+  false`` on objects and lists every property in ``required`` - exactly what ``json_schema``
+  below produces, so the two agree on the nullable form.
 """
 
 from __future__ import annotations

@@ -26,8 +26,11 @@ non-default sampling parameters (``temperature`` is documented as deprecated aft
 allowlist but would need the ``output_config.format`` path (UNVERIFIED here, not
 implemented) - see ``model_warning``.
 
-SDK: ``anthropic`` (PyPI 1.4.0 on the check date; 0.40+ has the same ``messages.create``
-and exception classes). Imported lazily; tests inject a fake ``transport``.
+SDK: ``anthropic`` (PyPI ``info.version`` 1.4.0 on 2026-09-08, Python >= 3.10, built on
+``httpx2``; ``Anthropic(api_key=..., timeout=<seconds>, max_retries=0)`` and
+``client.messages.create`` are the documented entry points, with ``APITimeoutError``,
+``RateLimitError`` (429), ``APIStatusError`` (``.status_code``) and ``APIConnectionError``
+as the exception chain). Imported lazily; tests inject a fake ``transport``.
 """
 
 from __future__ import annotations

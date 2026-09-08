@@ -10,10 +10,12 @@ never imports frappe so the simulator and tests can use it).
 
 Model ids are read from settings. The defaults were given by the founder; the small
 allowlist below was checked against the vendors' model pages on ``MODEL_ALLOWLIST_CHECKED_ON``
-(https://developers.openai.com/api/docs/models and
-https://platform.claude.com/docs/en/docs/about-claude/models/overview). An id outside the
-allowlist is still used, but a warning is logged at construction so a typo in site config
-is noticed before the first receipt fails.
+(https://developers.openai.com/api/docs/models lists gpt-6-astra, gpt-5.6-sol, gpt-5.6-terra
+and gpt-5.6-luna; https://platform.claude.com/docs/en/docs/about-claude/models/overview lists
+claude-fable-5-1, claude-opus-5, claude-sonnet-5 and claude-haiku-4-5, all without date
+suffixes). An id outside the allowlist is still used, but a warning is logged at
+construction so a typo in site config is noticed before the first receipt fails; the
+allowlist is a hint, never a gate, because the vendors add ids faster than we redeploy.
 """
 
 from __future__ import annotations
