@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+from decimal import Decimal
 
 import pytest
 
@@ -86,43 +87,83 @@ def test_tax_parameters_metadata_and_verification_policy():
 	assert "verified_means" in data
 	rows = data["rows"]
 	verified = [r for r in rows if r["verified"]]
-	# Only rows compared with a primary text (Law on Accounting, legalinfo URL + article) are verified.
-	assert verified and all(r["source_url"] and r["article"] for r in verified)
-	assert all(r["key"].startswith(("retention.", "statements.")) for r in verified)
-	assert all(
-		not r["verified"] for r in rows if r["key"].startswith(("vat.", "cit.", "pit.", "si.", "simplified."))
-	)
+	# A verified row was compared with a primary text: article, URL and the quoted sentence in the note.
+	assert verified and all(r["source_url"] and r["article"] and r["note"].startswith("«") for r in verified)
+	# Derived numbers and draft-law values never ship verified (docs/legal/*.md).
+	unverified_keys = {r["key"] for r in rows if not r["verified"]}
+	assert {
+		"si.employee_rate",
+		"si.employer_rate",
+		"vat.voluntary_registration_threshold",
+		"sme.classification",
+	} <= unverified_keys
 	pending = {r["key"] for r in rows if r["status"] == "pending"}
-	assert {"cit.brackets", "pit.brackets", "si.employer_rate", "si.accident_tiers"} <= pending
+	assert {
+		"simplified.revenue_threshold",
+		"simplified.filing_period",
+		"property_tax.rate",
+		"emd.employee_rate",
+		"emd.employer_rate",
+	} <= pending
 	assert all(r["value"] is None for r in rows if r["status"] == "pending")
 	keys = {r["key"] for r in rows}
 	assert {
 		"vat.rate",
 		"vat.registration_threshold",
+		"vat.input_deduction_categories",
 		"simplified.revenue_threshold",
 		"simplified.rate",
+		"cit.brackets",
 		"cit.credit_90pct_threshold",
-		"si.employee_rate",
+		"depreciation.tax_life",
+		"pit.brackets",
+		"si.employee.pension",
+		"si.employer.pension",
+		"si.accident_tiers",
 		"retention.years",
 		"sme.classification",
 		"filing.vat",
+		"filing.cit_half_year",
+		"filing.si",
 	} <= keys
-	# No guessed in-force date on the tax-debt rule (reviewer): a single pending row.
+	# The tax-debt cap starts on the package's adoption date, quoted from GTL 63.2 (no guessed day).
 	debt = [r for r in rows if r["key"] == "tax_debt.enforcement_split"]
-	assert len(debt) == 1 and debt[0]["status"] == "pending"
+	assert len(debt) == 1 and debt[0]["status"] == "active" and debt[0]["effective_from"] == "2026-06-26"
 
 
 def test_tax_parameter_shapes():
 	rows = [rules_engine.ParameterRow.from_dict(r) for r in load_seed("tax_parameters")["rows"]]
 	assert rules_engine.parameter_decimal(rows, "retention.years", dt.date(2026, 1, 1)) == 10
 	assert (
-		rules_engine.parameter_decimal(rows, "simplified.revenue_threshold", dt.date(2027, 1, 1))
-		== 400_000_000
+		rules_engine.parameter_decimal(rows, "simplified.revenue_threshold", dt.date(2026, 6, 1))
+		== 50_000_000
 	)
 	assert (
 		rules_engine.parameter_decimal(rows, "cit.credit_90pct_threshold", dt.date(2027, 1, 1))
 		== 2_500_000_000
 	)
+	# CIT Law art. 20.1 as amended 26 Jun 2026: 10% to 6bn, 15% to 10bn, 25% above
+	brackets = rules_engine.resolve_parameter(rows, "cit.brackets", dt.date(2027, 1, 1)).value["brackets"]
+	assert [(b["up_to"], b["rate"]) for b in brackets] == [
+		(6_000_000_000, 0.1),
+		(10_000_000_000, 0.15),
+		(None, 0.25),
+	]
+	# CIT Law art. 17.1: computers and software are 2 years, servers 3 years from 2027
+	lives_2026 = rules_engine.resolve_parameter(rows, "depreciation.tax_life", dt.date(2026, 6, 1)).value
+	lives_2027 = rules_engine.resolve_parameter(rows, "depreciation.tax_life", dt.date(2027, 6, 1)).value
+	assert lives_2026["computers_software"] == 2 and "servers_data_processing_gpu" not in lives_2026
+	assert lives_2027["servers_data_processing_gpu"] == 3 and lives_2027["buildings"] == 40
+	# PIT 21.1 (2022 amendment): progressive since 2023, annual basis
+	pit = rules_engine.resolve_parameter(rows, "pit.brackets", dt.date(2026, 6, 1)).value
+	assert [b["rate"] for b in pit["brackets"]] == [0.1, 0.15, 0.2]
+	# social insurance is per fund (art. 18.1); the totals are derived and unverified
+	assert rules_engine.parameter_decimal(rows, "si.employee.pension", dt.date(2026, 1, 1)) == Decimal("0.085")
+	assert rules_engine.parameter_decimal(rows, "si.employer.unemployment", dt.date(2027, 1, 1)) == Decimal(
+		"0.006"
+	)
+	tiers = rules_engine.resolve_parameter(rows, "si.accident_tiers", dt.date(2027, 1, 1)).value["tiers"]
+	assert [t["rate"] for t in tiers] == [0.003, 0.012, 0.022]
 	deadline = rules_engine.resolve_parameter(rows, "statements.annual_deadline", dt.date(2026, 1, 1)).value
 	assert deadline == {
 		"period": "annual",
@@ -130,21 +171,26 @@ def test_tax_parameter_shapes():
 		"due_day": 10,
 		"applies_to": "all",
 	}
+	half_year = rules_engine.resolve_parameter(rows, "filing.cit_half_year", dt.date(2027, 1, 1)).value
+	assert (half_year["due_months_after_period_end"], half_year["due_day"]) == (2, 5)
 
 
-def test_posting_patterns_cover_the_reference_and_are_unverified():
+def test_posting_patterns_cover_the_reference_and_carry_citations():
 	rows = load_seed("posting_patterns")["rows"]
 	ids = {r["pattern_id"] for r in rows}
 	assert REQUIRED_PATTERNS <= ids
 	for row in rows:
-		assert row["verified"] is False, row["pattern_id"]
-		assert row["citation"]["section"] is None, row["pattern_id"]
-		assert row["citation"]["verified"] is False
+		assert row["citation"]["verified"] is row["verified"], row["pattern_id"]
 		assert row["citation"]["instrument"]
 		assert row["primary_document_mn"]
 		assert row["applies_to_vat"] in ("any", "vat_payer", "non_vat")
 		assert row["applies_to_cit"] in ("any", "regular", "simplified_1pct")
 	by_id = {r["pattern_id"]: r for r in rows}
+	# patterns the instrument does not prescribe stay unverified without a section
+	for pid in ("customer_prepayment_recognize_vat_payer", "customer_prepayment_recognize_non_vat"):
+		assert by_id[pid]["verified"] is False and by_id[pid]["citation"]["section"] is None
+	# composites rated only "probable" by the readers stay unverified
+	assert by_id["purchase_expense_vat_payer"]["verified"] is False
 	assert by_id["purchase_expense_vat_payer"]["applies_to_vat"] == "vat_payer"
 	assert by_id["purchase_expense_non_vat"]["applies_to_vat"] == "non_vat"
 	assert by_id["income_tax_accrue"]["applies_to_cit"] == "regular"

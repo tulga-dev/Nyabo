@@ -49,7 +49,8 @@ def test_vat_registration_threshold_by_year(parameters):
 	)
 	row = re_.resolve_parameter(parameters, "vat.registration_threshold", dt.date(2027, 5, 1))
 	assert row.value["comparator"] == "gte"
-	assert row.verified is False
+	# read from VAT Law art. 5.2 (docs/legal/vat_law.md): the note quotes the sentence
+	assert row.verified is True and row.article and row.source_url and "«" in row.note
 
 
 def test_vat_rate_is_ten_percent_both_years(parameters):
@@ -58,13 +59,16 @@ def test_vat_rate_is_ten_percent_both_years(parameters):
 
 
 def test_pending_parameter_raises_and_never_falls_back(parameters):
-	# 2026 CIT brackets exist and are active; the 2027 row is pending (text not encoded yet).
-	assert re_.resolve_parameter(parameters, "cit.brackets", dt.date(2026, 7, 1)).status == "active"
+	# The 2026 simplified-regime threshold is active; the 2027 row is pending because the
+	# 400M change exists only in a Government bill, not in the consolidated CIT Law (art. 29.1).
+	assert re_.resolve_parameter(parameters, "simplified.revenue_threshold", dt.date(2026, 7, 1)).status == "active"
 	with pytest.raises(re_.PendingRuleError) as exc:
-		re_.resolve_parameter(parameters, "cit.brackets", dt.date(2027, 3, 1))
-	assert exc.value.message_mn == mn.MSG_RULE_PENDING.format(key="cit.brackets", date="2027-03-01")
+		re_.resolve_parameter(parameters, "simplified.revenue_threshold", dt.date(2027, 3, 1))
+	assert exc.value.message_mn == mn.MSG_RULE_PENDING.format(
+		key="simplified.revenue_threshold", date="2027-03-01"
+	)
 	with pytest.raises(re_.PendingRuleError):
-		re_.resolve_parameter(parameters, "si.employer_rate", dt.date(2026, 3, 1))
+		re_.resolve_parameter(parameters, "emd.employee_rate", dt.date(2026, 3, 1))
 
 
 def test_missing_parameter_raises(parameters):

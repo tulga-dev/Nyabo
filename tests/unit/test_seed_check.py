@@ -95,7 +95,12 @@ def test_duplicate_pattern_id_and_bad_class(seed_check, seed_copy: Path):
 
 
 def test_verified_pattern_without_section_is_refused(seed_check, seed_copy: Path):
-	_edit(seed_copy, "posting_patterns", lambda d: d["rows"][0].update({"verified": True}))
+	def mutate(d):
+		row = d["rows"][0]
+		row["verified"] = True
+		row["citation"]["section"] = None
+
+	_edit(seed_copy, "posting_patterns", mutate)
 	problems = seed_check.run(seed_copy).problems
 	assert any("verified without a citation section" in p for p in problems)
 
@@ -106,7 +111,7 @@ def test_overlapping_and_malformed_tax_parameters(seed_check, seed_copy: Path):
 		threshold = [r for r in rows if r["key"] == "vat.registration_threshold"]
 		threshold[0]["effective_to"] = "2027-03-31"  # overlaps the 2027 row
 		rate = next(r for r in rows if r["key"] == "vat.rate")
-		rate["verified"] = True  # no source_url / article
+		rate.update({"verified": True, "source_url": None, "article": None})  # verified without provenance
 		pending = next(r for r in rows if r["status"] == "pending")
 		pending["value"] = {"x": 1}
 		rows.append(
