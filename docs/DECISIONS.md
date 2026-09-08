@@ -431,3 +431,41 @@ Whenever the two disagree, the pipeline is the authority: it is what reaches the
 Seven agents each numbered their decisions from D-017, so the log holds five different
 D-017s. Section headings disambiguate them for now; a citation in code or on a card must
 name the section as well as the number until they are renumbered.
+
+## review fixes (compliance + reports)
+
+### D-R01 The 1% summary resolves the regime's conditions, not only its rate
+`simplified_summary.compute` now resolves `simplified.requires_not_vat_registered`
+(CIT art. 29.3.1) and `simplified.revenue_threshold` (art. 29.1) on the quarter's last day
+before it computes anything, so the deliberately pending 2027 rows raise `PendingRuleError`
+instead of letting the verified open-ended rate print 1% of a quarter whose regime terms
+nobody knows. A company that is a VAT withholding payer on that date is refused
+(`MSG_SIMPLIFIED_NOT_ELIGIBLE_VAT`). The threshold is only *raised*: art. 29.1 rests on the
+confirmed prior-year return, which Nyabo does not hold, so the company's own prior-year
+revenue sets `needs_accountant` and a warning line instead of deciding eligibility.
+
+### D-R02 ERPNext's own Journal Entries carry a stamped primary document
+`require_primary_document` refused every entry ERPNext generates itself (depreciation —
+a daily scheduler job — asset disposal, exchange-rate revaluation, the gain/loss entry,
+opening entries, reversals), which have no Nyabo Document, no reference and no attachment.
+They are now stamped with `MSG_PRIMARY_DOCUMENT_SYSTEM_GENERATED` naming what produced
+them rather than skipped silently, so art. 13.7's trail stays on the document.
+
+### D-R03 The period lock reads the pattern from the entry, not only from the link
+`posting_pattern` is a Link, so it stays empty for a pattern that exists only in the seed
+file (a site whose rows were never synced) or was renamed. `unverified_proposals` now takes
+the id from `entry_json` when the link is empty and asks `rules.guard` the same question the
+posting guard asked (DocType row first, seed second); an id that resolves to nothing counts
+as unverified, because refusing is the safe default.
+
+### D-R04 A reversal is never reversed, and the refusal is Mongolian
+`reversal.is_reversal` refuses a document that already carries `reversal_of`, `is_return`
+or `nyabo_corrects` with `MSG_CORRECTION_IS_REVERSAL`; ERPNext refused it too, in English,
+which reached the accountant as the generic "error, admin notified".
+
+### D-R05 The month-end trial balance falls back on any report failure
+The documented fallback caught `DoesNotExistError` only, while the realistic failures are
+`frappe.PermissionError` (the Telegram user holds `Nyabo Accountant`, not `Accounts User`),
+a disabled report (`ValidationError`) and `FiscalYearError`. `trial_balance` now logs and
+falls back to the GL aggregation on any exception: `/хаалт` must not die on a report the
+app does not need.

@@ -268,6 +268,14 @@ MSG_PERIOD_REOPENED = "🔓 {period} сарыг дахин нээлээ. Шал�
 MSG_PERIOD_DELETE_BLOCKED = "Нябо-гоор хаасан тайлант үеийг ({name}) устгахгүй; шаардлагатай бол дахин нээнэ."
 MSG_POSTING_IN_CLOSED_PERIOD = "{date} огноо хаагдсан {period} сард байна. Бичилт хийх боломжгүй."
 MSG_CLOSE_SIMPLIFIED_MONTH_LINE = "• {month}: орлого {revenue}₮"
+MSG_SIMPLIFIED_NOT_ELIGIBLE_VAT = (
+	"Хялбаршуулсан 1%-ийн горим НӨАТ-ын суутган төлөгчид хамаарахгүй (ААНОАТ-ын тухай хууль 29.3.1); "
+	"улирлын тооцоог хийхгүй."
+)
+WARN_SIMPLIFIED_OVER_THRESHOLD = (
+	"⚠️ Өмнөх жилийн бүртгэлийн орлого {revenue}₮ нь хялбаршуулсан горимын босго {threshold}₮-өөс давсан "
+	"байна (ААНОАТ 29.1); горимд хамаарах эсэхийг нягтлан баталгаажуулна уу."
+)
 MSG_CLOSE_TRIAL_BALANCE_SOURCE_FALLBACK = (
 	"Гүйлгээ балансыг ерөнхий дэвтрийн бичилтээс шууд тооцов (ERPNext тайлан ашиглах боломжгүй)."
 )
@@ -557,6 +565,7 @@ LBL_CASH_RECEIPT = "Орлого"
 LBL_CASH_PAYMENT = "Зарлага"
 LBL_ROW_NO = "№"
 LBL_TAX_PARAMETER_ROW = "Татварын параметр"
+LBL_REGIME_CONDITION = "Горимын нөхцөл"
 LBL_VERIFIED = "Баталгаажсан"
 LBL_UNVERIFIED = "Баталгаажаагүй"
 LBL_SIMULATION = "Симуляц (баталгаажаагүй дүрэм)"

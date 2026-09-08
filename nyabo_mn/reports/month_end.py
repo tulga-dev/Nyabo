@@ -203,6 +203,8 @@ def summaries(company: str, period: str, *, simulation: bool = False) -> dict[st
 			)
 			for m in summary["months"]
 		)
+		# The regime's own conditions (art. 29.1) can only be raised, not settled, from our books.
+		text_lines.extend(summary["warnings"])
 		pdfs["simplified_summary"] = export.report_to_pdf(
 			"Nyabo Simplified Tax Summary",
 			{**filters, "simulation": 1 if simulation else 0},
