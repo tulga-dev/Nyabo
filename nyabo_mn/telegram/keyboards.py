@@ -2,7 +2,9 @@
 
 Buttons carry state, the model never writes them (principle 7). Callback data is a
 colon-separated tuple no longer than 64 bytes (Telegram's limit); ``encode`` asserts it so
-a long account code fails in a test, not in production. Layout rule: the primary action
+a long account code fails in a test, not in production. The one datum built from a document
+name a site can rename is the settlement button, and ``settle_row`` catches the refusal
+there rather than letting it take the card down with it. Layout rule: the primary action
 sits alone on the top row, then at most three buttons per row, so cards read the same
 on every phone width.
 """
