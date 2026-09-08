@@ -76,6 +76,22 @@ def import_statement(document_name: str) -> dict[str, Any]:
 	return _call("nyabo_mn.matching.bank_import", "import_statement", document_name)
 
 
+def bank_import_error() -> type[Exception]:
+	"""``bank_import.BankImportError``, resolved late like every other target here.
+
+	The importer raises it with a Mongolian message the accountant can act on (no bank
+	account configured, no lines, an unreadable file), so the handler shows that text
+	instead of the generic "admin notified" reply. ``ValueError`` (its base) stands in
+	when the matching package has not landed, which matches nothing the importer raises.
+	"""
+	try:
+		module = importlib.import_module("nyabo_mn.matching.bank_import")
+	except ImportError:
+		return ValueError
+	error = getattr(module, "BankImportError", None)
+	return error if isinstance(error, type) and issubclass(error, Exception) else ValueError
+
+
 def render_bank_line(bank_transaction: str) -> str:
 	return _call("nyabo_mn.matching.cards", "render_bank_line", bank_transaction)
 

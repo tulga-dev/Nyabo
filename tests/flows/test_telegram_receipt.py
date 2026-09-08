@@ -99,7 +99,7 @@ def test_image_document_is_a_receipt_and_spreadsheet_is_a_statement(company, mon
 	)
 	assert imported and frappe.get_doc("Nyabo Document", imported[0]).doc_type == "bank_statement"
 	assert mn.MSG_STATEMENT_RECEIVED in bot.texts()
-	assert "Khan Bank" in bot.last_text
+	assert mn.BANK_NAMES_MN["Khan Bank"] in bot.last_text  # Mongolian first (principle 7)
 
 
 def test_unsupported_document_and_too_large_file(company, monkeypatch):
