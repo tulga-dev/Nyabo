@@ -766,6 +766,13 @@ def _discard_payment_entry(name: str | None) -> None:
 	test harness has no real transaction, so the explicit cancel + delete is what makes the
 	invariant ("a failed settle leaves nothing behind") observable there. Any error here is
 	logged, never raised: the caller is already re-raising the real failure.
+
+	``nyabo_discarding`` is what lets the delete through ``compliance.hooks.block_delete_of_posted``:
+	``_stamp_settlement`` has already written ``nyabo_explanation``, so on a site with Nyabo's
+	own ``doc_events`` the guard refused this cleanup and the broad ``except`` below swallowed
+	the refusal, leaving a cancelled Payment Entry behind. It goes through ``delete_doc``'s
+	``flags`` parameter because ``delete_doc`` re-loads the document by name, so a flag set on
+	``doc`` here would never be seen by the handler.
 	"""
 	import frappe
 
@@ -778,7 +785,13 @@ def _discard_payment_entry(name: str | None) -> None:
 		doc.flags.ignore_permissions = True
 		if int(doc.docstatus or 0) == 1:
 			doc.cancel()
-		frappe.delete_doc("Payment Entry", name, ignore_permissions=True, force=True)
+		frappe.delete_doc(
+			"Payment Entry",
+			name,
+			ignore_permissions=True,
+			force=True,
+			flags={"nyabo_discarding": True},
+		)
 	except Exception as exc:  # noqa: BLE001 - cleanup must not mask the failure it is cleaning up
 		log_error("bank.settle_cleanup_failed", exc, payment_entry=name)
 

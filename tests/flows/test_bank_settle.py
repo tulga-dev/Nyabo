@@ -539,12 +539,14 @@ def test_a_closed_period_is_refused_in_mongolian(books, banks, as_user):
 	assert frappe.db.count("Payment Entry") == 0
 
 
-def test_a_failed_reconcile_leaves_no_payment_entry_behind(books, banks, as_user, monkeypatch):
-	"""S3: insert + submit + reconcile are one unit; a failure in the last undoes the first two."""
+def _assert_a_failed_reconcile_leaves_no_payment_entry(books, banks, as_user, monkeypatch) -> None:
+	"""The S3 invariant, asserted identically with and without Nyabo's own ``doc_events``."""
 	import frappe
 	from erpnext.accounts.utils import get_balance_on
 
-	pi = helpers.unpaid_purchase_invoice(books, "Петровис ХХК", 93500, "2026-09-01")
+	pi = helpers.unpaid_purchase_invoice(
+		books, "Петровис ХХК", 93500, "2026-09-01", nyabo_primary_document_ref="Нэхэмжлэх PET-1"
+	)
 	_import(books, fixtures.khan_xlsx)
 	bt = _bt(withdrawal=93500.0)
 	payable_before = get_balance_on(_payable(books), party_type="Supplier", party="Петровис ХХК")
@@ -566,6 +568,26 @@ def test_a_failed_reconcile_leaves_no_payment_entry_behind(books, banks, as_user
 	assert bt.status == "Unreconciled" and float(bt.unallocated_amount) == 93500.0
 	# And the line is settleable again: the failure left nothing that blocks a retry.
 	assert match.settlement_needed("Purchase Invoice", pi.name) is True
+
+
+def test_a_failed_reconcile_leaves_no_payment_entry_behind(books, banks, as_user, monkeypatch):
+	"""S3: insert + submit + reconcile are one unit; a failure in the last undoes the first two."""
+	_assert_a_failed_reconcile_leaves_no_payment_entry(books, banks, as_user, monkeypatch)
+
+
+def test_a_failed_reconcile_leaves_no_payment_entry_behind_under_the_guards(
+	guarded_books, as_user, monkeypatch
+):
+	"""K3: the same invariant in the only configuration a site ever has — doc_events ACTIVE.
+
+	``_discard_payment_entry`` cancels the Payment Entry and deletes it, but
+	``_stamp_settlement`` has already written ``nyabo_explanation``, so
+	``compliance.hooks.block_delete_of_posted`` refused the delete every single time. The
+	cleanup's own broad ``except`` swallowed the refusal, and a failed settle left a cancelled
+	Payment Entry in the books. The variant above could not see it: its fixture drops the hooks.
+	"""
+	books, banks = guarded_books
+	_assert_a_failed_reconcile_leaves_no_payment_entry(books, banks, as_user, monkeypatch)
 
 
 def test_a_bank_account_with_no_gl_account_is_refused(books, banks, as_user):

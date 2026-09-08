@@ -262,7 +262,22 @@ def guard_no_edit_after_submit(doc: Any, method: str | None = None) -> None:
 
 
 def block_delete_of_posted(doc: Any, method: str | None = None) -> None:
-	"""on_trash: a submitted or cancelled document Nyabo posted stays (art. 11.1)."""
+	"""on_trash: a submitted or cancelled document Nyabo posted stays (art. 11.1).
+
+	``doc.flags.nyabo_discarding`` is the single exception, and only
+	``matching.match._discard_payment_entry`` sets it: a settlement whose own transaction
+	failed, being undone inside the savepoint that failed. Nothing was shown to the
+	accountant and nothing outlives the rollback, so there is no record art. 11.1 protects —
+	while without the exception the cleanup could not run at all, because the settlement has
+	already stamped ``nyabo_explanation`` and the guard fired on every attempt.
+
+	The flag reaches this handler through ``frappe.delete_doc(..., flags={...})``, which
+	``update_flags`` applies to the freshly loaded document *before* ``doc.run_method(
+	"on_trash")`` (frappe/model/delete_doc.py, version-16) — setting it on the caller's own
+	copy would not, because ``delete_doc`` re-fetches the document by name.
+	"""
+	if doc.flags.get("nyabo_discarding"):
+		return
 	if int(doc.docstatus or 0) not in (1, 2):
 		return
 	if has_nyabo_trail(doc):
