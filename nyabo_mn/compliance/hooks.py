@@ -35,6 +35,21 @@ RETAINED_PARENTS: dict[str, str] = {
 	"Sales Invoice": "nyabo_retain_until",
 }
 PRIMARY_DOCUMENT_DOCTYPES: frozenset[str] = frozenset({"Purchase Invoice", "Journal Entry"})
+# Journal Entries ERPNext builds and submits itself: asset depreciation and disposal
+# (erpnext/assets/doctype/asset/depreciation.py, a daily scheduler job), exchange-rate
+# revaluation and its gain/loss entry (erpnext/accounts/utils.py), and opening entries.
+# They carry no Nyabo Document, no written reference and no attachment, so the art. 13.7
+# rule would refuse a posting no human made; their primary document is ERPNext's own
+# register or calculation sheet, which is stamped on the entry instead.
+SYSTEM_GENERATED_VOUCHER_TYPES: frozenset[str] = frozenset(
+	{
+		"Depreciation Entry",
+		"Asset Disposal",
+		"Exchange Rate Revaluation",
+		"Exchange Gain Or Loss",
+		"Opening Entry",
+	}
+)
 
 
 def retention_years(on_date: dt.date | str | None = None) -> int:
@@ -109,11 +124,38 @@ def _has_attachment(doc: Any) -> bool:
 	)
 
 
+def system_generated_source(doc: Any) -> str | None:
+	"""What ERPNext generated this Journal Entry from, or None when a person made it.
+
+	``is_system_generated`` is set only on the Exchange Gain Or Loss entries, so the
+	voucher type carries the rest (depreciation, disposal, revaluation, opening); a
+	reversal is generated from the entry it reverses.
+	"""
+	if doc.doctype != "Journal Entry":
+		return None
+	if doc.get("reversal_of"):
+		return str(doc.get("reversal_of"))
+	voucher_type = (doc.get("voucher_type") or "").strip()
+	if int(doc.get("is_system_generated") or 0) or voucher_type in SYSTEM_GENERATED_VOUCHER_TYPES:
+		return voucher_type or doc.doctype
+	return None
+
+
 def require_primary_document(doc: Any, method: str | None = None) -> None:
-	"""before_submit: a Nyabo Document, a written reference or an attached File (art. 13.7)."""
+	"""before_submit: a Nyabo Document, a written reference or an attached File (art. 13.7).
+
+	An entry ERPNext generated itself (depreciation, revaluation, a reversal) has none of
+	the three and no human to ask, so instead of breaking the ERPNext feature the handler
+	writes what produced it into ``nyabo_primary_document_ref``: the trail art. 13.7 wants
+	stays on the document, and the entry says in Mongolian that no person filed a receipt.
+	"""
 	if doc.doctype not in PRIMARY_DOCUMENT_DOCTYPES:
 		return
 	if doc.get("source_document") or (doc.get("nyabo_primary_document_ref") or "").strip():
+		return
+	source = system_generated_source(doc)
+	if source:
+		doc.nyabo_primary_document_ref = mn.MSG_PRIMARY_DOCUMENT_SYSTEM_GENERATED.format(source=source)
 		return
 	if _has_attachment(doc):
 		return
