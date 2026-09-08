@@ -203,22 +203,16 @@ def test_a_qr_never_contradicts_the_vision_answer(run_receipt, monkeypatch):
 	proposal = run_receipt("petrovis_fuel")
 	assert proposal.total == 85000.0
 	assert mn.WARN_QR_VISION_MISMATCH not in json.loads(proposal.warnings_json)
-	assert (
-		pipeline._qr_vision_mismatch(
-			"12345",
-			pipeline.Receipt(
-				**{
-					"seller_name": "Петровис ХХК",
-					"seller_tin": None,
-					"seller_register_no": None,
-					"date": None,
-					"total": Decimal("85000"),
-					"vat_amount": None,
-				}
-			),
-		)
-		is False
+	read = pipeline.Receipt(
+		seller_name="Петровис ХХК",
+		seller_tin=None,
+		seller_register_no=None,
+		date=None,
+		total=Decimal("85000"),
+		vat_amount=None,
 	)
+	assert pipeline._qr_vision_mismatch("12345", read) is False
+	assert pipeline._qr_vision_mismatch(None, read) is False
 
 
 def test_missing_date_uses_today_and_warns(run_receipt):
