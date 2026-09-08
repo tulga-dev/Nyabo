@@ -120,8 +120,9 @@ exchange-rate provider, item tax templates on invoice rows, "On Previous Row" ch
 `erpnext/accounts/doctype/bank_transaction/bank_transaction.py`, read 2026-09-08. The
 stub keeps the method bodies; only the two SQL helpers (`get_total_allocated_amount`,
 `get_related_bank_gl_entries`) are re-expressed as loops over the in-memory tables.
+(Plain fence on purpose: ruff formats ```python blocks in Markdown and this is a quote.)
 
-```python
+```
 def add_payment_entries(self, vouchers, is_new_voucher: bool = False):
 	"""
 	Add the vouchers with zero allocation. Save() will perform the allocations and clearance
