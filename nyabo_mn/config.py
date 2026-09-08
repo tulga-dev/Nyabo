@@ -159,6 +159,11 @@ def get_settings() -> Settings:
 
 
 def check() -> dict[str, Any]:
-	"""bench --site <site> execute nyabo_mn.config.check"""
+	"""Which features are configured, with every secret redacted.
+
+	``bench --site <site> execute nyabo_mn.config.check``. A Frappe Cloud site on the
+	plans Nyabo targets has no shell, so ``nyabo_mn.api.config_check`` exposes the same
+	answer to a System Manager from the desk console.
+	"""
 	settings = get_settings()
 	return {"missing_by_feature": settings.report(), "values": settings.redacted()}

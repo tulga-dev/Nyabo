@@ -36,6 +36,17 @@ Check what is set (values are redacted):
 bench --site nyabo.s.frappe.cloud execute nyabo_mn.config.check
 ```
 
+A Frappe Cloud site has no shell on the plans Nyabo targets. From the desk instead: log in
+as a System Manager, press **F12**, open the **Console** tab and paste
+
+```javascript
+frappe.call("nyabo_mn.api.config_check").then(r => console.log(r.message))
+```
+
+You should see: `missing_by_feature` empty for `telegram` and `llm`, and every secret shown
+as `<set>` rather than its value. `frappe.call("nyabo_mn.api.readiness")` prints the
+compliance readiness table the same way.
+
 ## 3. Telegram webhook
 
 Run once after the first deploy, and again if you regenerate the bot token or the secret:

@@ -217,6 +217,16 @@ the key. Check with:
 bench --site nyabo.s.frappe.cloud execute nyabo_mn.config.check
 ```
 
+Without a bench shell, do the same from the desk: log in as a System Manager, press **F12**,
+open the **Console** tab and paste
+
+```javascript
+frappe.call("nyabo_mn.api.config_check").then(r => console.log(r.message))
+```
+
+You should see: an object whose `missing_by_feature.telegram` and `.llm` are empty, with
+every secret shown as `<set>`.
+
 Secrets are never committed and never logged. A GitHub Actions secret is not visible to
 Frappe Cloud; the key has to be in Site Config.
 
