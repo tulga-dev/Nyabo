@@ -498,3 +498,38 @@ MATCH_REASON_TRANSFER = "өөрийн дансууд хоорондын шилж
 MATCH_REASON_NONE = "тохирох баримт олдсонгүй"
 MATCH_REASON_AMBIGUOUS = "хэд хэдэн баримт адилхан тохирч байна; нягтлан сонгоно"
 MATCH_REASON_LOW_SCORE = "хамгийн ойрын баримт {score}% тохирч байна (босго {threshold}%)"
+
+# --- matching (parsers, bank import, rules, cards, status) ----------------------------------------
+MSG_STATEMENT_FILE_XLS_UNSUPPORTED = (
+	"Хуучин .xls форматыг уншиж чадахгүй. Excel-д нээж .xlsx болгон хадгалаад дахин илгээнэ үү."
+)
+MSG_STATEMENT_FILE_UNREADABLE = "«{filename}» файлыг уншиж чадсангүй. .xlsx эсвэл .csv файл илгээнэ үү."
+MSG_STATEMENT_NOT_A_STATEMENT = "Энэ баримт банкны хуулга биш байна."
+MSG_STATEMENT_NO_LINES = "Хуулгаас гүйлгээ олдсонгүй."
+MSG_STATEMENT_BANK_UNKNOWN = "Хуулгын банк тодорхойгүй байна; форматыг зааж өгнө үү."
+MSG_LAYOUT_BAD_JSON = "«{field}» талбар зөв JSON биш байна."
+MSG_LAYOUT_ROLE_UNKNOWN = "«{role}» баганын үүрэг танигдахгүй байна. Зөвшөөрөгдөх: {roles}"
+MSG_LAYOUT_NEEDS_DATE_DESCRIPTION = "Баганын зураглалд огноо болон гүйлгээний утгын багана заавал байна."
+MSG_LAYOUT_AMOUNT_STYLE_MISMATCH = "Дүнгийн хэлбэр «{style}» баганын зураглалтай тохирохгүй байна."
+MSG_LAYOUT_VERIFY_NEEDS_COLUMNS = (
+	"Толгойн гарын үсэг болон баганын зураглалгүй загварыг баталгаажуулж болохгүй."
+)
+MSG_LAYOUT_BAD_DATE_FORMAT = "Огнооны формат «{fmt}» буруу байна."
+MSG_LAYOUT_LEARNED_NOTE = "{company} компанийн {document} хуулгаас нягтлангийн зааснаар сурсан формат."
+MSG_BANK_LINE_ALREADY_RECONCILED = "Энэ гүйлгээ аль хэдийн тулгагдсан байна."
+MSG_BANK_VOUCHER_NOT_FOUND = "{doctype} {name} олдсонгүй."
+MSG_BANK_VOUCHER_NOT_ALLOWED = "{doctype} төрлийн баримтыг банкны гүйлгээтэй тулгах боломжгүй."
+MSG_BANK_TRANSACTION_NOT_FOUND = "Банкны гүйлгээ {name} олдсонгүй."
+EXPL_BANK_FEE = "Банкны хураамж тул {debit_code} дебетлэж, банкны данс {credit_code} кредитлэв."
+EXPL_BANK_LINE_EXPENSE = (
+	"«{description}» гүйлгээг {debit_code} дансанд бүртгэж, банкны данс {credit_code} кредитлэв."
+)
+EXPL_BANK_LINE_INCOME = "«{description}» орлогыг банкны данс {debit_code} дебетлэж, {credit_code} кредитлэв."
+EXPL_BANK_TRANSFER = "Өөрийн дансууд хоорондын шилжүүлэг: {debit_code} дебет, {credit_code} кредит."
+WARN_BANK_LINE_LLM_UNAVAILABLE = "Ангилал хийх боломжгүй тул үндсэн зардлын дансыг санал болгов."
+WARN_BANK_LINE_INCOME_UNCLASSIFIED = "Орлогын гүйлгээ тул нягтлан дансыг сонгоно."
+CARD_BANK_UNMATCHED = "❔ Тулгаагүй"
+CARD_BANK_TRANSFER = "🔁 Шилжүүлэг: {from_account} → {to_account}"
+CARD_BANK_CANDIDATE = "{index}. {doctype} {name} · {date} · {amount}₮ · {party}"
+CARD_BANK_REASON = "Шалтгаан: {reason}"
+MSG_RECON_AS_OF = "{date}-ны байдлаар"

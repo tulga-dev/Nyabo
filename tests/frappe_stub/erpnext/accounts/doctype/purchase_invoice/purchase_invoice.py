@@ -45,10 +45,13 @@ class PurchaseInvoice(AccountsController):
 	def set_paid_amounts(self) -> None:
 		"""Stub reduction of calculate_taxes_and_totals' paid-amount branch: base_paid_amount and
 		outstanding follow paid_amount so a cash/bank-paid invoice shows as Paid after submit."""
-		self.base_paid_amount = flt(flt(self.paid_amount) * flt(self.conversion_rate), self.precision("base_paid_amount"))
+		self.base_paid_amount = flt(
+			flt(self.paid_amount) * flt(self.conversion_rate), self.precision("base_paid_amount")
+		)
 		if self.docstatus == 0:
 			self.outstanding_amount = flt(
-				flt(self.outstanding_amount) - flt(self.base_paid_amount), self.precision("outstanding_amount")
+				flt(self.outstanding_amount) - flt(self.base_paid_amount),
+				self.precision("outstanding_amount"),
 			)
 
 	def set_missing_values(self) -> None:
