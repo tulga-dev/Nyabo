@@ -202,6 +202,34 @@ def test_unmatched_expense_line_is_classified_by_the_mock_under_simulation(
 	assert entry["lines"][0]["account_code"] == "1120" and entry["lines"][0]["debit"] == "1250000.00"
 
 
+def test_unmatched_lines_are_carded_into_the_statement_chat(books, banks):
+	"""Every unmatched line reaches the accountant as a card (ARCHITECTURE §5.4)."""
+	import frappe
+
+	from nyabo_mn.telegram import api
+	from tests.fixtures.telegram.fake_bot import FakeBotApi
+
+	filename, data = fixtures.khan_xlsx()
+	document = helpers.statement_document(books, filename, data)
+	frappe.db.set_value("Nyabo Document", document, "telegram_chat_id", "3101")
+	bot = FakeBotApi()
+	with api.use_bot(bot):
+		summary = bank_import.import_statement(document)
+	assert summary["match"]["unmatched"] == 4 and summary["match"]["cards_sent"] == 4
+	sent = bot.sent("send_message")
+	assert len(sent) == 4 and {call["chat_id"] for call in sent} == {"3101"}
+	assert mn.CARD_BANK_UNMATCHED in sent[0]["text"]
+	buttons = [b["callback_data"] for row in sent[0]["reply_markup"]["inline_keyboard"] for b in row]
+	assert any(data.endswith(":find") for data in buttons)
+
+	# No chat to send to: the line is still counted, the import is not rolled back.
+	second = helpers.statement_document(books, *fixtures.tdb_xlsx())
+	bot.clear()
+	with api.use_bot(bot):
+		other = bank_import.import_statement(second)
+	assert other["match"]["cards_sent"] == 0 and bot.calls == []
+
+
 def test_bank_line_patterns_exist_and_stop_at_the_unverified_gate(books, banks):
 	"""Both bank pattern ids resolve to a row an admin can verify (ARCHITECTURE §1.2)."""
 	import frappe
