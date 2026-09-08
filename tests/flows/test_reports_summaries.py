@@ -173,3 +173,29 @@ def test_report_to_xlsx_round_trips(books):
 	rows = [list(r) for r in sheet.iter_rows(values_only=True)]
 	assert rows[0][:2] == [mn.COL_DATE, mn.COL_VOUCHER_TYPE]
 	assert len(rows) == 3 and {r[1] for r in rows[1:]} == {"Purchase Invoice", "Sales Invoice"}
+
+
+def test_trial_balance_falls_back_when_the_erpnext_report_refuses(books, monkeypatch):
+	"""F7: ERPNext raises PermissionError / ValidationError, not DoesNotExistError — still a GL fallback.
+
+	The Telegram user holds only ``Nyabo Accountant``, so ``get_report_doc("Trial Balance")``
+	throws ``frappe.PermissionError``; a site whose Fiscal Year does not reach the period
+	raises ``FiscalYearError`` (a ``ValidationError``). Neither may break ``/хаалт``.
+	"""
+	from erpnext.accounts import utils as erpnext_utils
+	from frappe.desk import query_report
+
+	def _refuse(*args, **kwargs):
+		raise frappe.PermissionError("You don't have access to Report: Trial Balance")
+
+	monkeypatch.setattr(query_report, "run", _refuse)
+	tb = month_end.trial_balance(books, "2026-03")
+	assert tb["source"] == "gl_entry" and tb["debit"] == tb["credit"] == Decimal("363500.00")
+	assert tb["note"] == mn.MSG_CLOSE_TRIAL_BALANCE_SOURCE_FALLBACK
+
+	def _no_fiscal_year(*args, **kwargs):
+		raise erpnext_utils.FiscalYearError("2026-03-31 is not in any active Fiscal Year")
+
+	monkeypatch.setattr(erpnext_utils, "get_fiscal_year", _no_fiscal_year)
+	fallback = month_end.trial_balance(books, "2026-03")
+	assert fallback["source"] == "gl_entry" and fallback["rows"]

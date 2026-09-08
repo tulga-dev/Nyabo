@@ -101,7 +101,16 @@ def _trial_balance_from_gl(company: str, start: dt.date, end: dt.date) -> dict[s
 
 
 def trial_balance(company: str, period: str) -> dict[str, Any]:
-	"""{debit, credit, rows, source}: ERPNext's Trial Balance when available, else GL aggregation."""
+	"""{debit, credit, rows, source}: ERPNext's Trial Balance when available, else GL aggregation.
+
+	Any failure of the ERPNext report falls back to the GL aggregation and is logged: the
+	report is a convenience, not a dependency, and the close must not die on it. The
+	realistic failures are not import errors — ``get_report_doc`` throws
+	``frappe.PermissionError`` for a user holding only ``Nyabo Accountant`` (the Trial
+	Balance report is restricted to the Accounts roles), ``frappe.ValidationError`` when
+	the report is disabled, and ``get_fiscal_year`` raises ``FiscalYearError``
+	(a ``ValidationError``) when no Fiscal Year covers the period.
+	"""
 	start, end = gl.range_of(period)
 	try:
 		from erpnext.accounts.utils import get_fiscal_year
@@ -118,7 +127,10 @@ def trial_balance(company: str, period: str) -> dict[str, Any]:
 			},
 			ignore_prepared_report=True,
 		)
-	except (frappe.DoesNotExistError, NotImplementedError, ImportError):
+	except Exception as exc:  # noqa: BLE001 - the close falls back rather than failing
+		from nyabo_mn.log import log_error
+
+		log_error("month_end.trial_balance_fallback", exc, company=company, period=period)
 		return _trial_balance_from_gl(company, start, end)
 	rows: list[dict[str, Any]] = []
 	for row in result.get("result") or []:
