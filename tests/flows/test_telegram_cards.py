@@ -71,6 +71,34 @@ def test_receipt_card_accepts_json_strings_and_erpnext_account_names():
 	assert mn.VERIFICATION_SELLER_NOT_FOUND in text
 
 
+def test_verification_reads_the_shape_the_pipeline_actually_writes():
+	"""``agent.pipeline`` stores ``{"seller": ..., "receipt": ..., "qr_data": ...}``.
+
+	Reading only the flat test shape made every real card say «Худалдагч бүртгэлд алга»
+	even when the ebarimt registry had found the seller, and the QR wording was dead code.
+	"""
+	found = {
+		"seller": {"name": "Петровис ХХК", "tin": "37200019261", "vat_payer": True, "found": True},
+		"receipt": {"status": "unsupported", "reason": mn.VERIFICATION_RECEIPT_UNCHECKED},
+		"qr_data": "00099000000000000000000000",
+	}
+	assert cards.verification_text(found) == (
+		f"{mn.VERIFICATION_SELLER_OK} · {mn.VERIFICATION_RECEIPT_UNCHECKED} · {mn.VERIFICATION_QR_FOUND}"
+	)
+	no_qr = {**found, "qr_data": None}
+	assert cards.verification_text(no_qr).endswith(mn.VERIFICATION_QR_MISSING)
+	unknown_seller = {"seller": {"found": False, "vat_payer": None}, "receipt": {"status": "unsupported"}}
+	assert cards.verification_text(unknown_seller) == (
+		f"{mn.VERIFICATION_SELLER_NOT_FOUND} · {mn.VERIFICATION_RECEIPT_UNCHECKED}"
+	)
+	# a card built without a QR attempt (bank line, hand-made proposal) says nothing about one
+	assert "QR" not in cards.verification_text({"seller_found": True, "status": "unsupported"})
+	assert "QR" not in cards.verification_text(None)
+	assert cards.verification_text({"seller_found": True, "status": "verified"}) == (
+		mn.VERIFICATION_SELLER_OK
+	)
+
+
 def test_posted_and_rejected_footers():
 	assert cards.posted_card(SAMPLE, "ACC-JV-2026-00001", "Сараа").endswith(
 		mn.MSG_POSTED_CARD_FOOTER.format(doc_name="ACC-JV-2026-00001", approver="Сараа")

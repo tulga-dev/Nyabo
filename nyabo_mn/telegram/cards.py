@@ -81,15 +81,34 @@ def _vat_rate_percent(total: Decimal, vat: Decimal, explicit: Any) -> str:
 
 
 def verification_text(verification: dict[str, Any] | None) -> str:
-	"""ARCHITECTURE §7: never "ebarimt ✓"; seller-found wording plus the receipt status."""
+	"""ARCHITECTURE §7: never "ebarimt ✓"; seller-found wording plus the receipt status.
+
+	Two shapes reach this function and both must be read: the pipeline writes
+	``{"seller": SellerInfo, "receipt": ReceiptVerification, "qr_data": str | None}`` on the
+	proposal, while cards built by hand pass the flat ``{"seller_found": ..., "status": ...}``.
+	Reading only the flat one made every real receipt card say «Худалдагч бүртгэлд алга»
+	even when the registry had found the seller.
+
+	The QR wording is appended only when the pipeline actually tried to decode one (the
+	``qr_data`` key is present): «QR уншсан» when it read, «QR олдсонгүй» when it did not,
+	so the accountant knows whether the paper carried a machine-readable ebarimt code.
+	"""
 	verification = verification or {}
+	seller = verification.get("seller") or {}
+	receipt = verification.get("receipt") or {}
 	seller_found = bool(
-		verification.get("seller_found") or verification.get("vat_payer") or verification.get("found")
+		verification.get("seller_found")
+		or verification.get("vat_payer")
+		or verification.get("found")
+		or seller.get("found")
+		or seller.get("vat_payer")
 	)
-	seller = mn.VERIFICATION_SELLER_OK if seller_found else mn.VERIFICATION_SELLER_NOT_FOUND
-	if verification.get("status") == "verified":
-		return seller
-	return f"{seller} · {mn.VERIFICATION_RECEIPT_UNCHECKED}"
+	parts = [mn.VERIFICATION_SELLER_OK if seller_found else mn.VERIFICATION_SELLER_NOT_FOUND]
+	if (receipt.get("status") or verification.get("status")) != "verified":
+		parts.append(mn.VERIFICATION_RECEIPT_UNCHECKED)
+	if "qr_data" in verification:
+		parts.append(mn.VERIFICATION_QR_FOUND if verification.get("qr_data") else mn.VERIFICATION_QR_MISSING)
+	return " · ".join(parts)
 
 
 def account_reason(proposal: dict[str, Any]) -> str:

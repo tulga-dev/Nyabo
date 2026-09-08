@@ -105,7 +105,22 @@ def loads(value: Any) -> Any:
 
 
 def _today(now: dt.datetime | None) -> dt.date:
-	return (now or dt.datetime.now(dt.timezone.utc)).date()
+	"""The site's calendar day, or the day of a clock the caller pinned.
+
+	Not ``datetime.now(UTC).date()``: Улаанбаатар is UTC+8, so between 08:00 UTC and
+	midnight the UTC day is yesterday there. A receipt with no readable date would then be
+	booked one day back — on the 1st of a month, into the previous (possibly closed)
+	period. ``frappe.utils.today()`` is the site's time zone; the UTC fallback is for the
+	simulator, which runs without a site.
+	"""
+	if now is not None:
+		return now.date()
+	try:
+		import frappe
+
+		return dt.date.fromisoformat(str(frappe.utils.today()))
+	except Exception:  # noqa: BLE001 - no site (simulator, unit tests): UTC is close enough there
+		return dt.datetime.now(dt.timezone.utc).date()
 
 
 def _simulation() -> bool:
@@ -544,9 +559,21 @@ def _confidence_warnings(receipt: Receipt, printed_vat: Decimal) -> list[str]:
 
 
 def _qr_vision_mismatch(qr_data: str | None, receipt: Receipt) -> bool:
-	"""The QR payload is opaque (ARCHITECTURE §2): nothing in it can be compared with the
-	vision fields today, so no mismatch is ever asserted. Kept as the single place to
-	extend when the payload format is documented."""
+	"""Always False: a QR/vision disagreement cannot be detected with what the QR carries.
+
+	Recorded deviation from ARCHITECTURE §5.3 step 7, which lists "a QR/vision
+	disagreement" among the triggers of ``needs_accountant``. Detecting one needs a field
+	in the QR that the vision answer can contradict — a total, a date, a receipt id. The
+	ebarimt QR carries an opaque numeric ``qrData`` string (§2, §7) with no documented
+	layout and no buyer-side endpoint to resolve it, so there is nothing to compare and
+	``WARN_QR_VISION_MISMATCH`` never fires. The comparison is deliberately not guessed:
+	inventing a parse of an undocumented payload would flag honest receipts.
+
+	This stays the single place to implement it once the payload format (or a buyer-side
+	verification endpoint) is published; the string and the warning path are kept so that
+	change is one function body. ``tests/flows/test_pipeline_receipt.py`` pins the current
+	behaviour so the deviation cannot become an accident.
+	"""
 	del qr_data, receipt
 	return False
 
@@ -666,6 +693,7 @@ def _run(
 	company = document.company
 	settings_row = company_settings(company)
 	site_settings = _settings_obj()
+	pinned = now  # None unless the caller fixed the clock (tests, simulator); see _today
 	now = now or dt.datetime.now(dt.timezone.utc)
 	warnings: list[str] = []
 	needs_accountant = False
@@ -706,7 +734,7 @@ def _run(
 	# Dates and regime
 	posting_date = receipt.date
 	if posting_date is None:
-		posting_date = _today(now)
+		posting_date = _today(pinned)
 		warnings.append(mn.MSG_DATE_DEFAULTED_TODAY)
 		needs_accountant = True
 	ctx = regime_context(company, posting_date)
