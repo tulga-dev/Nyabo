@@ -143,7 +143,13 @@ ONB_INVENTORY_HOW = (
 )
 ONB_INVENTORY_PARSED = "📦 {count} бараа · нийт {total}₮. Зөв үү?"
 ONB_INVENTORY_POSTED = "✅ Бараа материалын үлдэгдлийг бүртгэлээ: {docs}"
+# SEC-09: the reader never sees a raw exception. {error} takes a Mongolian sentence Nyabo
+# itself wrote; a parser or library message goes to the log instead (ONB_INVENTORY_PARSE_FAILED).
 ONB_INVENTORY_PARSE_ERROR = "Жагсаалтыг уншиж чадсангүй: {error}"
+ONB_INVENTORY_PARSE_FAILED = (
+	"Жагсаалтыг уншиж чадсангүй. Excel/CSV файлын баганууд (нэр, тоо, нэгж үнэ) эсвэл "
+	"мөр бүрт `нэр, тоо, үнэ` хэлбэртэй эсэхийг шалгаад дахин илгээнэ үү."
+)
 ONB_ASK_ACCOUNTANT_NAME = "Нягтлан бодогчийн овог нэр:"
 ONB_ASK_MICPA = "МНБИ-ийн зөвшөөрлийн дугаар (байхгүй бол Алгасах):"
 ONB_DONE = (
@@ -920,6 +926,8 @@ ONB_BANK_TOGGLE_ON = "✅ {bank}"
 ONB_BANK_TOGGLE_OFF = "☐ {bank}"
 ONB_CURRENCY_OTHER = "Бусад валют"
 ONB_ASK_CURRENCY_CODE = "Валютын кодоо бичнэ үү (жишээ: CNY, EUR):"
+ONB_CURRENCY_ADDED = "✅ {currency} валютыг нэмлээ. Хасах бол доорх товчийг дахин дарна уу."
+ONB_CURRENCY_CODE_INVALID = "Валютын код гурван латин үсэг байна (жишээ: CNY, EUR). Дахин оролдоно уу."
 ONB_CONFIRM_SUMMARY = "Дээрх мэдээлэл зөв үү?"
 CARD_BANK_CANDIDATE = "{index}. {voucher} · {date} · {amount}₮ · {party}"
 MSG_BANK_EXPENSE_CHOOSE_ACCOUNT = "Энэ гүйлгээг аль дансанд бүртгэх вэ?"

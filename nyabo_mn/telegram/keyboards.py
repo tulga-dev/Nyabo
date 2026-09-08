@@ -173,15 +173,26 @@ def onboarding_banks(selected: Sequence[str]) -> dict[str, Any]:
 	)
 
 
-def onboarding_currencies(selected: Sequence[str]) -> dict[str, Any]:
+OFFERED_CURRENCIES = ("MNT", "USD")
+
+
+def onboarding_currencies(selected: Sequence[str], custom: Sequence[str] = ()) -> dict[str, Any]:
+	"""Toggles for MNT/USD plus every code the accountant typed under [Бусад валют].
+
+	UX-11: a typed code used to be stored and never drawn, so the accountant had no
+	confirmation it registered and no way to take it off again. It is now one more toggle,
+	and it stays on the keyboard after being switched off so it can be switched back on —
+	``_on_currency`` already toggles whatever value it is handed.
+	"""
+	extra = [c for c in dict.fromkeys([*custom, *selected]) if c not in OFFERED_CURRENCIES]
 	buttons = []
-	for currency in ("MNT", "USD"):
+	for currency in (*OFFERED_CURRENCIES, *extra):
 		label = (mn.ONB_BANK_TOGGLE_ON if currency in selected else mn.ONB_BANK_TOGGLE_OFF).format(
 			bank=currency
 		)
 		buttons.append(button(label, encode(PREFIX_ONBOARDING, "cur", currency)))
 	buttons.append(button(mn.ONB_CURRENCY_OTHER, encode(PREFIX_ONBOARDING, "cur", "other")))
-	return markup(buttons, [button(mn.BTN_DONE, encode(PREFIX_ONBOARDING, "cur", "done"))])
+	return markup(*rows(buttons), [button(mn.BTN_DONE, encode(PREFIX_ONBOARDING, "cur", "done"))])
 
 
 def onboarding_skip(step: str) -> dict[str, Any]:

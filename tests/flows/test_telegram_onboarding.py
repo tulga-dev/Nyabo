@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import logging
 
 import frappe
 
@@ -168,9 +169,66 @@ def test_text_during_button_step_repeats_question(company):
 	assert bot.last_text == mn.ONB_ASK_VAT and bot.callback_datas() == ["o:vat:yes", "o:vat:no"]
 
 
-def test_onboarding_with_unparseable_inventory(company, monkeypatch):
+def test_custom_currency_is_shown_and_can_be_removed(company):
+	"""UX-11: a typed code used to be stored, never drawn, and impossible to take off."""
+	link_user(9005, "Accountant", company)
+	uid = 9005
+	bot = FakeBotApi()
+	run(bot, message_update(uid, "/эхлэх"))
+	run(bot, callback_update(uid, "o:vat:no"))
+	run(bot, callback_update(uid, "o:400m:yes"))
+	run(bot, callback_update(uid, "o:banks:Khan_Bank"))
+	run(bot, callback_update(uid, "o:banks:done"))
+	run(bot, callback_update(uid, "o:cur:MNT"))
+
+	run(bot, callback_update(uid, "o:cur:other"))
+	assert bot.last_text == mn.ONB_ASK_CURRENCY_CODE
+	run(bot, message_update(uid, " cny "))
+	assert mn.ONB_CURRENCY_ADDED.format(currency="CNY") in bot.last_text
+	labels = [b["text"] for row in bot.last_markup()["inline_keyboard"] for b in row]
+	assert mn.ONB_BANK_TOGGLE_ON.format(bank="CNY") in labels
+	assert "o:cur:CNY" in bot.callback_datas()
+
+	# The same tap that adds a currency takes it away again, and the toggle stays on the
+	# keyboard so it can be switched back on.
+	run(bot, callback_update(uid, "o:cur:CNY"))
+	markup = bot.sent("edit_message_reply_markup")[-1]["reply_markup"]
+	labels = [b["text"] for row in markup["inline_keyboard"] for b in row]
+	assert mn.ONB_BANK_TOGGLE_OFF.format(bank="CNY") in labels
+	run(bot, callback_update(uid, "o:cur:CNY"))
+	run(bot, callback_update(uid, "o:cur:done"))
+	assert bot.last_text == mn.ONB_ASK_ACCOUNT_NUMBER.format(bank="Khan Bank", currency="MNT")
+
+	# …and the code reaches the summary the accountant confirms.
+	run(bot, callback_update(uid, "o:acct:skip"))
+	run(bot, callback_update(uid, "o:acct:skip"))
+	run(bot, callback_update(uid, "o:inv:no"))
+	run(bot, message_update(uid, "Дорж"))
+	run(bot, callback_update(uid, "o:micpa:skip"))
+	assert "Khan Bank (MNT/CNY)" in bot.last_text
+
+
+def test_custom_currency_refuses_a_code_that_is_not_three_latin_letters(company):
+	"""The code goes into colon-separated callback data; only ISO-4217 shapes are accepted."""
+	link_user(9006, "Accountant", company)
+	uid = 9006
+	bot = FakeBotApi()
+	run(bot, message_update(uid, "/эхлэх"))
+	run(bot, callback_update(uid, "o:vat:no"))
+	run(bot, callback_update(uid, "o:400m:yes"))
+	run(bot, callback_update(uid, "o:banks:Khan_Bank"))
+	run(bot, callback_update(uid, "o:banks:done"))
+	run(bot, callback_update(uid, "o:cur:other"))
+	run(bot, message_update(uid, "юань:1"))
+	assert mn.ONB_CURRENCY_CODE_INVALID in bot.last_text
+	assert all(":" not in data.split(":", 2)[-1] for data in bot.callback_datas())
+
+
+def test_onboarding_with_unparseable_inventory(company, monkeypatch, caplog):
+	detail = "openpyxl: /tmp/upload/inventory.xlsx sheet 'Лист1' row 1 broken"
+
 	def bad(text):
-		raise ValueError("мөр 1: дүн уншигдсангүй")
+		raise ValueError(detail)
 
 	monkeypatch.setattr(_deps, "inventory_parse_text", bad)
 	link_user(9004, "Accountant", company)
@@ -180,6 +238,11 @@ def test_onboarding_with_unparseable_inventory(company, monkeypatch):
 	run(bot, callback_update(9004, "o:400m:yes"))
 	run(bot, callback_update(9004, "o:banks:done"))
 	run(bot, callback_update(9004, "o:inv:yes"))
-	run(bot, message_update(9004, "хор, зургаа, их"))
-	assert bot.last_text == mn.ONB_INVENTORY_PARSE_ERROR.format(error="мөр 1: дүн уншигдсангүй")
+	with caplog.at_level(logging.ERROR, logger="frappe.nyabo"):
+		run(bot, message_update(9004, "хор, зургаа, их"))
+	# SEC-09: the reader gets the Mongolian instruction, never the parser's own words.
+	assert bot.last_text == mn.ONB_INVENTORY_PARSE_FAILED
+	assert detail not in "\n".join(bot.texts())
+	# …and the detail an admin needs is in the log.
+	assert "telegram.onboarding.inventory_parse_failed" in caplog.text and detail in caplog.text
 	assert _state(9004) == "onb:inv_wait"
