@@ -18,7 +18,7 @@ import frappe
 
 from nyabo_mn.config import get_settings
 from nyabo_mn.i18n import mn
-from nyabo_mn.log import log_error, log_event
+from nyabo_mn.log import log_error, log_event, scrub
 from nyabo_mn.telegram import api, keyboards
 from nyabo_mn.telegram import state as chat_state
 from nyabo_mn.telegram._deps import DependencyMissing
@@ -114,7 +114,9 @@ def handle_update(update: dict[str, Any]) -> dict[str, Any]:
 		notify_admins(
 			bot,
 			settings,
-			mn.MSG_ADMIN_ERROR_NOTICE.format(event="dependency", chat_id=ctx.chat_id, error=str(exc)[:200]),
+			mn.MSG_ADMIN_ERROR_NOTICE.format(
+				event="dependency", chat_id=ctx.chat_id, error=scrub(str(exc))[:200]
+			),
 		)
 		outcome["error"] = "dependency_missing"
 		return outcome
@@ -123,19 +125,21 @@ def handle_update(update: dict[str, Any]) -> dict[str, Any]:
 		try:
 			ctx.reply(mn.MSG_ERROR_ADMIN_NOTIFIED)
 		except Exception as reply_exc:  # the bot itself may be down; nothing more to do here
-			log_event("telegram.reply_failed", level="error", error=repr(reply_exc))
+			log_event("telegram.reply_failed", level="error", error=type(reply_exc).__name__)
 		notify_admins(
 			bot,
 			settings,
-			mn.MSG_ADMIN_ERROR_NOTICE.format(event="handler", chat_id=ctx.chat_id, error=repr(exc)[:200]),
+			mn.MSG_ADMIN_ERROR_NOTICE.format(
+				event="handler", chat_id=ctx.chat_id, error=scrub(repr(exc))[:200]
+			),
 		)
-		outcome["error"] = repr(exc)
+		outcome["error"] = scrub(repr(exc))
 		return outcome
 	finally:
 		try:
 			ctx.answer()
 		except Exception as answer_exc:
-			log_event("telegram.answer_failed", level="warning", error=repr(answer_exc))
+			log_event("telegram.answer_failed", level="warning", error=type(answer_exc).__name__)
 		frappe.set_user(previous_user)
 
 
