@@ -87,9 +87,10 @@ def test_readiness_returns_every_item_with_honest_results(company, capsys):
 	assert by_key["e_signature"]["detail"] == mn.READINESS_E_SIGNATURE_PENDING
 	assert by_key["statements"]["passed"] is False and "equity_statement" in by_key["statements"]["detail"]
 	assert by_key["rules_verified"]["passed"] is False
-	assert all(r["requirement"] for r in rows) and all(
-		r["status_mn"] in (mn.READINESS_PASS, mn.READINESS_FAIL) for r in rows
-	)
+	# F-08: no row claims an item number of MoF Order 47/2018 — an instrument the project has
+	# never fetched (docs/mn-rules-reference.md §6.1); the table says so instead.
+	assert all("requirement" not in r for r in rows)
+	assert all(r["status_mn"] in (mn.READINESS_PASS, mn.READINESS_FAIL) for r in rows)
 
 	frappe.get_doc(
 		{
@@ -112,6 +113,9 @@ def test_readiness_returns_every_item_with_honest_results(company, capsys):
 	printed = readiness.run("nyabo.s.frappe.cloud")
 	out = capsys.readouterr().out
 	assert mn.READINESS_TITLE in out and mn.READINESS_PASS in out and mn.READINESS_FAIL in out
+	assert mn.READINESS_SOURCE_PENDING in out
 	assert len(printed) == len(mn.READINESS_ITEMS)
 	html = readiness.readiness_report_pdf().decode("utf-8")
-	assert mn.READINESS_TITLE in html and mn.READINESS_ITEMS["e_signature"] in html and "1.9" in html
+	assert mn.READINESS_TITLE in html and mn.READINESS_ITEMS["e_signature"] in html
+	assert mn.READINESS_SOURCE_PENDING in html and mn.FORM_SOURCE_INTERNAL in html
+	assert "47/2018" not in html and "47 дугаар тушаал" not in html

@@ -1,10 +1,15 @@
-"""Certification readiness checklist against MoF Order 47/2018 annex 1 (software requirements).
+"""Nyabo's own certification readiness checklist (docs/mn-rules-reference.md §6.1).
 
 ``checks()`` inspects the site — files shipped by the app, hooks installed, rows in the
-audit tables, per-company settings — and returns one row per ``mn.READINESS_ITEMS`` key
-with the annex item numbers it maps to. Nothing is assumed: an item passes only when
-the artefact is really there. E-signature is reported as failed on purpose until the
-MoF publishes the technical requirement.
+audit tables, per-company settings — and returns one row per ``mn.READINESS_ITEMS`` key.
+Nothing is assumed: an item passes only when the artefact is really there. E-signature is
+reported as failed on purpose until the MoF publishes the technical requirement.
+
+The list is Nyabo's, not an instrument's. The certification procedure «Нягтлан бодох
+бүртгэлийн программ хангамжид хяналт тавих журам» has not been obtained, so the report
+claims no requirement numbers and says so in Mongolian (``mn.READINESS_SOURCE_PENDING``);
+when the procedure text is fetched into ``docs/legal/`` the rows are mapped to it, with the
+verbatim quotes ``docs/legal/README.md`` requires of any citation.
 
     bench --site <site> execute nyabo_mn.compliance.readiness.run
 """
@@ -97,7 +102,6 @@ def _row(key: str, passed: bool, detail: str) -> dict[str, Any]:
 	return {
 		"key": key,
 		"label_mn": mn.READINESS_ITEMS[key],
-		"requirement": mn.READINESS_REQUIREMENT_MAP.get(key, ""),
 		"passed": bool(passed),
 		"status_mn": mn.READINESS_PASS if passed else mn.READINESS_FAIL,
 		"detail": detail,
@@ -209,7 +213,7 @@ def _check_rules_verified() -> dict[str, Any]:
 
 
 def checks(site: str | None = None) -> list[dict[str, Any]]:
-	"""One row per READINESS_ITEMS key: {key, label_mn, requirement, passed, status_mn, detail}."""
+	"""One row per READINESS_ITEMS key: {key, label_mn, passed, status_mn, detail}."""
 	rows = [
 		_check_report("general_journal"),
 		_check_report("cash_journal"),
@@ -244,7 +248,8 @@ def run(site: str | None = None) -> list[dict[str, Any]]:
 	print(mn.READINESS_SITE_LINE.format(site=site_name))
 	width = max(len(r["label_mn"]) for r in rows)
 	for row in rows:
-		print(f"{row['status_mn']:>8}  {row['label_mn']:<{width}}  [{row['requirement']}]  {row['detail']}")
+		print(f"{row['status_mn']:>8}  {row['label_mn']:<{width}}  {row['detail']}")
+	print(mn.READINESS_SOURCE_PENDING)
 	return rows
 
 
@@ -261,11 +266,11 @@ def readiness_report_pdf(site: str | None = None) -> bytes:
 			"rows": rows,
 			"L": {
 				"item": mn.READINESS_COL_ITEM,
-				"requirement": mn.READINESS_COL_REQUIREMENT,
 				"status": mn.READINESS_COL_STATUS,
 				"detail": mn.READINESS_COL_DETAIL,
 			},
-			"footer": mn.REPORT_PDF_FOOTER.format(source=mn.FORM_SOURCE_ORDER_47),
+			"note": mn.READINESS_SOURCE_PENDING,
+			"footer": mn.REPORT_PDF_FOOTER.format(source=mn.FORM_SOURCE_INTERNAL),
 		},
 	)
 	return get_pdf(html, options={"page-size": "A4"})

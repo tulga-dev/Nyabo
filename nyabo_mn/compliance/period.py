@@ -44,6 +44,45 @@ def existing_period(company: str, period: str) -> str | None:
 	)
 
 
+def proposal_pattern_id(proposal: Any) -> str | None:
+	"""The pattern a posted proposal was built on: the Link when there is one, else ``entry_json``.
+
+	``posting_pattern`` is a Link, so the pipeline can only fill it when a Nyabo Posting
+	Pattern row of that id exists; a proposal posted against a seed-loaded pattern (a site
+	whose rows were never synced, a renamed id) carries the id in its entry alone. Reading
+	the Link only is what let those months lock unchecked.
+	"""
+	link = (proposal.get("posting_pattern") or "").strip()
+	if link:
+		return link
+	entry = proposal.get("entry_json")
+	if isinstance(entry, str):
+		entry = frappe.parse_json(entry) if entry.strip() else None
+	if isinstance(entry, dict):
+		pattern_id = entry.get("pattern_id")
+		return str(pattern_id).strip() or None if pattern_id else None
+	return None
+
+
+def _pattern_verified(pattern_id: str | None) -> bool:
+	"""The same question the posting guard asked: is this rule verified (row first, else seed)?
+
+	An id that resolves to no pattern at all counts as unverified — refusing is the safe
+	default (``rules.guard``), and a posted entry whose rule cannot be shown is exactly what
+	the lock exists to catch.
+	"""
+	if not pattern_id:
+		return False
+	from nyabo_mn.core.rules_engine import NoPatternError
+	from nyabo_mn.rules import guard, patterns
+
+	try:
+		spec = patterns.load(pattern_id)
+	except NoPatternError:
+		return False
+	return guard.is_verified(spec)
+
+
 def unverified_proposals(company: str, start: dt.date, end: dt.date) -> list[str]:
 	"""Posted proposals in the range whose posting pattern is not verified (must be empty to lock)."""
 	proposals = frappe.get_all(
@@ -52,21 +91,17 @@ def unverified_proposals(company: str, start: dt.date, end: dt.date) -> list[str
 			"company": company,
 			"status": "posted",
 			"posting_date": ["between", [start.isoformat(), end.isoformat()]],
-			"posting_pattern": ["!=", ""],
 		},
-		fields=["name", "posting_pattern"],
+		fields=["name", "posting_pattern", "entry_json"],
 	)
-	if not proposals:
-		return []
-	patterns = {p.posting_pattern for p in proposals if p.posting_pattern}
-	verified = set(
-		frappe.get_all(
-			"Nyabo Posting Pattern",
-			filters={"name": ["in", list(patterns)], "verified": 1},
-			pluck="name",
-		)
-	)
-	return [p.name for p in proposals if p.posting_pattern and p.posting_pattern not in verified]
+	pending: list[str] = []
+	for proposal in proposals:
+		# A proposal that posted no entry of its own (no entry_json) names no rule to check.
+		if not proposal.get("posting_pattern") and not proposal.get("entry_json"):
+			continue
+		if not _pattern_verified(proposal_pattern_id(proposal)):
+			pending.append(proposal.name)
+	return pending
 
 
 def lock(company: str, period: str, user: str, telegram_id: str | int | None = None) -> str:

@@ -12,21 +12,22 @@
 	th { background: #eee; }
 	td.pass { color: #060; font-weight: bold; white-space: nowrap; }
 	td.fail { color: #b00; font-weight: bold; white-space: nowrap; }
+	.note { margin-bottom: 4mm; font-size: 8pt; color: #444; border: 1px solid #999; padding: 2mm; }
 	.footer { margin-top: 6mm; font-size: 7.5pt; color: #444; }
 </style>
 </head>
 <body>
 	<h1>{{ title }}</h1>
 	<div class="site">{{ site_line }} · {{ prepared_on }}</div>
+	<div class="note">{{ note }}</div>
 	<table>
 		<thead>
-			<tr><th>{{ L.item }}</th><th>{{ L.requirement }}</th><th>{{ L.status }}</th><th>{{ L.detail }}</th></tr>
+			<tr><th>{{ L.item }}</th><th>{{ L.status }}</th><th>{{ L.detail }}</th></tr>
 		</thead>
 		<tbody>
 			{% for row in rows %}
 			<tr>
 				<td>{{ row.label_mn }}</td>
-				<td>{{ row.requirement }}</td>
 				<td class="{{ 'pass' if row.passed else 'fail' }}">{{ row.status_mn }}</td>
 				<td>{{ row.detail }}</td>
 			</tr>

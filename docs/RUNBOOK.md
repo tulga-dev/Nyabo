@@ -99,7 +99,9 @@ Files (receipt images, statements, PDFs) are private Frappe files and are includ
 bench --site nyabo.s.frappe.cloud execute nyabo_mn.compliance.readiness.run
 ```
 
-You should see: a table with one line per requirement, ТЭНЦСЭН or ДУТУУ, and a note.
+You should see: a table with one line per checklist item, ТЭНЦСЭН or ДУТУУ, a note per item,
+and the closing line saying the list is Nyabo's own — the MoF certification procedure text has
+not been obtained yet (reference §6.1), so no requirement numbers are claimed.
 
 ## 10. Evals
 

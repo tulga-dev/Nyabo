@@ -162,3 +162,29 @@ def test_retention_years_come_from_the_tax_parameter_data(site):
 		}
 	).insert()
 	assert compliance_hooks.retention_years("2026-03-05") == 12
+
+
+def test_system_generated_journal_entries_post_and_carry_their_source(company):
+	"""F3: ERPNext's own entries (depreciation, revaluation, gain/loss) have no receipt to attach.
+
+	Refusing them would break the ERPNext feature — the depreciation posting runs as a daily
+	scheduler job — so the handler stamps what generated the entry instead of throwing.
+	"""
+	depreciation = make_je(company, voucher_type="Depreciation Entry").insert()
+	depreciation.submit()
+	assert depreciation.docstatus == 1
+	assert depreciation.nyabo_primary_document_ref == mn.MSG_PRIMARY_DOCUMENT_SYSTEM_GENERATED.format(
+		source="Depreciation Entry"
+	)
+	assert frappe.db.count("GL Entry", {"voucher_no": depreciation.name}) == 2
+
+	fx = make_je(company, voucher_type="Exchange Gain Or Loss", is_system_generated=1).insert()
+	fx.submit()
+	assert fx.docstatus == 1
+
+	# a hand-made entry of a plain voucher type is still refused
+	manual = make_je(company).insert()
+	with pytest.raises(frappe.ValidationError) as exc:
+		manual.submit()
+	assert mn.MSG_PRIMARY_DOCUMENT_REQUIRED in str(exc.value)
+	assert compliance_hooks.system_generated_source(manual) is None

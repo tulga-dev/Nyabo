@@ -58,8 +58,28 @@ def _settings(company, regime):
 	return doc
 
 
+def _seed_rows(key: str):
+	"""The shipped seed rows of one key as Nyabo Tax Parameter rows.
+
+	The first row in the table makes it win over the seed file for *every* key, so a test that
+	inserts its own row must also supply the other keys the summary reads (the regime's
+	eligibility conditions).
+	"""
+	from nyabo_mn.nyabo.seed import load_seed
+	from nyabo_mn.rules.seed import tax_parameter_values
+
+	return [
+		frappe.get_doc({"doctype": "Nyabo Tax Parameter", **tax_parameter_values(row)}).insert()
+		for row in load_seed("tax_parameters")["rows"]
+		if row["key"] == key
+	]
+
+
 def _rate_row(verified: int):
 	"""An explicit simplified.rate row: the shipped seed row is verified, the guard test needs both."""
+	for key in simplified_summary.ELIGIBILITY_KEYS:
+		if not frappe.db.exists("Nyabo Tax Parameter", {"key": key}):
+			_seed_rows(key)
 	return frappe.get_doc(
 		{
 			"doctype": "Nyabo Tax Parameter",
@@ -173,3 +193,87 @@ def test_report_to_xlsx_round_trips(books):
 	rows = [list(r) for r in sheet.iter_rows(values_only=True)]
 	assert rows[0][:2] == [mn.COL_DATE, mn.COL_VOUCHER_TYPE]
 	assert len(rows) == 3 and {r[1] for r in rows[1:]} == {"Purchase Invoice", "Sales Invoice"}
+
+
+def test_trial_balance_falls_back_when_the_erpnext_report_refuses(books, monkeypatch):
+	"""F7: ERPNext raises PermissionError / ValidationError, not DoesNotExistError — still a GL fallback.
+
+	The Telegram user holds only ``Nyabo Accountant``, so ``get_report_doc("Trial Balance")``
+	throws ``frappe.PermissionError``; a site whose Fiscal Year does not reach the period
+	raises ``FiscalYearError`` (a ``ValidationError``). Neither may break ``/хаалт``.
+	"""
+	from erpnext.accounts import utils as erpnext_utils
+	from frappe.desk import query_report
+
+	def _refuse(*args, **kwargs):
+		raise frappe.PermissionError("You don't have access to Report: Trial Balance")
+
+	monkeypatch.setattr(query_report, "run", _refuse)
+	tb = month_end.trial_balance(books, "2026-03")
+	assert tb["source"] == "gl_entry" and tb["debit"] == tb["credit"] == Decimal("363500.00")
+	assert tb["note"] == mn.MSG_CLOSE_TRIAL_BALANCE_SOURCE_FALLBACK
+
+	def _no_fiscal_year(*args, **kwargs):
+		raise erpnext_utils.FiscalYearError("2026-03-31 is not in any active Fiscal Year")
+
+	monkeypatch.setattr(erpnext_utils, "get_fiscal_year", _no_fiscal_year)
+	fallback = month_end.trial_balance(books, "2026-03")
+	assert fallback["source"] == "gl_entry" and fallback["rows"]
+
+
+def test_simplified_summary_resolves_the_regime_conditions_before_any_figure(books):
+	"""F-03: art. 29.1 and 29.3.1 are looked up too, so a pending year refuses instead of computing."""
+	summary = simplified_summary.compute(books, "2026-Q1")
+	conditions = summary["eligibility"]["rows"]
+	assert set(conditions) == set(simplified_summary.ELIGIBILITY_KEYS)
+	assert conditions["simplified.revenue_threshold"]["article"] == "29.1"
+	assert conditions["simplified.requires_not_vat_registered"]["article"] == "29.3.1"
+	assert all(c["verified"] for c in conditions.values())
+	assert summary["needs_accountant"] is False and summary["warnings"] == []
+	assert summary["eligibility"]["threshold"] == Decimal("50000000")
+
+	# the 2027 eligibility rows are pending on purpose: no 1% figure, in a simulation either
+	for simulation in (False, True):
+		with pytest.raises(frappe.ValidationError) as exc:
+			simplified_summary.compute(books, "2027-Q1", simulation=simulation)
+		assert "simplified." in str(exc.value)
+	with pytest.raises(frappe.ValidationError):
+		month_end.summaries(books, "2027-03")
+
+	# a VAT withholding payer is outside the regime (29.3.1), whatever the revenue is
+	_settings(books, "vat_payer")
+	with pytest.raises(frappe.ValidationError) as exc:
+		simplified_summary.compute(books, "2026-Q1")
+	assert mn.MSG_SIMPLIFIED_NOT_ELIGIBLE_VAT in str(exc.value)
+
+
+def test_simplified_summary_flags_a_prior_year_above_the_threshold(books):
+	"""The books can raise the art. 29.1 question (they are not the confirmed return, so never settle it)."""
+	if not frappe.db.exists("Fiscal Year", "2025"):
+		frappe.get_doc(
+			{
+				"doctype": "Fiscal Year",
+				"year": "2025",
+				"year_start_date": "2025-01-01",
+				"year_end_date": "2025-12-31",
+			}
+		).insert(ignore_permissions=True)
+	si = make_si(
+		books,
+		"Хэрэглэгч ХХК",
+		amount=60000000,
+		posting_date="2025-06-15",
+		vat=False,
+		nyabo_primary_document_ref="SI-2025",
+	).insert()
+	si.submit()
+
+	summary = simplified_summary.compute(books, "2026-Q1")
+	assert summary["eligibility"]["prior_year_revenue"] == Decimal("60000000.00")
+	assert summary["eligibility"]["over_threshold"] is True and summary["needs_accountant"] is True
+	assert mn.WARN_SIMPLIFIED_OVER_THRESHOLD.split("{")[0] in summary["warnings"][0]
+
+	out = month_end.summaries(books, "2026-03")
+	assert out["is_vat_payer"] is False and summary["warnings"][0] in out["text_lines"]
+	html = out["pdfs"]["simplified_summary"].decode("utf-8")
+	assert mn.LBL_REGIME_CONDITION in html and "29.1" in html

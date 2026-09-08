@@ -52,4 +52,14 @@ def execute(filters: Any = None) -> tuple[list[dict[str, Any]], list[dict[str, A
 			+ (f" · {mn.LBL_SIMULATION}" if summary["simulation"] else ""),
 		}
 	)
+	# The regime's conditions the figure rests on (CIT art. 29.1 and 29.3.1), and any warning.
+	for condition in summary["eligibility"]["rows"].values():
+		state = mn.LBL_VERIFIED if condition["verified"] else mn.LBL_UNVERIFIED
+		data.append(
+			{
+				"label": mn.LBL_REGIME_CONDITION,
+				"parameter": f"{condition['key']} ({condition['article']}) · {state}",
+			}
+		)
+	data.extend({"label": warning} for warning in summary["warnings"])
 	return columns(), data

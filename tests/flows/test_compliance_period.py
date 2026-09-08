@@ -92,6 +92,43 @@ def test_lock_refuses_when_a_posted_proposal_used_an_unverified_pattern(company)
 	assert period.lock(company, "2026-02", "Administrator") == "2026-02 - TST"
 
 
+def test_lock_reads_the_pattern_from_the_entry_when_the_link_is_empty(company):
+	"""F-05: ``posting_pattern`` is a Link, so a seed-only or renamed pattern leaves it empty.
+
+	The month may still not lock over books built on a rule the admin never checked, so the
+	id is read back from ``entry_json`` and asked the same question the posting guard asked.
+	"""
+	posted = make_je(company, posting_date="2026-02-12", nyabo_primary_document_ref="x").insert()
+	posted.submit()
+
+	def _proposal(pattern_id):
+		return frappe.get_doc(
+			{
+				"doctype": "Nyabo Proposal",
+				"company": company,
+				"kind": "receipt",
+				"status": "posted",
+				"posting_date": "2026-02-12",
+				"entry_json": frappe.as_json({"pattern_id": pattern_id, "lines": []}),
+				"posted_doctype": "Journal Entry",
+				"posted_name": posted.name,
+			}
+		).insert()
+
+	unlinked = _proposal("seed_only_pattern")  # no Nyabo Posting Pattern row and no seed row
+	assert period.unverified_proposals(company, *period.period_bounds("2026-02")) == [unlinked.name]
+	with pytest.raises(frappe.ValidationError) as exc:
+		period.lock(company, "2026-02", "Administrator")
+	assert mn.MSG_PERIOD_UNVERIFIED_RULES in str(exc.value)
+
+	# the admin checks the primary text and marks the pattern verified: the month locks
+	unlinked.db_set("entry_json", frappe.as_json({"pattern_id": "test_verified", "lines": []}))
+	_pattern("test_verified", 1)
+	assert period.proposal_pattern_id(frappe.get_doc("Nyabo Proposal", unlinked.name)) == "test_verified"
+	assert period.unverified_proposals(company, *period.period_bounds("2026-02")) == []
+	assert period.lock(company, "2026-02", "Administrator") == "2026-02 - TST"
+
+
 def test_reopen_disables_the_period_and_writes_an_event(company, as_user):
 	name = period.lock(company, "2026-02", "Administrator")
 	with as_user("acc@example.com", ["Nyabo Accountant"]) as user:

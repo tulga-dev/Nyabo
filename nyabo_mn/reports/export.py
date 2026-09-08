@@ -1,8 +1,10 @@
-"""Script report -> PDF (Cyrillic-safe HTML through wkhtmltopdf) or XLSX (Order 47/2018, 2.11).
+"""Script report -> PDF (Cyrillic-safe HTML through wkhtmltopdf) or XLSX.
 
 The PDF is rendered from ``nyabo_mn/templates/report.html`` with the MoF header fields
 (Байгууллагын нэр, Журналын төрөл, Тайлант үе) and the two signature lines of the
-Order 100/2018 journals; every label comes from ``i18n/mn.py``.
+Order 100/2018 journals; every label comes from ``i18n/mn.py``. A report with no MoF form
+behind it (the VAT and 1% summaries) is footed ``mn.FORM_SOURCE_INTERNAL``: Nyabo does not
+name an instrument it has not read (``docs/legal/README.md``).
 """
 
 from __future__ import annotations
@@ -91,7 +93,7 @@ def render_report_html(
 		"company": company,
 		"period": period,
 		"journal_type": JOURNAL_TYPES.get(report_name, ""),
-		"source": SOURCES.get(report_name, mn.FORM_SOURCE_ORDER_47),
+		"source": SOURCES.get(report_name, mn.FORM_SOURCE_INTERNAL),
 		"from_date": formatdate(filters.get("from_date")) if filters.get("from_date") else "",
 		"to_date": formatdate(filters.get("to_date")) if filters.get("to_date") else "",
 		"columns": cols,
@@ -110,7 +112,7 @@ def render_report_html(
 			"source": mn.LBL_REPORT_SOURCE,
 			"row_no": mn.LBL_ROW_NO,
 		},
-		"footer": mn.REPORT_PDF_FOOTER.format(source=SOURCES.get(report_name, mn.FORM_SOURCE_ORDER_47)),
+		"footer": mn.REPORT_PDF_FOOTER.format(source=SOURCES.get(report_name, mn.FORM_SOURCE_INTERNAL)),
 	}
 	return frappe.render_template(REPORT_TEMPLATE, context)
 

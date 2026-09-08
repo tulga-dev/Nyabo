@@ -135,6 +135,28 @@ def test_reverse_cash_paid_purchase_invoice_gives_the_cash_back(company, supplie
 	assert note.is_return == 1 and note.paid_amount == -85000.0
 	assert get_balance_on(CASH, "2026-03-31") == 0.0
 	assert get_balance_on(PAYABLE, "2026-03-31") == 0.0
+def test_a_reversal_cannot_itself_be_reversed(company, supplier):
+	"""F-06: the correction chain stays one level deep (art. 15.1), refused in Mongolian.
+
+	Without the check the refusal came from ERPNext in English, reached the accountant as the
+	generic «алдаа гарлаа» and woke the admins with a handler failure.
+	"""
+	je = _posted_je(company)
+	rev = reversal.reverse("Journal Entry", je.name, "account", "", "Administrator")
+	reversal_je = frappe.get_doc("Journal Entry", rev["reversal_name"])
+	assert reversal.is_reversal("Journal Entry", reversal_je) is True
+	with pytest.raises(frappe.ValidationError) as exc:
+		reversal.reverse("Journal Entry", reversal_je.name, "other", "", "Administrator")
+	assert mn.MSG_CORRECTION_IS_REVERSAL in str(exc.value)
+
+	pi = make_pi(company, supplier, nyabo_primary_document_ref="AB-1").insert()
+	pi.submit()
+	note_name = reversal.reverse("Purchase Invoice", pi.name, "dup", "", "Administrator")["reversal_name"]
+	note = frappe.get_doc("Purchase Invoice", note_name)
+	assert reversal.is_reversal("Purchase Invoice", note) is True
+	with pytest.raises(frappe.ValidationError) as exc:
+		reversal.reverse("Purchase Invoice", note_name, "dup", "", "Administrator")
+	assert mn.MSG_CORRECTION_IS_REVERSAL in str(exc.value)
 
 
 def test_draft_cannot_be_reversed(company):
