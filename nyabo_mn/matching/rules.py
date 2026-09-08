@@ -246,11 +246,11 @@ def _regime_ctx(company: str, on_date: dt.date) -> dict[str, Any]:
 
 
 def _llm_client(company: str):
+	import frappe
+
 	from nyabo_mn.agent import frappe_log
 	from nyabo_mn.agent.llm_client import get_client
 	from nyabo_mn.config import get_settings
-
-	import frappe
 
 	provider = "mock" if frappe.flags.get("nyabo_simulation") else "auto"
 	return get_client(get_settings(), provider, record_call=frappe_log.recorder(company=company))
