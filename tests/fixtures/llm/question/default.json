@@ -1,0 +1,7 @@
+{
+ "_comment": "Default question answer: one ledger lookup then a sentence.",
+ "tool_calls": [
+  {"name": "answer_from_books", "arguments": {"query_kind": "unmatched_count", "args": {"account_code": null, "on_date": null, "supplier": null, "period": null}}}
+ ],
+ "text": "Одоогоор тулгагдаагүй 3 гүйлгээ байна."
+}

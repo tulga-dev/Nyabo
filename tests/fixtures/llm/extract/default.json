@@ -1,0 +1,19 @@
+{
+ "_comment": "Default vision extraction answer: a Petrovis fuel receipt, non-VAT-relevant fields filled as printed.",
+ "data": {
+  "seller_name": "Петровис ХХК",
+  "seller_register_no": "2550385",
+  "seller_tin": "37200019261",
+  "date": "2026-09-05",
+  "total": 85000,
+  "vat_amount": 7727.27,
+  "lines": [
+   {"description": "АИ-92 бензин", "qty": 40.5, "amount": 85000}
+  ],
+  "payment_method": "qpay",
+  "receipt_id": "00012345678901234567890123",
+  "lottery_no": "AB12345678",
+  "confidence": {"seller_name": 0.95, "date": 0.9, "total": 0.98, "vat_amount": 0.85, "lines": 0.8},
+  "notes": null
+ }
+}
