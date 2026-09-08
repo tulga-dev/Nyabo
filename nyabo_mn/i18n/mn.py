@@ -498,3 +498,44 @@ MATCH_REASON_TRANSFER = "өөрийн дансууд хоорондын шилж
 MATCH_REASON_NONE = "тохирох баримт олдсонгүй"
 MATCH_REASON_AMBIGUOUS = "хэд хэдэн баримт адилхан тохирч байна; нягтлан сонгоно"
 MATCH_REASON_LOW_SCORE = "хамгийн ойрын баримт {score}% тохирч байна (босго {threshold}%)"
+
+# --- rules (Frappe side: params, regime, patterns, guard, seed, aliases) --------------------------
+MSG_ROLE_UNRESOLVED = "«{role}» дансны үүрэгт {scheme} схемд данс байхгүй тул нягтлан данс сонгоно уу."
+MSG_ALIAS_TARGET_MISSING = "«{code}» код {company} компанийн дансны төлөвлөгөөнд алга."
+MSG_TAX_PARAM_DATES = "Дуусах огноо ({effective_to}) эхлэх огноо ({effective_from})-оос өмнө байж болохгүй."
+MSG_TAX_PARAM_OVERLAP = "«{key}» дүрмийн хугацаа {other} бичлэгтэй давхцаж байна."
+MSG_TAX_PARAM_JSON_INVALID = "Утга (JSON) буруу байна: {error}"
+MSG_TAX_PARAM_VALUE_REQUIRED = (
+	"Идэвхтэй дүрэмд утга заавал хэрэгтэй; утга тодорхойгүй бол төлөвийг «pending» болгоно уу."
+)
+MSG_PATTERN_NEEDS_BOTH_SIDES = "Бичилтийн загварт дор хаяж нэг дебет, нэг кредит мөр хэрэгтэй."
+MSG_PATTERN_NEEDS_DOCUMENT_TYPES = "Загварын баримтын төрлүүдийг заана уу (жишээ нь: Journal Entry)."
+MSG_REGIME_OVERLAP = "Татварын горимын хугацаанууд давхцаж байна: {first} ба {second}."
+MSG_REGIME_GAP = "Татварын горимын хугацаанд завсар байна: {previous_end} → {next_start}."
+MSG_REGIME_OPEN_NOT_LAST = (
+	"Зөвхөн сүүлийн горимын дуусах огноо хоосон байж болно ({regime}, {effective_from})."
+)
+MSG_REGIME_UNKNOWN = "«{regime}» гэдэг татварын горим байхгүй."
+MSG_DEFAULT_EXPENSE_CODE_MISSING = "Үндсэн зардлын данс «{code}» дансны төлөвлөгөөнд алга."
+MSG_SEED_ROWS_MISSING = "«{doctype}» дүрмийн өгөгдөл ачаалагдаагүй байна; bench migrate ажиллуулна уу."
+
+# --- setup (provisioning, bank sub-accounts, chart import, inventory intake) ---------------------
+ITEM_GROUP_INVENTORY = "Бараа материал"
+UOM_PIECE = "ш"
+MSG_INTAKE_LINE_UNREADABLE = "{line}-р мөрийг уншиж чадсангүй: «{text}». Хэлбэр: нэр, тоо, үнэ"
+MSG_INTAKE_EMPTY = "Бараа материалын жагсаалт хоосон байна."
+MSG_INTAKE_HEADER_NOT_FOUND = "Хүснэгтэд нэр, тоо, үнэ баганууд олдсонгүй."
+MSG_INTAKE_NOT_CONFIRMED = "Бараа материалын жагсаалт ({name}) баталгаажаагүй тул бүртгэхгүй."
+MSG_INTAKE_ALREADY_POSTED = "Бараа материалын жагсаалт ({name}) аль хэдийн бүртгэгдсэн."
+MSG_INTAKE_NO_SETTINGS = (
+	"{company} компанийн Нябо тохиргоо байхгүй тул бараа материал бүртгэхгүй. /эхлэх командаар тохируулна уу."
+)
+MSG_INTAKE_QTY_RATE_POSITIVE = "{item}: тоо ба нэгж үнэ эерэг байх ёстой."
+EXPL_INVENTORY_OPENING = (
+	"Бараа материалын эхний үлдэгдэл ({intake}): Дт Бараа материал — Кт Түр нээлтийн данс."
+)
+MSG_CHART_CSV_COLUMNS = "CSV файлд code, name, parent_code, root_type, account_type баганууд хэрэгтэй."
+MSG_CHART_CSV_PARENT_MISSING = "«{code}» дансны эцэг данс «{parent}» файлд алга."
+MSG_CHART_CSV_ROOT_TYPE = "«{code}» язгуур дансны root_type буруу байна: {root_type}."
+MSG_CHART_CSV_REQUIRED = "Нягтлангийн дансны төлөвлөгөө (chart_csv) өгөгдөөгүй байна."
+MSG_BANK_UNKNOWN = "«{bank}» банк жагсаалтад алга."
