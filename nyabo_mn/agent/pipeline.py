@@ -1130,9 +1130,11 @@ def answer_question(
 	from nyabo_mn.agent import questions
 
 	now = now or dt.datetime.now(dt.timezone.utc)
-	client = client or get_client(
-		_settings_obj(), "mock" if _simulation() else "auto", record_call=frappe_log.recorder(company=company)
-	)
+	recorder = frappe_log.recorder(company=company)
+	if client is None:
+		client = get_client(_settings_obj(), "mock" if _simulation() else "auto", record_call=recorder)
+	elif getattr(client, "record_call", None) is None and hasattr(client, "record_call"):
+		client.record_call = recorder
 	handlers = {
 		**books_handlers(company, today=now.date()),
 		"answer_faq": faq_handler,

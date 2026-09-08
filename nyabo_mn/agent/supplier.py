@@ -15,7 +15,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from nyabo_mn.core.matching import name_similarity
+from nyabo_mn.core.matching import name_similarity, normalize_name
 from nyabo_mn.core.models import Receipt, SellerInfo
 from nyabo_mn.i18n import mn
 
@@ -39,16 +39,29 @@ def _by_field(field: str, value: str | None) -> str | None:
 
 
 def _by_name(name: str) -> str | None:
-	"""Best normalised-name match at or above ``NAME_MATCH_MIN``; ties keep the first row."""
+	"""Best normalised-name match at or above ``NAME_MATCH_MIN``.
+
+	The token-set ratio scores a subset ("Петровис" vs "Петровис Ойл ХХК") as 1.0, the
+	same as the exact name, so ties are broken by exact normalised equality and then by
+	the plain character ratio; the shorter, closer name wins over a longer cousin.
+	"""
+	import difflib
+
 	import frappe
 
 	if not name.strip():
 		return None
-	best: tuple[float, str] | None = None
+	wanted = normalize_name(name)
+	best: tuple[tuple[float, int, float], str] | None = None
 	for row in frappe.get_all("Supplier", fields=["name", "supplier_name"]):
-		score = name_similarity(name, row.supplier_name or row.name)
-		if score >= NAME_MATCH_MIN and (best is None or score > best[0]):
-			best = (score, row.name)
+		candidate = row.supplier_name or row.name
+		score = name_similarity(name, candidate)
+		if score < NAME_MATCH_MIN:
+			continue
+		normalised = normalize_name(candidate)
+		key = (score, int(normalised == wanted), difflib.SequenceMatcher(None, wanted, normalised).ratio())
+		if best is None or key > best[0]:
+			best = (key, row.name)
 	return best[1] if best else None
 
 
