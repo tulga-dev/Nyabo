@@ -28,7 +28,31 @@ class PurchaseInvoice(AccountsController):
 		self.set_missing_values()
 		self.calculate_taxes_and_totals()
 		self.validate_return()
+		if int(self.is_paid or 0) == 1:
+			self.validate_cash()
+			self.set_paid_amounts()
 		self.set_status()
+
+	def validate_cash(self) -> None:
+		"""erpnext PurchaseInvoice.validate_cash (version-16), called from validate when is_paid."""
+		if not self.cash_bank_account and flt(self.paid_amount):
+			raise ValidationError("Cash or Bank Account is mandatory")
+		if flt(self.paid_amount) + flt(self.write_off_amount) - flt(
+			self.get("rounded_total") or self.grand_total
+		) > 1 / (10 ** (self.precision("base_grand_total") + 1)):
+			raise ValidationError("Paid amount + Write Off Amount cannot exceed Grand Total")
+
+	def set_paid_amounts(self) -> None:
+		"""Stub reduction of calculate_taxes_and_totals' paid-amount branch: base_paid_amount and
+		outstanding follow paid_amount so a cash/bank-paid invoice shows as Paid after submit."""
+		self.base_paid_amount = flt(
+			flt(self.paid_amount) * flt(self.conversion_rate), self.precision("base_paid_amount")
+		)
+		if self.docstatus == 0:
+			self.outstanding_amount = flt(
+				flt(self.outstanding_amount) - flt(self.base_paid_amount),
+				self.precision("outstanding_amount"),
+			)
 
 	def set_missing_values(self) -> None:
 		import frappe
@@ -133,7 +157,57 @@ class PurchaseInvoice(AccountsController):
 		self.make_supplier_gl_entry(gl_entries)
 		self.make_item_gl_entries(gl_entries)
 		self.make_tax_gl_entries(gl_entries)
+		self.make_payment_gl_entries(gl_entries)
 		return gl_entries
+
+	def make_payment_gl_entries(self, gl_entries: list[_dict]) -> None:
+		"""erpnext PurchaseInvoice.make_payment_gl_entries (version-16): a paid invoice credits the
+		cash/bank account and debits the payable, which is what bank reconciliation allocates."""
+		from erpnext.accounts.utils import get_account_currency
+
+		if not (int(self.is_paid or 0) and self.cash_bank_account and flt(self.paid_amount)):
+			return
+		against_voucher = self.name
+		if self.is_return and self.return_against and not self.update_outstanding_for_self:
+			against_voucher = self.return_against
+		bank_account_currency = get_account_currency(self.cash_bank_account)
+		gl_entries.append(
+			self.get_gl_dict(
+				{
+					"account": self.credit_to,
+					"party_type": "Supplier",
+					"party": self.supplier,
+					"against": self.cash_bank_account,
+					"debit": self.base_paid_amount,
+					"debit_in_account_currency": self.base_paid_amount
+					if self.party_account_currency == self.company_currency
+					else self.paid_amount,
+					"debit_in_transaction_currency": self.paid_amount,
+					"against_voucher": against_voucher,
+					"against_voucher_type": self.doctype,
+					"cost_center": self.cost_center,
+					"project": self.project,
+				},
+				self.party_account_currency,
+				item=self,
+			)
+		)
+		gl_entries.append(
+			self.get_gl_dict(
+				{
+					"account": self.cash_bank_account,
+					"against": self.supplier,
+					"credit": self.base_paid_amount,
+					"credit_in_account_currency": self.base_paid_amount
+					if bank_account_currency == self.company_currency
+					else self.paid_amount,
+					"credit_in_transaction_currency": self.paid_amount,
+					"cost_center": self.cost_center,
+				},
+				bank_account_currency,
+				item=self,
+			)
+		)
 
 	def make_supplier_gl_entry(self, gl_entries: list[_dict]) -> None:
 		grand_total = self.grand_total
