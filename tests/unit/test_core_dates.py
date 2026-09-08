@@ -14,6 +14,16 @@ def test_weekday_short_mn_monday_to_sunday():
 	assert dates.weekday_short_mn(monday) == "Да"
 
 
+def test_short_date_mn_is_dd_mm_with_the_weekday():
+	"""UX-03: the brief asks for "09.03 (Мя)", not the ISO date, on every card."""
+	tuesday = dt.date(2027, 3, 9)
+	assert dates.short_date_mn(tuesday) == "09.03"
+	assert dates.short_date_weekday_mn(tuesday) == "09.03 (Мя)"
+	# Both parts are zero-padded so a column of dates lines up.
+	assert dates.short_date_mn(dt.date(2026, 1, 1)) == "01.01"
+	assert dates.short_date_mn(dt.date(2026, 12, 31)) == "31.12"
+
+
 def test_month_bounds_handles_leap_year_and_december():
 	assert dates.month_bounds(2026, 8) == (dt.date(2026, 8, 1), dt.date(2026, 8, 31))
 	assert dates.month_bounds(2028, 2) == (dt.date(2028, 2, 1), dt.date(2028, 2, 29))

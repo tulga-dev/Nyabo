@@ -6,6 +6,7 @@ import datetime as dt
 
 import frappe
 
+from nyabo_mn.core.money import fmt_mnt
 from nyabo_mn.i18n import mn
 from nyabo_mn.telegram import _deps
 from tests.fixtures.telegram.fake_bot import FakeBotApi, callback_update, link_user, message_update, run
@@ -79,7 +80,7 @@ def test_full_onboarding_stores_settings(company, monkeypatch):
 	assert _state(uid) == "onb:inv_wait" and bot.last_text == mn.ONB_INVENTORY_HOW
 	run(bot, message_update(uid, "Принтерийн хор, 5, 45000\nЦаас, 10, 12000"))
 	assert intakes and intakes[0][0] == company and intakes[0][2] == "text"
-	assert bot.last_text == mn.ONB_INVENTORY_PARSED.format(count=2, total="345 000")
+	assert bot.last_text == mn.ONB_INVENTORY_PARSED.format(count=2, total=fmt_mnt(345000))
 	assert bot.callback_datas() == ["i:NYI-00001:confirm", "i:NYI-00001:cancel"]
 	run(bot, callback_update(uid, "i:NYI-00001:confirm"))
 	assert posted == [("NYI-00001", "tg-9001@nyabo.local")]

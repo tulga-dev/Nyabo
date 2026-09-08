@@ -22,6 +22,30 @@ def weekday_short_mn(day: dt.date) -> str:
 	return mn.WEEKDAYS_SHORT[day.weekday()]
 
 
+def short_date_mn(day: dt.date) -> str:
+	"""``dt.date(2027, 3, 9)`` -> ``"09.03"``: the dd.mm form a Mongolian receipt prints.
+
+	Cards and chat messages show a transaction date the way the paper does, because the
+	accountant is comparing the card with the slip in their hand. ISO stays where a
+	machine reads the value back — JSON columns, report filters, PDF filenames — so the
+	two audiences never share a format.
+
+	The year is deliberately absent: every card that uses this shows a document the user
+	has just handed in. A message about a date that can be far in the past (a closed
+	period, a rule's effective date) keeps the ISO form so the year is never guessed.
+	"""
+	return f"{day.day:02d}.{day.month:02d}"
+
+
+def short_date_weekday_mn(day: dt.date) -> str:
+	"""``dt.date(2027, 3, 9)`` -> ``"09.03 (Мя)"`` — dd.mm plus the two-letter weekday.
+
+	The weekday is what tells an owner "this was a Saturday", which is half of deciding
+	whether a restaurant bill is a business expense.
+	"""
+	return mn.SHORT_DATE_WEEKDAY.format(date=short_date_mn(day), weekday=weekday_short_mn(day))
+
+
 def month_bounds(year: int, month: int) -> tuple[dt.date, dt.date]:
 	"""First and last day of the month (inclusive)."""
 	if not 1 <= month <= 12:

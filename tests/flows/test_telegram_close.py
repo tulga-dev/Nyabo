@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import frappe
 
+from nyabo_mn.core.money import fmt_mnt
 from nyabo_mn.i18n import mn
 from nyabo_mn.telegram import _deps
 from tests.fixtures.telegram.fake_bot import (
@@ -66,8 +67,8 @@ def test_close_usage_and_full_path(company, monkeypatch):
 	texts = bot.texts()
 	assert texts[0].startswith(mn.MSG_CLOSE_HEADER.format(company=company, period="2026 оны 8-р сар"))
 	assert "Тулгаагүй банкны гүйлгээ: 1" in texts[0]
-	assert "Гүйлгээ баланс: дебет 1 250 000₮ · кредит 1 250 000₮" in texts[0]
-	assert "1% татвар 9 000₮" in texts[0]
+	assert f"Гүйлгээ баланс: дебет {fmt_mnt(1250000)}₮ · кредит {fmt_mnt(1250000)}₮" in texts[0]
+	assert f"1% татвар {fmt_mnt(9000)}₮" in texts[0]
 	doc = bot.sent("send_document")[0]
 	assert doc["filename"] == "simplified-2026-08.pdf" and doc["content"].startswith(b"%PDF")
 	assert doc["caption"] == mn.MSG_CLOSE_PDF_CAPTION.format(
@@ -341,12 +342,12 @@ def test_bank_card_find_and_reconcile(company, monkeypatch):
 	from nyabo_mn.telegram.handlers import bank
 
 	bank.send_bank_card(bot, 8030, txn)
-	assert bot.last_text.startswith("🏦 Хаан банк · 2026-08-03 · -120 000₮ · «Түлш»")
+	assert bot.last_text.startswith(f"🏦 Хаан банк · 2026-08-03 · -{fmt_mnt(120000)}₮ · «Түлш»")
 	assert bot.callback_datas() == [f"b:{txn}:find", f"b:{txn}:exp", f"b:{txn}:later"]
 	run(bot, callback_update(8030, f"b:{txn}:find", message_id=41))
 	assert bot.last_text == mn.MSG_BANK_FIND_ASK
 	run(bot, message_update(8030, "Петровис"))
-	assert "1. ACC-JV-2026-00001 · 2026-08-03 · 120 000₮ · Петровис" in bot.last_text
+	assert f"1. ACC-JV-2026-00001 · 03.08 (Да) · {fmt_mnt(120000)}₮ · Петровис" in bot.last_text
 	assert bot.callback_datas()[0] == f"b:{txn}:m:0"
 	run(bot, callback_update(8030, f"b:{txn}:m:0", message_id=42))
 	assert reconciled == [(txn, "Journal Entry", "ACC-JV-2026-00001", "tg-8030@nyabo.local")]

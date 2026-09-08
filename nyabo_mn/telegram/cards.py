@@ -18,6 +18,16 @@ from nyabo_mn.core import dates
 from nyabo_mn.core.money import fmt_mnt, quantize, to_decimal
 from nyabo_mn.i18n import mn
 
+# A Telegram bubble on a 360dp phone fits roughly 40 Cyrillic characters before it wraps;
+# 60 is the width at which a wrapped line is still one visual unit rather than a paragraph.
+CARD_MAX_LINE_CHARS = 60
+SELLER_MAX_CHARS = 30
+
+# Treatments that book no VAT amount and yet are not "no VAT": the supply is inside the
+# VAT law, zero-rated (art. 13) or exempt (art. 14). Kept here, not in the card body, so
+# the two lists in ``mn.VAT_TREATMENT_LABELS`` and here are read side by side.
+VAT_ZERO_AMOUNT_TREATMENTS = ("exempt", "zero")
+
 # --- helpers ---------------------------------------------------------------------------------------
 
 
@@ -56,8 +66,19 @@ def _date(value: Any) -> dt.date | None:
 
 
 def fmt_date(value: Any) -> str:
+	"""A transaction date as the user reads it: ``"03.08 (Да)"``.
+
+	Cards show dd.mm plus the weekday (``core.dates.short_date_mn``); ISO belongs to the
+	JSON columns, the report filters and the PDF filenames, which are read by machines.
+	"""
 	day = _date(value)
-	return day.isoformat() if day else "—"
+	return dates.short_date_weekday_mn(day) if day else mn.VALUE_UNKNOWN
+
+
+def _clip(text: str, limit: int) -> str:
+	"""Keep one card line inside a phone's width; a 60-character ХХК name must not wrap."""
+	text = str(text)
+	return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
 
 
 def _vat_rate_percent(total: Decimal, vat: Decimal, explicit: Any) -> str:
@@ -81,15 +102,33 @@ def _vat_rate_percent(total: Decimal, vat: Decimal, explicit: Any) -> str:
 
 
 def verification_text(verification: dict[str, Any] | None) -> str:
-	"""ARCHITECTURE §7: never "ebarimt ✓"; seller-found wording plus the receipt status."""
+	"""ARCHITECTURE §7: never "ebarimt ✓" — three separate facts, none of them a tax-authority check.
+
+	1. the seller: found in the public registry by ТТД/РД, or not;
+	2. the receipt itself: no buyer-side verification endpoint exists, so it stays
+	«Баримт шалгагдаагүй» unless a provider ever answers ``status = "verified"``;
+	3. the QR: whether ``ebarimt.qr.decode`` read a ``qrData`` off the photo. Reading a QR
+	proves only that a QR was on the paper — it is reported next to, never instead of,
+	the unchecked-receipt wording (UX-09).
+
+	``verification_json`` is written nested by ``agent.pipeline`` (``{"seller": …,
+	"receipt": …, "qr_data": …}``); the flat shape is what older rows and the simulator
+	carry, so both are read here.
+	"""
 	verification = verification or {}
+	seller_row = verification.get("seller")
+	seller_row = seller_row if isinstance(seller_row, dict) else verification
+	receipt_row = verification.get("receipt")
+	receipt_row = receipt_row if isinstance(receipt_row, dict) else verification
 	seller_found = bool(
-		verification.get("seller_found") or verification.get("vat_payer") or verification.get("found")
+		seller_row.get("seller_found") or seller_row.get("vat_payer") or seller_row.get("found")
 	)
-	seller = mn.VERIFICATION_SELLER_OK if seller_found else mn.VERIFICATION_SELLER_NOT_FOUND
-	if verification.get("status") == "verified":
-		return seller
-	return f"{seller} · {mn.VERIFICATION_RECEIPT_UNCHECKED}"
+	parts = [mn.VERIFICATION_SELLER_OK if seller_found else mn.VERIFICATION_SELLER_NOT_FOUND]
+	if receipt_row.get("status") != "verified":
+		parts.append(mn.VERIFICATION_RECEIPT_UNCHECKED)
+	if "qr_data" in verification:
+		parts.append(mn.VERIFICATION_QR_FOUND if verification.get("qr_data") else mn.VERIFICATION_QR_MISSING)
+	return " · ".join(parts)
 
 
 def account_reason(proposal: dict[str, Any]) -> str:
@@ -104,41 +143,58 @@ def account_reason(proposal: dict[str, Any]) -> str:
 def receipt_card(proposal: dict[str, Any], warnings: list[str] | None = None) -> str:
 	"""The proposal card, §5.1 anatomy:
 
-	🧾 seller · date (weekday)
-	💵 total₮ · НӨАТ vat₮ (rate%, treatment) · verification
+	🧾 seller · dd.mm (weekday)
+	💵 total₮ · НӨАТ vat₮ (rate%, treatment)
+	🔎 verification
 	📒 code account · reason
 	«explanation»
 	⚠️ warning (one line each)
 	📜 pattern citation
+
+	Money and verification are two lines, not one: together they ran to 88 characters and
+	wrapped into an unreadable block on a phone (UX-10).
 	"""
 	extracted = _json(proposal.get("extracted_json")) or {}
-	seller = proposal.get("supplier_name") or proposal.get("supplier") or extracted.get("seller_name") or "—"
+	seller = (
+		proposal.get("supplier_name")
+		or proposal.get("supplier")
+		or extracted.get("seller_name")
+		or mn.VALUE_UNKNOWN
+	)
 	day = _date(proposal.get("posting_date"))
 	title = mn.CARD_RECEIPT_TITLE.format(
-		seller=seller,
-		date=day.isoformat() if day else "—",
-		weekday=dates.weekday_short_mn(day) if day else "—",
+		seller=_clip(seller, SELLER_MAX_CHARS),
+		date=dates.short_date_mn(day) if day else mn.VALUE_UNKNOWN,
+		weekday=dates.weekday_short_mn(day) if day else mn.VALUE_UNKNOWN,
 	)
 	total = _money(proposal.get("total"))
 	vat = _money(proposal.get("vat_amount"))
 	treatment = proposal.get("vat_treatment") or "none"
-	verification = verification_text(_json(proposal.get("verification_json")))
-	if vat > 0 and treatment not in ("none",):
+	if vat > 0 and treatment != "none":
 		money_line = mn.CARD_MONEY_LINE.format(
 			total=fmt_mnt(total),
 			vat=fmt_mnt(vat),
 			rate=_vat_rate_percent(total, vat, extracted.get("vat_rate") or proposal.get("vat_rate")),
 			treatment=mn.VAT_TREATMENT_LABELS.get(treatment, treatment),
-			verification=verification,
+		)
+	elif treatment in VAT_ZERO_AMOUNT_TREATMENTS:
+		# Exempt and zero-rated receipts carry no VAT amount but are not "НӨАТ-гүй": the
+		# supply is inside the VAT law and the accountant needs to see which one it is
+		# (VAT law art. 13 zero-rated / art. 14 exempt). UX-06.
+		money_line = mn.CARD_MONEY_LINE_TREATMENT.format(
+			total=fmt_mnt(total), treatment=mn.VAT_TREATMENT_LABELS[treatment]
 		)
 	else:
-		money_line = mn.CARD_MONEY_LINE_NO_VAT.format(total=fmt_mnt(total), verification=verification)
+		money_line = mn.CARD_MONEY_LINE_NO_VAT.format(total=fmt_mnt(total))
+	verification_line = mn.CARD_VERIFICATION_LINE.format(
+		verification=verification_text(_json(proposal.get("verification_json")))
+	)
 	account_line = mn.CARD_ACCOUNT_LINE.format(
-		code=proposal.get("account_code") or "—",
-		account=proposal.get("account_name") or _strip_account(proposal.get("account")) or "—",
+		code=proposal.get("account_code") or mn.VALUE_UNKNOWN,
+		account=proposal.get("account_name") or _strip_account(proposal.get("account")) or mn.VALUE_UNKNOWN,
 		reason=account_reason(proposal),
 	)
-	lines = [title, money_line, account_line]
+	lines = [title, money_line, verification_line, account_line]
 	explanation = (proposal.get("explanation") or "").strip()
 	if explanation:
 		lines.append(mn.CARD_EXPLANATION_LINE.format(explanation=explanation))
@@ -185,7 +241,7 @@ def bank_line_card(txn: dict[str, Any], proposal: dict[str, Any] | None = None) 
 	amount = deposit - withdrawal if (deposit or withdrawal) else _money(txn.get("amount"))
 	lines = [
 		mn.CARD_BANK_LINE.format(
-			bank=txn.get("bank") or txn.get("bank_account") or "—",
+			bank=txn.get("bank") or txn.get("bank_account") or mn.VALUE_UNKNOWN,
 			date=fmt_date(txn.get("date")),
 			amount=fmt_mnt(amount),
 			description=(txn.get("description") or "")[:120],
@@ -196,8 +252,10 @@ def bank_line_card(txn: dict[str, Any], proposal: dict[str, Any] | None = None) 
 	if proposal:
 		lines.append(
 			mn.CARD_BANK_PROPOSAL.format(
-				code=proposal.get("account_code") or "—",
-				account=proposal.get("account_name") or _strip_account(proposal.get("account")) or "—",
+				code=proposal.get("account_code") or mn.VALUE_UNKNOWN,
+				account=proposal.get("account_name")
+				or _strip_account(proposal.get("account"))
+				or mn.VALUE_UNKNOWN,
 				reason=account_reason(proposal),
 			)
 		)
@@ -212,10 +270,10 @@ def bank_candidates_text(candidates: list[dict[str, Any]]) -> str:
 		lines.append(
 			mn.CARD_BANK_CANDIDATE.format(
 				index=index,
-				voucher=cand.get("voucher_name") or cand.get("name") or "—",
+				voucher=cand.get("voucher_name") or cand.get("name") or mn.VALUE_UNKNOWN,
 				date=fmt_date(cand.get("date") or cand.get("posting_date")),
 				amount=fmt_mnt(_money(cand.get("amount"))),
-				party=cand.get("party") or "—",
+				party=cand.get("party") or mn.VALUE_UNKNOWN,
 			)
 		)
 	return "\n".join(lines)
@@ -327,7 +385,7 @@ def recon_status(company: str, rows: list[dict[str, Any]]) -> str:
 		ledger = _money(row.get("ledger"))
 		lines.append(
 			mn.MSG_RECON_STATUS_LINE.format(
-				bank=row.get("bank") or "—",
+				bank=row.get("bank") or mn.VALUE_UNKNOWN,
 				currency=row.get("currency") or "MNT",
 				statement=fmt_mnt(statement),
 				ledger=fmt_mnt(ledger),
@@ -347,7 +405,11 @@ def quality_card(company: str, days: int, metrics: dict[str, Any]) -> str:
 
 	def pct(key: str) -> str:
 		value = metrics.get(key)
-		return "—" if value is None else str(int(round(float(value) * (100 if float(value) <= 1 else 1))))
+		return (
+			mn.VALUE_UNKNOWN
+			if value is None
+			else str(int(round(float(value) * (100 if float(value) <= 1 else 1))))
+		)
 
 	body = mn.MSG_QUALITY_BODY.format(
 		extraction=pct("extraction_accuracy"),
@@ -355,8 +417,8 @@ def quality_card(company: str, days: int, metrics: dict[str, Any]) -> str:
 		vat=pct("vat_accuracy"),
 		automatch=pct("automatch_rate"),
 		false_match=pct("false_match_rate"),
-		latency=metrics.get("latency_s", "—"),
-		cost=metrics.get("cost_usd_per_document", "—"),
+		latency=metrics.get("latency_s", mn.VALUE_UNKNOWN),
+		cost=metrics.get("cost_usd_per_document", mn.VALUE_UNKNOWN),
 	)
 	return mn.MSG_QUALITY_HEADER.format(company=company, days=days) + "\n" + body
 

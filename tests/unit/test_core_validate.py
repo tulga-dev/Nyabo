@@ -4,6 +4,7 @@ import datetime as dt
 from decimal import Decimal
 
 from nyabo_mn.core.models import Citation, ProposedEntry, ProposedLine
+from nyabo_mn.core.money import fmt_mnt
 from nyabo_mn.core.validate import validate_entry
 from nyabo_mn.i18n import mn
 
@@ -50,7 +51,7 @@ def test_valid_gross_entry_for_non_vat_company():
 def test_unbalanced_entry():
 	entry = _entry((_line("6210", "85000"), _line("2110", credit="80000")))
 	problems = validate_entry(entry, LEAVES, VAT_RATE)
-	assert problems == [mn.MSG_ENTRY_UNBALANCED.format(debit="85 000", credit="80 000")]
+	assert problems == [mn.MSG_ENTRY_UNBALANCED.format(debit=fmt_mnt(85000), credit=fmt_mnt(80000))]
 
 
 def test_too_few_lines():
@@ -90,7 +91,7 @@ def test_vat_math_checked_only_when_withheld():
 	lines = (_line("6210", "77272.73"), _line("1810", "9000"), _line("2110", credit="86272.73"))
 	withheld = _entry(lines, "withheld", "86272.73", "9000")
 	problems = validate_entry(withheld, LEAVES, VAT_RATE)
-	assert problems == [mn.MSG_VAT_MATH_INCONSISTENT.format(vat="9 000", rate="10")]
+	assert problems == [mn.MSG_VAT_MATH_INCONSISTENT.format(vat=fmt_mnt(9000), rate="10")]
 	not_withheld = _entry(lines, "in_expense", "86272.73", "9000")
 	assert validate_entry(not_withheld, LEAVES, VAT_RATE) == []
 

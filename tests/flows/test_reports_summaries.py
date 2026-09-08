@@ -9,6 +9,7 @@ import pytest
 from compliance_helpers import BANK, CASH, EXPENSE, INCOME, INPUT_VAT, OUTPUT_VAT, make_je, make_pi, make_si
 from openpyxl import load_workbook
 
+from nyabo_mn.core.money import fmt_mnt
 from nyabo_mn.i18n import mn
 from nyabo_mn.reports import export, month_end, rules_bridge, simplified_summary, vat_summary
 
@@ -168,7 +169,7 @@ def test_month_end_summaries_pick_the_regime(books):
 	_settings(books, "vat_payer")
 	out = month_end.summaries(books, "2026-03")
 	assert out["is_vat_payer"] is True and set(out["pdfs"]) == {"vat_summary"}
-	assert any("11 500" in line or "11,500" in line or "11500" in line for line in out["text_lines"])
+	assert any(fmt_mnt(11500) in line for line in out["text_lines"])
 	assert mn.REPORT_VAT_SUMMARY in out["pdfs"]["vat_summary"].decode("utf-8")
 	assert "DejaVu Sans" in out["pdfs"]["vat_summary"].decode("utf-8")
 

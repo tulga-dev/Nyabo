@@ -46,25 +46,34 @@ def test_parse_mnt_rejects_garbage_with_mongolian_message(text: str):
 	assert exc.value.message_mn == mn.MSG_MONEY_UNPARSEABLE.format(text=text)
 
 
+NB = money.THOUSANDS_SEPARATOR
+
+
 @pytest.mark.parametrize(
 	("value", "expected"),
 	[
-		(Decimal("85000"), "85 000"),
-		(Decimal("85000.00"), "85 000"),
-		(Decimal("85000.50"), "85 000.50"),
-		(Decimal("-1500"), "-1 500"),
+		(Decimal("85000"), f"85{NB}000"),
+		(Decimal("85000.00"), f"85{NB}000"),
+		(Decimal("85000.50"), f"85{NB}000.50"),
+		(Decimal("-1500"), f"-1{NB}500"),
 		(Decimal("999"), "999"),
 		(Decimal("0"), "0"),
-		(1234567, "1 234 567"),
-		("77272.73", "77 272.73"),
+		(1234567, f"1{NB}234{NB}567"),
+		("77272.73", f"77{NB}272.73"),
 	],
 )
 def test_fmt_mnt(value, expected: str):
 	assert money.fmt_mnt(value) == expected
 
 
+def test_fmt_mnt_uses_a_non_breaking_thousands_separator():
+	"""UX-10: Telegram wraps on a plain space, so "85 000₮" would split across two lines."""
+	assert money.THOUSANDS_SEPARATOR == " "
+	assert " " not in money.fmt_mnt(Decimal("1234567.89"))
+
+
 def test_fmt_parse_round_trip():
-	for text in ("85 000", "1 234 567.89", "-1 500"):
+	for text in (f"85{NB}000", f"1{NB}234{NB}567.89", f"-1{NB}500"):
 		assert money.fmt_mnt(money.parse_mnt(text)) == text
 
 

@@ -161,8 +161,12 @@ BANK_NAMES_MN = {
 
 # --- receipt cards -----------------------------------------------------------------------
 CARD_RECEIPT_TITLE = "🧾 {seller} · {date} ({weekday})"
-CARD_MONEY_LINE = "💵 {total}₮ · НӨАТ {vat}₮ ({rate}%, {treatment}) · {verification}"
-CARD_MONEY_LINE_NO_VAT = "💵 {total}₮ · НӨАТ-гүй · {verification}"
+# The money line and the verification line are separate so neither wraps on a phone
+# (UX-10: a card line stays under ~60 characters).
+CARD_MONEY_LINE = "💵 {total}₮ · НӨАТ {vat}₮ ({rate}%, {treatment})"
+CARD_MONEY_LINE_TREATMENT = "💵 {total}₮ · НӨАТ {treatment}"
+CARD_MONEY_LINE_NO_VAT = "💵 {total}₮ · НӨАТ-гүй"
+CARD_VERIFICATION_LINE = "🔎 {verification}"
 CARD_ACCOUNT_LINE = "📒 {code} {account} · {reason}"
 CARD_EXPLANATION_LINE = "«{explanation}»"
 CARD_WARNING_LINE = "⚠️ {warning}"
@@ -701,6 +705,9 @@ EXPLANATION = "Тайлбар"
 DEBIT_SHORT = "Дт"
 CREDIT_SHORT = "Кт"
 WEEKDAYS_SHORT = ["Да", "Мя", "Лх", "Пү", "Ба", "Бя", "Ня"]
+# Transaction dates read as dd.mm plus the weekday: "09.03 (Мя)" (core.dates.short_date_mn).
+SHORT_DATE_WEEKDAY = "{date} ({weekday})"
+VALUE_UNKNOWN = "—"  # the em dash a card prints where a field could not be read
 MONTHS = [
 	"1-р сар",
 	"2-р сар",
