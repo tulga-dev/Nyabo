@@ -70,7 +70,34 @@ def render_bank_line(bank_transaction_name: str) -> tuple[str, str | None]:
 			)
 		else:
 			parts.append(mn.CARD_BANK_UNMATCHED)
+			settlement = settlement_hint(bank_transaction_name)
+			if settlement:
+				parts.append(settlement)
 	return "\n".join(parts), proposal_name
+
+
+def settlement_hint(bank_transaction_name: str) -> str | None:
+	"""The «this line pays that unpaid invoice» line, or None. Never raises.
+
+	The invoice is only a *candidate*: settling it submits a Payment Entry, so the card
+	names it and the [Төлбөр бүртгэх] button does the posting on the accountant's tap
+	(docs/ARCHITECTURE.md §5.4, §1.3). The hint is decoration, and decoration must not be
+	able to suppress a card: a missing Bank Account row, a malformed transaction or a
+	database hiccup inside the scan is logged and the card goes out without the line (S7).
+	"""
+	from nyabo_mn.log import log_error
+	from nyabo_mn.matching import match as match_mod
+
+	try:
+		candidate = match_mod.settlement_candidate(bank_transaction_name)
+	except Exception as exc:  # noqa: BLE001 - the card matters more than the hint
+		log_error("bank.settlement_hint_failed", exc, bank_transaction=bank_transaction_name)
+		return None
+	if candidate is None:
+		return None
+	return mn.CARD_BANK_SETTLE_HINT.format(
+		voucher=candidate.name, party=candidate.party_name, amount=fmt_mnt(abs(candidate.amount))
+	)
 
 
 def _transfer_of(entry_json: Any) -> Mapping[str, Any] | None:
@@ -123,4 +150,4 @@ def render_candidates(candidates: Iterable[Mapping[str, Any]]) -> str:
 	return "\n".join(lines)
 
 
-__all__ = ["render_bank_line", "render_candidates"]
+__all__ = ["render_bank_line", "render_candidates", "settlement_hint"]

@@ -33,8 +33,13 @@ RETAINED_PARENTS: dict[str, str] = {
 	"Purchase Invoice": "nyabo_retain_until",
 	"Journal Entry": "nyabo_retain_until",
 	"Sales Invoice": "nyabo_retain_until",
+	"Payment Entry": "nyabo_retain_until",
 }
-PRIMARY_DOCUMENT_DOCTYPES: frozenset[str] = frozenset({"Purchase Invoice", "Journal Entry"})
+PRIMARY_DOCUMENT_DOCTYPES: frozenset[str] = frozenset({"Purchase Invoice", "Journal Entry", "Payment Entry"})
+# Fields that mark a document as Nyabo's own: the proposal it came from, the Nyabo Document
+# behind it, or the Mongolian explanation every Nyabo posting carries. A settlement Payment
+# Entry has no proposal, so asking for that alone left it deletable after cancel (COMP-10).
+NYABO_TRAIL_FIELDS: tuple[str, ...] = ("nyabo_proposal", "source_document", "nyabo_explanation")
 # Journal Entries ERPNext builds and submits itself: asset depreciation and disposal
 # (erpnext/assets/doctype/asset/depreciation.py, a daily scheduler job), exchange-rate
 # revaluation and its gain/loss entry (erpnext/accounts/utils.py), and opening entries.
@@ -141,6 +146,11 @@ def system_generated_source(doc: Any) -> str | None:
 	return None
 
 
+def has_nyabo_trail(doc: Any) -> bool:
+	"""True when the document carries one of Nyabo's own audit fields (NYABO_TRAIL_FIELDS)."""
+	return any(str(doc.get(field) or "").strip() for field in NYABO_TRAIL_FIELDS)
+
+
 def require_primary_document(doc: Any, method: str | None = None) -> None:
 	"""before_submit: a Nyabo Document, a written reference or an attached File (art. 13.7).
 
@@ -148,8 +158,21 @@ def require_primary_document(doc: Any, method: str | None = None) -> None:
 	the three and no human to ask, so instead of breaking the ERPNext feature the handler
 	writes what produced it into ``nyabo_primary_document_ref``: the trail art. 13.7 wants
 	stays on the document, and the entry says in Mongolian that no person filed a receipt.
+
+	A Payment Entry is the exception the other two doctypes do not need. Nyabo did not put
+	it on the site: ERPNext submits Payment Entries of its own from the desk, from the Bank
+	Reconciliation Tool (``bank_reconciliation_tool.create_payment_entry_bts``, which builds
+	``frappe.new_doc("Payment Entry")`` and calls ``pe.insert(); pe.submit()`` with no Nyabo
+	field on it) and from a Payment Request, none of which can name a primary document, and
+	Journal Entry's escape hatch (``system_generated_source``) answers None for anything that
+	is not a Journal Entry. Asking art. 13.7 of every Payment Entry therefore refused every
+	payment the site made. The rule is asked of the ones Nyabo posts — a settlement stamps
+	``source_document``, ``nyabo_explanation`` and ``nyabo_primary_document_ref`` — which is
+	exactly what ``has_nyabo_trail`` recognises (COMP-10).
 	"""
 	if doc.doctype not in PRIMARY_DOCUMENT_DOCTYPES:
+		return
+	if doc.doctype == "Payment Entry" and not has_nyabo_trail(doc):
 		return
 	if doc.get("source_document") or (doc.get("nyabo_primary_document_ref") or "").strip():
 		return
@@ -239,8 +262,25 @@ def guard_no_edit_after_submit(doc: Any, method: str | None = None) -> None:
 
 
 def block_delete_of_posted(doc: Any, method: str | None = None) -> None:
-	"""on_trash: a submitted or cancelled document that came from a Nyabo proposal stays."""
-	if int(doc.docstatus or 0) in (1, 2) and doc.get("nyabo_proposal"):
+	"""on_trash: a submitted or cancelled document Nyabo posted stays (art. 11.1).
+
+	``doc.flags.nyabo_discarding`` is the single exception, and only
+	``matching.match._discard_payment_entry`` sets it: a settlement whose own transaction
+	failed, being undone inside the savepoint that failed. Nothing was shown to the
+	accountant and nothing outlives the rollback, so there is no record art. 11.1 protects —
+	while without the exception the cleanup could not run at all, because the settlement has
+	already stamped ``nyabo_explanation`` and the guard fired on every attempt.
+
+	The flag reaches this handler through ``frappe.delete_doc(..., flags={...})``, which
+	``update_flags`` applies to the freshly loaded document *before* ``doc.run_method(
+	"on_trash")`` (frappe/model/delete_doc.py, version-16) — setting it on the caller's own
+	copy would not, because ``delete_doc`` re-fetches the document by name.
+	"""
+	if doc.flags.get("nyabo_discarding"):
+		return
+	if int(doc.docstatus or 0) not in (1, 2):
+		return
+	if has_nyabo_trail(doc):
 		frappe.throw(mn.MSG_POSTED_DELETE_BLOCKED)
 
 

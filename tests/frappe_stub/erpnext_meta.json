@@ -6191,6 +6191,137 @@
   ],
   "track_changes": 1
  },
+ "Payment Entry Reference": {
+  "autoname": "",
+  "istable": 1,
+  "is_submittable": 0,
+  "track_changes": 1,
+  "permissions": [],
+  "fields": [
+   {
+    "fieldname": "reference_doctype",
+    "fieldtype": "Link",
+    "options": "DocType",
+    "reqd": 1,
+    "label": "Type"
+   },
+   {
+    "fieldname": "reference_name",
+    "fieldtype": "Dynamic Link",
+    "options": "reference_doctype",
+    "reqd": 1,
+    "label": "Name"
+   },
+   {
+    "fieldname": "due_date",
+    "fieldtype": "Date",
+    "read_only": 1,
+    "label": "Due Date"
+   },
+   {
+    "fieldname": "bill_no",
+    "fieldtype": "Data",
+    "read_only": 1,
+    "no_copy": 1,
+    "label": "Supplier Invoice No"
+   },
+   {
+    "fieldname": "column_break_4",
+    "fieldtype": "Column Break"
+   },
+   {
+    "fieldname": "total_amount",
+    "fieldtype": "Currency",
+    "read_only": 1,
+    "label": "Grand Total"
+   },
+   {
+    "fieldname": "outstanding_amount",
+    "fieldtype": "Currency",
+    "read_only": 1,
+    "label": "Outstanding"
+   },
+   {
+    "fieldname": "allocated_amount",
+    "fieldtype": "Currency",
+    "label": "Allocated"
+   },
+   {
+    "fieldname": "exchange_rate",
+    "fieldtype": "Float",
+    "read_only": 1,
+    "label": "Exchange Rate"
+   },
+   {
+    "fieldname": "payment_term",
+    "fieldtype": "Link",
+    "options": "Payment Term",
+    "label": "Payment Term"
+   },
+   {
+    "fieldname": "exchange_gain_loss",
+    "fieldtype": "Currency",
+    "options": "Company:company:default_currency",
+    "read_only": 1,
+    "label": "Exchange Gain/Loss"
+   },
+   {
+    "fieldname": "account",
+    "fieldtype": "Link",
+    "options": "Account",
+    "label": "Account"
+   },
+   {
+    "fieldname": "account_type",
+    "fieldtype": "Data",
+    "label": "Account Type"
+   },
+   {
+    "fieldname": "payment_type",
+    "fieldtype": "Data",
+    "label": "Payment Type"
+   },
+   {
+    "fieldname": "payment_request",
+    "fieldtype": "Link",
+    "options": "Payment Request",
+    "label": "Payment Request"
+   },
+   {
+    "fieldname": "payment_term_outstanding",
+    "fieldtype": "Float",
+    "read_only": 1,
+    "label": "Payment Term Outstanding"
+   },
+   {
+    "fieldname": "payment_request_outstanding",
+    "fieldtype": "Float",
+    "read_only": 1,
+    "label": "Payment Request Outstanding",
+    "is_virtual": 1
+   },
+   {
+    "fieldname": "reconcile_effect_on",
+    "fieldtype": "Date",
+    "read_only": 1,
+    "label": "Reconcile Effect On"
+   },
+   {
+    "fieldname": "advance_voucher_type",
+    "fieldtype": "Link",
+    "options": "DocType",
+    "read_only": 1,
+    "label": "Advance Voucher Type"
+   },
+   {
+    "fieldname": "advance_voucher_no",
+    "fieldtype": "Dynamic Link",
+    "options": "advance_voucher_type",
+    "read_only": 1,
+    "label": "Advance Voucher No"
+   }
+  ]
+ },
  "Print Format": {
   "autoname": "Prompt",
   "fields": [

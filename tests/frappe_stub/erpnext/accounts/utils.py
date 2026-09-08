@@ -1,4 +1,5 @@
-"""erpnext.accounts.utils: ``get_balance_on``, ``get_fiscal_year``, ``get_autoname_with_number``.
+"""erpnext.accounts.utils: ``get_balance_on``, ``get_fiscal_year``, ``get_autoname_with_number``,
+``update_voucher_outstanding``.
 
 ``get_balance_on`` sums the stub's GL Entry rows exactly as the SQL in
 erpnext/accounts/utils.py (version-16) does: ``is_cancelled = 0``, ``posting_date <= date``
@@ -188,6 +189,50 @@ def get_balance_on(
 			continue
 		total += flt(row.get(debit_field)) - flt(row.get(credit_field))
 	return flt(total, 2)
+
+
+OUTSTANDING_DOCTYPES = ("Sales Invoice", "Purchase Invoice")
+
+
+def update_voucher_outstanding(
+	voucher_type: str | None,
+	voucher_no: str | None,
+	account: str | None,
+	party_type: str | None,
+	party: str | None,
+) -> None:
+	"""Recompute an invoice's ``outstanding_amount`` and status after a payment.
+
+	version-16 keeps outstanding amounts in the Payment Ledger (``utils.update_voucher_outstanding``
+	reads ``Payment Ledger Entry`` through ``QueryPaymentLedger``). The stub has no payment
+	ledger, so it uses the formula the same file kept before it —
+	``gl_entry.update_outstanding_amt``: the party-account GL rows carrying
+	``against_voucher = the invoice``, ``debit − credit`` in account currency, sign-flipped
+	for a Purchase Invoice. For the single-currency invoices the stub supports the two
+	agree; anything else is out of scope and raises where it is used.
+	"""
+	import frappe
+
+	if not voucher_type or not voucher_no or voucher_type not in OUTSTANDING_DOCTYPES:
+		return
+	if not (party_type and party):
+		return
+	balance = 0.0
+	for row in frappe.get_all("GL Entry", fields=["*"]):
+		if row.is_cancelled or row.against_voucher_type != voucher_type or row.against_voucher != voucher_no:
+			continue
+		if row.party_type != party_type or row.party != party:
+			continue
+		if account and row.account != account:
+			continue
+		balance += flt(row.debit_in_account_currency) - flt(row.credit_in_account_currency)
+	if voucher_type == "Purchase Invoice":
+		balance = -balance
+	ref_doc = frappe.get_doc(voucher_type, voucher_no)
+	outstanding = flt(balance, ref_doc.precision("outstanding_amount"))
+	ref_doc.outstanding_amount = outstanding
+	frappe.db.set_value(voucher_type, voucher_no, "outstanding_amount", outstanding)
+	ref_doc.set_status(update=True)
 
 
 def get_account_currency(account: str | None) -> Any:

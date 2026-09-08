@@ -53,7 +53,7 @@ def chart_scheme(company: str) -> str:
 
 
 def role_code(role: str, scheme: str) -> str:
-	"""The template code of a role in a chart scheme; null roles refuse (D-013)."""
+	"""The template code of a role in a chart scheme; null roles refuse (CORE-13)."""
 	table = code_roles().get(role_scheme(scheme)) or {}
 	code = table.get(role)
 	if not code:
@@ -92,7 +92,7 @@ def resolve_code(company: str, code_or_alias: str, scheme: str | None = None) ->
 		scheme = scheme or ALIAS_SCHEME_TEMPLATE
 	elif in_chart(company, value):
 		# V1 and v0.3 share codes such as 6110 with different meanings: a code that exists in
-		# the installed chart is that account, never an alias (D-017).
+		# the installed chart is that account, never an alias (RULES-01).
 		return value
 	seen = {value}
 	for _ in range(MAX_HOPS):

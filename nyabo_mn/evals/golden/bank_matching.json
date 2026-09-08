@@ -736,7 +736,7 @@
     "match": null,
     "kind": "none"
    },
-   "notes": "Exact amount and day but no name or reference: 0.70 stays under the 0.80 threshold (D-010)."
+   "notes": "Exact amount and day but no name or reference: 0.70 stays under the 0.80 threshold (CORE-10)."
   }
  ]
 }

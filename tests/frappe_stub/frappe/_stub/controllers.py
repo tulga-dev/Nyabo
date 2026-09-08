@@ -28,6 +28,7 @@ STUB_CONTROLLERS: dict[str, str] = {
 	"Item": "erpnext.stock.doctype.item.item.Item",
 	"Item Tax Template": "erpnext.accounts.doctype.item_tax_template.item_tax_template.ItemTaxTemplate",
 	"Journal Entry": "erpnext.accounts.doctype.journal_entry.journal_entry.JournalEntry",
+	"Payment Entry": "erpnext.accounts.doctype.payment_entry.payment_entry.PaymentEntry",
 	"Purchase Invoice": "erpnext.accounts.doctype.purchase_invoice.purchase_invoice.PurchaseInvoice",
 	"Purchase Taxes and Charges Template": "erpnext.accounts.doctype.purchase_taxes_and_charges_template.purchase_taxes_and_charges_template.PurchaseTaxesandChargesTemplate",
 	"Sales Invoice": "erpnext.accounts.doctype.sales_invoice.sales_invoice.SalesInvoice",

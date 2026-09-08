@@ -29,6 +29,10 @@ doc_events = {
 	tuple(period_closing_doctypes): {
 		"validate": "erpnext.accounts.doctype.accounting_period.accounting_period.validate_accounting_period_on_doc_save",
 	},
+	("Payment Entry", "Journal Entry"): {
+		# A cancelled voucher must stop holding a statement line Reconciled.
+		"on_cancel": "erpnext.accounts.doctype.bank_transaction.bank_transaction.remove_from_bank_transaction",
+	},
 }
 
 bank_reconciliation_doctypes = [

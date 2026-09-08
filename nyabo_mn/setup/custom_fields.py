@@ -26,6 +26,9 @@ TRANSACTION_DOCTYPES: dict[str, str] = {
 	"Purchase Invoice": "remarks",
 	"Sales Invoice": "remarks",
 	"Journal Entry": "user_remark",
+	# A settlement is a posting, so it carries the same explanation, source document,
+	# approver and retention date as the rest (COMP-10).
+	"Payment Entry": "remarks",
 	"Expense Claim": "remark",  # exists only when HRMS is installed
 }
 PARTY_DOCTYPES: dict[str, str] = {

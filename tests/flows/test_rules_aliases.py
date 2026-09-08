@@ -39,7 +39,7 @@ def test_v1_company_keeps_identity_and_v1_roles(company):
 	assert aliases.resolve_code(company, "6210") == "6210"
 	assert aliases.account_for(company, "role:bank") == "1120 - Банкны харилцах данс - TST"
 	with pytest.raises(MissingRuleError) as excinfo:
-		aliases.resolve_code(company, "role:si_payable")  # D-013: V1 has no SI payable leaf
+		aliases.resolve_code(company, "role:si_payable")  # CORE-13: V1 has no SI payable leaf
 	assert "si_payable" in excinfo.value.message_mn
 
 

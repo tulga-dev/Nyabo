@@ -3,7 +3,7 @@
 The report code never names an account: it asks for a *role*; ``nyabo_mn.rules.aliases``
 maps the role to a code (``seed/code_roles.json`` for the company's chart scheme, Nyabo
 Account Alias rows for the ``accountant`` scheme) and this module finds the Account row by
-``account_number``. What stays here is the chart probe (D-021): the configured scheme is
+``account_number``. What stays here is the chart probe (COMP-05): the configured scheme is
 trusted only when its cash-role code exists in the installed chart.
 """
 
@@ -48,7 +48,7 @@ def chart_scheme(company: str) -> str:
 def role_code(company: str, role: str) -> str | None:
 	"""Account code for the role in the company's (probed) scheme, or None when the scheme has none.
 
-	``rules.aliases`` owns the role table and the alias hops; a null role (D-013) is
+	``rules.aliases`` owns the role table and the alias hops; a null role (CORE-13) is
 	reported as None here so the caller can refuse with the Mongolian message.
 	"""
 	scheme = chart_scheme(company)

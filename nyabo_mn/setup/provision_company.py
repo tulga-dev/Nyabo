@@ -64,7 +64,7 @@ DEFAULT_SCHEME = aliases.SCHEME_V1
 SETTINGS_DOCTYPE = "Nyabo Company Settings"
 
 # Company default-account field -> account role (code_roles.json). Only fields that exist on this
-# ERPNext version are set, and a role the scheme leaves null (D-013) is skipped. ERPNext looks some
+# ERPNext version are set, and a role the scheme leaves null (CORE-13) is skipped. ERPNext looks some
 # of these up by English account name ("Write Off", "Exchange Gain/Loss", "Round Off"); our charts
 # have Mongolian names, so we set them explicitly.
 COMPANY_DEFAULTS_BY_ROLE: dict[str, str] = {
@@ -449,7 +449,7 @@ def _set_company_defaults(company: str, scheme: str, warnings: list[str]) -> dic
 	values: dict[str, str] = {}
 	for fieldname, role in COMPANY_DEFAULTS_BY_ROLE.items():
 		if not meta.has_field(fieldname) or not table.get(role):
-			continue  # roles the scheme leaves null (D-013) simply do not become defaults
+			continue  # roles the scheme leaves null (CORE-13) simply do not become defaults
 		try:
 			values[fieldname] = aliases.account_for(company, f"role:{role}", leaf=False)
 		except ChartError as exc:

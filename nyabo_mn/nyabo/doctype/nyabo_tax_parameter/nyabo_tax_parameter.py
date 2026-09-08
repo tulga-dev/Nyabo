@@ -37,7 +37,7 @@ class NyaboTaxParameter(Document):
 			)
 
 	def validate_value(self) -> None:
-		"""value_json must parse; only a pending row may leave it empty (D-003)."""
+		"""value_json must parse; only a pending row may leave it empty (CORE-03)."""
 		raw = self.value_json
 		if isinstance(raw, str) and raw.strip():
 			try:

@@ -357,3 +357,31 @@ def get_reconciled_bank_transactions(doctype: str, docname: str) -> list[str]:
 		filters={"payment_document": doctype, "payment_entry": docname},
 		pluck="parent",
 	)
+
+
+def remove_from_bank_transaction(doc: Any, method: str | None = None) -> None:
+	"""on_cancel of a reconciled voucher: take it off every Bank Transaction that carries it.
+
+	ERPNext registers ``remove_from_bank_transaction`` as the ``on_cancel`` doc_event of the
+	bank-reconciliation doctypes so a cancelled voucher stops holding a statement line
+	Reconciled. The stub takes the Frappe handler shape ``(doc, method)`` and reuses
+	``remove_payment_entry``, which delinks (clears ``clearance_date``) and re-runs the
+	allocation, so the line falls back to Unreconciled with its full unallocated amount.
+	"""
+	import frappe
+
+	for name in get_reconciled_bank_transactions(doc.doctype, doc.name):
+		transaction = frappe.get_doc("Bank Transaction", name)
+		if int(transaction.docstatus) == 2:
+			continue
+		rows = [
+			row
+			for row in transaction.payment_entries
+			if row.payment_document == doc.doctype and row.payment_entry == doc.name
+		]
+		if not rows:
+			continue
+		for row in rows:
+			transaction.remove_payment_entry(row)
+		transaction.flags.ignore_permissions = True
+		transaction.save()

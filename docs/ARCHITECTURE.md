@@ -184,9 +184,9 @@ under `nyabo_mn/nyabo/doctype/` are committed. Roles (fixtures): `Nyabo Admin`,
 | Nyabo Company Settings | `field:company` | per Company: `owner_telegram_id`, `accountant_telegram_id`, `accountant_user` (Link User), `auto_approve_policy` (none/owner_simple), `auto_approve_max_amount`, `auto_approve_accounts` (Small Text, codes), `default_expense_code` (Data, default 6910 / 7010), `has_inventory`, `inventory_method` (FIFO/Weighted Average), `depreciation_method`, `fx_policy` (Data, default "Монголбанкны албан ханш"), `accountant_of_record_name`, `accountant_micpa_permit`, `chart_scheme` (v1/v03/accountant), `few_shot_refreshed_at`, tables `regimes` (Nyabo Tax Regime Period), `bank_accounts` (Nyabo Bank Account Row), `onboarding_state` (Data), `onboarding_completed` |
 | Nyabo Tax Regime Period | child | `regime` (vat_payer / simplified_1pct), `effective_from`, `effective_to`, `note` |
 | Nyabo Bank Account Row | child | `bank` (Khan Bank / TDB / Golomt Bank / Trans Bank / XacBank), `currency`, `account_number`, `gl_account` (Link Account), `erpnext_bank_account` (Link Bank Account) |
-| Nyabo User Link | `field:telegram_id` | `telegram_id` (Data, unique), `telegram_username`, `first_name`, `user` (Link User), `role` (Owner/Accountant/Admin), `status` (active/blocked), `linked_at`, table `companies` (Nyabo User Company: `company`, `role`) — the row role wins over the link role for that company (D-T04) |
+| Nyabo User Link | `field:telegram_id` | `telegram_id` (Data, unique), `telegram_username`, `first_name`, `user` (Link User), `role` (Owner/Accountant/Admin), `status` (active/blocked), `linked_at`, table `companies` (Nyabo User Company: `company`, `role`) — the row role wins over the link role for that company (TG-04) |
 | Nyabo Link Code | `field:code` | `code` (6 digits), `role`, `company`, `issued_by`, `expires_at`, `used_by_telegram_id`, `used_at`, `status` (open/used/expired) |
-| Nyabo Chat State | `field:chat_id` | `chat_id`, `telegram_id`, `state` (Data), `payload` (JSON), `updated_at`, `link_attempts`, `link_blocked_until` — the conversation state machine storage and the link-code attempt cap (D-T05) |
+| Nyabo Chat State | `field:chat_id` | `chat_id`, `telegram_id`, `state` (Data), `payload` (JSON), `updated_at`, `link_attempts`, `link_blocked_until` — the conversation state machine storage and the link-code attempt cap (TG-05) |
 | Nyabo Document | `NYD-.#####` | `file` (Attach), `file_hash` (sha256, indexed), `doc_type` (receipt/sales_ebarimt/bank_statement/inventory/other), `company`, `sender_telegram_id`, `sender_user`, `telegram_file_id`, `telegram_chat_id`, `telegram_message_id`, `status` (received/extracted/proposed/approved/rejected/posted/failed), `retain_until` (Date), `posted_doctype`, `posted_name`, `error` (Small Text), `mime_type`, `size_bytes` |
 | Nyabo Proposal | `NYP-.#####` | `document` (Link), `company`, `kind` (receipt/bank_line/inventory), `extracted_json` (JSON), `verification_json` (JSON), `entry_json` (JSON: ProposedEntry), `confidence_json` (JSON), `warnings_json` (JSON), `supplier` (Link Supplier), `supplier_is_new`, `posting_date`, `total` (Currency), `vat_amount` (Currency), `vat_treatment` (withheld/in_expense/exempt/zero/none), `account` (Link Account), `account_code` (Data), `posting_pattern` (Link Nyabo Posting Pattern), `rule_applied` (Link Nyabo Rule), `explanation` (Small Text ≤ 200), `citation` (Data), `prompt_version`, `model`, `tokens_in`, `tokens_out`, `latency_ms`, `needs_accountant` (Check), `status` (proposed/approved/rejected/posted/failed), `approved_by` (Link User), `approved_telegram_id`, `rejection_reason`, `posted_doctype`, `posted_name`, `card_chat_id`, `card_message_id`, `bank_transaction` (Link Bank Transaction) |
 | Nyabo Correction | `NYC-.#####` | `proposal` (Link), `company`, `field` (account_code/vat_treatment/supplier/total/posting_date/rejected/reversed), `proposed_value`, `corrected_value`, `corrected_by` (Link User), `corrected_telegram_id`, `reason` (Data), `reason_text` (Small Text), `source` (edit/reversal/rejection), `posted_doctype`, `posted_name`, `reversal_name` |
@@ -290,6 +290,23 @@ verifies); fee lines → rule `bank_fee` auto-proposal (still approved by a tap 
 `auto_approve_policy` allows); transfers between own accounts matched pairwise. Unmatched
 lines → cards with [Баримт хайх] [Зардал бүртгэх] [Дараа]. `/данс` prints per bank
 account: statement balance vs ledger balance, unmatched count.
+
+A cash receipt credits cash at posting time through ERPNext's `is_paid` invoice; a card /
+QPay / transfer receipt keeps the payable open and is settled by a Payment Entry
+(`matching.match.settle`) created on the accountant's tap when the statement line arrives.
+A line whose only candidate is such an unpaid invoice therefore stays unmatched and its
+card carries [Төлбөр бүртгэх]: `Bank Transaction.add_payment_entries` /
+`allocate_payment_entries` only record a link and a clearance date, so allocating an unpaid
+invoice would leave the payable open and the bank overstated (ERPNext's own
+`get_pi_matching_query` offers Purchase Invoices only with `is_paid = 1`). `run` never
+settles — a Payment Entry posts, and §1.3 keeps posting behind a human tap. The tap is
+refused unless the invoice belongs to the line's company, the direction agrees (a
+withdrawal pays a Purchase Invoice, a deposit collects a Sales Invoice), the invoice is
+live (not returned or reversed), the three currencies agree, the line carries no Nyabo
+Proposal already, the period is open and the line is no bigger than the outstanding
+amount. The Payment Entry it creates is a Nyabo posting like any other: `doc_events`
+guards, the `nyabo_*` audit fields, the Mongolian explanation and the statement as its
+source document.
 
 ### 5.5 Month-end `/хаалт YYYY-MM` (accountant only)
 

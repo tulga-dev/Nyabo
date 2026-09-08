@@ -75,7 +75,7 @@ def test_the_same_file_twice_is_refused_before_it_is_imported(books):
 
 
 def test_a_layout_nobody_verified_imports_nothing(books):
-	"""D-008: a mapping that was never verified must not be re-asked and must not post."""
+	"""CORE-08: a mapping that was never verified must not be re-asked and must not post."""
 	helpers.setup_banks(books)
 	helpers.register_layouts()
 	frappe.db.set_value("Nyabo Bank Layout", "test_khan_synthetic", "verified", 0)

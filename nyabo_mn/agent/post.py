@@ -277,7 +277,7 @@ def build_purchase_invoice(proposal: Any, entry: ProposedEntry, approver_user: s
 		template_name, account_head = _purchase_tax_template(company)
 		account_head = account_head or _account_name(company, vat_line.account_code)
 		# "Actual" books the VAT printed on the receipt exactly; validate_entry already
-		# checked it against the rate within a tögrög (D-002).
+		# checked it against the rate within a tögrög (CORE-02).
 		taxes.append(
 			{
 				"category": "Total",
@@ -309,7 +309,7 @@ def build_purchase_invoice(proposal: Any, entry: ProposedEntry, approver_user: s
 	if paid_from is not None:
 		# The proposal credits cash, so the invoice is ERPNext's paid invoice: make_payment_gl_entries
 		# debits credit_to and credits the cash account for paid_amount, which nets the payable to
-		# zero and leaves the cash movement the accountant can see (D-019).
+		# zero and leaves the cash movement the accountant can see (PIPE-03).
 		# UNVERIFIED: is_paid / cash_bank_account / paid_amount are Purchase Invoice fields in
 		# erpnext_meta.json and validate_cash only requires cash_bank_account, but an "Actual" tax row
 		# on a paid invoice has not been run on a bench.

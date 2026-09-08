@@ -85,7 +85,7 @@ def test_cash_receipt_journal_entry_credits_cash(run_receipt):
 
 def test_cash_paid_vat_payer_invoice_is_posted_as_paid_and_credits_cash(run_receipt):
 	"""The VAT makes it a Purchase Invoice, the cash payment makes it ERPNext's paid invoice:
-	the payable nets to zero and the cash account carries the credit (D-019)."""
+	the payable nets to zero and the cash account carries the credit (PIPE-03)."""
 	proposal = run_receipt("petrovis_fuel", payment_method="cash")
 	result = post.post_proposal(proposal.name, ACCOUNTANT)
 	assert result["posted_doctype"] == "Purchase Invoice"

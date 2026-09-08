@@ -118,7 +118,7 @@ def test_reverse_purchase_invoice_creates_a_debit_note(company, supplier):
 
 
 def test_reverse_cash_paid_purchase_invoice_gives_the_cash_back(company, supplier):
-	"""A cash receipt is posted as ERPNext's paid invoice (D-019), so its debit note has to put
+	"""A cash receipt is posted as ERPNext's paid invoice (PIPE-03), so its debit note has to put
 	the money back in the till, not leave a negative payable behind."""
 	pi = make_pi(
 		company,

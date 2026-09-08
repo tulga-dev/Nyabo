@@ -59,7 +59,7 @@ def test_vat_payer_receipt_proposes_purchase_invoice_with_input_vat(run_receipt)
 
 def test_vat_payer_receipt_paid_in_cash_credits_cash_not_the_payable(run_receipt):
 	"""A receipt paid over the counter credits cash even when the input VAT makes it an invoice:
-	no bank statement line will ever settle a payable that was already paid (D-019)."""
+	no bank statement line will ever settle a payable that was already paid (PIPE-03)."""
 	proposal = run_receipt("petrovis_fuel", payment_method="cash")
 	assert proposal.vat_treatment == "withheld"
 	entry = _entry(proposal)

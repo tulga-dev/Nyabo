@@ -34,7 +34,7 @@ COMPANY = "Тест ХХК"
 COMPANY_TIN = "37200011111"
 
 # Roles resolve to V1 codes through code_roles.json; these are only used to spell expectations.
-# D-019: a card/QPay/transfer purchase credits the PAYABLE (the bank statement settles it);
+# PIPE-03: a card/QPay/transfer purchase credits the PAYABLE (the bank statement settles it);
 # only a cash receipt credits CASH. BANK appears in bank-line cases, never in a purchase.
 PAYABLE, CASH, BANK, INPUT_VAT, DEFAULT_EXPENSE = "2110", "1110", "1120", "1810", "6910"
 
@@ -319,7 +319,7 @@ def expected_lines(r: dict[str, Any], regime: str, date: str) -> tuple[str, str,
 	if r.get("currency", "MNT") != "MNT":
 		rate = next(Decimal(x["exchange_rate"]) for x in r["fx_rates"] if x["date"] == date)
 		gross = quantize(gross * rate)
-	# D-019: only a cash receipt credits CASH — whatever the document kind, since a Purchase
+	# PIPE-03: only a cash receipt credits CASH — whatever the document kind, since a Purchase
 	# Invoice for a cash receipt is posted as ERPNext's paid invoice. Card, QPay and transfer
 	# keep the PAYABLE so the bank statement settles it; crediting the bank here would double
 	# count that line.
@@ -1348,7 +1348,7 @@ def build() -> tuple[dict[str, list[dict]], dict[str, dict]]:
 			line("2026-06-26", "Шилжүүлэг", "-236000"),
 			[cand("ACC-PINV-2026-00004", "2026-06-26", "-236000", "Модерн Номадс ХХК")],
 			{"match": None, "kind": "none"},
-			"Exact amount and day but no name or reference: 0.70 stays under the 0.80 threshold (D-010).",
+			"Exact amount and day but no name or reference: 0.70 stays under the 0.80 threshold (CORE-10).",
 		),
 	]
 	files["bank_matching"] = matching

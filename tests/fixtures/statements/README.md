@@ -7,7 +7,7 @@ before credit and the reverse, one signed amount column, English headers, dateti
 text dates, amounts as numbers vs `"1,000,000.00"` / `"750 000"` text). They are **not**
 samples of any bank's real export and make no claim about real formats. Real exports, once
 obtained, replace the seed placeholders in `nyabo_mn/nyabo/seed/bank_layouts.json` through
-the learn-and-verify flow (ARCHITECTURE §5.4, DECISIONS D-008) — never by editing these.
+the learn-and-verify flow (ARCHITECTURE §5.4, DECISIONS CORE-08) — never by editing these.
 
 | File | Bank label | Shape |
 |---|---|---|
