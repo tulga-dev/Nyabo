@@ -286,7 +286,10 @@ class PatternLine:
 
 	@classmethod
 	def from_dict(cls, data: Mapping[str, Any]) -> PatternLine:
-		alternatives = data.get("alternatives") or []
+		alternatives = data.get("alternatives")
+		if alternatives is None:
+			alternatives = data.get("alternatives_json")
+		alternatives = alternatives or []
 		if isinstance(alternatives, str):  # DocType child row stores alternatives_json as text
 			alternatives = json.loads(alternatives) if alternatives.strip() else []
 		return cls(
