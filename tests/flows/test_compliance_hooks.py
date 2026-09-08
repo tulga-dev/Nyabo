@@ -148,6 +148,30 @@ def test_nyabo_event_is_append_only(company):
 	assert frappe.db.exists("Nyabo Event", name)
 
 
+def test_an_event_records_a_document_without_making_it_undeletable(company):
+	"""F11: the audit trail keeps the event, it does not veto a deletion Nyabo allows."""
+	from nyabo_mn.compliance import events
+
+	draft = make_je(company).insert()
+	event = events.log("proposal_created", company=company, ref_doctype="Journal Entry", ref_name=draft.name)
+
+	frappe.delete_doc("Journal Entry", draft.name)
+	assert not frappe.db.exists("Journal Entry", draft.name)
+	# the event survives the document and still says what it was about
+	row = frappe.db.get_value("Nyabo Event", event, ["ref_doctype", "ref_name"], as_dict=True)
+	assert (row.ref_doctype, row.ref_name) == ("Journal Entry", draft.name)
+	with pytest.raises(frappe.ValidationError):
+		frappe.delete_doc("Nyabo Event", event)
+
+	# and the guards that must refuse still refuse, event or no event
+	nyd = make_nyabo_document(company)
+	events.log("document_received", company=company, ref_doctype="Nyabo Document", ref_name=nyd.name)
+	with pytest.raises(frappe.ValidationError) as exc:
+		frappe.delete_doc("Nyabo Document", nyd.name)
+	assert mn.MSG_RETAINED_DOCUMENT_DELETE_BLOCKED.split("{")[0] in str(exc.value)
+	assert frappe.db.exists("Nyabo Document", nyd.name)
+
+
 def test_retention_years_come_from_the_tax_parameter_data(site):
 	assert compliance_hooks.retention_years("2026-03-05") == 10
 	frappe.get_doc(

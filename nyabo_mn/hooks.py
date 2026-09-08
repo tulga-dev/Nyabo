@@ -65,6 +65,13 @@ doc_events = {
 		"before_save": "nyabo_mn.compliance.events.enforce_append_only",
 		"on_trash": "nyabo_mn.compliance.events.block_delete",
 	},
+	# Every doctype, on_trash (Frappe runs "*" handlers after the doctype's own, and both run
+	# before delete_doc's link check): an audit event never deleted must not make the document
+	# it names undeletable for ever. What may be deleted at all is still decided by the
+	# handlers above and by compliance.hooks. See compliance/events.py (F11).
+	"*": {
+		"on_trash": "nyabo_mn.compliance.events.allow_delete_despite_events",
+	},
 	"Accounting Period": {
 		"on_update": "nyabo_mn.compliance.period.log_period_change",
 		"on_trash": "nyabo_mn.compliance.period.log_period_delete",
