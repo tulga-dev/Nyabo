@@ -1,0 +1,164 @@
+{
+  "schema_version": 1,
+  "note": "Mirror of Nyabo Bank Layout. header_signature: header cell texts that must all appear (case/space-insensitive) in the first 15 rows for the layout to match. column_map: role -> column index (0-based) or header text. Roles: date, description, debit, credit, amount, balance, reference, currency.",
+  "rows": [
+    {
+      "layout_id": "khan_bank_xlsx",
+      "bank": "Khan Bank",
+      "verified": false,
+      "header_signature": [],
+      "column_map": {},
+      "amount_style": "separate_debit_credit",
+      "date_formats": [
+        "%Y-%m-%d",
+        "%Y.%m.%d",
+        "%d.%m.%Y",
+        "%Y/%m/%d",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y.%m.%d %H:%M:%S"
+      ],
+      "header_row_hint": null,
+      "currency_default": "MNT",
+      "notes": "PLACEHOLDER: no sample export of this bank was available on 2026-09-08, so no column layout is asserted (an empty header_signature never matches). The first import falls back to generic_mn; the accountant confirms the column mapping in the bot, which is saved as a new layout with verified=0 for the admin to verify against the sample file."
+    },
+    {
+      "layout_id": "tdb_xlsx",
+      "bank": "TDB",
+      "verified": false,
+      "header_signature": [],
+      "column_map": {},
+      "amount_style": "separate_debit_credit",
+      "date_formats": [
+        "%Y-%m-%d",
+        "%Y.%m.%d",
+        "%d.%m.%Y",
+        "%Y/%m/%d",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y.%m.%d %H:%M:%S"
+      ],
+      "header_row_hint": null,
+      "currency_default": "MNT",
+      "notes": "PLACEHOLDER: no sample export of this bank was available on 2026-09-08, so no column layout is asserted (an empty header_signature never matches). The first import falls back to generic_mn; the accountant confirms the column mapping in the bot, which is saved as a new layout with verified=0 for the admin to verify against the sample file."
+    },
+    {
+      "layout_id": "golomt_bank_xlsx",
+      "bank": "Golomt Bank",
+      "verified": false,
+      "header_signature": [],
+      "column_map": {},
+      "amount_style": "separate_debit_credit",
+      "date_formats": [
+        "%Y-%m-%d",
+        "%Y.%m.%d",
+        "%d.%m.%Y",
+        "%Y/%m/%d",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y.%m.%d %H:%M:%S"
+      ],
+      "header_row_hint": null,
+      "currency_default": "MNT",
+      "notes": "PLACEHOLDER: no sample export of this bank was available on 2026-09-08, so no column layout is asserted (an empty header_signature never matches). The first import falls back to generic_mn; the accountant confirms the column mapping in the bot, which is saved as a new layout with verified=0 for the admin to verify against the sample file."
+    },
+    {
+      "layout_id": "trans_bank_xlsx",
+      "bank": "Trans Bank",
+      "verified": false,
+      "header_signature": [],
+      "column_map": {},
+      "amount_style": "separate_debit_credit",
+      "date_formats": [
+        "%Y-%m-%d",
+        "%Y.%m.%d",
+        "%d.%m.%Y",
+        "%Y/%m/%d",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y.%m.%d %H:%M:%S"
+      ],
+      "header_row_hint": null,
+      "currency_default": "MNT",
+      "notes": "PLACEHOLDER: no sample export of this bank was available on 2026-09-08, so no column layout is asserted (an empty header_signature never matches). The first import falls back to generic_mn; the accountant confirms the column mapping in the bot, which is saved as a new layout with verified=0 for the admin to verify against the sample file."
+    },
+    {
+      "layout_id": "xacbank_xlsx",
+      "bank": "XacBank",
+      "verified": false,
+      "header_signature": [],
+      "column_map": {},
+      "amount_style": "separate_debit_credit",
+      "date_formats": [
+        "%Y-%m-%d",
+        "%Y.%m.%d",
+        "%d.%m.%Y",
+        "%Y/%m/%d",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y.%m.%d %H:%M:%S"
+      ],
+      "header_row_hint": null,
+      "currency_default": "MNT",
+      "notes": "PLACEHOLDER: no sample export of this bank was available on 2026-09-08, so no column layout is asserted (an empty header_signature never matches). The first import falls back to generic_mn; the accountant confirms the column mapping in the bot, which is saved as a new layout with verified=0 for the admin to verify against the sample file."
+    },
+    {
+      "layout_id": "generic_mn",
+      "bank": "Other",
+      "verified": false,
+      "header_signature": [],
+      "column_map": {},
+      "amount_style": "separate_debit_credit",
+      "date_formats": [
+        "%Y-%m-%d",
+        "%Y.%m.%d",
+        "%d.%m.%Y",
+        "%Y/%m/%d",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y.%m.%d %H:%M:%S"
+      ],
+      "header_row_hint": null,
+      "currency_default": "MNT",
+      "keywords": {
+        "balance": [
+          "үлдэгдэл",
+          "balance"
+        ],
+        "date": [
+          "огноо",
+          "date"
+        ],
+        "debit": [
+          "дебит",
+          "зарлага",
+          "debit",
+          "withdrawal"
+        ],
+        "credit": [
+          "кредит",
+          "орлого",
+          "credit",
+          "deposit"
+        ],
+        "reference": [
+          "лавлах",
+          "reference",
+          "гүйлгээний дугаар",
+          "transaction id"
+        ],
+        "currency": [
+          "валют",
+          "currency"
+        ],
+        "description": [
+          "гүйлгээний утга",
+          "утга",
+          "description",
+          "details",
+          "narrative",
+          "тайлбар"
+        ],
+        "amount": [
+          "дүн",
+          "amount"
+        ]
+      },
+      "notes": "Keyword fallback for any bank: the header row is found by Mongolian/English keywords (nyabo_mn.core.statements.guess_layout) and the result is always verified=0, so the accountant is asked to confirm the mapping before import (ARCHITECTURE §5.4)."
+    }
+  ]
+}

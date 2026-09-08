@@ -1,0 +1,614 @@
+{
+  "schema_version": 1,
+  "reference": "docs/mn-rules-reference.md",
+  "horizon_start": "2026-01-01",
+  "horizon_note": "A row whose effective_from equals horizon_start was in force before Nyabo's coverage horizon; its legal in-force date is not asserted. Only the Law on Accounting rows carry the stated in-force date (2016-01-01, reference §1.1).",
+  "verified_means": "A human compared the value with the primary legal text: `source_text` names the instrument, `article` the article, `source_url` a legalinfo.mn / parliament.mn page, and docs/mn-rules-reference.md states the value without a VERIFY flag. Rule applied to this file: only the Law on Accounting rows (art. 9-11, legalinfo URL) qualify; every value from the June 2026 tax package, from news (ikon.mn, arslan.mn) or agency pages (mta.gov.mn) is false until the adopted texts are obtained (reference §6.4-6.5). An admin flips verified in the desk after checking the text; rules.seed.sync never overwrites a verified row.",
+  "status_means": "active = value may be used; pending = value is null and the engine raises PendingRuleError on any lookup landing on the row (a known change whose text is not encoded yet). A key with no row on a date raises MissingRuleError. Neither ever falls back to another period.",
+  "units": {
+    "fraction": "rate as a fraction: 0.10 = 10% (ERPNext templates want percent; convert at that boundary)",
+    "MNT": "tögrög amount; thresholds are objects {amount, comparator (lt|lte|gt|gte), basis}",
+    "years": "integer years (or an object of them)",
+    "schedule": "bracket list {basis, brackets: [{up_to: int|null, rate: fraction}]}, last up_to null",
+    "rule": "structured object or boolean the engine interprets by key",
+    "deadline": "{period: monthly|quarterly|half_year|annual, due_months_after_period_end: int|null, due_day: int|null}; null inside = not stated in the reference"
+  },
+  "rows": [
+    {
+      "key": "vat.rate",
+      "value": 0.1,
+      "unit": "fraction",
+      "effective_from": "2026-01-01",
+      "effective_to": null,
+      "status": "active",
+      "verified": false,
+      "source_text": "Нэмэгдсэн өртгийн албан татварын тухай хууль (VAT Law); reference §1.3",
+      "source_url": null,
+      "article": null,
+      "note": "10% in both the 2026 and 2027 columns of reference §1.3, so one open-ended row. Value not disputed; verified stays false until the VAT Law article is cited (reviewer: verified means compared with the statute text). effective_from is the coverage horizon, not the legal in-force date."
+    },
+    {
+      "key": "vat.registration_threshold",
+      "value": {
+        "amount": 50000000,
+        "comparator": "gte",
+        "basis": "annual_revenue"
+      },
+      "unit": "MNT",
+      "effective_from": "2026-01-01",
+      "effective_to": "2026-12-31",
+      "status": "active",
+      "verified": false,
+      "source_text": "reference §1.3 via ikon.mn 26 Jun 2026; parliament.mn 18 Jun 2026",
+      "source_url": null,
+      "article": null,
+      "note": "VAT withholding-payer registration threshold, annual revenue 50M₮. Comparator 'gte' (registration required at or above) is UNCONFIRMED; also confirm annual vs rolling 12-month revenue and the VAT Law article."
+    },
+    {
+      "key": "vat.registration_threshold",
+      "value": {
+        "amount": 400000000,
+        "comparator": "gte",
+        "basis": "annual_revenue"
+      },
+      "unit": "MNT",
+      "effective_from": "2027-01-01",
+      "effective_to": null,
+      "status": "active",
+      "verified": false,
+      "source_text": "reference §1.3 via ikon.mn 26 Jun 2026; parliament.mn 18 Jun 2026",
+      "source_url": null,
+      "article": null,
+      "note": "400M₮ from 1 Jan 2027 per the June 2026 package; final adopted VAT amendment text still to obtain (reference §6.4). Comparator UNCONFIRMED as for 2026."
+    },
+    {
+      "key": "vat.payment_timing",
+      "value": {
+        "rule": "with_monthly_return"
+      },
+      "unit": "rule",
+      "effective_from": "2026-01-01",
+      "effective_to": "2026-12-31",
+      "status": "active",
+      "verified": false,
+      "source_text": "reference §1.3 via ikon.mn 26 Jun 2026",
+      "source_url": null,
+      "article": null,
+      "note": "'Due with monthly return'. News-sourced; confirm against the VAT Law payment article."
+    },
+    {
+      "key": "vat.payment_timing",
+      "value": {
+        "rule": "deferral_by_compliance_rating",
+        "max_deferral_months": 2,
+        "import_vat": "payable_after_sale"
+      },
+      "unit": "rule",
+      "effective_from": "2027-01-01",
+      "effective_to": null,
+      "status": "active",
+      "verified": false,
+      "source_text": "reference §1.3 via ikon.mn 26 Jun 2026",
+      "source_url": null,
+      "article": null,
+      "note": "'Deferral up to 2 months depending on compliance rating; import VAT after sale'. The rating tiers and their deferral lengths are not stated; final text to obtain (reference §6.4)."
+    },
+    {
+      "key": "vat.input_deduction_categories",
+      "value": null,
+      "unit": "rule",
+      "effective_from": "2027-01-01",
+      "effective_to": null,
+      "status": "pending",
+      "verified": false,
+      "source_text": "reference §1.3 via ikon.mn 24 Dec 2025 (VERIFY final text)",
+      "source_url": null,
+      "article": null,
+      "note": "INTENTIONALLY NULL (status pending): the engine raises PendingRuleError on any lookup that lands here instead of computing with an unstated number. Reference lists deductions widened from 2027: training and employee-need expenses, fixed-asset purchases, non-resident services, cash purchases without receipt deemed VAT-inclusive. Candidate value once the adopted text is obtained: {\"added\": [\"training_and_employee_need_expenses\", \"fixed_asset_purchases\", \"non_resident_services\", \"cash_purchases_without_receipt_deemed_vat_inclusive\"]}. Load-bearing for the purchase patterns' gross/net split (reference §6.4)."
+    },
+    {
+      "key": "simplified.revenue_threshold",
+      "value": {
+        "amount": 50000000,
+        "comparator": "lt",
+        "basis": "annual_revenue"
+      },
+      "unit": "MNT",
+      "effective_from": "2026-01-01",
+      "effective_to": "2026-12-31",
+      "status": "active",
+      "verified": false,
+      "source_text": "reference §1.3 via mta.gov.mn; arslan.mn 13 Mar 2026",
+      "source_url": null,
+      "article": null,
+      "note": "Simplified 1% regime: revenue < 50M₮ ('<' per reference wording, confirm '<' vs '<=' in the CIT Law article)."
+    },
+    {
+      "key": "simplified.revenue_threshold",
+      "value": {
+        "amount": 400000000,
+        "comparator": "lt",
+        "basis": "annual_revenue"
+      },
+      "unit": "MNT",
+      "effective_from": "2027-01-01",
+      "effective_to": null,
+      "status": "active",
+      "verified": false,
+      "source_text": "reference §1.3 via mta.gov.mn; arslan.mn 13 Mar 2026",
+      "source_url": null,
+      "article": null,
+      "note": "Revenue < 400M₮ from 2027; final adopted amendment text still to obtain (reference §6.4)."
+    },
+    {
+      "key": "simplified.rate",
+      "value": 0.01,
+      "unit": "fraction",
+      "effective_from": "2026-01-01",
+      "effective_to": null,
+      "status": "active",
+      "verified": false,
+      "source_text": "reference §1.3 via mta.gov.mn; arslan.mn 13 Mar 2026",
+      "source_url": null,
+      "article": null,
+      "note": "1% of revenue, unchanged 2026->2027 per reference. Confirm the base (gross vs sales revenue) and the CIT Law article."
+    },
+    {
+      "key": "simplified.requires_not_vat_registered",
+      "value": true,
+      "unit": "rule",
+      "effective_from": "2026-01-01",
+      "effective_to": "2026-12-31",
+      "status": "active",
+      "verified": false,
+      "source_text": "reference §1.3 via mta.gov.mn; arslan.mn 13 Mar 2026",
+      "source_url": null,
+      "article": null,
+      "note": "Reference §1.3: simplified regime requires 'not VAT-registered' (2026 column). Encoded so regime selection is data, not prose."
+    },
+    {
+      "key": "simplified.requires_not_vat_registered",
+      "value": null,
+      "unit": "rule",
+      "effective_from": "2027-01-01",
+      "effective_to": null,
+      "status": "pending",
+      "verified": false,
+      "source_text": "reference §1.3 via mta.gov.mn; arslan.mn 13 Mar 2026",
+      "source_url": null,
+      "article": null,
+      "note": "INTENTIONALLY NULL (status pending): the engine raises PendingRuleError on any lookup that lands here instead of computing with an unstated number. The reference does not state whether the 'not VAT-registered' restriction survives the 2027 change (see simplified.revenue_threshold 2027)."
+    },
+    {
+      "key": "simplified.filing_period",
+      "value": {
+        "period": "annual",
+        "due_months_after_period_end": 2,
+        "due_day": 10
+      },
+      "unit": "deadline",
+      "effective_from": "2026-01-01",
+      "effective_to": "2026-12-31",
+      "status": "active",
+      "verified": false,
+      "source_text": "reference §1.3 via mta.gov.mn; arslan.mn 13 Mar 2026",
+      "source_url": null,
+      "article": null,
+      "note": "'Annual filing by 10 Feb'. Confirm against the CIT Law / MTA filing notice."
+    },
+    {
+      "key": "simplified.filing_period",
+      "value": {
+        "period": "quarterly",
+        "due_months_after_period_end": null,
+        "due_day": null
+      },
+      "unit": "deadline",
+      "effective_from": "2027-01-01",
+      "effective_to": null,
+      "status": "active",
+      "verified": false,
+      "source_text": "reference §1.3 via mta.gov.mn; arslan.mn 13 Mar 2026",
+      "source_url": null,
+      "article": null,
+      "note": "Reference says only 'quarterly'; months/day after quarter end are NOT stated (null inside the object = not stated). Final adopted text to obtain (reference §6.4)."
+    },
+    {
+      "key": "cit.brackets",
+      "value": {
+        "basis": "annual_taxable_income",
+        "brackets": [
+          {
+            "up_to": 6000000000,
+            "rate": 0.1
+          },
+          {
+            "up_to": null,
+            "rate": 0.25
+          }
+        ]
+      },
+      "unit": "schedule",
+      "effective_from": "2026-01-01",
+      "effective_to": "2026-12-31",
+      "status": "active",
+      "verified": false,
+      "source_text": "CIT Law (article UNCONFIRMED); reference §1.3 via parliament.mn 18 Jun 2026",
+      "source_url": null,
+      "article": null,
+      "note": "10% up to 6bn₮ taxable income, 25% above. Row ends 2026-12-31 because a 2027 change (15% middle bracket) exists. verified false: only the June 2026 amendment page is cited, not the CIT Law article (reviewer)."
+    },
+    {
+      "key": "cit.brackets",
+      "value": null,
+      "unit": "schedule",
+      "effective_from": "2027-01-01",
+      "effective_to": null,
+      "status": "pending",
+      "verified": false,
+      "source_text": "CIT Law (article UNCONFIRMED); reference §1.3 via parliament.mn 18 Jun 2026",
+      "source_url": null,
+      "article": null,
+      "note": "INTENTIONALLY NULL (status pending): the engine raises PendingRuleError on any lookup that lands here instead of computing with an unstated number. Reference: 'new 15% middle bracket for non-mining companies (thresholds VERIFY)'. Rates presumably 10/15/25% but thresholds are not stated and it is not stated whether mining companies keep the 2026 schedule; this key will likely need a scope dimension (mining vs non-mining)."
+    },
+    {
+      "key": "cit.credit_90pct_threshold",
+      "value": {
+        "amount": 1500000000,
+        "comparator": "lt",
+        "basis": "annual_revenue"
+      },
+      "unit": "MNT",
+      "effective_from": "2026-01-01",
+      "effective_to": "2026-12-31",
+      "status": "active",
+      "verified": false,
+      "source_text": "CIT Law (article UNCONFIRMED); reference §1.3 via parliament.mn 76435",
+      "source_url": null,
+      "article": null,
+      "note": "Annual revenue below which the 90% CIT credit ('1% effective') applies. Comparator UNCONFIRMED; exclusions (mining, alcohol/tobacco...) not in the reference."
+    },
+    {
+      "key": "cit.credit_90pct_threshold",
+      "value": {
+        "amount": 2500000000,
+        "comparator": "lt",
+        "basis": "annual_revenue"
+      },
+      "unit": "MNT",
+      "effective_from": "2027-01-01",
+      "effective_to": null,
+      "status": "active",
+      "verified": false,
+      "source_text": "CIT Law (article UNCONFIRMED); reference §1.3 via parliament.mn 76435",
+      "source_url": null,
+      "article": null,
+      "note": "2.5bn₮ from 2027; final adopted CIT amendment text still to obtain (reference §6.4)."
+    },
+    {
+      "key": "pit.brackets",
+      "value": {
+        "basis": "monthly_employment_income",
+        "brackets": [
+          {
+            "up_to": null,
+            "rate": 0.1
+          }
+        ]
+      },
+      "unit": "schedule",
+      "effective_from": "2026-01-01",
+      "effective_to": "2026-12-31",
+      "status": "active",
+      "verified": false,
+      "source_text": "PIT Law (article UNCONFIRMED); reference §1.3 via parliament.mn 18 Jun 2026",
+      "source_url": null,
+      "article": null,
+      "note": "Employment income PIT 10% flat in 2026. Row ends 2026-12-31 because the 0% band starts 2027. Any low-salary tax credit is not in the reference (open item)."
+    },
+    {
+      "key": "pit.brackets",
+      "value": null,
+      "unit": "schedule",
+      "effective_from": "2027-01-01",
+      "effective_to": "2027-12-31",
+      "status": "pending",
+      "verified": false,
+      "source_text": "PIT Law (article UNCONFIRMED); reference §1.3 via parliament.mn 18 Jun 2026",
+      "source_url": null,
+      "article": null,
+      "note": "INTENTIONALLY NULL (status pending): the engine raises PendingRuleError on any lookup that lands here instead of computing with an unstated number. Known from reference: 0% on employment income up to 792,000₮ per MONTH from 2027. NOT stated: the rate above 792,000 during 2027 (the 1% band 792,000-2,000,000 starts 2028; 'higher bracket above (VERIFY)'). Do not assume 10% continues."
+    },
+    {
+      "key": "pit.brackets",
+      "value": null,
+      "unit": "schedule",
+      "effective_from": "2028-01-01",
+      "effective_to": null,
+      "status": "pending",
+      "verified": false,
+      "source_text": "PIT Law (article UNCONFIRMED); reference §1.3 via parliament.mn 18 Jun 2026",
+      "source_url": null,
+      "article": null,
+      "note": "INTENTIONALLY NULL (status pending): the engine raises PendingRuleError on any lookup that lands here instead of computing with an unstated number. Known from reference: 0% up to 792,000₮/month; 1% for 792,000-2,000,000₮/month from 2028; top rate 'VERIFY'. Candidate shape once confirmed: {basis: monthly_employment_income, brackets: [{up_to: 792000, rate: 0.0}, {up_to: 2000000, rate: 0.01}, {up_to: null, rate: <VERIFY>}]}."
+    },
+    {
+      "key": "si.employee_rate",
+      "value": 0.115,
+      "unit": "fraction",
+      "effective_from": "2026-01-01",
+      "effective_to": null,
+      "status": "active",
+      "verified": false,
+      "source_text": "General Law on Social Insurance art. 18 (VERIFY); reference §1.3 via legalinfo lawId=16760148379551",
+      "source_url": null,
+      "article": null,
+      "note": "Employee social insurance contribution 11.5% of salary. Reference marks the SI row VERIFY in art. 18; no 2027 change is stated for the employee side. Confirm whether the 2 Jul 2026 amendment touches the employee rate or a contribution ceiling."
+    },
+    {
+      "key": "si.employer_rate",
+      "value": null,
+      "unit": "fraction",
+      "effective_from": "2026-01-01",
+      "effective_to": "2026-12-31",
+      "status": "pending",
+      "verified": false,
+      "source_text": "General Law on Social Insurance art. 18 (VERIFY); reference §1.3 via legalinfo lawId=16760148379551",
+      "source_url": null,
+      "article": null,
+      "note": "INTENTIONALLY NULL (status pending): the engine raises PendingRuleError on any lookup that lands here instead of computing with an unstated number. Reference: employer ≈12.5-14.5% by accident-insurance tier (VERIFY exact split in art. 18; §6.5 lists art. 18 rates as still to obtain). The implied 12.0% non-accident base is a derivation, not a stated value. Expected shape once confirmed: {base: <fraction>, plus_tier_from: 'si.accident_tiers'}."
+    },
+    {
+      "key": "si.employer_rate",
+      "value": null,
+      "unit": "fraction",
+      "effective_from": "2027-01-01",
+      "effective_to": null,
+      "status": "pending",
+      "verified": false,
+      "source_text": "General Law on Social Insurance art. 18 (VERIFY); reference §1.3 via legalinfo lawId=16760148379551",
+      "source_url": null,
+      "article": null,
+      "note": "INTENTIONALLY NULL (status pending): the engine raises PendingRuleError on any lookup that lands here instead of computing with an unstated number. Only the accident tiers are stated to change from 2027; the employer total is not stated. Encode after obtaining art. 18 2027 rates (reference §6.5)."
+    },
+    {
+      "key": "si.accident_tiers",
+      "value": null,
+      "unit": "schedule",
+      "effective_from": "2026-01-01",
+      "effective_to": "2026-12-31",
+      "status": "pending",
+      "verified": false,
+      "source_text": "General Law on Social Insurance art. 18 (VERIFY); reference §1.3 via legalinfo lawId=16760148379551",
+      "source_url": null,
+      "article": null,
+      "note": "INTENTIONALLY NULL (status pending): the engine raises PendingRuleError on any lookup that lands here instead of computing with an unstated number. Expected values to check against art. 18: tiers 0.5% / 1.5% / 2.5% (employer-paid industrial accident insurance); the industry-to-tier mapping is not in the reference."
+    },
+    {
+      "key": "si.accident_tiers",
+      "value": null,
+      "unit": "schedule",
+      "effective_from": "2027-01-01",
+      "effective_to": null,
+      "status": "pending",
+      "verified": false,
+      "source_text": "General Law on Social Insurance art. 18 (VERIFY); reference §1.3 via legalinfo lawId=16760148379551",
+      "source_url": null,
+      "article": null,
+      "note": "INTENTIONALLY NULL (status pending): the engine raises PendingRuleError on any lookup that lands here instead of computing with an unstated number. Expected values to check: 0.3% / 1.2% / 2.2% from 1 Jan 2027 per the 2 Jul 2026 amendment (reference §1.3), pending art. 18 text (reference §6.5)."
+    },
+    {
+      "key": "depreciation.tax_life",
+      "value": {
+        "buildings": 40,
+        "machinery": 10,
+        "computers_software": 3,
+        "other": 10
+      },
+      "unit": "years",
+      "effective_from": "2026-01-01",
+      "effective_to": null,
+      "status": "active",
+      "verified": false,
+      "source_text": "CIT Law art. 15 (VERIFY); reference §1.3",
+      "source_url": null,
+      "article": null,
+      "note": "Tax depreciation lives in years. Reference marks the whole row VERIFY; category keys are local names, the CIT Law's own asset classes and whether it fixes lives or annual rates must be checked. Book depreciation follows the accounting policy (Order 116: straight-line, units of production, double-declining, sum-of-years)."
+    },
+    {
+      "key": "property_tax.rate",
+      "value": 0.006,
+      "unit": "fraction",
+      "effective_from": "2026-01-01",
+      "effective_to": null,
+      "status": "active",
+      "verified": false,
+      "source_text": "Order 116/2000 posting instruction (VERIFY current law); reference §1.3 via legalinfo lawId=205201",
+      "source_url": null,
+      "article": null,
+      "note": "0.6% of value per the 2000 instruction; the current immovable property tax law, the base and any local-rate range are unverified."
+    },
+    {
+      "key": "tax_debt.enforcement_split",
+      "value": null,
+      "unit": "rule",
+      "effective_from": "2026-01-01",
+      "effective_to": null,
+      "status": "pending",
+      "verified": false,
+      "source_text": "General Taxation Law amendment (June 2026 package, text to obtain); reference §1.3 via parliament.mn 18 Jun 2026",
+      "source_url": null,
+      "article": null,
+      "note": "INTENTIONALLY NULL (status pending): the engine raises PendingRuleError on any lookup that lands here instead of computing with an unstated number. Reference: 70% of account inflows to tax debt, 30% left to the business, 'in force on adoption' (package adopted 18-19 June 2026). The exact in-force date is UNCONFIRMED (adoption vs publication), so no date split is encoded (reviewer: never split the year on a guessed day). Enforcement rule, not a posting parameter; kept so the gap is visible."
+    },
+    {
+      "key": "filing.vat",
+      "value": {
+        "period": "monthly",
+        "due_months_after_period_end": 1,
+        "due_day": 10
+      },
+      "unit": "deadline",
+      "effective_from": "2026-01-01",
+      "effective_to": null,
+      "status": "active",
+      "verified": false,
+      "source_text": "reference §1.3 'Filing calendar' (VERIFY; no primary citation given)",
+      "source_url": null,
+      "article": null,
+      "note": "VAT return monthly by the 10th of the following month. Confirm the VAT Law article and whether the 2027 payment deferral changes the return date."
+    },
+    {
+      "key": "filing.cit_quarterly",
+      "value": {
+        "period": "quarterly",
+        "due_months_after_period_end": 1,
+        "due_day": 20
+      },
+      "unit": "deadline",
+      "effective_from": "2026-01-01",
+      "effective_to": null,
+      "status": "active",
+      "verified": false,
+      "source_text": "reference §1.3 'Filing calendar' (VERIFY; no primary citation given)",
+      "source_url": null,
+      "article": null,
+      "note": "CIT quarterly by the 20th of the month after the quarter. Check whether this is a return or an advance-payment schedule, and whether simplified (1%) filers follow simplified.filing_period instead."
+    },
+    {
+      "key": "filing.cit_annual",
+      "value": {
+        "period": "annual",
+        "due_months_after_period_end": 2,
+        "due_day": 10
+      },
+      "unit": "deadline",
+      "effective_from": "2026-01-01",
+      "effective_to": null,
+      "status": "active",
+      "verified": false,
+      "source_text": "reference §1.3 'Filing calendar' (VERIFY; no primary citation given)",
+      "source_url": null,
+      "article": null,
+      "note": "CIT annual return by 10 February."
+    },
+    {
+      "key": "filing.pit_withholding",
+      "value": {
+        "period": "quarterly",
+        "due_months_after_period_end": null,
+        "due_day": null
+      },
+      "unit": "deadline",
+      "effective_from": "2026-01-01",
+      "effective_to": null,
+      "status": "active",
+      "verified": false,
+      "source_text": "reference §1.3 'Filing calendar' (VERIFY; no primary citation given)",
+      "source_url": null,
+      "article": null,
+      "note": "PIT withholding quarterly; due month/day NOT stated (null). Confirm the PIT Law article and whether the monthly payment has a separate deadline."
+    },
+    {
+      "key": "filing.si",
+      "value": {
+        "period": "monthly",
+        "due_months_after_period_end": null,
+        "due_day": null
+      },
+      "unit": "deadline",
+      "effective_from": "2026-01-01",
+      "effective_to": null,
+      "status": "active",
+      "verified": false,
+      "source_text": "reference §1.3 'Filing calendar' (VERIFY; no primary citation given)",
+      "source_url": null,
+      "article": null,
+      "note": "Social insurance monthly; due day NOT stated (null). Confirm against the General Law on Social Insurance and the SI agency notice."
+    },
+    {
+      "key": "retention.years",
+      "value": 10,
+      "unit": "years",
+      "effective_from": "2016-01-01",
+      "effective_to": null,
+      "status": "active",
+      "verified": true,
+      "source_text": "Нягтлан бодох бүртгэлийн тухай хууль (Law on Accounting, revised 2015), art. 11.1",
+      "source_url": "https://legalinfo.mn/mn/detail/11191",
+      "article": "11.1",
+      "note": "Accounting documents and statements retained >= 10 years (reference §1.1, no VERIFY flag, legalinfo URL). Law in force since 1 Jan 2016 per reference §1.1."
+    },
+    {
+      "key": "statements.annual_deadline",
+      "value": {
+        "period": "annual",
+        "due_months_after_period_end": 2,
+        "due_day": 10,
+        "applies_to": "all"
+      },
+      "unit": "deadline",
+      "effective_from": "2016-01-01",
+      "effective_to": null,
+      "status": "active",
+      "verified": true,
+      "source_text": "Нягтлан бодох бүртгэлийн тухай хууль (Law on Accounting, revised 2015), art. 9-10",
+      "source_url": "https://legalinfo.mn/mn/detail/11191",
+      "article": "9-10",
+      "note": "Annual financial statements filed electronically by 10 February; applies to all entities including SMEs (reference §1.1). Fiscal year = calendar year."
+    },
+    {
+      "key": "statements.half_year_deadline",
+      "value": {
+        "period": "half_year",
+        "due_months_after_period_end": 1,
+        "due_day": 20,
+        "applies_to": "ifrs"
+      },
+      "unit": "deadline",
+      "effective_from": "2016-01-01",
+      "effective_to": null,
+      "status": "active",
+      "verified": true,
+      "source_text": "Нягтлан бодох бүртгэлийн тухай хууль (Law on Accounting, revised 2015), art. 9-10",
+      "source_url": "https://legalinfo.mn/mn/detail/11191",
+      "article": "9-10",
+      "note": "IFRS (public-interest) entities also file half-year statements by 20 July (reference §1.1). Not applicable to SMEs on IFRS for SMEs."
+    },
+    {
+      "key": "statements.consolidated_deadline",
+      "value": {
+        "period": "annual",
+        "due_months_after_period_end": 2,
+        "due_day": 1,
+        "applies_to": "consolidated"
+      },
+      "unit": "deadline",
+      "effective_from": "2016-01-01",
+      "effective_to": null,
+      "status": "active",
+      "verified": true,
+      "source_text": "Нягтлан бодох бүртгэлийн тухай хууль (Law on Accounting, revised 2015), art. 9-10",
+      "source_url": "https://legalinfo.mn/mn/detail/11191",
+      "article": "9-10",
+      "note": "Consolidated statements by 1 March (reference §1.1)."
+    },
+    {
+      "key": "sme.classification",
+      "value": {
+        "revenue_lt": 1500000000,
+        "total_assets_lt": 500000000,
+        "both_required": true
+      },
+      "unit": "rule",
+      "effective_from": "2026-01-01",
+      "effective_to": null,
+      "status": "active",
+      "verified": false,
+      "source_text": "MoF classification order 4 Feb 2016 (per reference §1.1); no URL",
+      "source_url": null,
+      "article": null,
+      "note": "An entity is an SME (IFRS for SMEs applies) when revenue < 1.5bn₮ and total assets < 0.5bn₮ (reference §1.1). effective_from is the coverage horizon; the order dates from 4 Feb 2016."
+    }
+  ]
+}
