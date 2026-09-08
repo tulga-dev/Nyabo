@@ -55,7 +55,8 @@ def _generate_random_string(length: int) -> str:
 
 
 def _get_timestamp_prefix() -> str:
-	return format(int(time.time() * 10) % (36**3), "x")[-3:].lower()
+	# Padded: a small timestamp residue would otherwise give a 1-2 character prefix and a 9-character name.
+	return format(int(time.time() * 10) % (36**3), "x")[-3:].lower().zfill(3)
 
 
 def make_autoname(key: str = "", doctype: str = "", doc: Any = "", *, ignore_validate: bool = False) -> str:

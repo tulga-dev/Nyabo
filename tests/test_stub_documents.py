@@ -61,11 +61,13 @@ def test_link_check_once_target_has_rows(site, company):
 
 def test_child_tables_append_and_dict_rows(site, company):
 	settings = frappe.get_doc("Nyabo Company Settings", company)
-	settings.append("regimes", {"regime": "simplified_1pct", "effective_from": "2026-01-01"})
+	# provisioning already opened simplified_1pct from the fiscal-year start; continue the history
+	settings.regimes[0].effective_to = "2026-12-31"
+	settings.append("regimes", {"regime": "vat_payer", "effective_from": "2027-01-01"})
 	settings.set("bank_accounts", [{"bank": "Khan Bank", "currency": "MNT", "account_number": "5000123456"}])
 	settings.save()
 	settings.reload()
-	assert settings.regimes[0].regime == "simplified_1pct"
+	assert settings.regimes[0].regime == "simplified_1pct" and settings.regimes[1].regime == "vat_payer"
 	assert settings.regimes[0].parent == company and settings.regimes[0].parentfield == "regimes"
 	assert settings.bank_accounts[0].idx == 1
 	assert frappe.db.count("Nyabo Bank Account Row", {"parent": company}) == 1
@@ -128,7 +130,10 @@ def test_version_rows_and_comments(site, company):
 	settings.default_expense_code = "6220"
 	settings.save()
 	versions = frappe.get_all(
-		"Version", filters={"ref_doctype": "Nyabo Company Settings", "docname": company}, fields=["data"]
+		"Version",
+		filters={"ref_doctype": "Nyabo Company Settings", "docname": company},
+		fields=["data"],
+		order_by="creation asc",
 	)
 	assert len(versions) == before + 1
 	changed = json.loads(versions[-1].data)["changed"]

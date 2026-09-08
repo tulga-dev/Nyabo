@@ -55,6 +55,7 @@ ERPNext base: `https://raw.githubusercontent.com/frappe/erpnext/version-16/`
 | Financial Report Row | erpnext/accounts/doctype/financial_report_row/financial_report_row.json |
 | Account Category | erpnext/accounts/doctype/account_category/account_category.json |
 | Item Group | erpnext/setup/doctype/item_group/item_group.json |
+| UOM | erpnext/setup/doctype/uom/uom.json (added by the setup/inventory author, read 2026-09-08) |
 | Supplier Group | erpnext/setup/doctype/supplier_group/supplier_group.json |
 
 Frappe base: `https://raw.githubusercontent.com/frappe/frappe/version-16/`
