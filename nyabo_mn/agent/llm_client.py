@@ -261,7 +261,9 @@ def run_tool_handler(handler: ToolHandler, known: set[str], name: str, arguments
 
 	The handler is the pipeline's read-only tool dispatcher. Its exceptions must not end
 	the conversation (the model should get a chance to apologise or escalate), and an
-	unknown tool name is refused here so no adapter ever forwards it.
+	unknown tool name is refused here so no adapter ever forwards it. A handler that
+	returns ``{"error": "<code>", ...}`` is treated as failed too (``is_error``), so the
+	question layer can tell a real answer from a refused call without parsing text.
 	"""
 	if isinstance(arguments, str):
 		try:
@@ -284,7 +286,11 @@ def run_tool_handler(handler: ToolHandler, known: set[str], name: str, arguments
 		)
 	if not isinstance(result, Mapping):
 		result = {"result": result}
-	return ToolCall(name=name, arguments=args, result=dict(result))
+	# Convention shared with the dispatchers: a mapping whose "error" is a non-empty
+	# string reports a failure the handler chose to describe (bad arguments, unknown
+	# tool) instead of raising, so it is flagged like an exception would be.
+	is_error = isinstance(result.get("error"), str) and bool(result.get("error"))
+	return ToolCall(name=name, arguments=args, result=dict(result), is_error=is_error)
 
 
 def trace_as_dicts(trace: list[ToolCall]) -> list[dict[str, Any]]:

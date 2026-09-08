@@ -7,7 +7,8 @@ https://platform.claude.com/docs/en/docs/about-claude/models/overview:
 - request: ``model``, ``max_tokens`` (required), ``system`` (string), ``messages`` of
   ``{"role": user|assistant, "content": [blocks]}``; blocks ``{"type": "text", "text"}`` and
   ``{"type": "image", "source": {"type": "base64", "media_type": image/jpeg|png|gif|webp, "data"}}``;
-- tools: ``{"name", "description", "input_schema"}``; ``tool_choice`` is
+- tools: ``{"name", "description", "input_schema", "strict": true}`` (strict tool use is GA,
+  no beta header; requires ``additionalProperties: false`` and a full ``required`` list); ``tool_choice`` is
   ``{"type": "auto"}`` / ``{"type": "any"}`` / ``{"type": "tool", "name": ...}``, each
   accepting ``disable_parallel_tool_use``. Forcing one tool whose ``input_schema`` is the
   output schema is the documented way to get JSON; the model answers with a
@@ -86,8 +87,20 @@ def to_content_blocks(parts: list[Part]) -> list[dict[str, Any]]:
 
 
 def to_tool_defs(tools: list[ToolSpec]) -> list[dict[str, Any]]:
+	"""``strict: true`` makes the API guarantee ``tool_use.input`` validates against the schema.
+
+	Documented (tool-use overview, "Strict tool use", no beta header) for schemas with
+	``additionalProperties: false`` and a full ``required`` list, which ``schemas.json_schema``
+	produces; without it the model may omit a key or add one and the pydantic validation
+	downstream would reject an otherwise good answer.
+	"""
 	return [
-		{"name": tool.name, "description": tool.description, "input_schema": dict(tool.parameters)}
+		{
+			"name": tool.name,
+			"description": tool.description,
+			"strict": True,
+			"input_schema": dict(tool.parameters),
+		}
 		for tool in tools
 	]
 
@@ -170,7 +183,9 @@ class AnthropicClient(BaseClient):
 		response = self._create(
 			system=system,
 			messages=[{"role": "user", "content": to_content_blocks(user)}],
-			tools=[{"name": schema_name, "description": STRUCTURED_TOOL_DESCRIPTION, "input_schema": schema}],
+			tools=to_tool_defs(
+				[ToolSpec(name=schema_name, description=STRUCTURED_TOOL_DESCRIPTION, parameters=schema)]
+			),
 			tool_choice={"type": "tool", "name": schema_name, "disable_parallel_tool_use": True},
 		)
 		self._check_stop(response)
