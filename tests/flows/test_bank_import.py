@@ -20,10 +20,16 @@ def test_unknown_layout_returns_preview_and_guess(books):
 	filename, data = fixtures.khan_xlsx()
 	name = helpers.statement_document(books, filename, data)
 	summary = bank_import.import_statement(name)
-	assert summary["unknown_layout"] is True
+	assert summary["unknown_layout"] is True and summary["status"] == "unknown_layout"
 	assert summary["new"] == 0 and summary["transactions"] == []
 	assert len(summary["preview_rows"]) == 5
 	assert summary["preview_rows"][3][:2] == ["Огноо", "Гүйлгээний утга"]
+	# what the column-mapping conversation reads: the header row and the rows under it
+	assert summary["headers"][:2] == ["Огноо", "Гүйлгээний утга"]
+	assert (
+		summary["preview"][0][1] == "Эхний үлдэгдэл" and summary["preview"][1][1] == "Петровис ХХК шатахуун"
+	)
+	assert summary["company"] == books
 	assert summary["guess"]["column_map"]["debit"] == 2 and summary["guess"]["verified"] is False
 	assert summary["bank"] == "Khan Bank"
 	assert "Огноо" in bank_import.summary_text(summary)
@@ -165,6 +171,8 @@ def test_learned_layout_blocks_real_import_but_works_under_simulation(books, fra
 	name = helpers.statement_document(books, filename, data)
 	summary = bank_import.import_statement(name)
 	assert summary["unknown_layout"] is True and frappe.db.count("Bank Transaction") == 0
+	# The mapping question was already answered: the admin verifies the row, nobody re-maps it.
+	assert summary["status"] == "unverified_layout" and summary["layout"].startswith("learned_tdb_")
 	with frappe_flags(nyabo_simulation=True):
 		summary = bank_import.import_statement(name, run_matching=False)
 	assert summary["unknown_layout"] is False and summary["new"] == 3
@@ -179,3 +187,62 @@ def test_xls_upload_fails_the_document_with_a_message(books):
 		bank_import.import_statement(name)
 	assert info.value.message_mn == mn.MSG_STATEMENT_FILE_XLS_UNSUPPORTED
 	assert frappe.db.get_value("Nyabo Document", name, "status") == "failed"
+
+
+# --- the contract the Telegram worker reads ------------------------------------------------------
+
+
+def _run_import(document: str, chat_id: int) -> tuple[object, object]:
+	"""statement.run_import against the real importer, with a recording bot."""
+	from nyabo_mn.telegram import api
+	from nyabo_mn.telegram.handlers import statement
+	from tests.fixtures.telegram.fake_bot import FakeBotApi
+
+	bot = FakeBotApi()
+	with api.use_bot(bot):
+		return statement.run_import(document, chat_id), bot
+
+
+def test_run_import_starts_the_column_mapping_for_an_unknown_layout(books):
+	import frappe
+
+	helpers.setup_banks(books)  # no layout registered: the export is unrecognised
+	name = helpers.statement_document(books, *fixtures.khan_xlsx())
+	result, bot = _run_import(name, 3101)
+	assert result == {"ok": True, "mapping": True}
+	assert bot.last_text == mn.MSG_STATEMENT_LAYOUT_ASK_COLUMN.format(header="Огноо")
+	assert any("Огноо | Гүйлгээний утга" in text for text in bot.texts())
+	assert not any(text.startswith(mn.MSG_STATEMENT_IMPORTED[:2]) for text in bot.texts())
+	assert frappe.db.get_value("Nyabo Chat State", {"chat_id": "3101"}, "state") == "layout:0"
+
+
+def test_run_import_asks_the_admin_to_verify_a_learned_layout(books):
+	import frappe
+
+	helpers.setup_banks(books)
+	layout = helpers.register_layouts(only=["test_khan_synthetic"])[0]
+	frappe.db.set_value("Nyabo Bank Layout", layout, "verified", 0)
+	name = helpers.statement_document(books, *fixtures.khan_xlsx())
+	result, bot = _run_import(name, 3102)
+	assert result == {"ok": True, "unverified": True}
+	assert bot.last_text == mn.MSG_STATEMENT_LAYOUT_UNVERIFIED
+	assert frappe.db.count("Bank Transaction") == 0
+	assert frappe.db.get_value("Nyabo Chat State", {"chat_id": "3102"}, "state") in (None, "")
+
+
+def test_run_import_reports_a_missing_bank_account_in_mongolian(books):
+	helpers.register_layouts()  # the Golomt layout is known; no Golomt account is configured
+	name = helpers.statement_document(books, *fixtures.golomt_xlsx())
+	result, bot = _run_import(name, 3103)
+	assert result == {"ok": False}
+	assert bot.last_text != mn.MSG_ERROR_ADMIN_NOTIFIED and "Голомт банк" in bot.last_text
+
+
+def test_run_import_reports_the_imported_statement(books):
+	helpers.setup_banks(books)
+	helpers.register_layouts()
+	name = helpers.statement_document(books, *fixtures.khan_xlsx())
+	result, bot = _run_import(name, 3104)
+	assert result["ok"] is True and result["summary"]["status"] == "imported"
+	assert result["summary"]["new"] == 5
+	assert bot.sent("send_message")[-1]["text"].startswith(mn.MSG_STATEMENT_IMPORTED[:2])

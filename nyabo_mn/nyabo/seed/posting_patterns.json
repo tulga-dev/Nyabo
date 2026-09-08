@@ -2587,6 +2587,115 @@
       "enabled": true,
       "reference_bullet": "§3 'Purchase (not VAT-registered)' shape (expense — cash); bank charges are VAT-exempt in the V1 chart flags (UNCONFIRMED in law)",
       "notes": "Needed by the bank statement flow (ARCHITECTURE §5.4: fee lines -> rule bank_fee auto-proposal). No VAT line: the V1 chart lists 6810 among VAT-exempt accounts; the VAT Law exemption article is not cited in the reference. Citation: not in either mapper's list; Order 116 prints no bank-fee entry. Integrator's candidate: the generic 1.4 cash-outflow entry «Дт Хөрөнгө/ (Зардал)/ Дансны өглөг Кт Мөнгөн хөрөнгө». Needed by the bank statement flow (ARCHITECTURE §5.4). No VAT line: the V1 chart lists 6810 among VAT-exempt accounts; the VAT Law exemption article is not cited in the reference."
+    },
+    {
+      "pattern_id": "bank_line_expense",
+      "name_mn": "Банкны зарлагын гүйлгээ (зардал)",
+      "family": "bank_line_expense",
+      "document_types": [
+        "Journal Entry",
+        "Bank Transaction"
+      ],
+      "applies_to_vat": "any",
+      "applies_to_cit": "any",
+      "conditions": "Statement outflow with no voucher to reconcile against and no bank_fee rule hit: the account comes from the accountant's [Зардал бүртгэх] tap or from the model's classification (matching.rules.propose_for_line). No VAT line: a statement line carries no ebarimt, so no input VAT is claimed from it.",
+      "lines": [
+        {
+          "side": "debit",
+          "account_class": "70",
+          "class_name_mn": "Удирдлагын зардал",
+          "sub_account_mn": "Зардлын төрлөөр",
+          "role": null,
+          "amount_kind": "gross",
+          "optional": false,
+          "alternatives": [
+            {
+              "account_class": "71",
+              "role": null,
+              "when": "selling_expense",
+              "when_mn": "борлуулалтын зардал бол"
+            }
+          ],
+          "v1_code_hint": null,
+          "v1_code_range": [
+            "6210",
+            "6910"
+          ]
+        },
+        {
+          "side": "credit",
+          "account_class": "11",
+          "class_name_mn": "Банкинд байгаа мөнгө",
+          "sub_account_mn": "Харилцах данс",
+          "role": "bank",
+          "amount_kind": "gross",
+          "optional": false,
+          "alternatives": [],
+          "v1_code_hint": "1120"
+        }
+      ],
+      "primary_document_mn": "Банкны хуулга",
+      "citation": {
+        "instrument": "Заавар 116 (2000)",
+        "instrument_full": "Аж ахуйн нэгж, байгууллагад мөрдөх нягтлан бодох бүртгэлийн дансны үлгэрчилсэн заавар (Сангийн сайдын 2000 оны 116 дугаар тушаал)",
+        "section": null,
+        "verified": false,
+        "url": "https://legalinfo.mn/mn/detail?lawId=205201",
+        "quote": null
+      },
+      "verified": false,
+      "enabled": true,
+      "reference_bullet": "§3 'Purchase (not VAT-registered)' shape (expense — cash), on a statement line",
+      "notes": "Needed by the bank statement flow (ARCHITECTURE §5.4: an unmatched outflow gets [Зардал бүртгэх] or the model's classification). Without this row the proposal cited a pattern id that existed nowhere, so approval failed with «загвар олдсонгүй» before the unverified-rule guard could speak and no admin had a row to verify. Citation: not in either mapper's list; Order 116 prints no entry for a bank statement line. Integrator's candidate: the generic 1.4 cash-outflow entry «Дт Хөрөнгө/ (Зардал)/ Дансны өглөг Кт Мөнгөн хөрөнгө» (single-reader; confirm before verified is set)."
+    },
+    {
+      "pattern_id": "bank_transfer_internal",
+      "name_mn": "Өөрийн данс хооронд шилжүүлэг",
+      "family": "bank_transfer",
+      "document_types": [
+        "Journal Entry",
+        "Bank Transaction"
+      ],
+      "applies_to_vat": "any",
+      "applies_to_cit": "any",
+      "conditions": "Two statement lines of the same company paired as one own-account transfer (equal amount, opposite direction, two different company bank accounts). Neither income nor expense: only the two bank accounts move.",
+      "lines": [
+        {
+          "side": "debit",
+          "account_class": "11",
+          "class_name_mn": "Банкинд байгаа мөнгө",
+          "sub_account_mn": "Хүлээн авсан харилцах данс",
+          "role": "bank",
+          "amount_kind": "amount_paid",
+          "optional": false,
+          "alternatives": [],
+          "v1_code_hint": "1120"
+        },
+        {
+          "side": "credit",
+          "account_class": "11",
+          "class_name_mn": "Банкинд байгаа мөнгө",
+          "sub_account_mn": "Шилжүүлсэн харилцах данс",
+          "role": "bank",
+          "amount_kind": "amount_paid",
+          "optional": false,
+          "alternatives": [],
+          "v1_code_hint": "1120"
+        }
+      ],
+      "primary_document_mn": "Банкны хуулга, төлбөрийн даалгавар",
+      "citation": {
+        "instrument": "Заавар 116 (2000)",
+        "instrument_full": "Аж ахуйн нэгж, байгууллагад мөрдөх нягтлан бодох бүртгэлийн дансны үлгэрчилсэн заавар (Сангийн сайдын 2000 оны 116 дугаар тушаал)",
+        "section": null,
+        "verified": false,
+        "url": "https://legalinfo.mn/mn/detail?lawId=205201",
+        "quote": null
+      },
+      "verified": false,
+      "enabled": true,
+      "reference_bullet": "§3 — none; the reference prints no transfer between two own accounts",
+      "notes": "Needed by the bank statement flow (ARCHITECTURE §5.4: transfers between own accounts are paired into one proposal). Not prescribed by Order 116: the instrument prints no entry moving money between two bank accounts of the same entity, and 1.2 only says that bank accounts are classified per bank and per currency. Citation: not in either mapper's list; until a reader confirms one, the row stays unverified and require_verified refuses to post it."
     }
   ]
 }

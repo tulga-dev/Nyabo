@@ -203,15 +203,28 @@ def unallocated_transactions(
 	return [dict(r) for r in rows]
 
 
-def _send_card(bank_transaction: str) -> bool:
-	"""Telegram card through the statement handler; missing handler is not an import failure."""
+def _send_card(bank_transaction: str, company: str, document: str | None = None) -> bool:
+	"""The [Баримт хайх] [Зардал бүртгэх] [Дараа] card for one unmatched line (ARCHITECTURE §5.4).
+
+	The card and its keyboard belong to ``telegram.handlers.bank``; this only resolves the
+	chat (the statement's chat, else the accountant's) and hands the line over. A missing
+	Telegram layer, an unknown chat and a Telegram hiccup are logged, never raised, so a
+	statement import is not rolled back by a failed message; anything else surfaces.
+	"""
 	try:
-		from nyabo_mn.telegram.handlers import statement  # type: ignore[import-not-found]
+		from nyabo_mn.config import MissingSettingError  # type: ignore[import-not-found]
+		from nyabo_mn.telegram import api  # type: ignore[import-not-found]
+		from nyabo_mn.telegram.api import TelegramApiError
+		from nyabo_mn.telegram.handlers import bank as bank_handler
 	except ImportError:
 		return False
+	chat_id = bank_handler.chat_id_for(company, document)
+	if not chat_id:
+		log_event("bank.card_no_chat", level="warning", bank_transaction=bank_transaction, company=company)
+		return False
 	try:
-		statement.send_bank_line_card(bank_transaction)
-	except Exception as exc:  # noqa: BLE001 - a Telegram hiccup must not roll the import back
+		bank_handler.send_bank_card(api.get_bot(), chat_id, bank_transaction)
+	except (TelegramApiError, MissingSettingError) as exc:
 		log_error("bank.card_failed", exc, bank_transaction=bank_transaction)
 		return False
 	return True
@@ -298,7 +311,7 @@ def run(
 				stats["fee_proposals"] += 1
 			else:
 				stats["unmatched"] += 1
-				if send_cards and _send_card(name):
+				if send_cards and _send_card(name, company, document):
 					stats["cards_sent"] += 1
 		except (MatchError, rules_mod.ProposalError) as exc:
 			stats["errors"] += 1

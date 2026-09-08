@@ -7,8 +7,14 @@ counted as ``dup`` and never re-created. Transactions are inserted and submitted
 ERPNext's own Bank Statement Import does (``submit_after_import`` defaults to 1), so
 the reconciliation tool and ``match.run`` can allocate against them.
 
-An unknown layout is not an error: the summary carries ``unknown_layout = True``, the
-first rows and the generic guess so the bot can ask the accountant to map columns.
+An unknown layout is not an error: the summary carries ``status = "unknown_layout"``
+(``unknown_layout = True`` for older readers), the header row, a preview and the generic
+guess so the bot can ask the accountant to map columns. A stored layout that matches but
+is not verified gives ``status = "unverified_layout"`` instead — re-mapping it would only
+create a second unverified row; the admin verifies the one that exists. A statement whose
+bank account is not configured raises ``BankImportError``, whose ``message_mn`` is the
+card text. Contract keys the Telegram layer reads: ``status``, ``company``, ``bank``,
+``headers``, ``preview``, ``count``, ``new``, ``dup``, ``matched``, ``unmatched``.
 """
 
 from __future__ import annotations
@@ -237,6 +243,21 @@ def _layout_dict(layout: LayoutSpec | None) -> dict[str, Any] | None:
 	}
 
 
+def _header_and_preview(
+	rows: Sequence[Sequence[Any]], guess: LayoutSpec | None
+) -> tuple[list[str], list[list[str]]]:
+	"""(header row, the data rows under it) as text, for the column-mapping question.
+
+	The keyword guess found the header row even when no layout is trusted; without a guess
+	there is no header to ask about and the bot says the file is unsupported.
+	"""
+	index = guess.header_row_hint if guess is not None else None
+	if index is None or index >= len(rows):
+		return [], []
+	header = [str(cell).strip() if cell is not None else "" for cell in rows[index]]
+	return header, excel.preview_rows(list(rows)[index + 1 :], PREVIEW_ROWS)
+
+
 def _set_status(doc: Any, status: str, error: str | None = None) -> None:
 	doc.db_set("status", status)
 	if error is not None:
@@ -251,8 +272,12 @@ def import_statement(document_name: str, *, run_matching: bool = True) -> dict[s
 	company = str(doc.company)
 	summary: dict[str, Any] = {
 		"document": document_name,
+		"status": "imported",
+		"company": company,
 		"bank": None,
 		"layout": None,
+		"headers": [],
+		"preview": [],
 		"count": 0,
 		"new": 0,
 		"dup": 0,
@@ -276,8 +301,15 @@ def import_statement(document_name: str, *, run_matching: bool = True) -> dict[s
 	layout, guess = detect_mod.detect(rows, company)
 	summary["guess"] = _layout_dict(guess)
 	if layout is None:
+		# A stored layout whose signature matches but which nobody verified must not restart
+		# the mapping conversation: the admin verifies the row instead (D-008, §1.2).
+		unverified = detect_mod.unverified_match(rows, company)
+		summary["status"] = "unverified_layout" if unverified is not None else "unknown_layout"
 		summary["unknown_layout"] = True
-		summary["bank"] = (guess.bank if guess and guess.bank != "Other" else None) or guess_bank(rows)
+		summary["layout"] = unverified.layout_id if unverified is not None else None
+		named = next((s.bank for s in (unverified, guess) if s is not None and s.bank != "Other"), None)
+		summary["bank"] = named or guess_bank(rows)
+		summary["headers"], summary["preview"] = _header_and_preview(rows, guess)
 		common.write_event(
 			"statement_layout_unknown",
 			company=company,
@@ -287,6 +319,8 @@ def import_statement(document_name: str, *, run_matching: bool = True) -> dict[s
 				"preview_rows": summary["preview_rows"],
 				"guess": summary["guess"],
 				"bank": summary["bank"],
+				"status": summary["status"],
+				"layout": summary["layout"],
 			},
 		)
 		return summary

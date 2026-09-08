@@ -61,6 +61,17 @@ def detect(
 	return trusted, guess
 
 
+def unverified_match(rows: Sequence[Sequence[Any]], company: str | None = None) -> LayoutSpec | None:
+	"""A stored layout whose signature matches these rows but which nobody has verified.
+
+	Never trusted for an import (``detect`` already refused it); it only tells the bot that
+	the mapping question has been answered once and the admin, not the accountant, is next.
+	"""
+	specs = layouts_mod.load_layouts(company)
+	candidates = [s for s in specs if not s.is_generic and not s.verified and s.header_signature]
+	return detect_layout(rows, candidates)
+
+
 def find_account_number(rows: Sequence[Sequence[Any]], numbers: Iterable[str]) -> str | None:
 	"""The configured account number that appears in the title block (first rows), if any.
 
@@ -84,4 +95,11 @@ def find_account_number(rows: Sequence[Sequence[Any]], numbers: Iterable[str]) -
 	return None
 
 
-__all__ = ["detect", "find_account_number", "generic_template", "simulation_mode", "usable_layouts"]
+__all__ = [
+	"detect",
+	"find_account_number",
+	"generic_template",
+	"simulation_mode",
+	"unverified_match",
+	"usable_layouts",
+]

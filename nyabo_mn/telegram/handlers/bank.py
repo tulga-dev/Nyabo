@@ -35,6 +35,27 @@ def bank_line_text(txn_name: str) -> str:
 		return cards.bank_line_card(data)
 
 
+def chat_id_for(company: str | None, document: str | None = None) -> str | None:
+	"""Where an unmatched-line card belongs: the chat the statement arrived in, else the accountant's.
+
+	Mirrors ``receipt.chat_id_for``; a bank line has no card chat of its own, so the
+	``Nyabo Document`` of the import is the first source (``matching.match.run`` passes it).
+	"""
+	if document and frappe.db.exists("Nyabo Document", document):
+		chat_id = frappe.db.get_value("Nyabo Document", document, "telegram_chat_id")
+		if chat_id:
+			return str(chat_id)
+	if company:
+		name = frappe.db.exists("Nyabo Company Settings", {"company": company})
+		if name:
+			settings = frappe.db.get_value(
+				"Nyabo Company Settings", name, ["accountant_telegram_id", "owner_telegram_id"], as_dict=True
+			)
+			chat_id = settings.accountant_telegram_id or settings.owner_telegram_id
+			return str(chat_id) if chat_id else None
+	return None
+
+
 def send_bank_card(bot: Any, chat_id: int | str, txn_name: str) -> dict[str, Any]:
 	message = bot.send_message(
 		chat_id, bank_line_text(txn_name), reply_markup=keyboards.bank_line_keyboard(txn_name)
