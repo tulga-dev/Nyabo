@@ -17,6 +17,7 @@
   "vat_treatment",
   "posting_pattern",
   "source",
+  "seed_rule_id",
   "hit_count",
   "last_hit",
   "created_from_corrections"
@@ -96,6 +97,12 @@
    "default": "accountant"
   },
   {
+   "fieldname": "seed_rule_id",
+   "fieldtype": "Data",
+   "label": "Үрийн дүрмийн код",
+   "read_only": 1
+  },
+  {
    "fieldname": "hit_count",
    "fieldtype": "Int",
    "label": "Хэрэглэсэн тоо",
@@ -119,7 +126,7 @@
  "index_web_pages_for_search": 0,
  "istable": 0,
  "links": [],
- "modified": "2026-09-08 00:00:00.000000",
+ "modified": "2026-09-08 09:32:14.850035",
  "modified_by": "Administrator",
  "module": "Nyabo",
  "name": "Nyabo Rule",

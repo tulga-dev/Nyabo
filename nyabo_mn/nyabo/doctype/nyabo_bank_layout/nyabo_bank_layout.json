@@ -11,6 +11,8 @@
   "verified",
   "amount_style",
   "header_row_hint",
+  "currency_default",
+  "keywords_json",
   "date_formats",
   "header_signature_json",
   "column_map_json",
@@ -53,6 +55,17 @@
    "label": "Толгой мөрийн байрлал"
   },
   {
+   "fieldname": "currency_default",
+   "fieldtype": "Data",
+   "label": "Үндсэн валют",
+   "default": "MNT"
+  },
+  {
+   "fieldname": "keywords_json",
+   "fieldtype": "JSON",
+   "label": "Түлхүүр үгс (JSON)"
+  },
+  {
    "fieldname": "date_formats",
    "fieldtype": "Small Text",
    "label": "Огнооны форматууд (мөр тус бүр)",
@@ -83,7 +96,7 @@
  "index_web_pages_for_search": 0,
  "istable": 0,
  "links": [],
- "modified": "2026-09-08 00:00:00.000000",
+ "modified": "2026-09-08 09:32:14.853201",
  "modified_by": "Administrator",
  "module": "Nyabo",
  "name": "Nyabo Bank Layout",

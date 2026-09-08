@@ -19,6 +19,8 @@ from dataclasses import dataclass, field
 from typing import Any
 
 DEFAULT_OPENAI_MODEL = "gpt-5.6-terra"
+DEFAULT_OPENAI_SWEEP_MODEL = "gpt-5.6-luna"
+DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-5"
 
 
 @dataclass(frozen=True)
@@ -36,6 +38,8 @@ KEY_SPECS: tuple[KeySpec, ...] = (
 	KeySpec("OPENAI_API_KEY", feature="llm"),
 	KeySpec("OPENAI_MODEL", default=DEFAULT_OPENAI_MODEL, secret=False),
 	KeySpec("ANTHROPIC_API_KEY"),
+	KeySpec("ANTHROPIC_MODEL", default=DEFAULT_ANTHROPIC_MODEL, secret=False),
+	KeySpec("OPENAI_SWEEP_MODEL", default=DEFAULT_OPENAI_SWEEP_MODEL, secret=False),
 	KeySpec("EBARIMT_API_BASE", feature="ebarimt", secret=False),
 )
 FEATURES: tuple[str, ...] = ("telegram", "llm", "ebarimt")
@@ -87,6 +91,14 @@ class Settings:
 	@property
 	def anthropic_api_key(self) -> str:
 		return str(self.values.get("ANTHROPIC_API_KEY") or "")
+
+	@property
+	def anthropic_model(self) -> str:
+		return str(self.values.get("ANTHROPIC_MODEL") or DEFAULT_ANTHROPIC_MODEL)
+
+	@property
+	def openai_sweep_model(self) -> str:
+		return str(self.values.get("OPENAI_SWEEP_MODEL") or DEFAULT_OPENAI_SWEEP_MODEL)
 
 	@property
 	def ebarimt_api_base(self) -> str:

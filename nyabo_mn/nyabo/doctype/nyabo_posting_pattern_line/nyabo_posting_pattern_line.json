@@ -11,8 +11,12 @@
   "class_name_mn",
   "sub_account_mn",
   "amount_kind",
+  "role",
   "optional",
-  "alternatives_json"
+  "alternatives_json",
+  "v1_code_hint",
+  "v1_code_range",
+  "class_assumed"
  ],
  "fields": [
   {
@@ -51,6 +55,13 @@
    "description": "net, vat, gross, ..."
   },
   {
+   "fieldname": "role",
+   "fieldtype": "Data",
+   "label": "Дансны үүрэг",
+   "in_list_view": 1,
+   "description": "code_roles.json role, e.g. input_vat"
+  },
+  {
    "fieldname": "optional",
    "fieldtype": "Check",
    "label": "Заавал биш",
@@ -60,13 +71,29 @@
    "fieldname": "alternatives_json",
    "fieldtype": "JSON",
    "label": "Хувилбарууд"
+  },
+  {
+   "fieldname": "v1_code_hint",
+   "fieldtype": "Data",
+   "label": "V1 код (лавлагаа)"
+  },
+  {
+   "fieldname": "v1_code_range",
+   "fieldtype": "Data",
+   "label": "V1 кодын муж"
+  },
+  {
+   "fieldname": "class_assumed",
+   "fieldtype": "Check",
+   "label": "Анги таамагласан",
+   "default": "0"
   }
  ],
  "idx": 0,
  "index_web_pages_for_search": 0,
  "istable": 1,
  "links": [],
- "modified": "2026-09-08 00:00:00.000000",
+ "modified": "2026-09-08 09:32:14.846864",
  "modified_by": "Administrator",
  "module": "Nyabo",
  "name": "Nyabo Posting Pattern Line",

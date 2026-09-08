@@ -5,8 +5,13 @@ description = "Нябо — AI bookkeeping for Mongolian SMEs on ERPNext v16 + T
 requires-python = ">=3.10"
 readme = "README.md"
 dynamic = ["version"]
-# Runtime deps are added per phase (Phase 2: openai, pyzbar/zxing; Phase 3: openpyxl).
-dependencies = []
+# Pins checked on PyPI 2026-09-08 by the LLM-layer author; Frappe v16 ships openpyxl, jinja2, requests.
+dependencies = ["openai==3.8.0", "anthropic==1.4.0", "pydantic>=2.6,<3"]
+
+[project.optional-dependencies]
+test = ["pytest", "ruff", "openpyxl", "jinja2"]
+pos = ["ebarimt-pos-sdk==0.4.1"]
+qr = ["pyzbar", "Pillow"]
 
 [build-system]
 requires = ["flit_core >=3.4,<4"]

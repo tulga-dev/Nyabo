@@ -12,7 +12,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: pip install ruff pytest
+      - run: pip install ruff pytest openpyxl jinja2 pydantic
       - run: ruff check .
       - run: ruff format --check .
       - run: pytest

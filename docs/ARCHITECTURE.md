@@ -349,6 +349,13 @@ false` until the founder confirms. Every call writes a `Nyabo LLM Call`.
 `MockLlmClient` returns canned results keyed by purpose + a hash of the user parts; the
 simulator and tests use it.
 
+As built (stage 1): `agent.extract.extract_receipt(client, image_bytes, mime, *, company_context, now)`
+returns `(core.models.Receipt, LlmResult)`; `extract_receipt_full(...)` returns an `ExtractOutcome` whose
+`warnings` carry `seller_name_missing`, `line_amount_missing`, `injection_suspected` (the pipeline sets
+`needs_accountant` and writes a `Nyabo Event injection_suspected` with `injection_fragment`).
+`agent.frappe_log.recorder(company=…, proposal=…)` is the `record_call` callback that writes `Nyabo LLM Call`.
+Settings: `OPENAI_MODEL`, `OPENAI_SWEEP_MODEL`, `ANTHROPIC_MODEL`.
+
 ## 7. Ebarimt contract
 
 ```python
@@ -400,6 +407,10 @@ random_string, add_to_date family, file_manager.save_file), `utils.pdf.get_pdf`
 Submitting a Purchase Invoice / Journal Entry in the stub writes simplified `GL Entry`
 rows so balance assertions work. The stub validates that every field set on a document
 exists in its meta, so typos in field names fail tests.
+
+Stub-only knobs: `frappe.flags.stub_strict_links`, `frappe._stub.hooks.temporary_hooks(replace=…, without_apps=…, **hooks)`
+(the `frappe_hooks` fixture), `frappe._stub.calls(name)` (recorded side effects). Fixtures in `tests/conftest.py`:
+`site`, `company` (provisions Тест ХХК through the real provisioning code), `as_user`, `frappe_flags`, `frappe_hooks`.
 
 ## 9. Seed data
 

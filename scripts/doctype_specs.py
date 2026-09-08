@@ -121,8 +121,12 @@ doctype(
 		F("class_name_mn", "Data", "Ангийн нэр", in_list_view=1),
 		F("sub_account_mn", "Data", "Дэд данс", in_list_view=1),
 		F("amount_kind", "Data", "Дүнгийн төрөл", reqd=1, in_list_view=1, description="net, vat, gross, ..."),
+		F("role", "Data", "Дансны үүрэг", in_list_view=1, description="code_roles.json role, e.g. input_vat"),
 		F("optional", "Check", "Заавал биш", default="0"),
 		F("alternatives_json", "JSON", "Хувилбарууд"),
+		F("v1_code_hint", "Data", "V1 код (лавлагаа)"),
+		F("v1_code_range", "Data", "V1 кодын муж"),
+		F("class_assumed", "Check", "Анги таамагласан", default="0"),
 	],
 )
 
@@ -427,6 +431,7 @@ doctype(
 		F("vat_treatment", "Select", "НӨАТ-ын бүртгэл", options=VAT_TREATMENTS, default="none"),
 		F("posting_pattern", "Link", "Бичилтийн загвар", options="Nyabo Posting Pattern"),
 		F("source", "Select", "Эх сурвалж", options="accountant\nlearned\nseed", default="accountant"),
+		F("seed_rule_id", "Data", "Үрийн дүрмийн код", read_only=1),
 		F("hit_count", "Int", "Хэрэглэсэн тоо", default="0", read_only=1),
 		F("last_hit", "Datetime", "Сүүлд хэрэглэсэн", read_only=1),
 		F("created_from_corrections", "Small Text", "Үүсгэсэн залруулгууд", read_only=1),
@@ -535,6 +540,8 @@ doctype(
 	fields=[
 		F("pattern_id", "Data", "Загварын код", reqd=1, unique=1),
 		F("name_mn", "Data", "Нэр", reqd=1, in_list_view=1),
+		F("family", "Data", "Загварын бүлэг", reqd=1, in_list_view=1, in_standard_filter=1),
+		F("reference_bullet", "Data", "Лавлагааны заалт"),
 		F("document_types", "Small Text", "Баримтын төрлүүд (таслалаар)", reqd=1),
 		F(
 			"applies_to_vat",
@@ -564,6 +571,7 @@ doctype(
 			"Эрх зүйн акт",
 			default="Сангийн сайдын 2000 оны 116 дугаар тушаал (Заавар 116)",
 		),
+		F("citation_instrument_full", "Data", "Эрх зүйн актын бүтэн нэр"),
 		F("citation_section", "Data", "Заалт"),
 		F("citation_quote", "Small Text", "Иш татсан текст"),
 		F("citation_url", "Data", "URL"),
@@ -603,6 +611,8 @@ doctype(
 			default="separate_debit_credit",
 		),
 		F("header_row_hint", "Int", "Толгой мөрийн байрлал"),
+		F("currency_default", "Data", "Үндсэн валют", default="MNT"),
+		F("keywords_json", "JSON", "Түлхүүр үгс (JSON)"),
 		F(
 			"date_formats",
 			"Small Text",
