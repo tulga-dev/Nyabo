@@ -93,18 +93,23 @@ def decode_csv(data: bytes) -> tuple[str, str]:
 
 
 def sniff_delimiter(text: str) -> str:
-	"""csv.Sniffer over the first lines, else the delimiter that appears most consistently."""
-	sample = "\n".join(text.splitlines()[:20])
-	try:
-		return csv.Sniffer().sniff(sample, delimiters=CSV_DELIMITERS).delimiter
-	except csv.Error:
-		pass
-	best, best_count = ",", 0
+	"""The delimiter whose per-line count is the same on the most lines.
+
+	``csv.Sniffer`` is not used: a title row such as "Хаан банк, хуулга" makes it pick the
+	comma for a semicolon file. Consistency across the data rows is what identifies the
+	real separator; ties go to the larger column count.
+	"""
+	lines = [line for line in text.splitlines()[:50] if line.strip()]
+	best, best_key = ",", (0, 0)
 	for candidate in CSV_DELIMITERS:
-		counts = [line.count(candidate) for line in sample.splitlines() if line.strip()]
-		score = min(counts) if counts else 0
-		if score > best_count:
-			best, best_count = candidate, score
+		counts = [line.count(candidate) for line in lines]
+		nonzero = [c for c in counts if c > 0]
+		if not nonzero:
+			continue
+		mode = max(set(nonzero), key=nonzero.count)
+		key = (nonzero.count(mode), mode)
+		if key > best_key:
+			best, best_key = candidate, key
 	return best
 
 

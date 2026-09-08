@@ -1,0 +1,154 @@
+{
+ "note": "SYNTHETIC test layouts for the files in this folder",
+ "rows": [
+  {
+   "layout_id": "test_khan_synthetic",
+   "bank": "Khan Bank",
+   "verified": 1,
+   "amount_style": "separate_debit_credit",
+   "header_signature": [
+    "огноо",
+    "гүйлгээний утга",
+    "зарлага",
+    "орлого",
+    "үлдэгдэл"
+   ],
+   "column_map": {
+    "date": 0,
+    "description": 1,
+    "debit": 2,
+    "credit": 3,
+    "balance": 4,
+    "reference": 5
+   },
+   "date_formats": [
+    "%Y.%m.%d"
+   ],
+   "currency_default": "MNT"
+  },
+  {
+   "layout_id": "test_khan_synthetic_cp1251",
+   "bank": "Khan Bank",
+   "verified": 1,
+   "amount_style": "separate_debit_credit",
+   "header_signature": [
+    "огноо",
+    "гуйлгээний утга",
+    "зарлага",
+    "орлого",
+    "улдэгдэл"
+   ],
+   "column_map": {
+    "date": 0,
+    "description": 1,
+    "debit": 2,
+    "credit": 3,
+    "balance": 4,
+    "reference": 5
+   },
+   "date_formats": [
+    "%Y.%m.%d"
+   ],
+   "currency_default": "MNT"
+  },
+  {
+   "layout_id": "test_tdb_synthetic",
+   "bank": "TDB",
+   "verified": 1,
+   "amount_style": "separate_debit_credit",
+   "header_signature": [
+    "огноо",
+    "лавлах дугаар",
+    "дебит",
+    "кредит",
+    "валют"
+   ],
+   "column_map": {
+    "date": "Огноо",
+    "reference": "Лавлах дугаар",
+    "debit": "Дебит",
+    "credit": "Кредит",
+    "currency": "Валют",
+    "description": "Гүйлгээний утга",
+    "balance": "Үлдэгдэл"
+   },
+   "date_formats": [
+    "%Y-%m-%d %H:%M:%S",
+    "%Y-%m-%d"
+   ],
+   "currency_default": "MNT"
+  },
+  {
+   "layout_id": "test_golomt_synthetic",
+   "bank": "Golomt Bank",
+   "verified": 1,
+   "amount_style": "signed_amount",
+   "header_signature": [
+    "огноо",
+    "тайлбар",
+    "дүн",
+    "үлдэгдэл"
+   ],
+   "column_map": {
+    "date": 0,
+    "description": 1,
+    "amount": 2,
+    "balance": 3,
+    "reference": 4
+   },
+   "date_formats": [
+    "%d.%m.%Y"
+   ],
+   "currency_default": "MNT"
+  },
+  {
+   "layout_id": "test_transbank_synthetic",
+   "bank": "Trans Bank",
+   "verified": 1,
+   "amount_style": "separate_debit_credit",
+   "header_signature": [
+    "гүйлгээний огноо",
+    "орлого",
+    "зарлага",
+    "гүйлгээний утга"
+   ],
+   "column_map": {
+    "date": 0,
+    "credit": 1,
+    "debit": 2,
+    "description": 3,
+    "reference": 4
+   },
+   "date_formats": [
+    "%Y-%m-%d"
+   ],
+   "currency_default": "MNT"
+  },
+  {
+   "layout_id": "test_xacbank_synthetic",
+   "bank": "XacBank",
+   "verified": 1,
+   "amount_style": "separate_debit_credit",
+   "header_signature": [
+    "date",
+    "description",
+    "withdrawal",
+    "deposit",
+    "balance"
+   ],
+   "column_map": {
+    "date": 0,
+    "description": 1,
+    "debit": 2,
+    "credit": 3,
+    "balance": 4,
+    "reference": 5
+   },
+   "date_formats": [
+    "%Y-%m-%d %H:%M:%S",
+    "%Y-%m-%d"
+   ],
+   "currency_default": "MNT"
+  }
+ ]
+}
