@@ -10,6 +10,7 @@ from nyabo_mn.setup.chart import ChartError
 from nyabo_mn.setup.provision_company import (
 	COMPANY_DEFAULTS_BY_CODE,
 	company_defaults_by_code,
+	provision,
 	provision_company,
 	template_chart,
 	verify,
@@ -197,3 +198,24 @@ def test_accountant_chart_provisions_with_automatic_aliases(seeded):
 	assert frappe.get_doc("Account", "1110 - Касс МНТ - NYA").account_category == "Cash and Cash Equivalents"
 	with pytest.raises(frappe.ValidationError, match="chart_csv"):
 		provision_company("Зургаа ХХК", "ZUR", chart_scheme="accountant")
+
+
+# frappe/__init__.py: a bare @frappe.whitelist() means every verb, and frappe/auth.py only
+# validates the CSRF token on POST/PUT/DELETE/PATCH -- so a state-changing method must pin its verb.
+FRAPPE_DEFAULT_METHODS = ["GET", "POST", "PUT", "DELETE"]
+UNSAFE_HTTP_METHODS = frozenset(("POST", "PUT", "DELETE", "PATCH"))
+
+
+def allowed_methods(fn):
+	assert getattr(fn, "is_whitelisted", False), f"{fn.__name__} is not whitelisted"
+	return getattr(fn, "allowed_http_methods", None) or FRAPPE_DEFAULT_METHODS
+
+
+def test_provision_endpoints_pin_their_http_verb():
+	# provision() creates a company, chart, warehouses and tax templates: CSRF-checked verbs only.
+	assert allowed_methods(provision) == ["POST"]
+	assert set(allowed_methods(provision)) <= UNSAFE_HTTP_METHODS
+	assert "GET" not in allowed_methods(provision)
+	# verify() only reads, so GET is fine, but it still must not accept PUT/DELETE.
+	assert allowed_methods(verify) == ["GET", "POST"]
+	assert "PUT" not in allowed_methods(verify) and "DELETE" not in allowed_methods(verify)
