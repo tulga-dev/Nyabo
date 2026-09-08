@@ -1,0 +1,364 @@
+"""Card renderers: dicts in, plain text out (docs/ARCHITECTURE.md §5.1, §5.3, §5.5).
+
+Pure functions so a snapshot test can pin the exact anatomy of a card without Frappe.
+Every visible string comes from ``nyabo_mn.i18n.mn``; money goes through
+``core.money.fmt_mnt`` and weekdays through ``core.dates`` so a card and a report never
+format the same amount two ways. The model's only contribution is the one-line
+explanation, printed inside «…» (principle 7).
+"""
+
+from __future__ import annotations
+
+import datetime as dt
+import json
+from decimal import Decimal, InvalidOperation
+from typing import Any
+
+from nyabo_mn.core import dates
+from nyabo_mn.core.money import fmt_mnt, quantize, to_decimal
+from nyabo_mn.i18n import mn
+
+# --- helpers ---------------------------------------------------------------------------------------
+
+
+def _json(value: Any) -> Any:
+	"""JSON columns arrive as text from the DB and as dicts from a fresh document."""
+	if value in (None, ""):
+		return None
+	if isinstance(value, (dict, list)):
+		return value
+	try:
+		return json.loads(value)
+	except (TypeError, ValueError):
+		return None
+
+
+def _money(value: Any) -> Decimal:
+	if value in (None, ""):
+		return Decimal("0.00")
+	try:
+		return quantize(to_decimal(value))
+	except (InvalidOperation, ValueError, TypeError):
+		return Decimal("0.00")
+
+
+def _date(value: Any) -> dt.date | None:
+	if isinstance(value, dt.datetime):
+		return value.date()
+	if isinstance(value, dt.date):
+		return value
+	if isinstance(value, str) and value:
+		try:
+			return dt.date.fromisoformat(value[:10])
+		except ValueError:
+			return None
+	return None
+
+
+def fmt_date(value: Any) -> str:
+	day = _date(value)
+	return day.isoformat() if day else "—"
+
+
+def _vat_rate_percent(total: Decimal, vat: Decimal, explicit: Any) -> str:
+	"""Display-only rate: the explicit one from the proposal, else derived from the amounts.
+
+	Rules code never derives a rate from amounts (principle 1); the card only prints what the
+	receipt implies so the accountant can eyeball it.
+	"""
+	if explicit not in (None, ""):
+		rate = to_decimal(explicit)
+		percent = rate * 100 if rate <= 1 else rate
+		return str(int(percent)) if percent == int(percent) else str(percent)
+	net = total - vat
+	if vat > 0 and net > 0:
+		percent = (vat / net * 100).quantize(Decimal("1"))
+		return str(int(percent))
+	return "0"
+
+
+# --- receipt card ----------------------------------------------------------------------------------
+
+
+def verification_text(verification: dict[str, Any] | None) -> str:
+	"""ARCHITECTURE §7: never "ebarimt ✓"; seller-found wording plus the receipt status."""
+	verification = verification or {}
+	seller_found = bool(
+		verification.get("seller_found") or verification.get("vat_payer") or verification.get("found")
+	)
+	seller = mn.VERIFICATION_SELLER_OK if seller_found else mn.VERIFICATION_SELLER_NOT_FOUND
+	if verification.get("status") == "verified":
+		return seller
+	return f"{seller} · {mn.VERIFICATION_RECEIPT_UNCHECKED}"
+
+
+def account_reason(proposal: dict[str, Any]) -> str:
+	if proposal.get("rule_applied"):
+		return mn.CARD_REASON_RULE.format(rule=proposal["rule_applied"])
+	source = (_json(proposal.get("confidence_json")) or {}).get("source") or proposal.get("source")
+	if source == "history":
+		return mn.CARD_REASON_HISTORY
+	return mn.CARD_REASON_MODEL
+
+
+def receipt_card(proposal: dict[str, Any], warnings: list[str] | None = None) -> str:
+	"""The proposal card, §5.1 anatomy:
+
+	🧾 seller · date (weekday)
+	💵 total₮ · НӨАТ vat₮ (rate%, treatment) · verification
+	📒 code account · reason
+	«explanation»
+	⚠️ warning (one line each)
+	📜 pattern citation
+	"""
+	extracted = _json(proposal.get("extracted_json")) or {}
+	seller = proposal.get("supplier_name") or proposal.get("supplier") or extracted.get("seller_name") or "—"
+	day = _date(proposal.get("posting_date"))
+	title = mn.CARD_RECEIPT_TITLE.format(
+		seller=seller,
+		date=day.isoformat() if day else "—",
+		weekday=dates.weekday_short_mn(day) if day else "—",
+	)
+	total = _money(proposal.get("total"))
+	vat = _money(proposal.get("vat_amount"))
+	treatment = proposal.get("vat_treatment") or "none"
+	verification = verification_text(_json(proposal.get("verification_json")))
+	if vat > 0 and treatment not in ("none",):
+		money_line = mn.CARD_MONEY_LINE.format(
+			total=fmt_mnt(total),
+			vat=fmt_mnt(vat),
+			rate=_vat_rate_percent(total, vat, extracted.get("vat_rate") or proposal.get("vat_rate")),
+			treatment=mn.VAT_TREATMENT_LABELS.get(treatment, treatment),
+			verification=verification,
+		)
+	else:
+		money_line = mn.CARD_MONEY_LINE_NO_VAT.format(total=fmt_mnt(total), verification=verification)
+	account_line = mn.CARD_ACCOUNT_LINE.format(
+		code=proposal.get("account_code") or "—",
+		account=proposal.get("account_name") or _strip_account(proposal.get("account")) or "—",
+		reason=account_reason(proposal),
+	)
+	lines = [title, money_line, account_line]
+	explanation = (proposal.get("explanation") or "").strip()
+	if explanation:
+		lines.append(mn.CARD_EXPLANATION_LINE.format(explanation=explanation))
+	all_warnings = list(warnings if warnings is not None else (_json(proposal.get("warnings_json")) or []))
+	if proposal.get("supplier_is_new") and mn.WARN_NEW_SUPPLIER not in all_warnings:
+		all_warnings.append(mn.WARN_NEW_SUPPLIER)
+	for warning in dict.fromkeys(w for w in all_warnings if w):
+		lines.append(mn.CARD_WARNING_LINE.format(warning=warning))
+	citation = proposal.get("citation") or proposal.get("posting_pattern")
+	if citation:
+		lines.append(mn.CARD_PATTERN_LINE.format(pattern=citation))
+	return "\n".join(lines)
+
+
+def _strip_account(account: Any) -> str:
+	"""``"6210 - Шатахуун - TST"`` -> ``"Шатахуун"`` (ERPNext account names carry code and abbr)."""
+	if not account:
+		return ""
+	parts = str(account).split(" - ")
+	if len(parts) >= 3:
+		return " - ".join(parts[1:-1])
+	if len(parts) == 2:
+		return parts[1] if parts[0].replace(".", "").isdigit() else parts[0]
+	return str(account)
+
+
+def posted_card(proposal: dict[str, Any], doc_name: str, approver: str) -> str:
+	return (
+		receipt_card(proposal) + "\n" + mn.MSG_POSTED_CARD_FOOTER.format(doc_name=doc_name, approver=approver)
+	)
+
+
+def rejected_card(proposal: dict[str, Any], reason: str) -> str:
+	return receipt_card(proposal) + "\n" + mn.MSG_REJECTED_CARD_FOOTER.format(reason=reason)
+
+
+# --- bank line card --------------------------------------------------------------------------------
+
+
+def bank_line_card(txn: dict[str, Any], proposal: dict[str, Any] | None = None) -> str:
+	"""§5.4 unmatched line: bank · date · signed amount · «description», plus the auto-proposal."""
+	deposit = _money(txn.get("deposit"))
+	withdrawal = _money(txn.get("withdrawal"))
+	amount = deposit - withdrawal if (deposit or withdrawal) else _money(txn.get("amount"))
+	lines = [
+		mn.CARD_BANK_LINE.format(
+			bank=txn.get("bank") or txn.get("bank_account") or "—",
+			date=fmt_date(txn.get("date")),
+			amount=fmt_mnt(amount),
+			description=(txn.get("description") or "")[:120],
+		)
+	]
+	if txn.get("matched_voucher"):
+		lines.append(mn.CARD_BANK_MATCHED.format(voucher=txn["matched_voucher"]))
+	if proposal:
+		lines.append(
+			mn.CARD_BANK_PROPOSAL.format(
+				code=proposal.get("account_code") or "—",
+				account=proposal.get("account_name") or _strip_account(proposal.get("account")) or "—",
+				reason=account_reason(proposal),
+			)
+		)
+	return "\n".join(lines)
+
+
+def bank_candidates_text(candidates: list[dict[str, Any]]) -> str:
+	if not candidates:
+		return mn.MSG_BANK_FIND_NONE
+	lines = [mn.MSG_BANK_FIND_CANDIDATES]
+	for index, cand in enumerate(candidates, start=1):
+		lines.append(
+			mn.CARD_BANK_CANDIDATE.format(
+				index=index,
+				voucher=cand.get("voucher_name") or cand.get("name") or "—",
+				date=fmt_date(cand.get("date") or cand.get("posting_date")),
+				amount=fmt_mnt(_money(cand.get("amount"))),
+				party=cand.get("party") or "—",
+			)
+		)
+	return "\n".join(lines)
+
+
+# --- month-end card --------------------------------------------------------------------------------
+
+
+def close_card(company: str, period: str, checklist: dict[str, Any], summaries: dict[str, Any]) -> str:
+	"""§5.5: header, open items, December inventory line, trial balance, then the regime summary."""
+	lines = [
+		mn.MSG_CLOSE_HEADER.format(company=company, period=dates.period_label(period)),
+		mn.MSG_CLOSE_OPEN_ITEMS.format(
+			proposals=checklist.get("open_proposals", checklist.get("proposals", 0)),
+			unmatched=checklist.get("unmatched_bank_lines", checklist.get("unmatched", 0)),
+			unverified_docs=checklist.get("unverified_documents", checklist.get("unverified_docs", 0)),
+			pending_suppliers=checklist.get("pending_suppliers", 0),
+			unverified_rules=checklist.get("unverified_rules_used", checklist.get("unverified_rules", 0)),
+		),
+	]
+	_year, month = dates.parse_period(period)
+	if month == 12 or checklist.get("inventory_count_required"):
+		lines.append(mn.MSG_CLOSE_INVENTORY_COUNT)
+	trial = summaries.get("trial_balance") or {}
+	if trial:
+		lines.append(
+			mn.MSG_CLOSE_TRIAL_BALANCE.format(
+				debit=fmt_mnt(_money(trial.get("debit"))), credit=fmt_mnt(_money(trial.get("credit")))
+			)
+		)
+	vat = summaries.get("vat")
+	if vat:
+		lines.append(
+			mn.MSG_CLOSE_VAT_SUMMARY.format(
+				output=fmt_mnt(_money(vat.get("output"))),
+				input=fmt_mnt(_money(vat.get("input"))),
+				net=fmt_mnt(_money(vat.get("net"))),
+			)
+		)
+	simplified = summaries.get("simplified")
+	if simplified:
+		lines.append(
+			mn.MSG_CLOSE_SIMPLIFIED_SUMMARY.format(
+				revenue=fmt_mnt(_money(simplified.get("revenue"))),
+				tax=fmt_mnt(_money(simplified.get("tax"))),
+				quarter=simplified.get("quarter") or "",
+			)
+		)
+	return "\n".join(lines)
+
+
+# --- onboarding cards ------------------------------------------------------------------------------
+
+
+def onboarding_summary(payload: dict[str, Any], company: str) -> str:
+	regime = mn.ONB_SUMMARY_REGIME_VAT if payload.get("vat_registered") else mn.ONB_SUMMARY_REGIME_SIMPLIFIED
+	banks = payload.get("banks") or []
+	bank_text = (
+		", ".join(f"{b['bank']} ({'/'.join(b.get('currencies') or ['MNT'])})" for b in banks)
+		if banks
+		else mn.ONB_SUMMARY_BANKS_NONE
+	)
+	if payload.get("has_inventory"):
+		inventory = mn.ONB_SUMMARY_INVENTORY_COUNT.format(count=payload.get("inventory_count", 0))
+	else:
+		inventory = mn.ONB_SUMMARY_INVENTORY_NONE
+	accountant = payload.get("accountant_name") or mn.ONB_SUMMARY_ACCOUNTANT_NONE
+	if payload.get("micpa"):
+		accountant = f"{accountant} ({payload['micpa']})"
+	return mn.ONB_DONE.format(
+		company=company, regime=regime, banks=bank_text, inventory=inventory, accountant=accountant
+	)
+
+
+def inventory_total(items: list[dict[str, Any]]) -> Decimal:
+	"""Line amount when the parser gave one, else qty × rate; Decimal all the way."""
+	total = Decimal("0.00")
+	for item in items:
+		amount = item.get("amount")
+		if amount in (None, ""):
+			amount = _money(item.get("qty")) * _money(item.get("rate"))
+		total += _money(amount)
+	return total
+
+
+def inventory_preview(items: list[dict[str, Any]]) -> str:
+	return mn.ONB_INVENTORY_PARSED.format(count=len(items), total=fmt_mnt(inventory_total(items)))
+
+
+# --- account chooser -------------------------------------------------------------------------------
+
+
+def account_chooser_text(accounts: list[tuple[str, str]], query: str | None = None) -> str:
+	header = mn.MSG_ACCOUNT_SEARCH_RESULTS if query else mn.MSG_CHOOSE_ACCOUNT
+	if query and not accounts:
+		return mn.MSG_ACCOUNT_NOT_FOUND.format(query=query)
+	return header
+
+
+# --- reconciliation status (/данс) ----------------------------------------------------------------
+
+
+def recon_status(company: str, rows: list[dict[str, Any]]) -> str:
+	if not rows:
+		return mn.MSG_RECON_NONE
+	lines = [mn.MSG_RECON_STATUS_HEADER.format(company=company)]
+	for row in rows:
+		statement = _money(row.get("statement"))
+		ledger = _money(row.get("ledger"))
+		lines.append(
+			mn.MSG_RECON_STATUS_LINE.format(
+				bank=row.get("bank") or "—",
+				currency=row.get("currency") or "MNT",
+				statement=fmt_mnt(statement),
+				ledger=fmt_mnt(ledger),
+				diff=fmt_mnt(statement - ledger),
+				unmatched=row.get("unmatched", 0),
+			)
+		)
+	return "\n".join(lines)
+
+
+# --- quality (/чанар) ------------------------------------------------------------------------------
+
+
+def quality_card(company: str, days: int, metrics: dict[str, Any]) -> str:
+	if not metrics or not metrics.get("documents"):
+		return mn.MSG_QUALITY_NO_DATA
+
+	def pct(key: str) -> str:
+		value = metrics.get(key)
+		return "—" if value is None else str(int(round(float(value) * (100 if float(value) <= 1 else 1))))
+
+	body = mn.MSG_QUALITY_BODY.format(
+		extraction=pct("extraction_accuracy"),
+		classification=pct("classification_accuracy"),
+		vat=pct("vat_accuracy"),
+		automatch=pct("automatch_rate"),
+		false_match=pct("false_match_rate"),
+		latency=metrics.get("latency_s", "—"),
+		cost=metrics.get("cost_usd_per_document", "—"),
+	)
+	return mn.MSG_QUALITY_HEADER.format(company=company, days=days) + "\n" + body
+
+
+__all__ = [name for name in dir() if not name.startswith("_")]
