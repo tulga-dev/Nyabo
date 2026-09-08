@@ -80,7 +80,9 @@ ARCHITECTURE §5.4: exact amount + date within 3 days + name similarity ≥ 0.8.
 draft let an exact amount on the same day reach the 0.8 threshold on its own; that is a
 false-match risk on round amounts. Score is now base 0.50 (exact amount within 1₮ and
 date within 3 days) + 0.20 × date score (1.0 at 0–1 days, 0.5 at 2–3) + 0.30 × name
-similarity when ≥ 0.8, or the full 0.30 when the voucher reference appears in the line.
+similarity when ≥ 0.8, or the full 0.30 when the voucher reference appears in the line as a
+whole token and is long enough to identify it (≥ 4 characters, ≥ 6 for pure digits): a
+handwritten `bill_no` of "5", or one that is the year, is in every narrative by accident.
 A same-day exact amount with an unknown party scores 0.70 and goes to the accountant
 (`MATCH_REASON_LOW_SCORE`). Two candidates with the same top score leave the line unmatched
 (`MATCH_REASON_AMBIGUOUS`). Name similarity is a token-set ratio on difflib after dropping
