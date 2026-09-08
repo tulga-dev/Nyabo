@@ -200,16 +200,13 @@ def run(
 		"failures": [
 			{"case_id": r.case_id, "kind": r.kind, "details": r.details} for r in results if not r.ok
 		],
-		"llm": metrics.latency_cost(_records_as_rows(records)),
+		"llm": metrics.latency_cost(_results_as_rows(results)),
 		"sweep": {},
 	}
 	if sweep:
 		model_cases = [c for c in all_cases if c.kind in MODEL_KINDS]
 		for provider, model in model_list:
-			sweep_records: list[CallRecord] = []
 			sweep_client = factory(provider, model)
-			if isinstance(sweep_client, MockLlmClient):
-				sweep_client.record_call = sweep_records.append
 			sweep_results = _run_cases(model_cases, RunContext(sweep_client, adapters, company))
 			sweep_summary = metrics.summarize(sweep_results, RULES_KINDS)
 			report["sweep"][f"{provider}:{model}"] = {
@@ -218,30 +215,18 @@ def run(
 				"vat": sweep_summary["vat"],
 				"injection": sweep_summary["injection"],
 				"failed_cases": sweep_summary["failed_cases"],
-				"llm": metrics.latency_cost(
-					_records_as_rows(sweep_records)
-					or [{"latency_ms": r.latency_ms, "cost_usd": r.cost_usd} for r in sweep_results]
-				),
+				"llm": metrics.latency_cost(_results_as_rows(sweep_results)),
 			}
 	return report
 
 
-def _records_as_rows(records: Iterable[CallRecord]) -> list[dict[str, Any]]:
-	from nyabo_mn.agent.cost import estimate_tokens
-
-	rows = []
-	for i, r in enumerate(records):
-		rows.append(
-			{
-				"proposal": None,
-				"document": f"doc-{i // 2}" if r.purpose in ("extract", "classify") else f"call-{i}",
-				"latency_ms": r.latency_ms,
-				"cost_usd": r.cost_usd
-				if r.cost_usd is not None
-				else estimate_tokens(r.model, r.tokens_in, r.tokens_out),
-			}
-		)
-	return rows
+def _results_as_rows(results: Iterable[metrics.CaseResult]) -> list[dict[str, Any]]:
+	"""One row per case that called a model: a case is one document for latency and cost."""
+	return [
+		{"document": r.case_id, "latency_ms": r.latency_ms, "cost_usd": r.cost_usd}
+		for r in results
+		if r.model is not None and not r.actual.get("skipped")
+	]
 
 
 # --- table ----------------------------------------------------------------------------------

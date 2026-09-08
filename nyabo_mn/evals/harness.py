@@ -25,7 +25,7 @@ import datetime as dt
 import hashlib
 import importlib
 import json
-from collections.abc import Callable, Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from decimal import Decimal
 from functools import lru_cache
@@ -219,6 +219,8 @@ def default_adapters() -> Adapters:
 		guard = importlib.import_module("nyabo_mn.rules.guard")
 	except ImportError:
 		return Adapters()
+	# UNVERIFIED: ARCHITECTURE §1.2 names require_verified() and the error it raises but not
+	# its parameter; the harness passes the PatternSpec and treats any exception as "refused".
 	require = getattr(guard, "require_verified", None)
 	if not callable(require):
 		return Adapters()
@@ -987,10 +989,6 @@ def lines_of(entry: ProposedEntry | None) -> list[dict[str, str]]:
 
 def date_of(value: Any) -> dt.date | None:
 	return _date(value)
-
-
-def as_sequence(value: Any) -> Sequence[Any]:
-	return value if isinstance(value, Sequence) and not isinstance(value, str) else [value]
 
 
 __all__ = [
