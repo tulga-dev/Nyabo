@@ -1,0 +1,10 @@
+{
+ "_comment": "frappe.conf of the stub site (tests/frappe_stub). Non-secret placeholder values only.",
+ "db_name": "nyabo_test",
+ "telegram_bot_token": "test-bot-token",
+ "telegram_webhook_secret": "test-webhook-secret",
+ "admin_telegram_ids": "1001",
+ "openai_api_key": "test-openai-key",
+ "openai_model": "gpt-5.6-terra",
+ "ebarimt_api_base": "https://api.ebarimt.test"
+}

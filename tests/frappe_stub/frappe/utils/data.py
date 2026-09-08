@@ -439,3 +439,35 @@ def is_number(text: Any) -> bool:
 
 def get_timespan_date_range(timespan: str) -> tuple[datetime.date, datetime.date]:
 	raise NotImplementedError("frappe stub: get_timespan_date_range is not implemented")
+
+
+def json_default(obj: Any) -> Any:
+	"""``json.dumps(default=...)`` used by frappe.as_json: dates, Decimals and documents."""
+	if isinstance(obj, (datetime.date, datetime.datetime, datetime.time, datetime.timedelta)):
+		return str(obj)
+	if isinstance(obj, Decimal):
+		return float(obj)
+	if isinstance(obj, (set, frozenset)):
+		return list(obj)
+	if hasattr(obj, "as_dict"):
+		return obj.as_dict()
+	if isinstance(obj, bytes):
+		return obj.decode("utf-8", errors="replace")
+	raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
+
+
+def get_traceback(with_context: bool = False) -> str:
+	import traceback
+
+	return traceback.format_exc()
+
+
+def get_timedelta(time: Any = None) -> datetime.timedelta | None:
+	if time is None:
+		return None
+	if isinstance(time, datetime.timedelta):
+		return time
+	parsed = time if isinstance(time, datetime.time) else get_time(time)
+	return datetime.timedelta(
+		hours=parsed.hour, minutes=parsed.minute, seconds=parsed.second, microseconds=parsed.microsecond
+	)

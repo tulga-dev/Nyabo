@@ -4591,6 +4591,117 @@
    }
   ]
  },
+ "Item Group": {
+  "autoname": "field:item_group_name",
+  "istable": 0,
+  "is_submittable": 0,
+  "track_changes": 0,
+  "permissions": [
+   {
+    "role": "Stock Manager",
+    "read": 1
+   },
+   {
+    "role": "Stock User",
+    "read": 1
+   },
+   {
+    "role": "Item Manager",
+    "read": 1,
+    "write": 1,
+    "create": 1,
+    "delete": 1
+   },
+   {
+    "role": "Sales User",
+    "read": 1
+   },
+   {
+    "role": "Purchase User",
+    "read": 1
+   },
+   {
+    "role": "Accounts User",
+    "read": 1
+   },
+   {
+    "role": "Desk User"
+   }
+  ],
+  "fields": [
+   {
+    "fieldname": "gs",
+    "fieldtype": "Section Break",
+    "label": "General Settings"
+   },
+   {
+    "fieldname": "item_group_name",
+    "fieldtype": "Data",
+    "reqd": 1,
+    "label": "Item Group Name",
+    "unique": 1
+   },
+   {
+    "fieldname": "parent_item_group",
+    "fieldtype": "Link",
+    "options": "Item Group",
+    "label": "Parent Item Group"
+   },
+   {
+    "fieldname": "is_group",
+    "fieldtype": "Check",
+    "default": "0",
+    "label": "Is Group"
+   },
+   {
+    "fieldname": "image",
+    "fieldtype": "Attach Image",
+    "label": "Image"
+   },
+   {
+    "fieldname": "column_break_5",
+    "fieldtype": "Column Break"
+   },
+   {
+    "fieldname": "defaults",
+    "fieldtype": "Section Break",
+    "label": "Defaults"
+   },
+   {
+    "fieldname": "item_group_defaults",
+    "fieldtype": "Table",
+    "options": "Item Default",
+    "label": "Item Group Defaults"
+   },
+   {
+    "fieldname": "sec_break_taxes",
+    "fieldtype": "Section Break",
+    "label": "Item Tax"
+   },
+   {
+    "fieldname": "taxes",
+    "fieldtype": "Table",
+    "options": "Item Tax",
+    "label": "Taxes"
+   },
+   {
+    "fieldname": "lft",
+    "fieldtype": "Int",
+    "label": "lft"
+   },
+   {
+    "fieldname": "rgt",
+    "fieldtype": "Int",
+    "label": "rgt"
+   },
+   {
+    "fieldname": "old_parent",
+    "fieldtype": "Link",
+    "options": "Item Group",
+    "label": "old_parent"
+   }
+  ]
+ },
  "Item Tax Template": {
   "autoname": "",
   "istable": 0,
@@ -12069,6 +12180,95 @@
    {
     "fieldname": "section_break_pgad",
     "fieldtype": "Section Break"
+   }
+  ]
+ },
+ "Supplier Group": {
+  "autoname": "field:supplier_group_name",
+  "istable": 0,
+  "is_submittable": 0,
+  "track_changes": 0,
+  "permissions": [
+   {
+    "role": "Purchase Manager",
+    "read": 1
+   },
+   {
+    "role": "Purchase User",
+    "read": 1
+   },
+   {
+    "role": "Purchase Master Manager",
+    "read": 1,
+    "write": 1,
+    "create": 1,
+    "delete": 1
+   },
+   {
+    "role": "Accounts User",
+    "read": 1
+   }
+  ],
+  "fields": [
+   {
+    "fieldname": "supplier_group_name",
+    "fieldtype": "Data",
+    "reqd": 1,
+    "label": "Supplier Group Name",
+    "unique": 1
+   },
+   {
+    "fieldname": "parent_supplier_group",
+    "fieldtype": "Link",
+    "options": "Supplier Group",
+    "label": "Parent Supplier Group"
+   },
+   {
+    "fieldname": "is_group",
+    "fieldtype": "Check",
+    "default": "0",
+    "label": "Is Group"
+   },
+   {
+    "fieldname": "section_credit_limit",
+    "fieldtype": "Section Break",
+    "label": "Credit Limit"
+   },
+   {
+    "fieldname": "payment_terms",
+    "fieldtype": "Link",
+    "options": "Payment Terms Template",
+    "label": "Default Payment Terms Template"
+   },
+   {
+    "fieldname": "default_payable_account",
+    "fieldtype": "Section Break",
+    "label": "Default Payable Account"
+   },
+   {
+    "fieldname": "accounts",
+    "fieldtype": "Table",
+    "options": "Party Account",
+    "label": "Accounts"
+   },
+   {
+    "fieldname": "lft",
+    "fieldtype": "Int",
+    "label": "lft",
+    "read_only": 1
+   },
+   {
+    "fieldname": "rgt",
+    "fieldtype": "Int",
+    "label": "rgt",
+    "read_only": 1
+   },
+   {
+    "fieldname": "old_parent",
+    "fieldtype": "Link",
+    "options": "Supplier Group",
+    "label": "Old Parent",
+    "read_only": 1
    }
   ]
  },
