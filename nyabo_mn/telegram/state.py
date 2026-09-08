@@ -16,16 +16,29 @@ from typing import Any
 import frappe
 from frappe.utils import add_to_date, cint, get_datetime, now_datetime
 
-from nyabo_mn import permissions
+from nyabo_mn import access, permissions
 from nyabo_mn.log import log_event
 
 CHAT_STATE = "Nyabo Chat State"
 LINK_CODE = "Nyabo Link Code"
 USER_LINK = "Nyabo User Link"
 LINK_CODE_MINUTES = 30
+# A six-digit code is a credential for a company's books, so guessing is capped per chat:
+# five wrong codes and the chat may not try again for an hour (10^6 space, ~30 min of open codes).
+LINK_ATTEMPT_LIMIT = 5
+LINK_BLOCK_MINUTES = 60
 
 # Link Code / User Link ``role`` (Select) -> Frappe Role (fixtures in nyabo_mn/fixtures/role.json)
 ROLE_TO_FRAPPE_ROLE = {"Owner": "Nyabo Owner", "Accountant": "Nyabo Accountant", "Admin": "Nyabo Admin"}
+# The Nyabo roles ship with no DocPerms, so on their own they cannot read a Journal Entry.
+# ERPNext refuses make_reverse_journal_entry / make_debit_note and query_report.run without
+# these, and the bot runs every handler as the linked user, so corrections and the month-end
+# journals would fail for every accountant. An owner gets nothing: they only tap cards.
+ROLE_TO_ERPNEXT_ROLES: dict[str, tuple[str, ...]] = {
+	"Owner": (),
+	"Accountant": ("Accounts User",),
+	"Admin": ("Accounts User", "Accounts Manager"),
+}
 # Words an admin may type in ``/link <role> <company>``; ASCII aliases for admins on Latin keyboards
 ROLE_WORDS = {
 	"нягтлан": "Accountant",
@@ -152,6 +165,38 @@ def issue_link_code(role: str, company: str | None, issued_by: str, minutes: int
 	return doc
 
 
+def link_blocked_for(chat_id: int | str) -> Any | None:
+	"""The moment the chat may try a link code again, or ``None`` when it may try now."""
+	doc = _chat_doc(chat_id)
+	if doc is None or not doc.link_blocked_until:
+		return None
+	until = get_datetime(doc.link_blocked_until)
+	return until if until and until > now_datetime() else None
+
+
+def record_link_failure(chat_id: int | str) -> int:
+	"""Count one wrong code; blocks the chat once ``LINK_ATTEMPT_LIMIT`` is reached."""
+	doc = _chat_doc(chat_id, create=True)
+	attempts = cint(doc.link_attempts) + 1
+	doc.link_attempts = attempts
+	if attempts >= LINK_ATTEMPT_LIMIT:
+		doc.link_blocked_until = add_to_date(now_datetime(), minutes=LINK_BLOCK_MINUTES)
+		doc.link_attempts = 0
+	doc.flags.ignore_permissions = True
+	doc.save()
+	return attempts
+
+
+def clear_link_failures(chat_id: int | str) -> None:
+	doc = _chat_doc(chat_id)
+	if doc is None or not (cint(doc.link_attempts) or doc.link_blocked_until):
+		return
+	doc.link_attempts = 0
+	doc.link_blocked_until = None
+	doc.flags.ignore_permissions = True
+	doc.save()
+
+
 def expire_link_codes() -> None:
 	"""Scheduler (daily): mark open codes past ``expires_at`` as expired; consumption also checks the time."""
 	now = now_datetime()
@@ -193,8 +238,13 @@ def ensure_frappe_user(telegram_user: dict[str, Any], role: str) -> str:
 		user.flags.ignore_permissions = True
 		user.flags.no_welcome_mail = True
 		user.insert()
-	if frappe_role not in frappe.get_roles(email):
-		user.add_roles(frappe_role)
+	held = set(frappe.get_roles(email))
+	wanted = [frappe_role, *ROLE_TO_ERPNEXT_ROLES.get(role, ())]
+	# A role missing from the site (ERPNext not installed, or a stripped test site) is skipped
+	# rather than failing the link: the Nyabo role is what the bot itself gates on.
+	missing = [r for r in wanted if r not in held and frappe.db.exists("Role", r)]
+	if missing:
+		user.add_roles(*missing)
 	return email
 
 
@@ -221,14 +271,22 @@ def consume_link_code(code: str, telegram_user: dict[str, Any]) -> Any:
 	link.telegram_username = telegram_user.get("username")
 	link.first_name = telegram_user.get("first_name")
 	link.user = user
-	link.role = _highest_role(link.role, link_code.role)
 	link.status = "active"
 	link.linked_at = now_datetime()
 	if link_code.company:
-		if link_code.company not in {row.company for row in link.get("companies") or []}:
-			link.append("companies", {"company": link_code.company})
+		# The role belongs to the company the code names. Someone who owns their own company
+		# and keeps another's books must not become an accountant everywhere (SEC-04), so the
+		# link-level role is only set when the link has no company of its own yet.
+		row = next((r for r in link.get("companies") or [] if r.company == link_code.company), None)
+		if row is None:
+			row = link.append("companies", {"company": link_code.company})
+		row.role = link_code.role
+		if not link.role:
+			link.role = link_code.role
 		if not link.active_company:
 			link.active_company = link_code.company
+	else:
+		link.role = _highest_role(link.role, link_code.role)
 	link.flags.ignore_permissions = True
 	link.save()
 	# Frappe User Permissions scope ERPNext's own documents for this user (SEC-06).
@@ -279,6 +337,11 @@ def get_link(telegram_id: int | str) -> Any | None:
 		return None
 	link = frappe.get_doc(USER_LINK, name)
 	return link if link.status == "active" else None
+
+
+def role_for(link: Any, company: str | None = None) -> str | None:
+	"""The link's role on ``company``; see ``nyabo_mn.access.role_for``."""
+	return access.role_for(link, company)
 
 
 def user_companies(link: Any) -> list[str]:

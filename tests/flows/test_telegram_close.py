@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import frappe
+import pytest
 
 from nyabo_mn.i18n import mn
 from nyabo_mn.telegram import _deps
@@ -218,36 +219,80 @@ def test_owner_cannot_correct(company, monkeypatch):
 	assert frappe.db.get_value("Nyabo Chat State", {"chat_id": "8012"}, "state") in (None, "")
 
 
+def _second_company() -> str:
+	"""A company the Telegram user has no Nyabo User Link for."""
+	from nyabo_mn.setup.provision_company import provision_company
+
+	provision_company("Хоёр ХХК", "HOY", vat_registered=0)
+	return "Хоёр ХХК"
+
+
+def test_correction_refuses_another_companys_document(company, monkeypatch):
+	"""Callback data is attacker-chosen and document names are a global sequence (SEC-01)."""
+	reversals: list = []
+	monkeypatch.setattr(_deps, "reverse", lambda *args: reversals.append(args) or {"reversal_name": "X"})
+	other = _second_company()
+	victim = _posted_je(other)
+	link_user(8030, "Accountant", company)
+	bot = FakeBotApi()
+
+	run(bot, callback_update(8030, f"x:je:{victim}:rev"))
+	assert bot.sent("answer_callback_query")[-1]["text"] == mn.MSG_NO_PERMISSION
+	assert frappe.db.get_value("Nyabo Chat State", {"chat_id": "8030"}, "state") in (None, "")
+
+	# the expired-state path re-finds the name by scanning the doctypes; it must stay in scope too
+	run(bot, callback_update(8030, f"x:{victim}:reason:account"))
+	assert bot.sent("answer_callback_query")[-1]["text"] == mn.MSG_PROPOSAL_NOT_FOUND
+	assert reversals == []
+	assert frappe.db.get_value("Journal Entry", victim, "docstatus") == 1
+	assert not frappe.db.exists("Journal Entry", {"nyabo_corrects": victim})
+
+
+def test_reverse_refuses_a_company_the_user_is_not_linked_to(company, as_user):
+	"""compliance.reversal guards itself, so the invariant does not rest on one handler."""
+	from nyabo_mn.compliance import reversal
+
+	other = _second_company()
+	victim = _posted_je(other)
+	link_user(8031, "Accountant", company)
+	frappe.get_doc({"doctype": "Role", "role_name": "Accounts User", "desk_access": 1}).insert()
+	with as_user("tg-8031@nyabo.local", ["Nyabo Accountant", "Accounts User"]) as user:
+		with pytest.raises(frappe.PermissionError):
+			reversal.reverse("Journal Entry", victim, "account", "буруу данс", user)
+	assert not frappe.db.exists("Journal Entry", {"nyabo_corrects": victim})
+
+
 # --- statements and bank cards -----------------------------------------------------------------------
 
 
-def test_unknown_layout_mapping_conversation(company, monkeypatch):
-	monkeypatch.setattr(
-		_deps,
-		"import_statement",
-		lambda name: {
-			"status": "unknown_layout",
-			"bank": "Khan Bank",
-			"headers": ["Огноо", "Гүйлгээний утга", "Дебит", "Кредит"],
-			"preview": [["2026-08-01", "Түлш", "120000", ""], ["2026-08-02", "Орлого", "", "500000"]],
-		},
-	)
+def test_unknown_layout_mapping_conversation(company):
+	"""Real bank_import summary (unknown_layout + preview_rows + guess), not an invented shape."""
+	from tests.fixtures.statements import make_fixtures as fixtures
+
+	filename, data = fixtures.khan_xlsx()
 	link_user(8020, "Accountant", company)
-	bot = FakeBotApi(files={"x": b"PK sheet"})
+	bot = FakeBotApi(files={"x": data})
 	run(
 		bot,
 		message_update(
 			8020,
 			document={
 				"file_id": "x",
-				"file_name": "khan.xlsx",
+				"file_name": filename,
 				"mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 			},
 		),
 	)
-	texts = bot.texts()
-	assert any(t.startswith(mn.MSG_STATEMENT_LAYOUT_UNKNOWN.split("\n")[0]) for t in texts)
-	assert "2026-08-01 | Түлш | 120000 | " in "\n".join(texts)
+	texts = "\n".join(bot.texts())
+	# the accountant is never told an empty import succeeded
+	assert (
+		mn.MSG_STATEMENT_IMPORTED.format(bank="Хаан банк", count=0, new=0, dup=0, matched=0, unmatched=0)
+		not in texts
+	)
+	assert any(t.startswith(mn.MSG_STATEMENT_LAYOUT_UNKNOWN.split("\n")[0]) for t in bot.texts())
+	# the header sits under a title block: the preview shows the header row and what follows it
+	assert "Огноо | Гүйлгээний утга | Зарлага | Орлого | Үлдэгдэл | Лавлах" in texts
+	assert "2026.09.01 | Эхний үлдэгдэл" in texts
 	assert bot.last_text == mn.MSG_STATEMENT_LAYOUT_ASK_COLUMN.format(header="Огноо")
 	assert "l:0:date" in bot.callback_datas() and "l:0:ignore" in bot.callback_datas()
 	assert frappe.db.get_value("Nyabo Chat State", {"chat_id": "8020"}, "state") == "layout:0"
@@ -258,6 +303,8 @@ def test_unknown_layout_mapping_conversation(company, monkeypatch):
 	run(bot, callback_update(8020, "l:1:description"))
 	run(bot, callback_update(8020, "l:2:debit"))
 	run(bot, callback_update(8020, "l:3:credit"))
+	run(bot, callback_update(8020, "l:4:balance"))
+	run(bot, callback_update(8020, "l:5:reference"))
 	layouts = frappe.get_all(
 		"Nyabo Bank Layout",
 		filters={"bank": "Khan Bank", "verified": 0},
@@ -267,19 +314,47 @@ def test_unknown_layout_mapping_conversation(company, monkeypatch):
 	assert frappe.parse_json(layouts[0].column_map_json) == {
 		"date": "Огноо",
 		"description": "Гүйлгээний утга",
-		"debit": "Дебит",
-		"credit": "Кредит",
+		"debit": "Зарлага",
+		"credit": "Орлого",
+		"balance": "Үлдэгдэл",
+		"reference": "Лавлах",
 	}
 	assert frappe.parse_json(layouts[0].header_signature_json) == [
 		"Огноо",
 		"Гүйлгээний утга",
-		"Дебит",
-		"Кредит",
+		"Зарлага",
+		"Орлого",
+		"Үлдэгдэл",
+		"Лавлах",
 	]
 	assert layouts[0].amount_style == "separate_debit_credit"
 	assert mn.MSG_STATEMENT_LAYOUT_SAVED.format(layout=layouts[0].name) in bot.texts()
 	assert any(kw["chat_id"] == 1001 and layouts[0].name in kw["text"] for kw in bot.sent("send_message"))
 	assert frappe.db.get_value("Nyabo Chat State", {"chat_id": "8020"}, "state") in (None, "")
+
+
+def test_import_refusal_shows_the_importers_mongolian_text(company):
+	"""A recognised layout with no configured bank account must not become "admin notified"."""
+	from tests.fixtures.statements import make_fixtures as fixtures
+	from tests.flows import bank_helpers
+
+	bank_helpers.register_layouts()
+	filename, data = fixtures.khan_xlsx()
+	link_user(8021, "Accountant", company)
+	bot = FakeBotApi(files={"x": data})
+	run(
+		bot,
+		message_update(
+			8021,
+			document={
+				"file_id": "x",
+				"file_name": filename,
+				"mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+			},
+		),
+	)
+	assert mn.MSG_STATEMENT_NO_BANK_ACCOUNT.format(bank="Хаан банк") in bot.texts()
+	assert mn.MSG_ERROR_ADMIN_NOTIFIED not in bot.texts()
 
 
 def _bank_transaction(company: str) -> str:
@@ -355,6 +430,54 @@ def test_bank_card_find_and_reconcile(company, monkeypatch):
 	)
 	run(bot, callback_update(8030, f"b:{txn}:later", message_id=41))
 	assert bot.sent("answer_callback_query")[-1]["text"] == mn.MSG_BANK_LATER
+
+
+def test_bank_callbacks_refuse_another_companys_line(company, monkeypatch):
+	"""Bank Transaction names are a global sequence; the line's own company is not authority (SEC-02)."""
+	calls: dict[str, list] = {"top": [], "propose": [], "reconcile": [], "find": []}
+	monkeypatch.setattr(_deps, "top_accounts", lambda c, n=6: calls["top"].append(c) or [("6210", "Ш")])
+	monkeypatch.setattr(_deps, "propose_bank_expense", lambda *a: calls["propose"].append(a) or None)
+	monkeypatch.setattr(_deps, "reconcile", lambda *a: calls["reconcile"].append(a))
+	monkeypatch.setattr(_deps, "find_candidates", lambda *a: calls["find"].append(a) or [])
+
+	other = _second_company()
+	victim = _bank_transaction(other)
+	link_user(8040, "Accountant", company)
+	bot = FakeBotApi()
+	for action in ("find", "exp", "later"):
+		run(bot, callback_update(8040, f"b:{victim}:{action}", message_id=51))
+		assert bot.sent("answer_callback_query")[-1]["text"] == mn.MSG_NO_PERMISSION
+	run(bot, callback_update(8040, f"b:{victim}:acc:6210", message_id=51))
+	assert bot.sent("answer_callback_query")[-1]["text"] == mn.MSG_NO_PERMISSION
+	run(bot, callback_update(8040, f"b:{victim}:m:0", message_id=51))
+	assert bot.sent("answer_callback_query")[-1]["text"] == mn.MSG_NO_PERMISSION
+	assert calls == {"top": [], "propose": [], "reconcile": [], "find": []}
+	assert frappe.db.get_value("Nyabo Chat State", {"chat_id": "8040"}, "state") in (None, "")
+
+
+def test_owner_cannot_reconcile_a_bank_line(company, monkeypatch):
+	"""Reconciliation writes to the ledger with no approval step, so it is accountant-only."""
+	monkeypatch.setattr(_deps, "reconcile", lambda *a: pytest.fail("reconcile must not run"))
+	link_user(8041, "Owner", company)
+	txn = _bank_transaction(company)
+	bot = FakeBotApi()
+	run(bot, callback_update(8041, f"b:{txn}:m:0", message_id=52))
+	assert bot.sent("answer_callback_query")[-1]["text"] == mn.MSG_NO_PERMISSION
+
+
+def test_reconcile_refuses_a_company_the_user_is_not_linked_to(company, as_user):
+	"""matching.match guards itself, so the invariant does not rest on one handler."""
+	from nyabo_mn.matching import match as match_mod
+
+	other = _second_company()
+	victim = _bank_transaction(other)
+	voucher = _posted_je(other)
+	link_user(8042, "Accountant", company)
+	with as_user("tg-8042@nyabo.local", ["Nyabo Accountant"]) as user:
+		with pytest.raises(frappe.PermissionError):
+			match_mod.reconcile(victim, "Journal Entry", voucher, user)
+		with pytest.raises(frappe.PermissionError):
+			match_mod.propose_expense(victim, "6210", user)
 
 
 # --- misc commands -----------------------------------------------------------------------------------

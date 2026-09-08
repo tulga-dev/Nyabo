@@ -4,8 +4,9 @@ Only the methods Nyabo uses, with the exact parameter names of the API. Text is 
 plain (no ``parse_mode``) unless the caller escapes it, because card text carries
 supplier names and model-written explanations that would otherwise break Markdown.
 Messages longer than 4096 characters are refused by Telegram, so ``send_message`` chunks
-at 4000 on a line boundary. The token never reaches a log line: request URLs are built
-here and ``log_event`` redacts anything named like a secret.
+at 4000 on a line boundary. The token never reaches a log line, the desk Error Log or an
+admin chat: request URLs are built here and never repr()'d into an error (a transport
+exception carries the URL), and ``log.scrub`` masks anything token-shaped as a backstop.
 """
 
 from __future__ import annotations
@@ -80,8 +81,11 @@ class BotApi:
 		try:
 			response = self._session.post(self._url(method), data=data, files=files, timeout=TIMEOUT_SECONDS)
 		except Exception as exc:  # requests.RequestException and friends; the class is not imported here
-			log_event("telegram.api.transport_error", level="error", method=method, error=repr(exc))
-			raise TelegramApiError(f"transport error: {exc!r}", method=method) from exc
+			# Never repr() the exception: a requests transport error embeds the request URL,
+			# which is /bot<token>/<method>, and this text reaches the log, the desk Error Log
+			# and the admin chat. The class name says as much as we may say.
+			log_event("telegram.api.transport_error", level="error", method=method, error=type(exc).__name__)
+			raise TelegramApiError(f"transport error: {type(exc).__name__}", method=method) from exc
 		try:
 			payload = response.json()
 		except ValueError as exc:
@@ -189,8 +193,10 @@ class BotApi:
 		try:
 			response = self._session.get(url, timeout=TIMEOUT_SECONDS)
 		except Exception as exc:
-			log_event("telegram.api.transport_error", level="error", method="download", error=repr(exc))
-			raise TelegramApiError(f"transport error: {exc!r}", method="download") from exc
+			log_event(
+				"telegram.api.transport_error", level="error", method="download", error=type(exc).__name__
+			)
+			raise TelegramApiError(f"transport error: {type(exc).__name__}", method="download") from exc
 		if response.status_code != 200:
 			raise TelegramApiError(f"download failed (HTTP {response.status_code})", method="download")
 		return response.content

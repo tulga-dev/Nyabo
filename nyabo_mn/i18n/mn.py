@@ -76,6 +76,9 @@ MSG_NOT_LINKED = (
 )
 MSG_LINKED = "✅ Холбогдлоо. Үүрэг: {role}. Компани: {company}."
 MSG_LINK_CODE_INVALID = "Код буруу эсвэл хугацаа нь дууссан байна."
+MSG_LINK_CODE_TOO_MANY = (
+	"Буруу код хэт олон удаа оруулсан тул түр хаалаа. {minutes} минутын дараа дахин оролдоно уу."
+)
 MSG_LINK_CODE_ISSUED = "Холболтын код: {code}\nҮүрэг: {role} · Компани: {company}\nХүчинтэй: {minutes} минут. Хэрэглэгч энэ кодыг Нябо-д бичнэ."
 MSG_YOUR_TELEGRAM_ID = "Таны Telegram ID: {telegram_id}"
 MSG_DUPLICATE_DOCUMENT = "Энэ баримт өмнө нь илгээгдсэн."
@@ -890,6 +893,7 @@ MSG_LINK_ROLE_UNKNOWN = "Үүрэг буруу байна: «нягтлан» э
 MSG_LINK_COMPANY_NOT_FOUND = "Компани олдсонгүй: {company}"
 MSG_ADMIN_ONLY = "Энэ команд зөвхөн админд зориулагдсан."
 MSG_ADMIN_ERROR_NOTICE = "⚠️ Нябо алдаа: {event} · chat {chat_id} · {error}"
+MSG_ADMIN_LINK_GUESSING = "🔒 Холбох кодыг олон удаа буруу оруулсан тул chat {chat_id}-ыг түр хаалаа."
 MSG_FEATURE_UNAVAILABLE = "Энэ боломж одоогоор бэлэн болоогүй байна. Админд мэдэгдлээ."
 MSG_CANCELLED = "Цуцаллаа."
 MSG_STATUS = (

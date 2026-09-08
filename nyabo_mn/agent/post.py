@@ -84,23 +84,33 @@ def _user_link(user: str) -> Any | None:
 
 
 def approver_kind(company: str, user: str) -> str | None:
-	"""``accountant`` / ``owner`` / ``None``: who this user is for the company (§5.3 step 7)."""
+	"""``accountant`` / ``owner`` / ``None``: who this user is for the company (§5.3 step 7).
+
+	A Telegram link is asked first and decides on its own: its role is per company, while the
+	Frappe roles are site-wide, so consulting them first would make an owner of one company an
+	accountant everywhere the moment they are linked as accountant somewhere else (SEC-04).
+	The Frappe roles remain the answer for desk users, who have no link.
+	"""
 	import frappe
+
+	from nyabo_mn import access
 
 	settings = pipeline.company_settings(company)
 	if settings and settings.get("accountant_user") == user:
 		return "accountant"
-	roles = set(frappe.get_roles(user))
-	if roles & {ROLE_ACCOUNTANT, ROLE_ADMIN, ROLE_SYSTEM} or user == "Administrator":
-		return "accountant"
 	link = _user_link(user)
 	if link is not None:
 		companies = {row.company for row in (link.get("companies") or [])}
-		if not companies or company in companies:
-			if link.role in ("Accountant", "Admin"):
-				return "accountant"
-			if link.role == "Owner":
-				return "owner"
+		if companies and company not in companies:
+			return None
+		role = access.role_for(link, company)
+		if role in ("Accountant", "Admin"):
+			return "accountant"
+		if role == "Owner":
+			return "owner"
+	roles = set(frappe.get_roles(user))
+	if roles & {ROLE_ACCOUNTANT, ROLE_ADMIN, ROLE_SYSTEM} or user == "Administrator":
+		return "accountant"
 	if ROLE_OWNER in roles:
 		return "owner"
 	return None
@@ -498,13 +508,23 @@ def change_account(proposal_name: str, code: str, user: str, *, telegram_id: str
 	return proposal
 
 
-def reject(proposal_name: str, reason_code: str, user: str, *, telegram_id: str | None = None) -> Any:
+def reject(
+	proposal_name: str,
+	reason_code: str,
+	user: str,
+	*,
+	reason_text: str | None = None,
+	telegram_id: str | None = None,
+) -> Any:
+	"""Refuse a proposal. ``reason_code`` is one of ``mn.REJECT_REASONS``; ``reason_text`` is the
+	accountant's own words for the ``other`` code and is stored beside the code, never instead of
+	it - the corrections job reads the code (docs/ARCHITECTURE.md §5.6)."""
 	import frappe
 
 	proposal = _proposal(proposal_name)
 	if proposal.status not in POSTABLE_STATUSES:
 		raise ApprovalError(mn.MSG_PROPOSAL_ALREADY_DECIDED.format(status=proposal.status), code="decided")
-	reason = mn.REJECT_REASONS.get(reason_code, mn.REJECT_OTHER)
+	reason = reason_text or mn.REJECT_REASONS.get(reason_code, mn.REJECT_OTHER)
 	proposal.db_set({"status": "rejected", "rejection_reason": reason, "approved_by": user})
 	if proposal.document and frappe.db.exists("Nyabo Document", proposal.document):
 		frappe.db.set_value("Nyabo Document", proposal.document, "status", "rejected")

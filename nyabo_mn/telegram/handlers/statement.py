@@ -97,25 +97,30 @@ def run_import(document_name: str, chat_id: int | str) -> dict[str, Any]:
 		log_error("telegram.statement.dependency_missing", exc, document=document_name)
 		bot.send_message(chat_id, mn.MSG_FEATURE_UNAVAILABLE)
 		return {"ok": False}
+	except _deps.bank_import_error() as exc:
+		# The importer's own Mongolian text says what the accountant has to fix.
+		log_event("telegram.statement.import_refused", level="warning", document=document_name)
+		bot.send_message(chat_id, str(exc) or mn.MSG_ERROR_ADMIN_NOTIFIED)
+		return {"ok": False, "refused": str(exc)}
 	except Exception as exc:
 		# BankImportError (no bank account, unreadable file, no lines) carries the card text.
 		log_error("telegram.statement.import_failed", exc, document=document_name)
 		bot.send_message(chat_id, getattr(exc, "message_mn", None) or mn.MSG_ERROR_ADMIN_NOTIFIED)
 		return {"ok": False}
-	status = summary.get("status")
-	if status == "unknown_layout":
+	if summary.get("unknown_layout"):
 		start_layout_mapping(bot, chat_id, document_name, summary)
 		return {"ok": True, "mapping": True}
 	if status == "unverified_layout":
 		bot.send_message(chat_id, mn.MSG_STATEMENT_LAYOUT_UNVERIFIED)
 		return {"ok": True, "unverified": True}
+	bank_name = summary.get("bank") or ""
 	bot.send_message(
 		chat_id,
 		mn.MSG_STATEMENT_IMPORTED.format(
-			bank=summary.get("bank") or "—",
+			bank=mn.BANK_NAMES_MN.get(bank_name, bank_name) or "—",
 			count=summary.get("count", 0),
 			new=summary.get("new", 0),
-			dup=summary.get("duplicates", summary.get("dup", 0)),
+			dup=summary.get("dup", 0),
 			matched=summary.get("matched", 0),
 			unmatched=summary.get("unmatched", 0),
 		),
@@ -135,8 +140,36 @@ def _preview_text(headers: list[str], rows: list[list[Any]]) -> str:
 	return "\n".join(lines)
 
 
+def header_row(summary: dict[str, Any]) -> int | None:
+	"""Index into ``preview_rows`` of the row that holds the column headers.
+
+	The header is rarely the first row - Mongolian statements open with a title block - so
+	the generic guess's ``header_row_hint`` is used when it points inside the preview, and
+	otherwise the fullest row wins.
+	"""
+	rows = summary.get("preview_rows") or []
+	hint = (summary.get("guess") or {}).get("header_row_hint")
+	if isinstance(hint, int) and 0 <= hint < len(rows) and any(str(c).strip() for c in rows[hint]):
+		return hint
+	best, best_filled = None, 1
+	for index, row in enumerate(rows):
+		filled = sum(1 for cell in row if str(cell).strip())
+		if filled > best_filled:
+			best, best_filled = index, filled
+	return best
+
+
 def start_layout_mapping(bot: Any, chat_id: int | str, document_name: str, summary: dict[str, Any]) -> None:
 	headers = [str(h) for h in (summary.get("headers") or [])]
+	preview = [list(row) for row in (summary.get("preview") or [])]
+	if not headers:
+		index = header_row(summary)
+		if index is not None:
+			rows = summary.get("preview_rows") or []
+			headers = [str(cell) for cell in rows[index]]
+			preview = [list(row) for row in rows[index + 1 :]]
+	while headers and not headers[-1].strip():
+		headers.pop()
 	if not headers:
 		bot.send_message(chat_id, mn.MSG_UNSUPPORTED_FILE)
 		return
@@ -155,7 +188,7 @@ def start_layout_mapping(bot: Any, chat_id: int | str, document_name: str, summa
 	)
 	bot.send_message(
 		chat_id,
-		mn.MSG_STATEMENT_LAYOUT_UNKNOWN.format(preview=_preview_text(headers, summary.get("preview") or [])),
+		mn.MSG_STATEMENT_LAYOUT_UNKNOWN.format(preview=_preview_text(headers, preview)),
 	)
 	_ask_column(bot, chat_id, headers, 0)
 

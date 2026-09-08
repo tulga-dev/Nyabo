@@ -99,7 +99,7 @@ def test_image_document_is_a_receipt_and_spreadsheet_is_a_statement(company, mon
 	)
 	assert imported and frappe.get_doc("Nyabo Document", imported[0]).doc_type == "bank_statement"
 	assert mn.MSG_STATEMENT_RECEIVED in bot.texts()
-	assert "Khan Bank" in bot.last_text
+	assert mn.BANK_NAMES_MN["Khan Bank"] in bot.last_text  # Mongolian first (principle 7)
 
 
 def test_unsupported_document_and_too_large_file(company, monkeypatch):
@@ -192,3 +192,13 @@ def test_unhandled_exception_is_reported_not_raised(company, monkeypatch):
 	assert frappe.local.error_log and frappe.local.error_log[-1].title == "nyabo: telegram.handler_failed"
 	assert any(kw["chat_id"] == 1001 for kw in bot.sent("send_message"))
 	assert frappe.session.user == "Administrator"  # the session user is restored after the job
+
+
+def test_card_of_a_real_pipeline_run_reports_the_seller_as_found(run_receipt):
+	"""End to end: a MockProvider registry hit must show «Худалдагч ✓ (ТТД)» on the card."""
+	proposal = run_receipt("petrovis_fuel")
+	assert frappe.parse_json(proposal.verification_json)["seller"]["found"] is True
+	bot = FakeBotApi()
+	receipt.send_proposal_card(proposal.name, chat_id=3101, bot=bot)
+	assert mn.VERIFICATION_SELLER_OK in bot.last_text
+	assert mn.VERIFICATION_SELLER_NOT_FOUND not in bot.last_text

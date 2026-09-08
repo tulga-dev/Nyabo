@@ -23,7 +23,7 @@ SAMPLE = {
 	"explanation": "Шатахуун авсан тул 6210 дебетлэж, касс кредитлэв.",
 	"citation": "purchase_expense_non_vat · Заавар 116, 3.2",
 	"extracted_json": {"seller_name": "Петровис ХХК", "vat_rate": 0.1},
-	"verification_json": {"seller_found": True, "status": "unsupported"},
+	"verification_json": {"seller": {"found": True}, "receipt": {"status": "unsupported"}},
 	"warnings_json": [mn.WARN_LOW_CONFIDENCE.format(field=mn.FIELD_LABELS["date"], confidence=62)],
 	"supplier_is_new": 1,
 }
@@ -201,3 +201,29 @@ def test_chunk_text_splits_on_newlines():
 	assert len(chunks) > 1
 	assert all(len(c) <= api.MAX_TEXT_CHARS for c in chunks)
 	assert "\n".join(chunks) == text
+
+
+def test_verification_text_reads_the_shape_the_pipeline_writes():
+	"""agent/pipeline.py stores {"seller": ..., "receipt": ...}; a flat row must still render."""
+	nested_found = {
+		"seller": {"name": "Петровис ХХК", "tin": "37200019261", "vat_payer": True, "found": True},
+		"receipt": {"status": "unsupported"},
+		"qr_data": None,
+	}
+	nested_missing = {"seller": {"found": False}, "receipt": {"status": "unsupported"}}
+	assert mn.VERIFICATION_SELLER_OK in cards.verification_text(nested_found)
+	assert mn.VERIFICATION_SELLER_NOT_FOUND in cards.verification_text(nested_missing)
+	assert cards.verification_text(nested_found) != cards.verification_text(nested_missing)
+	# a registered non-VAT payer is still found
+	assert mn.VERIFICATION_SELLER_OK in cards.verification_text(
+		{"seller": {"found": True, "vat_payer": False}, "receipt": {"status": "unsupported"}}
+	)
+	# a verified receipt drops the "unchecked" half
+	assert cards.verification_text({"seller": {"found": True}, "receipt": {"status": "verified"}}) == (
+		mn.VERIFICATION_SELLER_OK
+	)
+	# older flat rows keep rendering
+	assert mn.VERIFICATION_SELLER_OK in cards.verification_text({"seller_found": True})
+	assert cards.verification_text(None) == (
+		f"{mn.VERIFICATION_SELLER_NOT_FOUND} · {mn.VERIFICATION_RECEIPT_UNCHECKED}"
+	)

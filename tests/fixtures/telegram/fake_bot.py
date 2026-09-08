@@ -234,7 +234,7 @@ def make_proposal(company: str, **overrides: Any) -> Any:
 		"explanation": "Шатахуун авсан тул 6210 дебетлэж, касс кредитлэв.",
 		"citation": "purchase_expense_non_vat · Заавар 116, 3.2",
 		"extracted_json": {"seller_name": "Петровис ХХК", "vat_rate": 0.1},
-		"verification_json": {"seller_found": True, "status": "unsupported"},
+		"verification_json": {"seller": {"found": True}, "receipt": {"status": "unsupported"}},
 		"warnings_json": [],
 	}
 	values.update(overrides)

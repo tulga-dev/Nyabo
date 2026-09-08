@@ -121,3 +121,38 @@ def test_linked_user_sees_menu_on_start(company):
 	assert mn.MSG_ACTIVE_COMPANY.format(company=company) in bot.last_text
 	run(bot, message_update(7100, "/такой"))
 	assert bot.last_text == mn.MSG_UNKNOWN_COMMAND
+
+
+def test_link_code_guessing_is_capped_and_reported(company):
+	"""Six digits is the only credential guarding a company's books (SEC-05)."""
+	bot = FakeBotApi()
+	for _ in range(chat_state.LINK_ATTEMPT_LIMIT - 1):
+		run(bot, message_update(778, "000000"))
+		assert bot.last_text == mn.MSG_LINK_CODE_INVALID
+	run(bot, message_update(778, "000001"))
+	assert bot.last_text == mn.MSG_LINK_CODE_TOO_MANY.format(minutes=chat_state.LINK_BLOCK_MINUTES)
+	assert frappe.db.exists("Nyabo Event", {"event_type": "link_code_guessing_blocked"})
+	assert any(
+		kw["chat_id"] == ADMIN_ID and kw["text"] == mn.MSG_ADMIN_LINK_GUESSING.format(chat_id=778)
+		for kw in bot.sent("send_message")
+	)
+
+	# a real code is refused too while the block holds
+	code = chat_state.issue_link_code("Accountant", company, issued_by="Administrator").code
+	run(bot, message_update(778, code))
+	assert bot.last_text == mn.MSG_LINK_CODE_TOO_MANY.format(minutes=chat_state.LINK_BLOCK_MINUTES)
+	assert not frappe.db.exists("Nyabo User Link", "778")
+
+	# once the block lapses the same code still works, and success clears the counter
+	frappe.db.set_value(
+		"Nyabo Chat State",
+		frappe.db.exists("Nyabo Chat State", {"chat_id": "778"}),
+		"link_blocked_until",
+		add_to_date(now_datetime(), minutes=-1),
+	)
+	run(bot, message_update(778, code))
+	assert frappe.db.get_value("Nyabo User Link", "778", "status") == "active"
+	state = frappe.db.get_value(
+		"Nyabo Chat State", {"chat_id": "778"}, ["link_attempts", "link_blocked_until"], as_dict=True
+	)
+	assert not state.link_attempts and not state.link_blocked_until

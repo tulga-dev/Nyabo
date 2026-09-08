@@ -81,15 +81,21 @@ def _vat_rate_percent(total: Decimal, vat: Decimal, explicit: Any) -> str:
 
 
 def verification_text(verification: dict[str, Any] | None) -> str:
-	"""ARCHITECTURE §7: never "ebarimt ✓"; seller-found wording plus the receipt status."""
+	"""ARCHITECTURE §7: never "ebarimt ✓"; seller-found wording plus the receipt status.
+
+	``verification_json`` is written by the pipeline as ``{"seller": ..., "receipt": ..., "qr_data":
+	...}`` (agent/pipeline.py), the shape ``agent.post`` reads for ``ebarimt_verified``. A flat dict
+	is still accepted so an older row renders. ``found`` is the signal, not ``vat_payer``: a
+	registered non-VAT payer is found too.
+	"""
 	verification = verification or {}
-	seller_found = bool(
-		verification.get("seller_found") or verification.get("vat_payer") or verification.get("found")
-	)
-	seller = mn.VERIFICATION_SELLER_OK if seller_found else mn.VERIFICATION_SELLER_NOT_FOUND
-	if verification.get("status") == "verified":
-		return seller
-	return f"{seller} · {mn.VERIFICATION_RECEIPT_UNCHECKED}"
+	seller = verification.get("seller") or verification
+	receipt = verification.get("receipt") or verification
+	seller_found = bool(seller.get("found") or seller.get("seller_found"))
+	text = mn.VERIFICATION_SELLER_OK if seller_found else mn.VERIFICATION_SELLER_NOT_FOUND
+	if receipt.get("status") == "verified":
+		return text
+	return f"{text} · {mn.VERIFICATION_RECEIPT_UNCHECKED}"
 
 
 def account_reason(proposal: dict[str, Any]) -> str:

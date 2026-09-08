@@ -63,6 +63,17 @@ def send_bank_card(bot: Any, chat_id: int | str, txn_name: str) -> dict[str, Any
 	return {"message_id": message.get("message_id")}
 
 
+def transaction_company(ctx: Ctx, name: str) -> str | None:
+	"""The line's own company, but only when the user is linked to it.
+
+	Bank Transaction names are a global sequence and the callback data is attacker-chosen,
+	so the company is never simply taken from the named document (approve._load does the
+	same for proposals).
+	"""
+	company = frappe.db.get_value(BANK_TRANSACTION, name, "company")
+	return str(company) if company and company in ctx.companies else None
+
+
 def handle_callback(ctx: Ctx, parts: list[str]) -> Any:
 	"""``b:<name>:find|exp|later|back``, ``b:<name>:acc:<code>``, ``b:<name>:m:<index>``."""
 	if len(parts) < 3:
@@ -71,14 +82,22 @@ def handle_callback(ctx: Ctx, parts: list[str]) -> Any:
 	if not frappe.db.exists(BANK_TRANSACTION, name):
 		ctx.answer(mn.MSG_BANK_TRANSACTION_NOT_FOUND.format(name=name), show_alert=True)
 		return None
+	company = transaction_company(ctx, name)
+	if company is None:
+		ctx.answer(mn.MSG_NO_PERMISSION, show_alert=True)
+		log_event("telegram.bank.refused", level="warning", name=name, telegram_id=ctx.telegram_id)
+		return None
 	if action == "find":
 		ctx.set_state(STATE_FIND, {"bank_transaction": name, "message_id": ctx.callback_message_id})
 		ctx.reply(mn.MSG_BANK_FIND_ASK)
 		return None
 	if action == "m":
+		# Reconciliation allocates against the ledger with no further approval step (§5.4).
+		if not ctx.is_accountant:
+			ctx.answer(mn.MSG_NO_PERMISSION, show_alert=True)
+			return None
 		return match_chosen(ctx, name, rest[0] if rest else "")
 	if action == "exp":
-		company = frappe.db.get_value(BANK_TRANSACTION, name, "company") or ctx.company or ""
 		accounts = _deps.top_accounts(company, n=TOP_ACCOUNTS)
 		ctx.reply(
 			mn.MSG_BANK_EXPENSE_CHOOSE_ACCOUNT,
@@ -130,6 +149,10 @@ def handle_state(ctx: Ctx, state: str, payload: dict[str, Any]) -> Any:
 	name = payload.get("bank_transaction")
 	if not name:
 		ctx.clear_state()
+		return None
+	if transaction_company(ctx, name) is None:  # the link may have lost the company meanwhile
+		ctx.clear_state()
+		ctx.reply(mn.MSG_NO_PERMISSION)
 		return None
 	candidates = [_candidate_dict(c) for c in (_deps.find_candidates(name, ctx.text.strip()) or [])][:9]
 	if not candidates:
