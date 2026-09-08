@@ -6,8 +6,6 @@ Each function keeps the exact name and signature the hooks reference.
 
 from __future__ import annotations
 
-from typing import Any
-
 
 def expire_link_codes() -> None:
 	"""PLACEHOLDER: implemented in stage 2."""

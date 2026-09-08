@@ -6,8 +6,6 @@ Each function keeps the exact name and signature the hooks reference.
 
 from __future__ import annotations
 
-from typing import Any
-
 
 def refresh_all() -> None:
 	"""PLACEHOLDER: implemented in stage 2."""

@@ -36,10 +36,12 @@ def test_temporary_hooks_dispatch_to_dummy_handler(site, frappe_hooks):
 	assert len(frappe._stub.calls("dummy_hook")) == 3
 
 
-def test_missing_handler_module_raises_import_error_naming_the_path(site):
-	# nyabo_mn.compliance is another agent's module; until it exists the stub must not swallow it
-	with pytest.raises(ImportError, match="nyabo_mn.compliance.events.enforce_append_only"):
-		frappe.get_doc({"doctype": "Nyabo Event", "event_type": "x"}).save()
+def test_missing_handler_module_raises_import_error_naming_the_path(site, frappe_hooks):
+	# a hook pointing at a module that does not exist must surface, never be swallowed
+	missing = {"Nyabo Event": {"before_save": "nyabo_mn.no_such_module.handler"}}
+	with frappe_hooks(replace=True, doc_events=missing):
+		with pytest.raises(ImportError, match="nyabo_mn.no_such_module.handler"):
+			frappe.get_doc({"doctype": "Nyabo Event", "event_type": "x"}).save()
 
 
 def test_controller_methods_run_with_hooks(site, frappe_hooks):
