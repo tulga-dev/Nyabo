@@ -37,6 +37,30 @@
     "cogs",
     "closing"
   ],
+  "null_allowed": {
+    "_comment": "Roles a scheme may leave null because its chart has no such account (the V1 draft has 40 leaves). scripts/seed_check.py refuses any other null and refuses a null in the default scheme v03. A null role makes rules_engine's resolver refuse the pattern line: the proposal is marked needs_accountant instead of guessing an account.",
+    "v1": [
+      "petty_cash",
+      "fx_gain",
+      "finished_goods",
+      "wip",
+      "asset_rbnb",
+      "disposal_gain",
+      "disposal_loss",
+      "selling_salary_expense",
+      "si_payable",
+      "pit_payable",
+      "other_tax_payable",
+      "property_tax_expense",
+      "prepaid_expense",
+      "customer_advance",
+      "deferred_revenue",
+      "sales_discount",
+      "sales_return",
+      "bad_debt_allowance"
+    ],
+    "v03": []
+  },
   "descriptions": {
     "cash": "Company.default_cash_account",
     "bank": "Company.default_bank_account (per-bank sub-accounts are created by provisioning)",
