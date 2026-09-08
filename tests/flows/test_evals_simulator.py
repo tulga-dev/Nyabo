@@ -19,6 +19,18 @@ def test_fuel_receipt_snapshot_off_site():
 	)
 
 
+def test_both_regimes_credit_the_payable_like_the_pipeline():
+	"""D-019: only a cash receipt credits cash; card/QPay/transfer keep the payable.
+
+	The simulator is the founder's sanity check, so an entry it prints must be the entry
+	``agent.pipeline`` would post. The fuel receipt is paid by QPay.
+	"""
+	text = sim.simulate_receipt("petrovis_fuel", print_output=False, use_site=False)
+	credits = [line for line in text.splitlines() if "Кт" in line]
+	assert credits and all("Дансны өглөг" in line for line in credits), credits
+	assert "Банкны харилцах данс" not in text
+
+
 def test_snapshot_shows_both_entries_with_citations():
 	text = SNAPSHOT.read_text(encoding="utf-8")
 	assert "Худалдан авалтын нэхэмжлэх" in text and "Ерөнхий журналын бичилт" in text

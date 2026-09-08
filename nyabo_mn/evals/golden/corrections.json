@@ -155,7 +155,7 @@
       "credit": "128000.00"
      },
      {
-      "account_code": "1120",
+      "account_code": "2110",
       "debit": "128000.00",
       "credit": "0.00"
      }
@@ -167,7 +167,7 @@
       "credit": "0.00"
      },
      {
-      "account_code": "1120",
+      "account_code": "2110",
       "debit": "0.00",
       "credit": "218000.00"
      }
@@ -341,7 +341,7 @@
       "credit": "0.00"
      },
      {
-      "account_code": "1120",
+      "account_code": "2110",
       "debit": "0.00",
       "credit": "236000.00"
      }

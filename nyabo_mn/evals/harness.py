@@ -51,6 +51,9 @@ from nyabo_mn.setup import chart as chart_mod
 CONFIDENCE_MIN = 0.7
 CONFIDENCE_FIELDS = ("total", "date", "vat_amount")
 CASH_METHODS = ("cash",)
+# Card, QPay and transfer receipts are NOT credited to the bank here: the statement line
+# settles the payable later, and crediting the bank now would double count (D-019). The
+# tuple is kept because the card wording and the matching hints still read it.
 BANK_METHODS = ("card", "qpay", "transfer")
 DEFAULT_SCHEME = "v1"
 DEFAULT_EXPENSE_ROLE = "default_expense"
@@ -757,8 +760,10 @@ def _build_entry(
 		amounts["net"] = gross
 
 	pattern = re_.select_pattern(rules.patterns, "purchase_invoice", ctx, {"family": "purchase_expense"})
-	# A Purchase Invoice always credits the supplier (ERPNext's credit_to); only the Journal
-	# Entry path may credit cash or bank directly (ARCHITECTURE §5.3 step 6).
+	# A Purchase Invoice always credits the supplier (ERPNext's credit_to). A Journal Entry
+	# credits cash only for a cash receipt; card/QPay/transfer keep the payable so the bank
+	# statement can settle it (D-019). agent.pipeline.propose does exactly this, and the
+	# simulator must show what the pipeline would post.
 	if vat_treatment != "withheld":
 		pattern = _apply_alternatives(pattern, _conditions(receipt))
 
@@ -796,11 +801,10 @@ def _build_entry(
 
 
 def _conditions(receipt: Mapping[str, Any]) -> set[str]:
+	"""Only a cash receipt swaps the credit line; see D-019 for why card/QPay/transfer do not."""
 	method = str(receipt.get("payment_method") or "unknown")
 	if method in CASH_METHODS:
 		return {"paid_in_cash"}
-	if method in BANK_METHODS:
-		return {"paid_by_card_or_transfer"}
 	return set()
 
 

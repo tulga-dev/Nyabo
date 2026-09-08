@@ -415,3 +415,19 @@ D-019 (rules) said "every seed row is unverified, so the fallback is safe"; the 
 now carries the same human verification the synced rows would, which is the point of
 verifying the file. Tests that need an unverified rule pick one that ships unverified
 (`si.employee_rate`, `bank_fee_expense`, `payable_pay`) or insert their own row.
+
+## integration review (post-merge)
+
+### D-I01 The simulator and the golden set must mirror `agent.pipeline`, not their own rules
+`evals.harness` swapped the credit line to the bank for card, QPay and transfer receipts,
+while `agent.pipeline` follows the pipeline decision "a Purchase Invoice always credits the
+payable; a Journal Entry credits cash only for a cash receipt". The simulator therefore
+printed an entry the system would never post, and the golden set scored that entry as
+correct. `_conditions` now returns only `paid_in_cash`, the generator's `expected_lines`
+uses the same rule, and `test_both_regimes_credit_the_payable_like_the_pipeline` pins it.
+Whenever the two disagree, the pipeline is the authority: it is what reaches the ledger.
+
+### D-I02 Decision identifiers are unique per section, not per agent
+Seven agents each numbered their decisions from D-017, so the log holds five different
+D-017s. Section headings disambiguate them for now; a citation in code or on a card must
+name the section as well as the number until they are renumbered.

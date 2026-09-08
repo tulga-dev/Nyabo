@@ -30,6 +30,8 @@ COMPANY = "Тест ХХК"
 COMPANY_TIN = "37200011111"
 
 # Roles resolve to V1 codes through code_roles.json; these are only used to spell expectations.
+# D-019: a card/QPay/transfer purchase credits the PAYABLE (the bank statement settles it);
+# only a cash receipt credits CASH. BANK appears in bank-line cases, never in a purchase.
 PAYABLE, CASH, BANK, INPUT_VAT, DEFAULT_EXPENSE = "2110", "1110", "1120", "1810", "6910"
 
 
@@ -313,11 +315,9 @@ def expected_lines(r: dict[str, Any], regime: str, date: str) -> tuple[str, str,
 	if r.get("currency", "MNT") != "MNT":
 		rate = next(Decimal(x["exchange_rate"]) for x in r["fx_rates"] if x["date"] == date)
 		gross = quantize(gross * rate)
-	credit = PAYABLE
-	if r["payment_method"] == "cash":
-		credit = CASH
-	elif r["payment_method"] in ("card", "qpay", "transfer"):
-		credit = BANK
+	# D-019: only a cash receipt credits CASH. Card, QPay and transfer keep the PAYABLE so the
+	# bank statement settles it; crediting the bank here would double count that line.
+	credit = CASH if r["payment_method"] == "cash" else PAYABLE
 	if regime == "vat_payer":
 		treatment = r.get("vat_treatment", "withheld")
 		if treatment == "withheld":
@@ -823,11 +823,11 @@ def build() -> tuple[dict[str, list[dict]], dict[str, dict]]:
 			"reversal_date": SIMPLIFIED_DATE,
 			"reversal_lines": [
 				{"account_code": "6510", "debit": "0.00", "credit": "128000.00"},
-				{"account_code": "1120", "debit": "128000.00", "credit": "0.00"},
+				{"account_code": PAYABLE, "debit": "128000.00", "credit": "0.00"},
 			],
 			"new_entry_lines": [
 				{"account_code": "6510", "debit": "218000.00", "credit": "0.00"},
-				{"account_code": "1120", "debit": "0.00", "credit": "218000.00"},
+				{"account_code": PAYABLE, "debit": "0.00", "credit": "218000.00"},
 			],
 			"correction_rows": [
 				{"field": "total", "proposed_value": "128000.00", "corrected_value": "218000"}
@@ -874,7 +874,7 @@ def build() -> tuple[dict[str, list[dict]], dict[str, dict]]:
 			],
 			"new_entry_lines": [
 				{"account_code": "6910", "debit": "236000.00", "credit": "0.00"},
-				{"account_code": "1120", "debit": "0.00", "credit": "236000.00"},
+				{"account_code": PAYABLE, "debit": "0.00", "credit": "236000.00"},
 			],
 			"correction_rows": [
 				{"field": "vat_treatment", "proposed_value": "withheld", "corrected_value": "in_expense"}
