@@ -158,7 +158,9 @@ def test_tax_parameter_shapes():
 	pit = rules_engine.resolve_parameter(rows, "pit.brackets", dt.date(2026, 6, 1)).value
 	assert [b["rate"] for b in pit["brackets"]] == [0.1, 0.15, 0.2]
 	# social insurance is per fund (art. 18.1); the totals are derived and unverified
-	assert rules_engine.parameter_decimal(rows, "si.employee.pension", dt.date(2026, 1, 1)) == Decimal("0.085")
+	assert rules_engine.parameter_decimal(rows, "si.employee.pension", dt.date(2026, 1, 1)) == Decimal(
+		"0.085"
+	)
 	assert rules_engine.parameter_decimal(rows, "si.employer.unemployment", dt.date(2027, 1, 1)) == Decimal(
 		"0.006"
 	)

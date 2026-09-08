@@ -61,7 +61,10 @@ def test_vat_rate_is_ten_percent_both_years(parameters):
 def test_pending_parameter_raises_and_never_falls_back(parameters):
 	# The 2026 simplified-regime threshold is active; the 2027 row is pending because the
 	# 400M change exists only in a Government bill, not in the consolidated CIT Law (art. 29.1).
-	assert re_.resolve_parameter(parameters, "simplified.revenue_threshold", dt.date(2026, 7, 1)).status == "active"
+	assert (
+		re_.resolve_parameter(parameters, "simplified.revenue_threshold", dt.date(2026, 7, 1)).status
+		== "active"
+	)
 	with pytest.raises(re_.PendingRuleError) as exc:
 		re_.resolve_parameter(parameters, "simplified.revenue_threshold", dt.date(2027, 3, 1))
 	assert exc.value.message_mn == mn.MSG_RULE_PENDING.format(

@@ -12,22 +12,27 @@ python scripts/seed_check.py        # exit 1 and a list of problems when anythin
 python -m pytest -q tests/unit/test_seed_check.py tests/unit/test_seed_data.py
 ```
 
-The legal source of truth is `docs/mn-rules-reference.md`. Nothing in this folder is
-more certain than that document: a value the reference marks VERIFY, or takes from news
-rather than a statute, ships with `verified: false`, and a value the reference does not
-state at all ships as `status: pending` with `value: null`.
+The legal source of truth is the primary text, tabulated per instrument in
+`docs/legal/` (article → claim → verbatim quote → status). `docs/mn-rules-reference.md`
+is the compiled overview it started from; where the two disagree the primary text wins
+and the contradiction is recorded in the row's `note` and in `docs/legal/<instrument>.md`.
+A value the text does not state ships as `status: pending` with `value: null`.
 
 ## Verified means
 
 A human compared the value with the primary legal text: `source_text` names the
-instrument, `article` the article, `source_url` a legalinfo.mn / parliament.mn page, and
-the reference states the value without a VERIFY flag. Only the Law on Accounting rows
-(retention, statement deadlines) qualify today. Every value from the June 2026 tax
-package, from news sites or from agency pages is `false` until the adopted texts are
-obtained (reference §6.4–6.5). An admin flips `verified` in the desk after reading the
-text; `rules.seed.sync` never overwrites a row an admin has verified unless `force=True`.
-`rules.guard.require_verified()` refuses an unverified Tax Parameter, Posting Pattern or
-Bank Layout for a real posting (tests and the simulator may use them).
+instrument, `article` the article, `source_url` the legalinfo.mn / parliament.mn page,
+and the row carries the verbatim Mongolian sentence the value was read from — the quote
+is stored in `citation.quote` for posting patterns and, until `quote_mn` joins the
+tax-parameter schema, as the first element of `note` (`«…» — remarks`). A row is
+verified only when the quoted sentence states the value exactly; derived numbers (sums of
+printed rows, a percentage of another figure), figures from a draft law, single-reader
+section mappings and values the text contradicts stay `false`. An admin flips `verified`
+in the desk after reading the text; `rules.seed.sync` never overwrites a row an admin has
+verified unless `force=True`. `rules.guard.require_verified()` refuses an unverified Tax
+Parameter, Posting Pattern or Bank Layout for a real posting (tests and the simulator may
+use them). `tests/unit/test_seed_citations.py` enforces the contract and cross-checks every
+verified quote against `docs/legal/*.md`.
 
 ## Files
 
@@ -43,11 +48,20 @@ One row per `(key, effective_from)`; DocType name is `{key}:{effective_from}`.
 |---|---|
 | `key` | dotted name, e.g. `vat.registration_threshold` |
 | `value` | typed by `unit`; `null` only with `status: pending` |
-| `unit` | `fraction` (0.10 = 10%), `MNT` (`{amount, comparator, basis}`), `years`, `schedule` (`{basis, brackets: [{up_to, rate}]}`, last `up_to` null), `rule` (object or boolean), `deadline` (`{period, due_months_after_period_end, due_day}`, null inside = not stated) |
-| `effective_from` / `effective_to` | ISO dates; `effective_to` null = open-ended. A row starting on `horizon_start` was in force before Nyabo's coverage; its legal in-force date is not asserted. |
+| `unit` | `fraction` (0.10 = 10%), `MNT` (`{amount, comparator, basis}`), `years` (integer or object of integers), `schedule` (`{basis, brackets: [{up_to, rate}]}`, last `up_to` null), `rule` (object or boolean), `deadline` (`{period, due_months_after_period_end, due_day}`, null inside = not stated; optional `due_day_rule: last_day_of_month` explains a null day, optional `applies_to` names the taxpayer class) |
+| `effective_from` / `effective_to` | ISO dates; `effective_to` null = open-ended. A row starting on `horizon_start` was in force before Nyabo's coverage; its legal in-force date is not asserted. `tax_debt.enforcement_split` starts on the package's adoption date (2026-06-26, quoted). |
 | `status` | `active` (usable) or `pending` (known change, text not encoded: `resolve_parameter` raises `PendingRuleError`) |
 | `verified` | see above |
-| `source_text`, `source_url`, `article`, `note` | provenance; `note` explains every UNCONFIRMED item |
+| `source_text`, `source_url`, `article`, `note` | provenance; a verified row's `note` starts with the verbatim quote `«…» — `, the rest explains derivations, contradictions and every UNCONFIRMED item |
+
+Keys worth knowing: social insurance is per fund (`si.employee.pension`, `si.employer.benefit`,
+`si.accident_tiers` …, General Law on Social Insurance art. 18.1) and the totals
+`si.employee_rate` / `si.employer_rate` are derived and unverified; health insurance is
+`emd.*` (pending, another law); CIT filing is split into `filing.cit_quarterly` (≥ 6bn taxable
+income), `filing.cit_half_year`, `filing.cit_annual`, `filing.cit_payment_monthly`; PIT into
+`filing.pit_withholding` (quarterly return), `filing.pit_withholding_payment` (monthly),
+`filing.pit_annual`. The 2027 simplified-regime rows are pending because the 400M/quarterly
+change exists only in a Government bill (docs/legal/cit_law.md).
 
 Engine behaviour (`nyabo_mn.core.rules_engine.resolve_parameter`): the single row of the
 key covering the transaction date is returned; no row raises `MissingRuleError`, two rows
@@ -77,11 +91,16 @@ reference §3 (Order 116/2000 posting instruction). Fields mirror `Nyabo Posting
   pipeline picks by hint or the accountant taps), `v1_code_hint` / `v1_code_range`,
   `class_assumed` (the reference does not name the class; confirm with the accountant).
 - `primary_document_mn`: the primary document Law on Accounting art. 13.7 requires.
-- `citation`: `{instrument, instrument_full, section, verified, url, quote}`. The reference
-  gives no section numbers of Заавар 116, so `section` is `null` and `verified` is `false`
-  on every pattern. The explanation suffix (`" — Заавар 116 (2000), <section>"`) is
-  generated at runtime by `rules_engine.citation_suffix`; a null section prints
-  `mn.CITATION_SECTION_PENDING`.
+- `citation`: `{instrument, instrument_full, section, verified, url, quote}`. Sections of
+  Заавар 116 come from two independent readings of the instrument reconciled by a third
+  (`docs/legal/order116.md`): where both readers (or the reconciler) rated the section
+  exact and the sentence was found verbatim, `section` and `quote` are set and `verified`
+  is `true` (28 patterns); otherwise `section` and `quote` are `null`, `verified` is
+  `false` and `notes` lists the candidate sections (probable readings, disagreements,
+  patterns added after the mapping, and the two `customer_prepayment_recognize_*`
+  patterns the instrument does not prescribe). The explanation suffix
+  (`" — Заавар 116 (2000), <section>"`) is generated at runtime by
+  `rules_engine.citation_suffix`; a null section prints `mn.CITATION_SECTION_PENDING`.
 
 Split patterns: `sale_*`, `purchase_*`, `fixed_asset_acquire_*`,
 `customer_prepayment_recognize_*` exist per VAT status; `fixed_asset_dispose_gain`,
@@ -151,13 +170,21 @@ rule (`match_value` is the keyword alternation of `core.matching.FEE_KEYWORDS`,
   `generic_mn`;
 - default rules target leaves of their scheme and existing patterns.
 
-## Open items (from the reference §6 and the reviewers)
+## Open items (after the legal-citation pass; details in `docs/legal/README.md`)
 
-1. Section numbers of Заавар 116 (2000) for every pattern (needs the instrument text).
-2. Final adopted texts of the June 2026 VAT/CIT/PIT/General Taxation amendments: `cit.brackets`
-   2027, `pit.brackets` 2027/2028, `vat.input_deduction_categories`, the 2027 simplified
-   filing deadline, `tax_debt.enforcement_split`.
-3. General Law on Social Insurance art. 18: `si.employer_rate` and `si.accident_tiers`
-   (both years), and whether the employee 11.5% or a contribution ceiling changed.
-4. Sample statement exports from each bank to replace the placeholders.
-5. The accountant's real chart to replace the v0.3 sub-account names.
+1. Заавар 116 sections for the 14 unverified patterns: a second reader for
+   `receivable_collect`, `payable_pay`, `income_tax_pay` (candidate sentences are verbatim
+   in the notes); an accountant's ruling on the "probable" composites
+   (`sale_credit_vat_payer`, `purchase_expense_*`, `fixed_asset_acquire_vat_payer`,
+   `income_tax_accrue`); another authority for `customer_prepayment_recognize_*`.
+2. The standalone amending laws of 26 June 2026 (their legalinfo lawIds were not found) to
+   rule out a consolidation lag; the fate of the 30 Dec 2025 Government bill (400M
+   simplified regime) before the pending 2027 `simplified.*` rows are encoded.
+3. The adopted 2 July 2026 Social Insurance amendment (2026 employer unemployment 0.5 vs
+   0.6), the Health Insurance Law (`emd.*`), the Government resolution mapping occupations
+   to accident tiers, the Ulaanbaatar property-tax rate annex (`property_tax.rate`).
+4. Move the tax-parameter quotes from `note` into a `quote_mn` key once
+   `scripts/seed_check.py` and `rules.seed.sync` accept it (the DocType field exists).
+5. Reconcile the v0.3 class names with the instrument's own table (mismatches listed in
+   `docs/legal/order116.md` §2) when the accountant's real chart arrives; sample statement
+   exports from each bank to replace the placeholders.
