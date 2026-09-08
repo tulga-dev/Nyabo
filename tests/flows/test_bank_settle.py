@@ -10,6 +10,7 @@ accountant taps for (DECISIONS BANK-08, BANK-09, COMP-10).
 from __future__ import annotations
 
 import json
+from typing import Any
 
 import pytest
 from frappe.utils import getdate
@@ -748,6 +749,73 @@ def test_a_settlement_carries_the_nyabo_compliance_trail(guarded_books, as_user)
 	payment.cancel()
 	with pytest.raises(frappe.ValidationError):
 		frappe.delete_doc("Payment Entry", payment.name, ignore_permissions=True)
+
+
+def _desk_payment_entry(company: str, bank_gl: str, invoice: str) -> Any:
+	"""What the desk, the Bank Reconciliation Tool and a Payment Request all build: a bare one.
+
+	``get_payment_entry`` is ERPNext's own constructor and carries no Nyabo field, which is
+	the whole point — nothing here names a primary document.
+	"""
+	from erpnext.accounts.doctype.payment_entry.payment_entry import get_payment_entry
+
+	payment = get_payment_entry("Purchase Invoice", invoice, bank_account=bank_gl)
+	payment.posting_date = "2026-09-02"
+	payment.reference_no = "desk-1"
+	payment.reference_date = "2026-09-02"
+	payment.flags.ignore_permissions = True
+	return payment
+
+
+def test_a_payment_entry_nyabo_did_not_make_needs_no_primary_document(guarded_books):
+	"""K2: art. 13.7 is asked of Nyabo's postings, not of every Payment Entry on the site.
+
+	ERPNext submits Payment Entries of its own — from the desk, from the Bank Reconciliation
+	Tool (``create_payment_entry_bts``) and from a Payment Request — and none of them can name
+	a primary document. Journal Entry has ``system_generated_source`` as its escape hatch and
+	that returns None for anything else, so putting Payment Entry in PRIMARY_DOCUMENT_DOCTYPES
+	refused every payment the company made (COMP-10).
+	"""
+	import frappe
+
+	books, banks = guarded_books
+	pi = helpers.unpaid_purchase_invoice(
+		books, "Петровис ХХК", 93500, "2026-09-01", nyabo_primary_document_ref="Нэхэмжлэх PET-1"
+	)
+	payment = _desk_payment_entry(books, banks["khan_gl"], pi.name)
+	payment.insert()
+	assert not any(payment.get(field) for field in ("nyabo_proposal", "source_document"))
+	assert not payment.get("nyabo_explanation") and not payment.get("nyabo_primary_document_ref")
+	payment.submit()
+
+	assert int(payment.docstatus) == 1
+	assert frappe.db.get_value("Purchase Invoice", pi.name, "outstanding_amount") == 0.0
+	# It is nobody's Nyabo document, so the art. 11.1 trash guard does not hold it either
+	# (``force`` only skips the GL Entry link check; ``on_trash`` still runs).
+	payment.cancel()
+	frappe.delete_doc("Payment Entry", payment.name, ignore_permissions=True, force=True)
+	assert not frappe.db.exists("Payment Entry", payment.name)
+
+
+def test_a_nyabo_payment_entry_without_its_primary_document_is_still_refused(guarded_books):
+	"""The other half of K2: the Nyabo trail is what makes art. 13.7 apply, and it still does."""
+	import frappe
+
+	books, banks = guarded_books
+	pi = helpers.unpaid_purchase_invoice(
+		books, "Петровис ХХК", 93500, "2026-09-01", nyabo_primary_document_ref="Нэхэмжлэх PET-1"
+	)
+	payment = _desk_payment_entry(books, banks["khan_gl"], pi.name)
+	# A settlement that lost its source document: Nyabo's explanation, nothing behind it.
+	payment.nyabo_explanation = "Тест: эх баримтгүй төлбөр"
+	payment.insert()
+	assert not payment.get("source_document") and not payment.get("nyabo_primary_document_ref")
+
+	with pytest.raises(frappe.ValidationError) as info:
+		payment.submit()
+	assert mn.MSG_PRIMARY_DOCUMENT_REQUIRED in str(info.value)
+	assert int(frappe.db.get_value("Payment Entry", payment.name, "docstatus")) == 0
+	assert frappe.db.get_value("Purchase Invoice", pi.name, "outstanding_amount") == 93500.0
 
 
 def test_cancelling_a_settlement_returns_the_line_and_the_payable(books, banks, as_user):

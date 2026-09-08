@@ -146,6 +146,11 @@ def system_generated_source(doc: Any) -> str | None:
 	return None
 
 
+def has_nyabo_trail(doc: Any) -> bool:
+	"""True when the document carries one of Nyabo's own audit fields (NYABO_TRAIL_FIELDS)."""
+	return any(str(doc.get(field) or "").strip() for field in NYABO_TRAIL_FIELDS)
+
+
 def require_primary_document(doc: Any, method: str | None = None) -> None:
 	"""before_submit: a Nyabo Document, a written reference or an attached File (art. 13.7).
 
@@ -153,8 +158,21 @@ def require_primary_document(doc: Any, method: str | None = None) -> None:
 	the three and no human to ask, so instead of breaking the ERPNext feature the handler
 	writes what produced it into ``nyabo_primary_document_ref``: the trail art. 13.7 wants
 	stays on the document, and the entry says in Mongolian that no person filed a receipt.
+
+	A Payment Entry is the exception the other two doctypes do not need. Nyabo did not put
+	it on the site: ERPNext submits Payment Entries of its own from the desk, from the Bank
+	Reconciliation Tool (``bank_reconciliation_tool.create_payment_entry_bts``, which builds
+	``frappe.new_doc("Payment Entry")`` and calls ``pe.insert(); pe.submit()`` with no Nyabo
+	field on it) and from a Payment Request, none of which can name a primary document, and
+	Journal Entry's escape hatch (``system_generated_source``) answers None for anything that
+	is not a Journal Entry. Asking art. 13.7 of every Payment Entry therefore refused every
+	payment the site made. The rule is asked of the ones Nyabo posts — a settlement stamps
+	``source_document``, ``nyabo_explanation`` and ``nyabo_primary_document_ref`` — which is
+	exactly what ``has_nyabo_trail`` recognises (COMP-10).
 	"""
 	if doc.doctype not in PRIMARY_DOCUMENT_DOCTYPES:
+		return
+	if doc.doctype == "Payment Entry" and not has_nyabo_trail(doc):
 		return
 	if doc.get("source_document") or (doc.get("nyabo_primary_document_ref") or "").strip():
 		return
@@ -247,7 +265,7 @@ def block_delete_of_posted(doc: Any, method: str | None = None) -> None:
 	"""on_trash: a submitted or cancelled document Nyabo posted stays (art. 11.1)."""
 	if int(doc.docstatus or 0) not in (1, 2):
 		return
-	if any(str(doc.get(field) or "").strip() for field in NYABO_TRAIL_FIELDS):
+	if has_nyabo_trail(doc):
 		frappe.throw(mn.MSG_POSTED_DELETE_BLOCKED)
 
 

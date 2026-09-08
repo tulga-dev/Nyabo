@@ -370,6 +370,22 @@ Nyabo Document of the statement import) and `nyabo_primary_document_ref` (the in
 `block_delete_of_posted` used to ask for `nyabo_proposal` alone, which a settlement has not
 got; it now fires on any Nyabo trail — the proposal, the source document or the explanation.
 
+`PRIMARY_DOCUMENT_DOCTYPES` is the one of the four that cannot be applied flat. Nyabo did not
+put Payment Entry on the site: ERPNext submits its own from the desk, from the Bank
+Reconciliation Tool (`bank_reconciliation_tool.create_payment_entry_bts` builds
+`frappe.new_doc("Payment Entry")` and calls `pe.insert(); pe.submit()`) and from a Payment
+Request, and none of them can name a primary document. Journal Entry survives that because
+`system_generated_source` recognises ERPNext's own entries, and it answers `None` for every
+other doctype — so the first attempt refused *every* Payment Entry the company made, in
+Mongolian, including the ones ERPNext's own features depend on. `require_primary_document`
+therefore asks art. 13.7 of a Payment Entry only when it carries a Nyabo trail
+(`has_nyabo_trail`, the same `NYABO_TRAIL_FIELDS` the delete guard reads). The guarantee is
+unchanged where it matters: `match.settle` stamps `source_document`, `nyabo_explanation` and
+`nyabo_primary_document_ref` together, so a settlement that lost its source document is still
+refused, and a Payment Entry with no Nyabo field on it is not Nyabo's to refuse. Purchase
+Invoice and Journal Entry keep the flat rule: a person filing a purchase or a journal by hand
+is exactly whom art. 13.7 addresses.
+
 The reversal path is deliberately *not* extended. Every DocType in `reversal.SUPPORTED` has an
 ERPNext constructor that builds a counter-document leaving the original in place
 (`make_reverse_journal_entry`, `make_debit_note`). A Payment Entry has none: ERPNext undoes one
