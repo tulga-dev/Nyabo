@@ -110,7 +110,7 @@ def company_defaults_by_code(scheme: str) -> dict[str, str]:
 COMPANY_DEFAULTS_BY_CODE: dict[str, str] = company_defaults_by_code(aliases.SCHEME_V1)
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def provision(
 	company_name: str,
 	abbr: str,
@@ -425,7 +425,7 @@ def _expected_default_fields(company: str, scheme: str) -> list[str]:
 	]
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["GET", "POST"])
 def verify(company: str) -> dict[str, Any]:
 	"""Compare a company against its chart scheme, the default accounts and the tax templates."""
 	if frappe.session.user != "Administrator":
