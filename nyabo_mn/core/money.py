@@ -24,7 +24,7 @@ ZERO = Decimal("0.00")
 
 _CURRENCY_MARKS = re.compile(r"[₮₮]|MNT|mnt|төг(?:рөг)?\.?", re.UNICODE)
 _SPACES = re.compile(r"[\s   ']")
-_NUMBER = re.compile(r"^[-+]?\d+(?:\.\d+)?$")
+_NUMBER = re.compile(r"^\d+(?:\.\d+)?$")  # the sign is consumed before the match
 
 
 class MoneyParseError(ValueError):
@@ -80,7 +80,9 @@ def parse_mnt(text: str | int | float | Decimal) -> Decimal:
 		s = s[1:]
 	elif s.startswith("+"):
 		s = s[1:]
-	s = s.rstrip("-")  # trailing minus, seen in some bank exports
+	if s.endswith("-"):  # trailing minus, seen in some bank exports
+		negative = True
+		s = s.rstrip("-")
 	if not s:
 		raise MoneyParseError(raw)
 
