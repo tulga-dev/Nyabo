@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import datetime as dt
 import json
 from decimal import Decimal
 
@@ -290,3 +291,49 @@ def test_chart_scheme_falls_back_to_the_chart_that_is_installed(books):
 	assert pipeline.family_for_code(books, "1410") == pipeline.FAMILY_INVENTORY
 	assert pipeline.family_for_code(books, "1510") == pipeline.FAMILY_FIXED_ASSET
 	assert pipeline.family_for_code(books, "6210") == pipeline.FAMILY_EXPENSE
+
+
+def _vat_rate_row(verified: int):
+	"""An explicit ``vat.rate`` Nyabo Tax Parameter row (the shipped seed row is verified)."""
+	return frappe.get_doc(
+		{
+			"doctype": "Nyabo Tax Parameter",
+			"key": "vat.rate",
+			"effective_from": "2026-01-01",
+			"value_json": "0.1",
+			"unit": "fraction",
+			"status": "active",
+			"verified": verified,
+			"source_text": "НӨАТ-ын тухай хууль",
+		}
+	).insert()
+
+
+def test_unverified_vat_rate_is_refused_and_only_the_simulation_flag_bypasses_it(
+	run_receipt, books, frappe_flags
+):
+	"""F-09: the rate that sizes a proposal goes through rules.params + rules.guard, not a raw resolve."""
+	row = _vat_rate_row(verified=0)
+	with pytest.raises(pipeline.UnverifiedRuleError) as exc:
+		pipeline.vat_rate(dt.date(2026, 6, 15))
+	assert "vat.rate" in str(exc.value) and getattr(exc.value, "message_mn", None)
+
+	with pytest.raises(pipeline.UnverifiedRuleError):
+		run_receipt("petrovis_fuel")
+	assert frappe.get_all("Nyabo Document", filters={"status": "failed"}, pluck="name")
+	assert frappe.db.exists("Nyabo Event", {"event_type": "pipeline_failed"})
+
+	# the provisioning path only builds templates, so it may read the same unverified row
+	from nyabo_mn.setup import taxes
+
+	assert taxes.vat_rate_percent("2026-06-15") == 10.0
+	assert pipeline.vat_rate(dt.date(2026, 6, 15), allow_unverified=True) == Decimal("0.1")
+
+	# the simulator and the tests bypass the guard with the flag, nothing else
+	with frappe_flags(nyabo_simulation=True):
+		assert pipeline.vat_rate(dt.date(2026, 6, 15)) == Decimal("0.1")
+
+	row.verified = 1  # the admin read the primary text
+	row.save()
+	assert pipeline.vat_rate(dt.date(2026, 6, 15)) == Decimal("0.1")
+	assert run_receipt("petrovis_fuel").vat_amount == 7727.27

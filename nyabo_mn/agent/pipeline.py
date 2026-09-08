@@ -202,8 +202,31 @@ def tax_parameter_rows() -> list[rules_engine.ParameterRow]:
 	return [rules_engine.ParameterRow.from_dict(r) for r in load_seed("tax_parameters")["rows"]]
 
 
-def vat_rate(on_date: dt.date) -> Decimal:
-	return rules_engine.parameter_decimal(tax_parameter_rows(), VAT_RATE_KEY, on_date)
+def tax_parameter(key: str, on_date: dt.date, *, allow_unverified: bool = False) -> rules_engine.ParameterRow:
+	"""The dated tax-parameter row through ``rules.params`` (which applies ``rules.guard``).
+
+	WHY the bridge and not ``rules_engine.parameter_decimal`` on our own rows (F-09): the
+	engine resolves the date but knows nothing about ``verified``, so a rate an admin has
+	not checked would silently size the VAT of a proposal that a tap then posts. ``params.get``
+	is the one guarded lookup (§1.2); its only bypass is ``frappe.flags.nyabo_simulation``,
+	inside ``rules.guard``. Callers that merely build templates or display a value pass
+	``allow_unverified=True`` (setup.taxes does, for exactly that reason).
+	"""
+	try:
+		from nyabo_mn.rules import params as rules_params  # type: ignore[import-not-found]
+	except ImportError:
+		rules_params = None
+	if rules_params is not None and hasattr(rules_params, "get"):
+		return rules_params.get(key, on_date, allow_unverified=allow_unverified)
+	row = rules_engine.resolve_parameter(tax_parameter_rows(), key, on_date)
+	if not allow_unverified:
+		_require_verified_rule(row, key)
+	return row
+
+
+def vat_rate(on_date: dt.date, *, allow_unverified: bool = False) -> Decimal:
+	"""The VAT rate in force on the date, refused when the row is unverified (see ``tax_parameter``)."""
+	return tax_parameter(VAT_RATE_KEY, on_date, allow_unverified=allow_unverified).as_decimal()
 
 
 def _has_rows(doctype: str) -> bool:
@@ -246,20 +269,29 @@ def pattern_by_id(pattern_id: str) -> rules_engine.PatternSpec:
 	)
 
 
-def require_verified(pattern: rules_engine.PatternSpec) -> None:
-	"""``rules.guard.require_verified`` when available; refuses an unverified pattern for a real posting."""
+def _require_verified_rule(rule: Any, label: str) -> None:
+	"""``rules.guard.require_verified`` when the package is importable, else the same check locally.
+
+	One helper for every rule shape (pattern, tax-parameter row) so the guard - and its
+	single ``frappe.flags.nyabo_simulation`` bypass - is applied in exactly one way.
+	"""
 	try:
 		from nyabo_mn.rules import guard  # type: ignore[import-not-found]
 	except ImportError:
 		guard = None
 	if guard is not None and hasattr(guard, "require_verified"):
-		guard.require_verified(pattern)
+		guard.require_verified(rule)
 		return
-	if not pattern.verified:
+	if not getattr(rule, "verified", False):
 		raise UnverifiedRuleError(
-			f"posting pattern {pattern.pattern_id!r} is not verified",
-			mn.MSG_UNVERIFIED_RULE_BLOCKED.format(rule=pattern.pattern_id),
+			f"rule {label!r} is not verified",
+			mn.MSG_UNVERIFIED_RULE_BLOCKED.format(rule=label),
 		)
+
+
+def require_verified(pattern: rules_engine.PatternSpec) -> None:
+	"""``rules.guard.require_verified`` when available; refuses an unverified pattern for a real posting."""
+	_require_verified_rule(pattern, pattern.pattern_id)
 
 
 # --- chart, schemes, code resolution ----------------------------------------------------------------
@@ -1198,6 +1230,7 @@ __all__ = [
 	"require_verified",
 	"role_code",
 	"send_card",
+	"tax_parameter",
 	"tax_parameter_rows",
 	"vat_rate",
 	"write_event",
