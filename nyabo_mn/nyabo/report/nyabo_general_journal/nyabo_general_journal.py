@@ -5,6 +5,11 @@ debit and credit amounts so the report totals reconcile with the trial balance).
 row carries the art. 13.7 primary-document reference, who prepared the voucher (owner)
 and who approved it (``nyabo_approved_by``), so the journal shows the audit trail the
 Law on Accounting asks of the ledger.
+
+The last row is the form's Нийт дүн line, built here (``gl.totals_row``) and not by
+Frappe's ``add_total_row``, which totalled the row numbers as well (F10); the report's
+``add_total_row`` is 0 and ``execute`` also returns ``skip_total_row``, so a site whose
+Report row still carries the old flag prints one honest total either way.
 """
 
 from __future__ import annotations
@@ -53,10 +58,12 @@ def columns() -> list[dict[str, Any]]:
 	]
 
 
-def execute(filters: Any = None) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+def execute(
+	filters: Any = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], None, None, None, int]:
 	filters = frappe._dict(filters or {})
 	if not (filters.company and filters.from_date and filters.to_date):
-		return columns(), []
+		return columns(), [], None, None, None, 1
 	numbers = accounts.account_numbers(filters.company)
 	cache: dict[tuple[str, str], Any] = {}
 	data: list[dict[str, Any]] = []
@@ -81,4 +88,6 @@ def execute(filters: Any = None) -> tuple[list[dict[str, Any]], list[dict[str, A
 				"approved_by": info.get("nyabo_approved_by") if info else None,
 			}
 		)
-	return columns(), data
+	if data:
+		data.append(gl.totals_row(data, label_field="remarks"))
+	return columns(), data, None, None, None, 1

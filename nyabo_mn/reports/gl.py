@@ -125,3 +125,25 @@ def primary_document_of(voucher_type: str, voucher_no: str, cache: dict[tuple[st
 
 def primary_reference(info: Any) -> str:
 	return (info.get("source_document") or info.get("nyabo_primary_document_ref") or "") if info else ""
+
+
+def totals_row(
+	data: list[dict[str, Any]],
+	*,
+	label_field: str,
+	label: str = mn.FORM_LBL_GRAND_TOTAL,
+	amount_fields: tuple[str, ...] = ("debit", "credit"),
+) -> dict[str, Any]:
+	"""The form's Нийт дүн line: the money columns summed, every other column blank.
+
+	WHY the journals build this instead of letting Frappe's ``add_total_row`` do it (F10):
+	that helper adds up every numeric column of the result, so the МГ-1 and ЕЖ forms printed
+	a "total" of the row numbers and, on a foreign-currency МГ-2, a total of the exchange
+	rates - numbers that mean nothing on a Ministry of Finance form and that an inspector
+	reads as an arithmetic error. Only the debit and credit columns are totalled.
+	"""
+	row: dict[str, Any] = {label_field: label}
+	for field in amount_fields:
+		total = sum((money(entry.get(field)) for entry in data), Decimal("0"))
+		row[field] = float(quantize(total))
+	return row
