@@ -39,12 +39,36 @@ SEEDED: tuple[
 )
 
 
-def _declared_fields(doctype: str) -> dict[str, str]:
-	"""fieldname -> fieldtype from the generated DocType JSON, which is what a bench installs."""
+def _fields(doctype: str) -> list[dict[str, Any]]:
+	"""The generated DocType JSON's fields, which is what a bench installs."""
 	folder = doctype.lower().replace(" ", "_")
 	path = DOCTYPE_DIR / folder / f"{folder}.json"
 	data = json.loads(path.read_text(encoding="utf-8"))
-	return {f["fieldname"]: f["fieldtype"] for f in data["fields"] if f.get("fieldname")}
+	return [f for f in data["fields"] if f.get("fieldname")]
+
+
+def _declared_fields(doctype: str) -> dict[str, str]:
+	"""fieldname -> fieldtype."""
+	return {f["fieldname"]: f["fieldtype"] for f in _fields(doctype)}
+
+
+def _child_doctypes(doctype: str) -> dict[str, str]:
+	"""Table fieldname -> the child DocType it holds, so child rows are measured too."""
+	return {
+		f["fieldname"]: f["options"]
+		for f in _fields(doctype)
+		if f["fieldtype"] == "Table" and f.get("options")
+	}
+
+
+def _too_long(declared: Mapping[str, str], values: Mapping[str, Any], where: str) -> list[str]:
+	problems: list[str] = []
+	for field, value in values.items():
+		fieldtype = declared.get(field)
+		assert fieldtype is not None, f"{where}.{field} is written by the seed but not declared"
+		if isinstance(value, str) and fieldtype in VARCHAR_TYPES and len(value) > VARCHAR_LEN:
+			problems.append(f"{where}.{field} ({fieldtype}) is {len(value)} characters: {value[:60]}")
+	return problems
 
 
 @pytest.mark.parametrize(("doctype", "seed_name", "values_of", "name_of"), SEEDED, ids=lambda v: str(v)[:30])
@@ -55,6 +79,8 @@ def test_no_seeded_value_overflows_its_column(
 	name_of: Callable[[Mapping[str, Any]], str],
 ) -> None:
 	declared = _declared_fields(doctype)
+	children = _child_doctypes(doctype)
+	child_declared = {field: _declared_fields(child) for field, child in children.items()}
 	rows = json.loads((SEED_DIR / f"{seed_name}.json").read_text(encoding="utf-8"))["rows"]
 	assert rows, f"{seed_name}.json is empty"
 	overflows: list[str] = []
@@ -63,11 +89,9 @@ def test_no_seeded_value_overflows_its_column(
 		# The document name is varchar(140) too, whatever the naming rule.
 		if len(name) > VARCHAR_LEN:
 			overflows.append(f"{doctype} name is {len(name)} characters: {name[:60]}")
-		for field, value in values_of(row).items():
-			fieldtype = declared.get(field)
-			assert fieldtype is not None, f"{doctype}.{field} is written by the seed but not declared"
-			if isinstance(value, str) and fieldtype in VARCHAR_TYPES and len(value) > VARCHAR_LEN:
-				overflows.append(
-					f"{doctype}.{field} ({fieldtype}) is {len(value)} characters in {name}: {value[:60]}"
-				)
+		values = values_of(row)
+		overflows += _too_long(declared, values, f"{doctype} {name}")
+		for field, child in children.items():
+			for index, child_row in enumerate(values.get(field) or []):
+				overflows += _too_long(child_declared[field], child_row, f"{child} {name}[{index}]")
 	assert not overflows, "widen the field in scripts/doctype_specs.py:\n" + "\n".join(overflows)
