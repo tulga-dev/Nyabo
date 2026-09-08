@@ -36,12 +36,31 @@ def handle_callback(ctx: Ctx, parts: list[str]) -> Any:
 	return None
 
 
+def _in_scope(ctx: Ctx, doctype: str, name: str) -> bool:
+	"""The callback data is attacker-chosen and document names are a global sequence, so every
+	entry point re-checks the document's company against the user's companies (as approve.py does)."""
+	if not frappe.db.exists(doctype, name):
+		return False
+	company = frappe.db.get_value(doctype, name, "company")
+	return bool(company) and company in ctx.companies
+
+
 def start(ctx: Ctx, doctype: str | None, name: str) -> Any:
 	if not ctx.is_accountant:
 		ctx.answer(mn.MSG_NO_PERMISSION, show_alert=True)
 		return None
 	if not doctype or not frappe.db.exists(doctype, name):
 		ctx.answer(mn.MSG_PROPOSAL_NOT_FOUND, show_alert=True)
+		return None
+	if not _in_scope(ctx, doctype, name):
+		ctx.answer(mn.MSG_NO_PERMISSION, show_alert=True)
+		log_event(
+			"telegram.correction.refused",
+			level="warning",
+			doctype=doctype,
+			name=name,
+			telegram_id=ctx.telegram_id,
+		)
 		return None
 	ctx.set_state(STATE_REASON, {"doctype": doctype, "name": name})
 	ctx.reply(
@@ -54,10 +73,13 @@ def start(ctx: Ctx, doctype: str | None, name: str) -> Any:
 def _pending(ctx: Ctx, name: str) -> tuple[str, str] | None:
 	state, payload = ctx.get_state()
 	if state in (STATE_REASON, STATE_TEXT) and payload.get("name") == name and payload.get("doctype"):
-		return payload["doctype"], name
-	# The button may be tapped after the state expired; the name is unique across the three doctypes.
+		if _in_scope(ctx, payload["doctype"], name):
+			return payload["doctype"], name
+		return None
+	# The button may be tapped after the state expired; the name is unique across the three
+	# doctypes but not across companies, so the scan stays inside the user's own companies.
 	for doctype in keyboards.DOCTYPE_SHORT:
-		if frappe.db.exists(doctype, name):
+		if _in_scope(ctx, doctype, name):
 			return doctype, name
 	return None
 
@@ -106,7 +128,7 @@ def handle_state(ctx: Ctx, state: str, payload: dict[str, Any]) -> Any:
 	if not doctype or not name:
 		ctx.clear_state()
 		return None
-	if not ctx.is_accountant:
+	if not ctx.is_accountant or not _in_scope(ctx, doctype, name):
 		ctx.clear_state()
 		ctx.reply(mn.MSG_NO_PERMISSION)
 		return None

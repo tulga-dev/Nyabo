@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import frappe
+import pytest
 
 from nyabo_mn.i18n import mn
 from nyabo_mn.telegram import _deps
@@ -216,6 +217,49 @@ def test_owner_cannot_correct(company, monkeypatch):
 	run(bot, callback_update(8012, f"x:je:{je}:rev"))
 	assert bot.sent("answer_callback_query")[0]["text"] == mn.MSG_NO_PERMISSION
 	assert frappe.db.get_value("Nyabo Chat State", {"chat_id": "8012"}, "state") in (None, "")
+
+
+def _second_company() -> str:
+	"""A company the Telegram user has no Nyabo User Link for."""
+	from nyabo_mn.setup.provision_company import provision_company
+
+	provision_company("Хоёр ХХК", "HOY", vat_registered=0)
+	return "Хоёр ХХК"
+
+
+def test_correction_refuses_another_companys_document(company, monkeypatch):
+	"""Callback data is attacker-chosen and document names are a global sequence (SEC-01)."""
+	reversals: list = []
+	monkeypatch.setattr(_deps, "reverse", lambda *args: reversals.append(args) or {"reversal_name": "X"})
+	other = _second_company()
+	victim = _posted_je(other)
+	link_user(8030, "Accountant", company)
+	bot = FakeBotApi()
+
+	run(bot, callback_update(8030, f"x:je:{victim}:rev"))
+	assert bot.sent("answer_callback_query")[-1]["text"] == mn.MSG_NO_PERMISSION
+	assert frappe.db.get_value("Nyabo Chat State", {"chat_id": "8030"}, "state") in (None, "")
+
+	# the expired-state path re-finds the name by scanning the doctypes; it must stay in scope too
+	run(bot, callback_update(8030, f"x:{victim}:reason:account"))
+	assert bot.sent("answer_callback_query")[-1]["text"] == mn.MSG_PROPOSAL_NOT_FOUND
+	assert reversals == []
+	assert frappe.db.get_value("Journal Entry", victim, "docstatus") == 1
+	assert not frappe.db.exists("Journal Entry", {"nyabo_corrects": victim})
+
+
+def test_reverse_refuses_a_company_the_user_is_not_linked_to(company, as_user):
+	"""compliance.reversal guards itself, so the invariant does not rest on one handler."""
+	from nyabo_mn.compliance import reversal
+
+	other = _second_company()
+	victim = _posted_je(other)
+	link_user(8031, "Accountant", company)
+	frappe.get_doc({"doctype": "Role", "role_name": "Accounts User", "desk_access": 1}).insert()
+	with as_user("tg-8031@nyabo.local", ["Nyabo Accountant", "Accounts User"]) as user:
+		with pytest.raises(frappe.PermissionError):
+			reversal.reverse("Journal Entry", victim, "account", "буруу данс", user)
+	assert not frappe.db.exists("Journal Entry", {"nyabo_corrects": victim})
 
 
 # --- statements and bank cards -----------------------------------------------------------------------

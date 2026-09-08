@@ -19,6 +19,26 @@ from nyabo_mn.compliance.period import is_locked
 from nyabo_mn.i18n import mn
 
 SUPPORTED: tuple[str, ...] = ("Journal Entry", "Purchase Invoice")
+REVERSAL_ROLES: tuple[str, ...] = ("Nyabo Accountant", "Nyabo Admin", "System Manager")
+
+
+def require_rights(user: str, company: str) -> None:
+	"""Reversing is an accountant action on a company the user is linked to.
+
+	The Telegram handler checks this too, but the invariant must not depend on one caller:
+	document names are a global sequence, so an unguarded ``reverse`` would let any linked
+	accountant reverse another company's ledger (as ``period.lock`` guards itself).
+	"""
+	if user == "Administrator":
+		return
+	if not set(REVERSAL_ROLES).intersection(frappe.get_roles(user)):
+		frappe.throw(mn.MSG_NO_PERMISSION, frappe.PermissionError)
+	link = frappe.db.get_value("Nyabo User Link", {"user": user, "status": "active"}, "name")
+	if not link:
+		return  # a desk user with the role and no Telegram link is scoped by ERPNext permissions
+	companies = frappe.get_all("Nyabo User Company", filters={"parent": link}, pluck="company")
+	if companies and company not in companies:
+		frappe.throw(mn.MSG_NO_PERMISSION, frappe.PermissionError)
 
 
 def reason_label(reason_code: str) -> str:
@@ -73,6 +93,7 @@ def reverse(
 		frappe.throw(mn.MSG_CORRECTION_UNSUPPORTED_DOCTYPE.format(doctype=doctype))
 	label = reason_label(reason_code)
 	original = frappe.get_doc(doctype, name)
+	require_rights(user, str(original.company or ""))
 	if int(original.docstatus or 0) != 1:
 		frappe.throw(mn.MSG_CORRECTION_NOT_SUBMITTED.format(name=name))
 	if already_reversed(doctype, name):
