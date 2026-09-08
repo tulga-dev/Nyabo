@@ -70,6 +70,26 @@ def test_score_requires_name_or_reference_on_top_of_amount_and_date():
 	assert with_reference >= mt.DEFAULT_THRESHOLD
 
 
+def test_score_ignores_a_reference_too_short_to_identify():
+	# A handwritten supplier bill_no of "5" or a bill_no that is the year must not auto-match:
+	# every narrative carries a date, an account number and an amount. D-010/§5.4 ask for a
+	# name or a reference, and a wrong automatic match is worse than an unmatched line.
+	line = _line("-85000", "QPay 5012345678 шилжүүлэг 2026.09.02")
+	for short in ("5", "1", "12", "2026", "042"):
+		assert mt.score(line, _cand("PINV-1", "85000", "", reference=short)) < mt.DEFAULT_THRESHOLD
+		assert mt.pick(line, [_cand("PINV-1", "85000", "", reference=short)]).kind == "none"
+	# A reference is only credited as a whole token, not inside a longer number or word.
+	assert not mt.reference_matches("012345", _line("-85000", "QPay 5012345678 шилжүүлэг"))
+	assert not mt.reference_matches("INV-2026", _line("-85000", "төлбөр INV-2026-15"))
+	# Long enough and standing on its own: the reference still carries the match, and says so.
+	digits = _line("-85000", "QPay 900123456 шилжүүлэг")
+	assert mt.score(digits, _cand("PINV-1", "85000", "", reference="900123456")) >= mt.DEFAULT_THRESHOLD
+	assert (
+		mn.MATCH_REASON_REFERENCE
+		in mt.pick(digits, [_cand("PINV-1", "85000", "", reference="900123456")]).reason
+	)
+
+
 def test_score_date_window():
 	line = _line("-85000", "Петровис ХХК")
 	same_day = mt.score(line, _cand("a", "85000", "Петровис ХХК", D))

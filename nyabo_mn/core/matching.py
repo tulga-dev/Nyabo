@@ -20,6 +20,12 @@ AMOUNT_TOLERANCE = Decimal("1")
 DATE_WINDOW_DAYS = 3
 NAME_SIMILARITY_MIN = 0.8
 DEFAULT_THRESHOLD = 0.8
+# A reference only identifies a voucher when it is long enough to be more than a coincidence.
+# Handwritten Mongolian supplier invoices carry bill numbers like "5" or "12", and a bill
+# number that happens to be a year ("2026") appears in every dated narrative; such a
+# reference would auto-match any line of the same amount inside the date window.
+REFERENCE_MIN_LEN = 4
+REFERENCE_MIN_LEN_DIGITS = 6
 
 # Score composition: an exact amount within the date window earns the base; the date and
 # the party name (or a reference number) add the rest. Base + full date score stays under
@@ -117,6 +123,25 @@ def is_own_transfer(description: str, own_account_numbers: Iterable[str]) -> boo
 	return False
 
 
+def reference_matches(reference: str | None, line: BankLine) -> bool:
+	"""True when a reference long enough to identify a voucher stands as a whole token in the line.
+
+	Short references earn nothing: a wrong automatic match is worse than an unmatched line, and
+	a one- or two-character bill number is present in most narratives by accident. Pure digits
+	need `REFERENCE_MIN_LEN_DIGITS` so a year or a short number cannot borrow a date or an
+	amount. The match is token-bounded, so a reference embedded in a longer number or reference
+	(an account number, a longer invoice number) does not count.
+	"""
+	reference = (reference or "").strip()
+	if not reference:
+		return False
+	minimum = REFERENCE_MIN_LEN_DIGITS if reference.isdigit() else REFERENCE_MIN_LEN
+	if len(reference) < minimum:
+		return False
+	pattern = re.compile(rf"(?<![\w\-/]){re.escape(reference)}(?![\w\-/])")
+	return bool(pattern.search(line.reference or "") or pattern.search(line.description or ""))
+
+
 def score(line: BankLine, candidate: MatchCandidate) -> float:
 	"""0.0 unless the amount is exact (within 1₮) and the date within 3 days; else base + date + name."""
 	if not amount_matches(line.amount, candidate.amount):
@@ -129,8 +154,7 @@ def score(line: BankLine, candidate: MatchCandidate) -> float:
 	similarity = name_similarity(line.description, candidate.party_name)
 	if similarity >= NAME_SIMILARITY_MIN:
 		name_bonus = SCORE_NAME * similarity
-	reference = (candidate.reference or "").strip()
-	if reference and (reference in (line.reference or "") or reference in (line.description or "")):
+	if reference_matches(candidate.reference, line):
 		name_bonus = max(name_bonus, SCORE_NAME)
 	return round(min(1.0, total + name_bonus), 4)
 
@@ -210,7 +234,6 @@ def _reason(line: BankLine, candidate: MatchCandidate) -> str:
 	similarity = name_similarity(line.description, candidate.party_name)
 	if similarity >= NAME_SIMILARITY_MIN:
 		parts.append(mn.MATCH_REASON_NAME.format(similarity=int(similarity * 100)))
-	reference = (candidate.reference or "").strip()
-	if reference and (reference in (line.reference or "") or reference in (line.description or "")):
+	if reference_matches(candidate.reference, line):
 		parts.append(mn.MATCH_REASON_REFERENCE)
 	return "; ".join(parts)
