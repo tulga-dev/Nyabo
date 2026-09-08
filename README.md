@@ -75,9 +75,15 @@ Custom apps need your own bench. Yours is called `nyabo` (Version 16, Singapore)
 has Frappe and ERPNext.
 
 1. Frappe Cloud → **Benches** → `nyabo` → **Apps** → **Add App** → **Add from GitHub**.
-   Authorise Frappe Cloud's GitHub app for `tulga-dev` when it asks. You should see: a list
-   of your repositories.
-2. Choose `Nyabo`, branch `main`, press **Add**. You should see: `nyabo_mn` in the Apps list.
+   The dialog has two tabs, and `tulga-dev/Nyabo` is private, so choose one:
+   - **Private Repository** → **Connect To GitHub**. This grants Frappe Cloud's GitHub app
+     access to your repositories; only you can approve it. Pick the `tulga-dev` account and,
+     when GitHub asks which repositories, select **Only select repositories → Nyabo**.
+     You should see: the dialog listing your repositories.
+   - or, if you would rather not grant that access, make the repository public
+     (GitHub → Nyabo → Settings → General → Danger Zone → Change visibility) and use the
+     **Public Repository** tab with `https://github.com/tulga-dev/Nyabo`, then **Fetch Branches**.
+2. Choose `Nyabo`, branch `main`, press **Add App**. You should see: `nyabo_mn` in the Apps list.
 3. Press **Deploy**. You should see: a build log ending in *Success* (10–20 minutes).
 4. Create a site on this bench (**Sites → New Site**, pick bench `nyabo`, install Frappe,
    ERPNext and nyabo_mn) or move the existing site. Any site on a private bench needs the
