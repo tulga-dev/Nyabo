@@ -51,7 +51,7 @@ Your trial site `nyabo.s.frappe.cloud` currently sits on a shared bench, which c
 take custom apps.
 
 1. Push this repository to GitHub. It must be its own repository with `pyproject.toml`
-   at the root (Frappe Cloud reads the app from the repo root). Suggested name: `tulga-dev/nyabo_mn`.
+   at the root (Frappe Cloud reads the app from the repo root). It lives at `https://github.com/tulga-dev/Nyabo` (branch `main`).
 2. In Frappe Cloud open **Benches** in the left menu, press **Continue Onboarding** and
    finish it. You should see: a **New Bench** button. If it asks for a billing method,
    that is required for private benches. I am not sure of the exact plan name; pick the
@@ -59,7 +59,7 @@ take custom apps.
 3. **New Bench** → name `nyabo`, region **Singapore** (same as the site), version **Version 16**,
    apps **Frappe** and **ERPNext**. You should see: the bench page with an **Apps** tab.
 4. **Apps → Add App → your GitHub account** → authorise the GitHub app for `tulga-dev` →
-   choose the `nyabo_mn` repository, branch `main`. You should see: `nyabo_mn` listed with the other apps.
+   choose the `Nyabo` repository, branch `main`. You should see: `nyabo_mn` listed with the other apps.
 5. **Deploy** (button on the bench page; it may say *Update available*). You should see: a
    build log ending in *Success*, roughly 10–20 minutes.
 6. Either move the site (**Site → Actions**, look for *Change bench*; I am not sure it is
