@@ -1,0 +1,9 @@
+{
+ "_comment": "software_usd under vat_payer",
+ "data": {
+  "account_code": "6910",
+  "vat_treatment": "none",
+  "reason_mn": "Гадаадын программ хангамжийн сарын төлбөр тул 6910 Бусад үйл ажиллагааны зардалд бүртгэнэ.",
+  "confidence": 0.9
+ }
+}

@@ -1,0 +1,9 @@
+{
+ "_comment": "taxi under simplified_1pct",
+ "data": {
+  "account_code": "6220",
+  "vat_treatment": "in_expense",
+  "reason_mn": "Ажлын хэрэгцээний такси тул 6220 Тээврийн зардалд бүртгэнэ.",
+  "confidence": 0.9
+ }
+}

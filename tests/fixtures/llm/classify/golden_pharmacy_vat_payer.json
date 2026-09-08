@@ -1,0 +1,9 @@
+{
+ "_comment": "pharmacy under vat_payer",
+ "data": {
+  "account_code": "6910",
+  "vat_treatment": "exempt",
+  "reason_mn": "Оффисын анхны тусламжийн эм тариа тул 6910 дансанд бүртгэнэ; эм НӨАТ-аас чөлөөлөгдсөн.",
+  "confidence": 0.9
+ }
+}

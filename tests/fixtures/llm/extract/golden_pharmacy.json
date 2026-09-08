@@ -1,0 +1,29 @@
+{
+ "_comment": "Golden extraction answer for pharmacy: Medicines are VAT-exempt: no НӨАТ line printed although the seller is a VAT payer.",
+ "data": {
+  "seller_name": "Монос Фарм ХХК",
+  "seller_register_no": "2016397",
+  "seller_tin": "37400022233",
+  "date": "2026-06-15",
+  "total": 32400.0,
+  "vat_amount": null,
+  "lines": [
+   {
+    "description": "Анхны тусламжийн иж бүрдэл (парацетамол, боолт)",
+    "qty": 1.0,
+    "amount": 32400.0
+   }
+  ],
+  "payment_method": "cash",
+  "receipt_id": "00078901234567890123456789",
+  "lottery_no": "MN78901234",
+  "confidence": {
+   "seller_name": 0.95,
+   "date": 0.92,
+   "total": 0.98,
+   "vat_amount": 0.85,
+   "lines": 0.85
+  },
+  "notes": null
+ }
+}

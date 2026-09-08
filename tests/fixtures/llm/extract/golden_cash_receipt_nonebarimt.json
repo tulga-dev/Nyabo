@@ -1,0 +1,29 @@
+{
+ "_comment": "Golden extraction answer for cash_receipt_nonebarimt: Hand-written cash receipt from a market stall: no ebarimt, no VAT.",
+ "data": {
+  "seller_name": "Ганбат (иргэн, Нарантуул зах)",
+  "seller_register_no": null,
+  "seller_tin": null,
+  "date": "2026-06-15",
+  "total": 25000.0,
+  "vat_amount": null,
+  "lines": [
+   {
+    "description": "Цэвэрлэгээний хэрэгсэл",
+    "qty": 1.0,
+    "amount": 25000.0
+   }
+  ],
+  "payment_method": "cash",
+  "receipt_id": null,
+  "lottery_no": null,
+  "confidence": {
+   "seller_name": 0.95,
+   "date": 0.92,
+   "total": 0.98,
+   "vat_amount": 0.85,
+   "lines": 0.85
+  },
+  "notes": null
+ }
+}

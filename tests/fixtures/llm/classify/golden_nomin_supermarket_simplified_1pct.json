@@ -1,0 +1,9 @@
+{
+ "_comment": "nomin_supermarket under simplified_1pct",
+ "data": {
+  "account_code": "6510",
+  "vat_treatment": "in_expense",
+  "reason_mn": "Оффисын хэрэглээний цай, кофе, цаас тул 6510 Бичиг хэрэг, оффисын зардалд бүртгэнэ.",
+  "confidence": 0.9
+ }
+}

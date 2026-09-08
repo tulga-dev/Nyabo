@@ -1,0 +1,9 @@
+{
+ "_comment": "taxi under vat_payer",
+ "data": {
+  "account_code": "6220",
+  "vat_treatment": "withheld",
+  "reason_mn": "Ажлын хэрэгцээний такси тул 6220 Тээврийн зардалд бүртгэнэ.",
+  "confidence": 0.9
+ }
+}

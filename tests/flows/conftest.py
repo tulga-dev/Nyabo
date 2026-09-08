@@ -4,6 +4,8 @@ Rules/setup: a synced seed and a v0.3 company with two banks (``seeded``, ``comp
 Receipt pipeline: a company with regimes, verified patterns, a mock LLM and a mock ebarimt
 provider, and a helper that stores a receipt photo as a Nyabo Document (``books``,
 ``store_receipt``, ``mock_llm``, ``mock_provider``, ``run_receipt``).
+Evals: ``test_evals_*`` / ``test_simulator_*`` modules run under ``frappe.flags.nyabo_simulation``
+(mock clients, verified-rule guard bypassed); other flow modules keep the real guard.
 """
 
 from __future__ import annotations
@@ -11,7 +13,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
 
@@ -263,3 +265,25 @@ def run_receipt(
 		return frappe.get_doc("Nyabo Proposal", name)
 
 	return _run
+
+
+@pytest.fixture(autouse=True)
+def _simulation_flag(request: pytest.FixtureRequest) -> Iterator[None]:
+	"""Only the evals/simulator modules run under the simulation flag (module docstring)."""
+	if not request.module.__name__.rsplit(".", 1)[-1].startswith(("test_evals", "test_simulator")):
+		yield
+		return
+	try:
+		import frappe
+	except ImportError:  # pure-Python run without the stub on the path
+		yield
+		return
+	previous = frappe.local.flags.get("nyabo_simulation")
+	frappe.local.flags.nyabo_simulation = True
+	try:
+		yield
+	finally:
+		if previous is None:
+			frappe.local.flags.pop("nyabo_simulation", None)
+		else:
+			frappe.local.flags.nyabo_simulation = previous

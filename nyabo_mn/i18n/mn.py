@@ -1437,3 +1437,40 @@ MSG_CLOSE_CANCELLED = "Сарын хаалтыг цуцаллаа."
 MSG_POSTED_CARD_FOOTER = "✅ Бүртгэлээ: {doc_name} · Баталсан: {approver}"
 MSG_REJECTED_CARD_FOOTER = "❌ Татгалзлаа: {reason}"
 MSG_CORRECTION_STARTED = "Залруулга: {doctype} {name}"
+# --- evals + simulator (nyabo_mn.evals, nyabo_mn.simulator) -----------------------------------------
+SIM_TITLE = "🧪 Симуляци · {case}"
+SIM_REGIME_VAT_PAYER = "НӨАТ төлөгч"
+SIM_REGIME_SIMPLIFIED = "Хялбаршуулсан 1% (НӨАТ төлөгч бус)"
+SIM_COLUMN_HEADER = "{regime} · {date}"
+SIM_DOCUMENT_KIND = {
+	"purchase_invoice": "Худалдан авалтын нэхэмжлэх",
+	"journal_entry": "Ерөнхий журналын бичилт",
+}
+SIM_LINE = "{side} {code} {name} {amount}₮"
+SIM_VAT_LINE = "НӨАТ: {treatment}"
+SIM_NO_ENTRY = "Бичилт үүсгэсэнгүй: {reason}"
+SIM_NEEDS_ACCOUNTANT = "⚠️ Нягтлан батална"
+SIM_AUTO_OK = "Эзэмшигч батлах боломжтой"
+SIM_EXPLANATION = "Тайлбар: {explanation}"
+SIM_CITATION = "📜 {citation}"
+SIM_STATEMENT_TITLE = "🏦 Хуулгын симуляци · {path}"
+SIM_STATEMENT_LINE = "{date} · {amount}₮ · «{description}» → {result}"
+SIM_STATEMENT_NO_LAYOUT = "Хуулгын форматыг танисангүй; баганы утгыг нягтлан зааж өгнө."
+SIM_COMPANY_CLEANUP_FAILED = "Түр компанийг ({company}) устгаж чадсангүй: {error}"
+EVAL_FLAG_LABELS = {
+	"low_confidence": "танилт тодорхойгүй",
+	"injection_suspected": "гадны заавар илэрсэн",
+	"new_supplier": "шинэ харилцагч",
+	"unverified_rule": "дүрэм баталгаажаагүй",
+	"no_ebarimt": "и-баримтгүй баримт",
+	"duplicate": "давхардсан баримт",
+	"wrong_company": "өөр компанийн баримт",
+	"foreign_currency": "гадаад валютын гүйлгээ",
+	"seller_not_vat_payer": "худалдагч НӨАТ төлөгч бус",
+	"vat_inconsistent": "НӨАТ-ын дүн зөрүүтэй",
+	"entry_invalid": "бичилт шалгалтад тэнцсэнгүй",
+	"low_classification_confidence": "дансны сонголт тодорхойгүй",
+}
+EVAL_NIGHTLY_REASON = "{day} өдрийн залруулгаас {created} үнэлгээний тохиолдол үүсгэв."
+MSG_EVAL_CASE_BAD_JSON = "«{field}» талбарын JSON буруу байна: {error}"
+MSG_EVAL_CASE_REGIME_REQUIRED = "«{kind}» төрлийн тохиолдолд татварын горим заавал хэрэгтэй."
