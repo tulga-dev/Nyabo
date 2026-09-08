@@ -470,13 +470,23 @@ def change_account(proposal_name: str, code: str, user: str, *, telegram_id: str
 	return proposal
 
 
-def reject(proposal_name: str, reason_code: str, user: str, *, telegram_id: str | None = None) -> Any:
+def reject(
+	proposal_name: str,
+	reason_code: str,
+	user: str,
+	*,
+	reason_text: str | None = None,
+	telegram_id: str | None = None,
+) -> Any:
+	"""Refuse a proposal. ``reason_code`` is one of ``mn.REJECT_REASONS``; ``reason_text`` is the
+	accountant's own words for the ``other`` code and is stored beside the code, never instead of
+	it - the corrections job reads the code (docs/ARCHITECTURE.md §5.6)."""
 	import frappe
 
 	proposal = _proposal(proposal_name)
 	if proposal.status not in POSTABLE_STATUSES:
 		raise ApprovalError(mn.MSG_PROPOSAL_ALREADY_DECIDED.format(status=proposal.status), code="decided")
-	reason = mn.REJECT_REASONS.get(reason_code, mn.REJECT_OTHER)
+	reason = reason_text or mn.REJECT_REASONS.get(reason_code, mn.REJECT_OTHER)
 	proposal.db_set({"status": "rejected", "rejection_reason": reason, "approved_by": user})
 	if proposal.document and frappe.db.exists("Nyabo Document", proposal.document):
 		frappe.db.set_value("Nyabo Document", proposal.document, "status", "rejected")

@@ -47,8 +47,8 @@ def change_account(proposal_name: str, code: str, user: str) -> Any:
 	return _call("nyabo_mn.agent.post", "change_account", proposal_name, code, user)
 
 
-def reject(proposal_name: str, reason: str, user: str) -> Any:
-	return _call("nyabo_mn.agent.post", "reject", proposal_name, reason, user)
+def reject(proposal_name: str, reason_code: str, user: str, reason_text: str | None = None) -> Any:
+	return _call("nyabo_mn.agent.post", "reject", proposal_name, reason_code, user, reason_text=reason_text)
 
 
 def top_accounts(company: str, n: int = 6) -> list[tuple[str, str]]:
@@ -59,9 +59,9 @@ def search_accounts(company: str, query: str) -> list[tuple[str, str]]:
 	return _call("nyabo_mn.agent.post", "search_accounts", company, query)
 
 
-def make_correction_proposal(original_doctype: str, original_name: str, reason: str, user: str) -> str:
+def make_correction_proposal(original_doctype: str, original_name: str, reason_code: str, user: str) -> str:
 	return _call(
-		"nyabo_mn.agent.post", "make_correction_proposal", original_doctype, original_name, reason, user
+		"nyabo_mn.agent.post", "make_correction_proposal", original_doctype, original_name, reason_code, user
 	)
 
 

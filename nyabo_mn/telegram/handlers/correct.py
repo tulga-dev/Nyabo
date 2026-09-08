@@ -93,7 +93,7 @@ def do_reverse(ctx: Ctx, doctype: str, name: str, code: str, reason_text: str) -
 	outcome = {"reversal": reversal, "new_proposal": None}
 	if code != "dup":
 		ctx.reply(mn.MSG_CORRECTION_NEW_ENTRY_HINT)
-		proposal_name = _deps.make_correction_proposal(doctype, name, reason_text, ctx.user)
+		proposal_name = _deps.make_correction_proposal(doctype, name, code, ctx.user)
 		if proposal_name:
 			receipt.send_proposal_card(proposal_name, chat_id=ctx.chat_id, bot=ctx.bot)
 			outcome["new_proposal"] = proposal_name

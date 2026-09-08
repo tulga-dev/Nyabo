@@ -39,8 +39,9 @@ def _fake_pipeline(monkeypatch):
 		doc.db_set({"account_code": code})
 		return doc
 
-	def reject(name, reason, user):
-		calls["reject"].append((name, reason, user))
+	def reject(name, reason_code, user, reason_text=None):
+		calls["reject"].append((name, reason_code, user, reason_text))
+		reason = reason_text or mn.REJECT_REASONS.get(reason_code, mn.REJECT_OTHER)
 		frappe.get_doc("Nyabo Proposal", name).db_set({"status": "rejected", "rejection_reason": reason})
 
 	monkeypatch.setattr(_deps, "post_proposal", post_proposal)
@@ -177,7 +178,8 @@ def test_reject_reason_flow(company, monkeypatch):
 	datas = [b["callback_data"] for row in markup["inline_keyboard"] for b in row]
 	assert f"p:{proposal.name}:rr:personal" in datas and f"p:{proposal.name}:rr:other" in datas
 	run(bot, callback_update(2006, f"p:{proposal.name}:rr:personal", message_id=701))
-	assert calls["reject"] == [(proposal.name, mn.REJECT_PERSONAL, "tg-2006@nyabo.local")]
+	# the tapped code travels, not its Mongolian label (the corrections job keys off the code)
+	assert calls["reject"] == [(proposal.name, "personal", "tg-2006@nyabo.local", None)]
 	edit = bot.sent("edit_message_text")[-1]
 	assert edit["text"].endswith(mn.MSG_REJECTED_CARD_FOOTER.format(reason=mn.REJECT_PERSONAL))
 	assert edit["reply_markup"] == {"inline_keyboard": []}
@@ -187,7 +189,12 @@ def test_reject_reason_flow(company, monkeypatch):
 	run(bot, callback_update(2006, f"p:{other.name}:rr:other", message_id=702))
 	assert bot.last_text == mn.MSG_REJECT_TEXT_ASK
 	run(bot, message_update(2006, "Энэ бол ажилтны хувийн зардал"))
-	assert calls["reject"][-1] == (other.name, "Энэ бол ажилтны хувийн зардал", "tg-2006@nyabo.local")
+	assert calls["reject"][-1] == (
+		other.name,
+		"other",
+		"tg-2006@nyabo.local",
+		"Энэ бол ажилтны хувийн зардал",
+	)
 	assert bot.sent("edit_message_text")[-1]["message_id"] == 702
 
 
@@ -217,3 +224,37 @@ def test_account_chooser_uses_the_real_deps_shim(company):
 	assert outcome.get("error") is None
 	assert outcome["result"]["accounts"], "top_accounts returned nothing through the real shim"
 	assert mn.MSG_FEATURE_UNAVAILABLE not in bot.texts()
+
+
+def test_rejection_stores_the_tapped_code_not_its_label(company):
+	"""Real ``_deps.reject``: Nyabo Correction.reason must stay machine-readable (§5.6)."""
+	link_user(2102, "Accountant", company)
+	proposal = make_proposal(company)
+	bot = FakeBotApi()
+	run(bot, callback_update(2102, f"p:{proposal.name}:rr:dup", message_id=801))
+	row = frappe.get_all(
+		"Nyabo Correction",
+		filters={"proposal": proposal.name},
+		fields=["field", "source", "reason", "reason_text"],
+	)[0]
+	assert (row.field, row.source, row.reason, row.reason_text) == (
+		"rejected",
+		"rejection",
+		"dup",
+		mn.REJECT_REASONS["dup"],
+	)
+	assert (
+		frappe.db.get_value("Nyabo Proposal", proposal.name, "rejection_reason") == (mn.REJECT_REASONS["dup"])
+	)
+
+	other = make_proposal(company)
+	bot.clear()
+	run(bot, callback_update(2102, f"p:{other.name}:rr:other", message_id=802))
+	run(bot, message_update(2102, "Энэ бол ажилтны хувийн зардал"))
+	row = frappe.get_all(
+		"Nyabo Correction", filters={"proposal": other.name}, fields=["reason", "reason_text"]
+	)[0]
+	assert (row.reason, row.reason_text) == ("other", "Энэ бол ажилтны хувийн зардал")
+	assert frappe.db.get_value("Nyabo Proposal", other.name, "rejection_reason") == (
+		"Энэ бол ажилтны хувийн зардал"
+	)

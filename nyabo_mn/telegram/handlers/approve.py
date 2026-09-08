@@ -202,7 +202,8 @@ def reject(
 		ctx.reply(mn.MSG_REJECT_TEXT_ASK)
 		return None
 	reason = reason_text or mn.REJECT_REASONS.get(reason_code, mn.REJECT_OTHER)
-	_deps.reject(proposal.name, reason, ctx.user)
+	# The code is what the corrections job reads; the free text of the "other" code rides along.
+	_deps.reject(proposal.name, reason_code, ctx.user, reason_text)
 	proposal.reload()
 	data = receipt.proposal_to_dict(proposal)
 	ctx.edit(
