@@ -413,6 +413,7 @@ MONTHS = [
 
 # --- custom field labels on ERPNext documents ------------------------------------------------
 LBL_SECTION_EBARIMT = "Нябо · И-баримт"
+LBL_SECTION_AUDIT = "Нябо · Хяналтын мөр"
 LBL_EBARIMT_RECEIPT_ID = "И-баримтын дугаар (ДДТД)"
 LBL_EBARIMT_LOTTERY_NO = "Сугалааны дугаар"
 LBL_EBARIMT_DATETIME = "И-баримтын огноо, цаг"

@@ -70,11 +70,36 @@ def transaction_fields(doctype: str, insert_after: str) -> list[dict]:
 	for fieldname, target, label in LINK_FIELDS:
 		if frappe.db.exists("DocType", target):
 			add(fieldname=fieldname, fieldtype="Link", options=target, label=label, read_only=1)
+	# Audit trail for corrections (Law on Accounting art. 15) and retention (art. 11.1).
+	add(fieldname="nyabo_audit_section", fieldtype="Section Break", label=mn.LBL_SECTION_AUDIT, collapsible=1)
+	add(
+		fieldname="nyabo_approved_by",
+		fieldtype="Link",
+		options="User",
+		label=mn.LBL_NYABO_APPROVED_BY,
+		read_only=1,
+	)
+	add(fieldname="nyabo_primary_document_ref", fieldtype="Data", label=mn.LBL_NYABO_PRIMARY_DOCUMENT_REF)
+	add(fieldname="nyabo_retain_until", fieldtype="Date", label=mn.LBL_NYABO_RETAIN_UNTIL, read_only=1)
+	add(fieldname="nyabo_audit_column", fieldtype="Column Break")
+	add(
+		fieldname="nyabo_corrects",
+		fieldtype="Link",
+		options=doctype,
+		label=mn.LBL_NYABO_CORRECTS,
+		read_only=1,
+	)
+	add(
+		fieldname="nyabo_correction_reason",
+		fieldtype="Small Text",
+		label=mn.LBL_NYABO_CORRECTION_REASON,
+		read_only=1,
+	)
 	return chain
 
 
-def party_fields(insert_after: str) -> list[dict]:
-	return [
+def party_fields(insert_after: str, doctype: str = "Customer") -> list[dict]:
+	fields = [
 		dict(
 			fieldname="register_no",
 			fieldtype="Data",
@@ -90,6 +115,33 @@ def party_fields(insert_after: str) -> list[dict]:
 			in_standard_filter=1,
 		),
 	]
+	if doctype == "Supplier":
+		# ebarimt public registry result (getInfo?tin=) cached on the supplier for 30 days.
+		fields += [
+			dict(
+				fieldname="ebarimt_vat_payer",
+				fieldtype="Check",
+				label=mn.LBL_EBARIMT_VAT_PAYER,
+				insert_after="tin",
+				default="0",
+			),
+			dict(
+				fieldname="ebarimt_checked_at",
+				fieldtype="Datetime",
+				label=mn.LBL_EBARIMT_CHECKED_AT,
+				insert_after="ebarimt_vat_payer",
+				read_only=1,
+			),
+			dict(
+				fieldname="nyabo_pending_confirmation",
+				fieldtype="Check",
+				label=mn.LBL_SUPPLIER_PENDING,
+				insert_after="ebarimt_checked_at",
+				default="0",
+				in_standard_filter=1,
+			),
+		]
+	return fields
 
 
 def get_custom_fields() -> dict[str, list[dict]]:
@@ -100,7 +152,7 @@ def get_custom_fields() -> dict[str, list[dict]]:
 			fields[doctype] = transaction_fields(doctype, _insert_after(doctype, preferred))
 	for doctype, preferred in PARTY_DOCTYPES.items():
 		if frappe.db.exists("DocType", doctype):
-			fields[doctype] = party_fields(_insert_after(doctype, preferred))
+			fields[doctype] = party_fields(_insert_after(doctype, preferred), doctype)
 	return fields
 
 
