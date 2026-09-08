@@ -276,6 +276,16 @@ WARN_SIMPLIFIED_OVER_THRESHOLD = (
 	"⚠️ Өмнөх жилийн бүртгэлийн орлого {revenue}₮ нь хялбаршуулсан горимын босго {threshold}₮-өөс давсан "
 	"байна (ААНОАТ 29.1); горимд хамаарах эсэхийг нягтлан баталгаажуулна уу."
 )
+# The 1% base is operating (sales) revenue only — ААНОАТ 29.1 with 29.9. What was left out
+# is named, never dropped in silence.
+WARN_SIMPLIFIED_NON_OPERATING_EXCLUDED = (
+	"⚠️ Үндсэн бус үйл ажиллагааны орлого, олз {amount}₮-г 1%-ийн татварын суурьт оруулаагүй "
+	"(ААНОАТ 29.1, 29.9); нягтлан бодогч шалгаж баталгаажуулна уу."
+)
+WARN_SIMPLIFIED_REVENUE_ROLES_UNKNOWN = (
+	"⚠️ Борлуулалтын орлогын дансдыг тодорхойлж чадсангүй тул орлогын бүх данс 1%-ийн суурьт орлоо "
+	"(ААНОАТ 29.1); нягтлан бодогч суурийг шалгана уу."
+)
 MSG_CLOSE_TRIAL_BALANCE_SOURCE_FALLBACK = (
 	"Гүйлгээ балансыг ерөнхий дэвтрийн бичилтээс шууд тооцов (ERPNext тайлан ашиглах боломжгүй)."
 )

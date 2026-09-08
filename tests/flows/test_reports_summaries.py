@@ -136,6 +136,66 @@ def test_simplified_summary_reads_the_shipped_seed_before_the_first_sync(books):
 	assert real["rate_row"]["article"]
 
 
+def _non_operating_gain_account(company: str) -> str:
+	"""A class-84 leaf (үндсэн бус үйл ажиллагааны олз) under the company's Income root."""
+	parent = frappe.db.get_value(
+		"Account", {"company": company, "root_type": "Income", "is_group": 1}, "name"
+	)
+	doc = frappe.get_doc(
+		{
+			"doctype": "Account",
+			"company": company,
+			"account_name": "Ханшийн зөрүүний олз",
+			"account_number": "8401",
+			"parent_account": parent,
+			"root_type": "Income",
+			"is_group": 0,
+		}
+	)
+	doc.flags.ignore_permissions = True
+	doc.insert()
+	return doc.name
+
+
+def test_one_percent_base_is_sales_revenue_not_class_84_gains(books):
+	"""F-10: art. 29.9 taxes the income determined under 29.1 - operating revenue, not other gains."""
+	_settings(books, "simplified_1pct")
+	gain = _non_operating_gain_account(books)
+	je = make_je(
+		books,
+		amount=30000,
+		posting_date="2026-03-25",
+		debit=CASH,
+		credit=gain,
+		nyabo_primary_document_ref="FX-1",
+	)
+	je.insert()
+	je.submit()
+
+	summary = simplified_summary.compute(books, "2026-Q1")
+	assert summary["revenue"] == Decimal("200000.00")  # the sales invoice only
+	assert summary["excluded_revenue"] == Decimal("30000.00")
+	assert summary["tax_1pct"] == Decimal("2000.00")
+	assert gain not in summary["revenue_accounts"] and INCOME in summary["revenue_accounts"]
+	assert summary["months"][2]["revenue"] == Decimal("200000.00")
+	# what was left out is named, and the row goes to the accountant
+	assert summary["needs_accountant"] is True
+	assert mn.WARN_SIMPLIFIED_NON_OPERATING_EXCLUDED.split("{")[0] in summary["warnings"][-1]
+
+	from frappe.desk import query_report
+
+	result = query_report.run(
+		"Nyabo Simplified Tax Summary",
+		filters={"company": books, "from_date": "2026-01-01", "to_date": "2026-03-31"},
+		ignore_prepared_report=True,
+	)
+	total = next(r for r in result["result"] if r["label"] == mn.LBL_TOTAL)
+	assert total["revenue"] == 200000.0 and total["tax"] == 2000.0
+	assert any(
+		mn.WARN_SIMPLIFIED_NON_OPERATING_EXCLUDED.split("{")[0] in str(r["label"]) for r in result["result"]
+	)
+
+
 def test_report_filter_cannot_switch_off_the_verified_guard(books, frappe_flags):
 	"""F-11: the 1% rate guard answers to frappe.flags.nyabo_simulation only, never to user input."""
 	from frappe.desk import query_report
