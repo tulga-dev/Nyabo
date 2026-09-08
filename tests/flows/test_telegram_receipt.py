@@ -163,7 +163,7 @@ def test_send_and_update_card(company):
 	result = receipt.send_proposal_card(proposal.name, bot=bot)
 	assert result["sent"] is True and result["chat_id"] == "3006"
 	sent = bot.sent("send_message")[0]
-	assert sent["text"].startswith("🧾 Петровис ХХК · 2026-08-14 (Ба)")
+	assert sent["text"].startswith("🧾 Петровис ХХК · 14.08 (Ба)")
 	assert sent["reply_markup"]["inline_keyboard"][0][0]["callback_data"] == f"p:{proposal.name}:ap"
 	proposal.reload()
 	assert proposal.card_chat_id == "3006" and proposal.card_message_id == str(result["message_id"])

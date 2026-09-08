@@ -22,6 +22,9 @@ Money = Decimal
 CENT = Decimal("0.01")
 ZERO = Decimal("0.00")
 
+# U+202F NARROW NO-BREAK SPACE: groups the digits without giving Telegram a place to wrap.
+THOUSANDS_SEPARATOR = " "
+
 _CURRENCY_MARKS = re.compile(r"[₮₮]|MNT|mnt|төг(?:рөг)?\.?", re.UNICODE)
 _SPACES = re.compile(r"[\s   ']")
 _NUMBER = re.compile(r"^\d+(?:\.\d+)?$")  # the sign is consumed before the match
@@ -112,13 +115,19 @@ def parse_mnt(text: str | int | float | Decimal) -> Decimal:
 
 
 def fmt_mnt(value: Decimal | int | str) -> str:
-	"""Format for cards: "85 000", "85 000.50", "-1 500". No currency sign (the card adds ₮)."""
+	"""Format for cards: "85 000", "85 000.50", "-1 500". No currency sign (the card adds ₮).
+
+	The thousands separator is U+202F NARROW NO-BREAK SPACE, not a plain space: Telegram
+	wraps a card line on any breaking space, and "85 000₮" split across two lines reads as
+	two amounts. ``parse_mnt`` already strips it (``_SPACES``), so a formatted amount still
+	round-trips.
+	"""
 	amount = quantize(to_decimal(value)) if not isinstance(value, Decimal) else quantize(value)
 	sign = "-" if amount < 0 else ""
 	amount = abs(amount)
 	whole = int(amount)
 	fraction = amount - whole
-	whole_text = f"{whole:,}".replace(",", " ")
+	whole_text = f"{whole:,}".replace(",", THOUSANDS_SEPARATOR)
 	if fraction == 0:
 		return f"{sign}{whole_text}"
 	return f"{sign}{whole_text}.{str(fraction)[2:]}"

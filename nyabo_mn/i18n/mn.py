@@ -62,7 +62,9 @@ CORRECT_REASONS = {
 MSG_CORRECTION_ASK_REASON = "Залруулгын шалтгааныг сонгоно уу:"
 MSG_CORRECTION_ASK_TEXT = "Шалтгааныг нэг өгүүлбэрээр бичнэ үү:"
 MSG_CORRECTION_DONE = "↩️ Буцаалт бүртгэлээ: {reversal}\nШалтгаан: {reason} · Баталсан: {approver}"
-MSG_CORRECTION_PERIOD_CLOSED = "⚠️ Анхны бичилтийн сар ({period}) хаагдсан тул буцаалтыг өнөөдрийн огноогоор бүртгэлээ. Нягтлан анхаарна уу."
+# {period} is always a period label from core.dates.period_label ("2026 оны 8-р сар"),
+# which already ends in «сар» — no message may add the word again (UX-04).
+MSG_CORRECTION_PERIOD_CLOSED = "⚠️ Анхны бичилт хамаарах {period} хаагдсан тул буцаалтыг өнөөдрийн огноогоор бүртгэлээ. Нягтлан анхаарна уу."
 MSG_CORRECTION_NEW_ENTRY_HINT = "Одоо зөв утгаар шинэ бичилтийн саналыг илгээж байна."
 MSG_CORRECTION_ALREADY_REVERSED = "Энэ бичилт аль хэдийн буцаагдсан байна."
 MSG_CORRECTION_IS_REVERSAL = (
@@ -109,9 +111,26 @@ MSG_MENU = (
 	"/хаалт — сарын хаалт\n"
 	"/чанар — чанарын үзүүлэлт\n"
 	"/бодлого — НББ-ийн бодлогын баримт бичиг\n"
+	"/компани — идэвхтэй компани солих\n"
 	"/эхлэх — компанийн тохиргоо\n"
-	"/тусламж — тусламж"
+	"/меню — энэ цэс\n"
+	"/тусламж — тусламж\n"
+	"Telegram-ын команд цэс (☰) кирилл нэр дэмждэггүй тул тэнд латинаар харагдана."
 )
+# Descriptions for Telegram's own command menu (setMyCommands). The command names must be
+# Latin (see nyabo_mn.telegram.commands); the description the user reads is Mongolian and
+# is capped by Telegram at 256 characters.
+BOT_COMMAND_DESCRIPTIONS = {
+	"start": "Эхлэх / холбогдох",
+	"menu": "Цэс",
+	"help": "Тусламж",
+	"bank": "Банкны тулгалт (/данс)",
+	"close": "Сарын хаалт (/хаалт)",
+	"quality": "Чанарын үзүүлэлт (/чанар)",
+	"policy": "НББ-ийн бодлогын баримт бичиг (/бодлого)",
+	"company": "Идэвхтэй компани солих (/компани)",
+	"setup": "Компанийн тохиргоо (/эхлэх)",
+}
 MSG_HELP = (
 	"Нябо хэрхэн ажилладаг вэ?\n"
 	"1. Баримтын зургаа илгээнэ — Нябо таньж, дансны саналыг картаар илгээнэ.\n"
@@ -144,7 +163,13 @@ ONB_INVENTORY_HOW = (
 )
 ONB_INVENTORY_PARSED = "📦 {count} бараа · нийт {total}₮. Зөв үү?"
 ONB_INVENTORY_POSTED = "✅ Бараа материалын үлдэгдлийг бүртгэлээ: {docs}"
+# SEC-09: the reader never sees a raw exception. {error} takes a Mongolian sentence Nyabo
+# itself wrote; a parser or library message goes to the log instead (ONB_INVENTORY_PARSE_FAILED).
 ONB_INVENTORY_PARSE_ERROR = "Жагсаалтыг уншиж чадсангүй: {error}"
+ONB_INVENTORY_PARSE_FAILED = (
+	"Жагсаалтыг уншиж чадсангүй. Excel/CSV файлын баганууд (нэр, тоо, нэгж үнэ) эсвэл "
+	"мөр бүрт `нэр, тоо, үнэ` хэлбэртэй эсэхийг шалгаад дахин илгээнэ үү."
+)
 ONB_ASK_ACCOUNTANT_NAME = "Нягтлан бодогчийн овог нэр:"
 ONB_ASK_MICPA = "МНБИ-ийн зөвшөөрлийн дугаар (байхгүй бол Алгасах):"
 ONB_DONE = (
@@ -164,8 +189,12 @@ BANK_NAMES_MN = {
 
 # --- receipt cards -----------------------------------------------------------------------
 CARD_RECEIPT_TITLE = "🧾 {seller} · {date} ({weekday})"
-CARD_MONEY_LINE = "💵 {total}₮ · НӨАТ {vat}₮ ({rate}%, {treatment}) · {verification}"
-CARD_MONEY_LINE_NO_VAT = "💵 {total}₮ · НӨАТ-гүй · {verification}"
+# The money line and the verification line are separate so neither wraps on a phone
+# (UX-10: a card line stays under ~60 characters).
+CARD_MONEY_LINE = "💵 {total}₮ · НӨАТ {vat}₮ ({rate}%, {treatment})"
+CARD_MONEY_LINE_TREATMENT = "💵 {total}₮ · НӨАТ {treatment}"
+CARD_MONEY_LINE_NO_VAT = "💵 {total}₮ · НӨАТ-гүй"
+CARD_VERIFICATION_LINE = "🔎 {verification}"
 CARD_ACCOUNT_LINE = "📒 {code} {account} · {reason}"
 CARD_EXPLANATION_LINE = "«{explanation}»"
 CARD_WARNING_LINE = "⚠️ {warning}"
@@ -260,16 +289,16 @@ MSG_CLOSE_TRIAL_BALANCE = "Гүйлгээ баланс: дебет {debit}₮ ·
 MSG_CLOSE_VAT_SUMMARY = "НӨАТ: борлуулалтын {output}₮ · татан суутгах {input}₮ · төлөх {net}₮"
 MSG_CLOSE_SIMPLIFIED_SUMMARY = "Хялбаршуулсан горим: улирлын орлого {revenue}₮ · 1% татвар {tax}₮ ({quarter})"
 MSG_CLOSE_CONFIRM = "Сарыг хаах уу? Хаасны дараа энэ сард бичилт хийх боломжгүй."
-MSG_CLOSE_DONE = "🔒 {period} сар хаагдлаа ({name})."
+MSG_CLOSE_DONE = "🔒 {period} хаагдлаа ({name})."
 MSG_CLOSE_BLOCKED = "Хаах боломжгүй: {reason}"
 MSG_PERIOD_NOT_ENDED = "Сар дуусаагүй байна ({end_date} хүртэл)."
 MSG_PERIOD_ALREADY_CLOSED = "Энэ сар аль хэдийн хаагдсан ({name})."
 MSG_PERIOD_UNVERIFIED_RULES = (
 	"Баталгаажаагүй дүрмээр хийсэн бичилт байна; админ дүрмийг баталгаажуулах шаардлагатай."
 )
-MSG_PERIOD_REOPENED = "🔓 {period} сарыг дахин нээлээ. Шалтгаан: {reason}"
+MSG_PERIOD_REOPENED = "🔓 {period} үеийг дахин нээлээ. Шалтгаан: {reason}"
 MSG_PERIOD_DELETE_BLOCKED = "Нябо-гоор хаасан тайлант үеийг ({name}) устгахгүй; шаардлагатай бол дахин нээнэ."
-MSG_POSTING_IN_CLOSED_PERIOD = "{date} огноо хаагдсан {period} сард байна. Бичилт хийх боломжгүй."
+MSG_POSTING_IN_CLOSED_PERIOD = "{date} огноо хаагдсан {period}-д багтаж байна. Бичилт хийх боломжгүй."
 MSG_CLOSE_SIMPLIFIED_MONTH_LINE = "• {month}: орлого {revenue}₮"
 MSG_SIMPLIFIED_NOT_ELIGIBLE_VAT = (
 	"Хялбаршуулсан 1%-ийн горим НӨАТ-ын суутган төлөгчид хамаарахгүй (ААНОАТ-ын тухай хууль 29.3.1); "
@@ -714,6 +743,9 @@ EXPLANATION = "Тайлбар"
 DEBIT_SHORT = "Дт"
 CREDIT_SHORT = "Кт"
 WEEKDAYS_SHORT = ["Да", "Мя", "Лх", "Пү", "Ба", "Бя", "Ня"]
+# Transaction dates read as dd.mm plus the weekday: "09.03 (Мя)" (core.dates.short_date_mn).
+SHORT_DATE_WEEKDAY = "{date} ({weekday})"
+VALUE_UNKNOWN = "—"  # the em dash a card prints where a field could not be read
 MONTHS = [
 	"1-р сар",
 	"2-р сар",
@@ -862,6 +894,8 @@ MSG_CHART_CSV_COLUMNS = "CSV файлд code, name, parent_code, root_type, acco
 MSG_CHART_CSV_PARENT_MISSING = "«{code}» дансны эцэг данс «{parent}» файлд алга."
 MSG_CHART_CSV_ROOT_TYPE = "«{code}» язгуур дансны root_type буруу байна: {root_type}."
 MSG_CHART_CSV_REQUIRED = "Нягтлангийн дансны төлөвлөгөө (chart_csv) өгөгдөөгүй байна."
+# The chart's own title, shown wherever ERPNext names the chart of accounts.
+CHART_CSV_NAME = "Нягтлангийн дансны төлөвлөгөө"
 MSG_BANK_UNKNOWN = "«{bank}» банк жагсаалтад алга."
 
 # --- matching (parsers, bank import, rules, cards, status) ----------------------------------------
@@ -913,6 +947,8 @@ MSG_STATUS = (
 	"Шийдвэрлээгүй санал: {proposals} · Тулгаагүй банкны гүйлгээ: {unmatched}\n"
 	"Тохиргоо: {config}"
 )
+MSG_STATUS_CONFIG_OK = "бүрэн"
+MSG_STATUS_CONFIG_MISSING = "дутуу: {keys}"
 MSG_ACCOUNT_SEARCH_RESULTS = "Олдсон данс:"
 MSG_REJECT_TEXT_ASK = "Татгалзсан шалтгаанаа нэг өгүүлбэрээр бичнэ үү:"
 MSG_ONBOARDING_APPLY_PENDING = "Хариултуудыг хадгаллаа; дансны бүртгэлийг админ дуусгасны дараа мэдэгдэнэ."
@@ -926,6 +962,8 @@ ONB_BANK_TOGGLE_ON = "✅ {bank}"
 ONB_BANK_TOGGLE_OFF = "☐ {bank}"
 ONB_CURRENCY_OTHER = "Бусад валют"
 ONB_ASK_CURRENCY_CODE = "Валютын кодоо бичнэ үү (жишээ: CNY, EUR):"
+ONB_CURRENCY_ADDED = "✅ {currency} валютыг нэмлээ. Хасах бол доорх товчийг дахин дарна уу."
+ONB_CURRENCY_CODE_INVALID = "Валютын код гурван латин үсэг байна (жишээ: CNY, EUR). Дахин оролдоно уу."
 ONB_CONFIRM_SUMMARY = "Дээрх мэдээлэл зөв үү?"
 CARD_BANK_CANDIDATE = "{index}. {voucher} · {date} · {amount}₮ · {party}"
 MSG_BANK_EXPENSE_CHOOSE_ACCOUNT = "Энэ гүйлгээг аль дансанд бүртгэх вэ?"

@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from nyabo_mn.core.money import fmt_mnt
 from nyabo_mn.i18n import mn
 from nyabo_mn.telegram import api, cards, keyboards
 
@@ -23,7 +24,12 @@ SAMPLE = {
 	"explanation": "Шатахуун авсан тул 6210 дебетлэж, касс кредитлэв.",
 	"citation": "purchase_expense_non_vat · Заавар 116, 3.2",
 	"extracted_json": {"seller_name": "Петровис ХХК", "vat_rate": 0.1},
-	"verification_json": {"seller": {"found": True}, "receipt": {"status": "unsupported"}},
+	# The shape ``agent.pipeline`` actually writes: seller row, receipt row, decoded QR.
+	"verification_json": {
+		"seller": {"found": True, "vat_payer": True},
+		"receipt": {"status": "unsupported"},
+		"qr_data": "0000000000123456789",
+	},
 	"warnings_json": [mn.WARN_LOW_CONFIDENCE.format(field=mn.FIELD_LABELS["date"], confidence=62)],
 	"supplier_is_new": 1,
 }
@@ -37,14 +43,32 @@ def test_receipt_card_matches_snapshot():
 
 def test_receipt_card_anatomy():
 	lines = cards.receipt_card(SAMPLE).split("\n")
-	assert lines[0] == "🧾 Петровис ХХК · 2026-08-14 (Ба)"
-	assert lines[1].startswith("💵 85 000₮ · НӨАТ 7 727.27₮ (10%, зардалд орно) · ")
-	assert mn.VERIFICATION_SELLER_OK in lines[1] and "ebarimt ✓" not in lines[1]
-	assert lines[2] == "📒 6210 Шатахуун · санал"
-	assert lines[3] == "«Шатахуун авсан тул 6210 дебетлэж, касс кредитлэв.»"
-	assert lines[4] == "⚠️ огноо тодорхойгүй (62%)"
-	assert lines[5] == "⚠️ " + mn.WARN_NEW_SUPPLIER
-	assert lines[6] == "📜 purchase_expense_non_vat · Заавар 116, 3.2"
+	# UX-03: the transaction date reads dd.mm with the weekday, not ISO.
+	assert lines[0] == "🧾 Петровис ХХК · 14.08 (Ба)"
+	assert lines[1] == f"💵 {fmt_mnt(85000)}₮ · НӨАТ {fmt_mnt('7727.27')}₮ (10%, зардалд орно)"
+	assert lines[2] == " · ".join(
+		["🔎 " + mn.VERIFICATION_SELLER_OK, mn.VERIFICATION_RECEIPT_UNCHECKED, mn.VERIFICATION_QR_FOUND]
+	)
+	assert "ebarimt ✓" not in lines[2]
+	assert lines[3] == "📒 6210 Шатахуун · санал"
+	assert lines[4] == "«Шатахуун авсан тул 6210 дебетлэж, касс кредитлэв.»"
+	assert lines[5] == "⚠️ огноо тодорхойгүй (62%)"
+	assert lines[6] == "⚠️ " + mn.WARN_NEW_SUPPLIER
+	assert lines[7] == "📜 purchase_expense_non_vat · Заавар 116, 3.2"
+
+
+def test_receipt_card_lines_fit_a_phone():
+	"""UX-10: the money line used to run to 88 characters and wrapped into a block."""
+	for line in cards.receipt_card(SAMPLE).split("\n"):
+		assert len(line) < cards.CARD_MAX_LINE_CHARS, line
+
+
+def test_receipt_card_clips_a_long_seller_name():
+	long_name = "Монголын Их Хөгжлийн Нэгдсэн Үйлдвэрлэл ХХК"
+	title = cards.receipt_card(dict(SAMPLE, supplier_name=long_name)).split("\n")[0]
+	assert len(title) < cards.CARD_MAX_LINE_CHARS
+	assert title.startswith("🧾 Монголын Их Хөгжлийн")
+	assert "…" in title
 
 
 def test_receipt_card_without_vat_and_with_rule():
@@ -62,6 +86,42 @@ def test_receipt_card_without_vat_and_with_rule():
 	assert "⚠️" not in text
 
 
+@pytest.mark.parametrize("treatment", ["exempt", "zero"])
+def test_exempt_and_zero_rated_receipts_show_their_own_label(treatment: str):
+	"""UX-06: both carry no VAT amount, and neither is «НӨАТ-гүй» — the supply is inside the law."""
+	text = cards.receipt_card(dict(SAMPLE, vat_amount="0", vat_treatment=treatment))
+	assert mn.VAT_TREATMENT_LABELS[treatment] in text
+	assert "НӨАТ-гүй" not in text
+
+
+def test_every_vat_treatment_label_can_reach_a_card():
+	"""A label nobody can ever see is a wording bug; this pins that all five are reachable."""
+	rendered = set()
+	for treatment in mn.VAT_TREATMENT_LABELS:
+		vat = "0" if treatment in (*cards.VAT_ZERO_AMOUNT_TREATMENTS, "none") else "7727.27"
+		text = cards.receipt_card(dict(SAMPLE, vat_amount=vat, vat_treatment=treatment))
+		for name, label in mn.VAT_TREATMENT_LABELS.items():
+			if label in text:
+				rendered.add(name)
+	assert rendered == set(mn.VAT_TREATMENT_LABELS) - {"none"}
+
+
+def test_qr_result_reaches_the_card_without_claiming_verification():
+	"""UX-09: the pipeline decodes and stores ``qr_data``; the card must report it."""
+	found = cards.receipt_card(
+		dict(SAMPLE, verification_json={"seller": {"found": True}, "receipt": {}, "qr_data": "123456"})
+	)
+	assert mn.VERIFICATION_QR_FOUND in found
+	assert mn.VERIFICATION_SELLER_OK in found
+	# Reading a QR is not a check against the tax authority; no such API exists.
+	assert mn.VERIFICATION_RECEIPT_UNCHECKED in found
+	missing = cards.receipt_card(
+		dict(SAMPLE, verification_json={"seller": {"found": False}, "receipt": {}, "qr_data": None})
+	)
+	assert mn.VERIFICATION_QR_MISSING in missing
+	assert mn.VERIFICATION_SELLER_NOT_FOUND in missing
+
+
 def test_receipt_card_accepts_json_strings_and_erpnext_account_names():
 	data = dict(SAMPLE, extracted_json='{"seller_name": "X"}', verification_json="{}", warnings_json="[]")
 	data.pop("account_name")
@@ -69,6 +129,14 @@ def test_receipt_card_accepts_json_strings_and_erpnext_account_names():
 	text = cards.receipt_card(data)
 	assert "📒 6210 Шатахуун" in text
 	assert mn.VERIFICATION_SELLER_NOT_FOUND in text
+	# Nothing to say about a QR when the row does not carry the key at all.
+	assert mn.VERIFICATION_QR_FOUND not in text and mn.VERIFICATION_QR_MISSING not in text
+
+
+def test_receipt_card_reads_the_flat_verification_shape_too():
+	"""Rows written before the nested payload (and the simulator) keep working."""
+	text = cards.receipt_card(dict(SAMPLE, verification_json={"seller_found": True, "status": "unsupported"}))
+	assert mn.VERIFICATION_SELLER_OK in text and mn.VERIFICATION_RECEIPT_UNCHECKED in text
 
 
 def test_posted_and_rejected_footers():
@@ -91,7 +159,7 @@ def test_bank_line_card():
 		},
 		{"account_code": "6210", "account_name": "Шатахуун", "rule_applied": "bank_fee"},
 	)
-	assert text.split("\n")[0] == "🏦 Khan Bank · 2026-08-03 · -120 000₮ · «Түлш»"
+	assert text.split("\n")[0] == f"🏦 Khan Bank · 03.08 (Да) · -{fmt_mnt(120000)}₮ · «Түлш»"
 	assert "📒 Санал: 6210 Шатахуун · дүрэм: bank_fee" in text
 
 
@@ -112,7 +180,7 @@ def test_close_card_december_adds_inventory_line():
 		},
 	)
 	assert mn.MSG_CLOSE_INVENTORY_COUNT in text
-	assert "Гүйлгээ баланс: дебет 1 000₮ · кредит 1 000₮" in text
+	assert f"Гүйлгээ баланс: дебет {fmt_mnt(1000)}₮ · кредит {fmt_mnt(1000)}₮" in text
 	assert "1% татвар 5₮" in text
 	assert mn.PERIOD_LABEL.format(year=2026, month=mn.MONTHS[11]) in text
 
@@ -201,29 +269,3 @@ def test_chunk_text_splits_on_newlines():
 	assert len(chunks) > 1
 	assert all(len(c) <= api.MAX_TEXT_CHARS for c in chunks)
 	assert "\n".join(chunks) == text
-
-
-def test_verification_text_reads_the_shape_the_pipeline_writes():
-	"""agent/pipeline.py stores {"seller": ..., "receipt": ...}; a flat row must still render."""
-	nested_found = {
-		"seller": {"name": "Петровис ХХК", "tin": "37200019261", "vat_payer": True, "found": True},
-		"receipt": {"status": "unsupported"},
-		"qr_data": None,
-	}
-	nested_missing = {"seller": {"found": False}, "receipt": {"status": "unsupported"}}
-	assert mn.VERIFICATION_SELLER_OK in cards.verification_text(nested_found)
-	assert mn.VERIFICATION_SELLER_NOT_FOUND in cards.verification_text(nested_missing)
-	assert cards.verification_text(nested_found) != cards.verification_text(nested_missing)
-	# a registered non-VAT payer is still found
-	assert mn.VERIFICATION_SELLER_OK in cards.verification_text(
-		{"seller": {"found": True, "vat_payer": False}, "receipt": {"status": "unsupported"}}
-	)
-	# a verified receipt drops the "unchecked" half
-	assert cards.verification_text({"seller": {"found": True}, "receipt": {"status": "verified"}}) == (
-		mn.VERIFICATION_SELLER_OK
-	)
-	# older flat rows keep rendering
-	assert mn.VERIFICATION_SELLER_OK in cards.verification_text({"seller_found": True})
-	assert cards.verification_text(None) == (
-		f"{mn.VERIFICATION_SELLER_NOT_FOUND} · {mn.VERIFICATION_RECEIPT_UNCHECKED}"
-	)

@@ -12,6 +12,7 @@ from typing import Any
 
 import frappe
 
+from nyabo_mn.core import dates
 from nyabo_mn.i18n import mn
 from nyabo_mn.log import log_event
 from nyabo_mn.telegram import _deps, keyboards
@@ -20,6 +21,18 @@ from nyabo_mn.telegram.handlers import receipt
 
 STATE_REASON = "correct"
 STATE_TEXT = "correct:text"
+
+
+def _period_label(period: Any) -> str:
+	"""``"2026-08"`` -> ``"2026 оны 8-р сар"``; a reversal row can carry anything, so guard it.
+
+	Every message with a ``{period}`` placeholder is written against the label, which
+	already ends in «сар» (UX-04) — passing the raw ISO period would read as a machine id.
+	"""
+	try:
+		return dates.period_label(str(period))
+	except ValueError:
+		return mn.VALUE_UNKNOWN
 
 
 def handle_callback(ctx: Ctx, parts: list[str]) -> Any:
@@ -110,7 +123,7 @@ def do_reverse(ctx: Ctx, doctype: str, name: str, code: str, reason_text: str) -
 	approver = approver_name(ctx)
 	ctx.reply(mn.MSG_CORRECTION_DONE.format(reversal=reversal, reason=reason_text, approver=approver))
 	if result.get("period_closed"):
-		ctx.reply(mn.MSG_CORRECTION_PERIOD_CLOSED.format(period=result.get("original_period") or "—"))
+		ctx.reply(mn.MSG_CORRECTION_PERIOD_CLOSED.format(period=_period_label(result.get("original_period"))))
 	log_event("telegram.correction.reversed", doctype=doctype, name=name, reason=code, reversal=reversal)
 	outcome = {"reversal": reversal, "new_proposal": None}
 	if code != "dup":

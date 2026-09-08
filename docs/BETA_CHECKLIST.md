@@ -9,6 +9,7 @@ Tick every line before inviting the first real accountant. "Who" says who does i
 - [ ] Site Config keys set: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `ADMIN_TELEGRAM_IDS`, `OPENAI_API_KEY`, `EBARIMT_API_BASE`.
 - [ ] `bench execute nyabo_mn.config.check` shows no missing key for `telegram` and `llm`.
 - [ ] Webhook set (`setup_webhook`) and `/start` answers.
+- [ ] Command menu registered (`nyabo_mn.telegram.commands.setup_commands`); the ☰ button lists the commands.
 - [ ] Bot token regenerated after it was pasted into chat; old token invalid.
 
 ## B. Books (founder + accountant)

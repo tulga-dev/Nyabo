@@ -219,6 +219,38 @@ class BotApi:
 	def get_me(self) -> dict[str, Any]:
 		return self.call("getMe")
 
+	# --- command menu --------------------------------------------------------------------------
+
+	def set_my_commands(
+		self,
+		commands: list[dict[str, str]],
+		scope: dict[str, Any] | None = None,
+		language_code: str | None = None,
+	) -> Any:
+		"""setMyCommands (Bot API, read 2026-09-09).
+
+		``commands`` is an array of BotCommand: ``command`` is "1-32 characters. Can contain
+		only lowercase English letters, digits and underscores" — no leading slash, and no
+		Cyrillic, which is why ``nyabo_mn.telegram.commands`` registers Latin names for the
+		Mongolian commands the router also accepts.
+		"""
+		return self.call(
+			"setMyCommands", {"commands": commands, "scope": scope, "language_code": language_code}
+		)
+
+	def set_chat_menu_button(
+		self, chat_id: int | str | None = None, menu_button: dict[str, Any] | None = None
+	) -> Any:
+		"""setChatMenuButton; ``chat_id`` omitted sets the default button for every private chat.
+
+		``{"type": "commands"}`` is MenuButtonCommands, the button that opens the list
+		``set_my_commands`` registered.
+		"""
+		return self.call(
+			"setChatMenuButton",
+			{"chat_id": chat_id, "menu_button": menu_button or {"type": "commands"}},
+		)
+
 
 # --- site-level accessor --------------------------------------------------------------------------
 

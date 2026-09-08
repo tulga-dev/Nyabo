@@ -46,7 +46,7 @@ COLUMN_ALIASES: dict[str, str] = {
 	"account_type": "account_type",
 	"дансны төрөл": "account_type",
 }
-CHART_NAME = "Нягтлангийн дансны төлөвлөгөө"
+CHART_NAME = mn.CHART_CSV_NAME
 _NON_WORD = re.compile(r"[^\w]+", re.UNICODE)
 
 

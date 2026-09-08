@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import collections
 import datetime as dt
 
 import pytest
@@ -12,6 +13,16 @@ def test_weekday_short_mn_monday_to_sunday():
 	monday = dt.date(2026, 9, 7)
 	assert [dates.weekday_short_mn(monday + dt.timedelta(days=i)) for i in range(7)] == mn.WEEKDAYS_SHORT
 	assert dates.weekday_short_mn(monday) == "Да"
+
+
+def test_short_date_mn_is_dd_mm_with_the_weekday():
+	"""UX-03: the brief asks for "09.03 (Мя)", not the ISO date, on every card."""
+	tuesday = dt.date(2027, 3, 9)
+	assert dates.short_date_mn(tuesday) == "09.03"
+	assert dates.short_date_weekday_mn(tuesday) == "09.03 (Мя)"
+	# Both parts are zero-padded so a column of dates lines up.
+	assert dates.short_date_mn(dt.date(2026, 1, 1)) == "01.01"
+	assert dates.short_date_mn(dt.date(2026, 12, 31)) == "31.12"
 
 
 def test_month_bounds_handles_leap_year_and_december():
@@ -49,6 +60,26 @@ def test_period_label_and_quarter_label():
 	assert dates.period_label("2026-08") == "2026 оны 8-р сар"
 	assert dates.period_label("2026-12") == "2026 оны 12-р сар"
 	assert dates.quarter_label(2026, 3) == "2026 оны 3-р улирал"
+
+
+PERIOD_MESSAGES = [name for name in dir(mn) if name.isupper() and "{period}" in str(getattr(mn, name))]
+
+
+def test_no_period_message_repeats_the_word_in_the_label():
+	"""UX-04: the label already ends in «сар», so "…8-р сар сар хаагдлаа" read as a stutter.
+
+	Every ``{period}`` placeholder is filled with ``dates.period_label``; a message that
+	adds «сар» (or «сарын», «сард») right after it doubles the word.
+	"""
+	assert PERIOD_MESSAGES, "no {period} messages found — did the placeholder name change?"
+	label = dates.period_label("2026-08")
+	offenders = []
+	for name in PERIOD_MESSAGES:
+		rendered = str(getattr(mn, name)).format_map(collections.defaultdict(str, period=label))
+		after = rendered.split(label, 1)[1].lstrip(" -·(")
+		if after.startswith("сар"):
+			offenders.append(name)
+	assert offenders == []
 
 
 @pytest.mark.parametrize(

@@ -39,6 +39,7 @@ from nyabo_mn.agent import classify as classify_mod
 from nyabo_mn.agent import extract as extract_mod
 from nyabo_mn.agent.llm_client import LlmClient, LlmResult
 from nyabo_mn.agent.mock_client import DEFAULT_FIXTURES_DIR, MockLlmClient
+from nyabo_mn.core import dates
 from nyabo_mn.core import rules_engine as re_
 from nyabo_mn.core.models import Citation, ProposedEntry, ProposedLine, RegimeContext
 from nyabo_mn.core.money import ZERO, fmt_mnt, quantize, to_decimal, vat_consistent
@@ -895,7 +896,9 @@ def correct(
 	warnings: list[str] = []
 	if not in_original:
 		warnings.append(
-			mn.MSG_CORRECTION_PERIOD_CLOSED.format(period=original.entry.posting_date.strftime("%Y-%m"))
+			mn.MSG_CORRECTION_PERIOD_CLOSED.format(
+				period=dates.period_label(dates.period_of(original.entry.posting_date))
+			)
 		)
 
 	rows: list[dict[str, str]] = []
@@ -963,7 +966,7 @@ def posting_allowed_in_period(
 	adapters = adapters or default_adapters()
 	if adapters.period_is_closed(list(closed_periods), on_date):
 		return False, mn.MSG_POSTING_IN_CLOSED_PERIOD.format(
-			date=on_date.isoformat(), period=on_date.strftime("%Y-%m")
+			date=on_date.isoformat(), period=dates.period_label(dates.period_of(on_date))
 		)
 	return True, None
 

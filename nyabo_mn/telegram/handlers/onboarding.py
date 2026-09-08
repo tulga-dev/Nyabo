@@ -20,7 +20,7 @@ from frappe.utils import getdate, today
 
 from nyabo_mn.core.models import Regime
 from nyabo_mn.i18n import mn
-from nyabo_mn.log import log_event
+from nyabo_mn.log import log_error, log_event
 from nyabo_mn.telegram import _deps, cards, files, keyboards
 from nyabo_mn.telegram._deps import DependencyMissing
 from nyabo_mn.telegram.context import Ctx
@@ -33,6 +33,17 @@ DEFAULT_CURRENCY = "MNT"
 
 def _state(step: str) -> str:
 	return f"{PREFIX}:{step}"
+
+
+def _currency_code(text: str) -> str:
+	"""ISO-4217-shaped code from what the accountant typed, or "" when it is not one.
+
+	The code is put straight into callback data, which is colon-separated (``keyboards.encode``
+	refuses a colon) and capped at 64 bytes, so anything but three ASCII letters is refused
+	rather than sanitised into something the user did not type.
+	"""
+	code = (text or "").strip().upper()
+	return code if len(code) == 3 and code.isascii() and code.isalpha() else ""
 
 
 # --- entry -------------------------------------------------------------------------------------------
@@ -169,7 +180,10 @@ def _ask_currencies(ctx: Ctx, payload: dict[str, Any]) -> Any:
 	banks = payload.get("banks") or []
 	if index >= len(banks):
 		return _ask_inventory(ctx, payload)
+	# Each bank starts from a clean slate, typed codes included: an MNT/CNY account at one
+	# bank says nothing about the next one.
 	payload["cur_selected"] = []
+	payload["cur_custom"] = []
 	_advance(ctx, payload, "cur")
 	ctx.reply(mn.ONB_ASK_CURRENCIES.format(bank=banks[index]["bank"]), keyboards.onboarding_currencies([]))
 	return {"step": "cur", "bank": banks[index]["bank"]}
@@ -189,7 +203,9 @@ def _on_currency(ctx: Ctx, payload: dict[str, Any], value: str) -> Any:
 		payload["cur_selected"] = selected
 		_advance(ctx, payload, "cur")
 		ctx.bot.edit_message_reply_markup(
-			ctx.chat_id, ctx.callback_message_id, keyboards.onboarding_currencies(selected)
+			ctx.chat_id,
+			ctx.callback_message_id,
+			keyboards.onboarding_currencies(selected, payload.get("cur_custom") or []),
 		)
 		return {"selected": selected}
 	bank = payload["banks"][payload["bank_index"]]
@@ -310,7 +326,17 @@ def _on_inventory_input(ctx: Ctx, payload: dict[str, Any]) -> Any:
 	except DependencyMissing:
 		raise
 	except Exception as exc:
-		ctx.reply(mn.ONB_INVENTORY_PARSE_ERROR.format(error=str(exc)[:200]))
+		# SEC-09: a parser exception carries file paths, sheet names and library internals,
+		# and the file itself is untrusted input. The user gets the Mongolian instruction;
+		# the detail goes to the log, where an admin can read it.
+		log_error(
+			"telegram.onboarding.inventory_parse_failed",
+			exc,
+			company=ctx.company,
+			user=ctx.user,
+			source="excel" if ctx.document else "text",
+		)
+		ctx.reply(mn.ONB_INVENTORY_PARSE_FAILED)
 		return None
 	if not items:
 		ctx.reply(mn.ONB_INVENTORY_PARSE_ERROR.format(error=mn.MSG_ONBOARDING_INVENTORY_NEED_FILE))
@@ -359,14 +385,26 @@ def handle_state(ctx: Ctx, state: str, payload: dict[str, Any]) -> Any:
 	if step == "acct":
 		return _store_account_number(ctx, payload, ctx.text.strip()[:60] or None)
 	if step == "cur_other":
-		code = ctx.text.strip().upper()[:5]
+		code = _currency_code(ctx.text)
 		selected = list(payload.get("cur_selected") or [])
-		if code and code not in selected:
-			selected.append(code)
-		payload["cur_selected"] = selected
-		_advance(ctx, payload, "cur")
+		custom = list(payload.get("cur_custom") or [])
 		bank = payload["banks"][payload["bank_index"]]["bank"]
-		ctx.reply(mn.ONB_ASK_CURRENCIES.format(bank=bank), keyboards.onboarding_currencies(selected))
+		if not code:
+			_advance(ctx, payload, "cur")
+			ctx.reply(mn.ONB_CURRENCY_CODE_INVALID, keyboards.onboarding_currencies(selected, custom))
+			return {"selected": selected}
+		if code not in selected:
+			selected.append(code)
+		if code not in custom:
+			custom.append(code)
+		payload["cur_selected"] = selected
+		payload["cur_custom"] = custom
+		_advance(ctx, payload, "cur")
+		# UX-11: say the code landed, and redraw the keyboard so it is there to untoggle.
+		ctx.reply(
+			mn.ONB_CURRENCY_ADDED.format(currency=code) + "\n" + mn.ONB_ASK_CURRENCIES.format(bank=bank),
+			keyboards.onboarding_currencies(selected, custom),
+		)
 		return {"selected": selected}
 	if step == "inv_wait":
 		return _on_inventory_input(ctx, payload)
@@ -393,7 +431,9 @@ def _repeat(ctx: Ctx, step: str, payload: dict[str, Any]) -> Any:
 		bank = payload["banks"][payload["bank_index"]]["bank"]
 		ctx.reply(
 			mn.ONB_ASK_CURRENCIES.format(bank=bank),
-			keyboards.onboarding_currencies(payload.get("cur_selected") or []),
+			keyboards.onboarding_currencies(
+				payload.get("cur_selected") or [], payload.get("cur_custom") or []
+			),
 		)
 	elif step == "inv":
 		ctx.reply(mn.ONB_ASK_INVENTORY, keyboards.onboarding_yes_no("inv"))

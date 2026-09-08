@@ -9,6 +9,7 @@ import frappe
 
 from nyabo_mn.agent import pipeline, post
 from nyabo_mn.agent.mock_client import MockLlmClient
+from nyabo_mn.core.money import fmt_mnt
 from nyabo_mn.i18n import mn
 from tests.flows.conftest import ACCOUNTANT
 
@@ -44,15 +45,17 @@ def test_books_handlers_read_the_ledger(run_receipt, books):
 	balance = books_handler(
 		{"query_kind": "balance_on_date", "args": {"account_code": "1810", "on_date": "2026-09-30"}}
 	)
-	assert balance["balance"] == "7 727.27" and balance["account"] == "1810 - Татан суутгах НӨАТ - TST"
+	assert (
+		balance["balance"] == fmt_mnt("7727.27") and balance["account"] == "1810 - Татан суутгах НӨАТ - TST"
+	)
 	assert balance["text"] == mn.MSG_BALANCE_ANSWER.format(
-		account="1810 - Татан суутгах НӨАТ - TST", date="2026-09-30", balance="7 727.27"
+		account="1810 - Татан суутгах НӨАТ - TST", date="2026-09-30", balance=fmt_mnt("7727.27")
 	)
 
 	spend = books_handler(
 		{"query_kind": "spend_by_account", "args": {"account_code": "6210", "period": "2026-09"}}
 	)
-	assert spend["amount"] == "77 272.73" and spend["period"] == "2026-09"
+	assert spend["amount"] == fmt_mnt("77272.73") and spend["period"] == "2026-09"
 	assert mn.PERIOD_LABEL.format(year=2026, month=mn.MONTHS[8]) in spend["text"]
 	assert (
 		books_handler(
@@ -63,7 +66,9 @@ def test_books_handlers_read_the_ledger(run_receipt, books):
 
 	last = books_handler({"query_kind": "last_entries_for_supplier", "args": {"supplier": "Петровис"}})
 	assert last["supplier"] == "Петровис ХХК" and len(last["entries"]) == 1
-	assert last["entries"][0]["doctype"] == "Purchase Invoice" and last["entries"][0]["amount"] == "85 000"
+	assert last["entries"][0]["doctype"] == "Purchase Invoice" and last["entries"][0]["amount"] == fmt_mnt(
+		85000
+	)
 	assert last["text"].startswith("Петровис ХХК")
 	missing = books_handler({"query_kind": "last_entries_for_supplier", "args": {"supplier": "Хэн ч биш"}})
 	assert missing["entries"] == [] and missing["text"] == mn.SUPPLIER_NOT_FOUND_ANSWER.format(
