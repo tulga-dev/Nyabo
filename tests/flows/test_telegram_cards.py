@@ -241,6 +241,10 @@ def test_callback_data_is_at_most_64_bytes_everywhere():
 		keyboards.correction_reasons("ACC-JV-2026-00001"),
 		keyboards.posted_keyboard("Purchase Invoice", "ACC-PINV-2026-00001"),
 		keyboards.bank_line_keyboard("ACC-BTN-2026-00001"),
+		keyboards.bank_line_keyboard(
+			"ACC-BTN-2026-00001", settle=("Purchase Invoice", "ACC-PINV-2026-00001")
+		),
+		keyboards.bank_settle("ACC-BTN-2026-00001", "Sales Invoice", "ACC-SINV-2026-00001"),
 		keyboards.bank_candidates("ACC-BTN-2026-00001", 9),
 		keyboards.close_confirm("2026-08"),
 		keyboards.onboarding_banks(["Khan Bank"]),

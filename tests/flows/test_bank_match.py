@@ -148,6 +148,10 @@ def test_manual_find_and_reconcile(books, banks, as_user):
 	assert set(found[0]) >= {"doctype", "name", "date", "amount", "party_name", "score"}
 	assert pi.name in cards.render_candidates(found)
 	assert cards.render_candidates([]) == mn.MSG_BANK_FIND_NONE
+	# A paid invoice moved the bank already: it is reconciled, not settled (BANK-08).
+	assert found[0]["needs_settlement"] is False
+	assert match.settlement_needed("Purchase Invoice", pi.name) is False
+	assert match.settlement_candidate(bt.name) is None
 
 	with as_user("acc@example.com", ["Nyabo Accountant"]) as user:
 		result = match.reconcile(bt.name, "Purchase Invoice", pi.name, user, telegram_id="2002")
@@ -221,6 +225,8 @@ def test_unmatched_lines_are_carded_into_the_statement_chat(books, banks):
 	assert mn.CARD_BANK_UNMATCHED in sent[0]["text"]
 	buttons = [b["callback_data"] for row in sent[0]["reply_markup"]["inline_keyboard"] for b in row]
 	assert any(data.endswith(":find") for data in buttons)
+	# Nothing to settle here: the settlement button only appears with an open invoice (BANK-08).
+	assert not any(":st:" in data for data in buttons)
 
 	# No chat to send to: the line is still counted, the import is not rolled back.
 	second = helpers.statement_document(books, *fixtures.tdb_xlsx())

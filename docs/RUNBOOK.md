@@ -79,6 +79,16 @@ summary card `✅ Тохиргоо дууслаа` and, in the desk, a Nyabo Com
 
 - Receipts: the owner sends a photo; the accountant gets the card and taps Батлах.
 - Bank statements: the accountant sends the bank's Excel export; unmatched lines come back as cards.
+  - A card that names an unpaid invoice («Төлөгдөөгүй баримт: …») carries **Төлбөр бүртгэх**.
+    Tapping it records the payment (a Payment Entry dated on the statement line), which closes
+    the supplier payable and credits the bank; the line then shows as reconciled. Nothing posts
+    until that tap. **Баримт хайх** onto an unpaid invoice offers the same button.
+  - If the line is bigger than what the invoice still owes, the tap is refused: split it or pick
+    another document. A smaller line pays part of the invoice and leaves the rest outstanding.
+  - A foreign-currency invoice, a reversed one, a line that already carries a Nyabo proposal and
+    a closed period are each refused in Mongolian; the answer says which.
+  - Undo a mis-tapped settlement by cancelling the Payment Entry in the desk: the invoice goes
+    back to Unpaid and the statement line back to Unreconciled, ready to settle again.
 - Month end: `/хаалт 2026-09` → checklist → summaries as PDF → **Хаах**.
 - Corrections: on a posted entry's card, **Засах** → reason → reversal + new proposal.
 - Questions: type a sentence; the answer comes from the books, read-only.

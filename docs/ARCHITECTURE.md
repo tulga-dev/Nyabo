@@ -291,6 +291,23 @@ verifies); fee lines → rule `bank_fee` auto-proposal (still approved by a tap 
 lines → cards with [Баримт хайх] [Зардал бүртгэх] [Дараа]. `/данс` prints per bank
 account: statement balance vs ledger balance, unmatched count.
 
+A cash receipt credits cash at posting time through ERPNext's `is_paid` invoice; a card /
+QPay / transfer receipt keeps the payable open and is settled by a Payment Entry
+(`matching.match.settle`) created on the accountant's tap when the statement line arrives.
+A line whose only candidate is such an unpaid invoice therefore stays unmatched and its
+card carries [Төлбөр бүртгэх]: `Bank Transaction.add_payment_entries` /
+`allocate_payment_entries` only record a link and a clearance date, so allocating an unpaid
+invoice would leave the payable open and the bank overstated (ERPNext's own
+`get_pi_matching_query` offers Purchase Invoices only with `is_paid = 1`). `run` never
+settles — a Payment Entry posts, and §1.3 keeps posting behind a human tap. The tap is
+refused unless the invoice belongs to the line's company, the direction agrees (a
+withdrawal pays a Purchase Invoice, a deposit collects a Sales Invoice), the invoice is
+live (not returned or reversed), the three currencies agree, the line carries no Nyabo
+Proposal already, the period is open and the line is no bigger than the outstanding
+amount. The Payment Entry it creates is a Nyabo posting like any other: `doc_events`
+guards, the `nyabo_*` audit fields, the Mongolian explanation and the statement as its
+source document.
+
 ### 5.5 Month-end `/хаалт YYYY-MM` (accountant only)
 
 Checklist: open proposals, unmatched bank lines, receipts without seller verification,

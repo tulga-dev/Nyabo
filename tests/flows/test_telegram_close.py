@@ -435,11 +435,12 @@ def test_bank_card_find_and_reconcile(company, monkeypatch):
 
 def test_bank_callbacks_refuse_another_companys_line(company, monkeypatch):
 	"""Bank Transaction names are a global sequence; the line's own company is not authority (SEC-02)."""
-	calls: dict[str, list] = {"top": [], "propose": [], "reconcile": [], "find": []}
+	calls: dict[str, list] = {"top": [], "propose": [], "reconcile": [], "find": [], "settle": []}
 	monkeypatch.setattr(_deps, "top_accounts", lambda c, n=6: calls["top"].append(c) or [("6210", "Ш")])
 	monkeypatch.setattr(_deps, "propose_bank_expense", lambda *a: calls["propose"].append(a) or None)
 	monkeypatch.setattr(_deps, "reconcile", lambda *a: calls["reconcile"].append(a))
 	monkeypatch.setattr(_deps, "find_candidates", lambda *a: calls["find"].append(a) or [])
+	monkeypatch.setattr(_deps, "settle", lambda *a, **k: calls["settle"].append(a))
 
 	other = _second_company()
 	victim = _bank_transaction(other)
@@ -452,7 +453,10 @@ def test_bank_callbacks_refuse_another_companys_line(company, monkeypatch):
 	assert bot.sent("answer_callback_query")[-1]["text"] == mn.MSG_NO_PERMISSION
 	run(bot, callback_update(8040, f"b:{victim}:m:0", message_id=51))
 	assert bot.sent("answer_callback_query")[-1]["text"] == mn.MSG_NO_PERMISSION
-	assert calls == {"top": [], "propose": [], "reconcile": [], "find": []}
+	# [Төлбөр бүртгэх] is the branch that posts, so it is guarded like the rest (BANK-09).
+	run(bot, callback_update(8040, f"b:{victim}:st:pi:ACC-PINV-2026-00001", message_id=51))
+	assert bot.sent("answer_callback_query")[-1]["text"] == mn.MSG_NO_PERMISSION
+	assert calls == {"top": [], "propose": [], "reconcile": [], "find": [], "settle": []}
 	assert frappe.db.get_value("Nyabo Chat State", {"chat_id": "8040"}, "state") in (None, "")
 
 

@@ -357,6 +357,31 @@ config flag `MONGOLBANK_FETCH_ENABLED`, is marked UNVERIFIED and is never called
 tests; `import_csv` is the supported path. Rows land in ERPNext's Currency Exchange table
 and the pipeline reads them through `get_exchange_rate`.
 
+### COMP-10 A Payment Entry is a posting, so it carries the guards — except the reversal
+The settlement tap introduced a fourth ledger-posting DocType, and the first attempt left it
+outside every Nyabo guard: no `doc_events`, none of the `nyabo_*` custom fields, no Mongolian
+explanation, no link back to the statement, no retention date, editable after submit and
+deletable after cancel — with ERPNext's English boilerplate as its only narrative. Payment
+Entry is now in `hooks.doc_events` with the same four handlers, in
+`setup.custom_fields.TRANSACTION_DOCTYPES`, in `RETAINED_PARENTS` and in
+`PRIMARY_DOCUMENT_DOCTYPES`; `match.settle` stamps `nyabo_explanation` (which payable this
+credit closed and which bank account it left), `nyabo_approved_by`, `source_document` (the
+Nyabo Document of the statement import) and `nyabo_primary_document_ref` (the invoice).
+`block_delete_of_posted` used to ask for `nyabo_proposal` alone, which a settlement has not
+got; it now fires on any Nyabo trail — the proposal, the source document or the explanation.
+
+The reversal path is deliberately *not* extended. Every DocType in `reversal.SUPPORTED` has an
+ERPNext constructor that builds a counter-document leaving the original in place
+(`make_reverse_journal_entry`, `make_debit_note`). A Payment Entry has none: ERPNext undoes one
+by cancelling it, which is what re-opens the invoice through the Payment Ledger and, through
+`remove_from_bank_transaction`, releases the statement line. A hand-built reversing Journal
+Entry would move the bank and the payable back while `outstanding_amount` still said "Paid" —
+a worse book than the mistake. A mis-tapped settlement is therefore corrected by cancelling the
+Payment Entry (the line returns to Unreconciled and can be settled again) or, when the invoice
+itself was wrong, by reversing the invoice, which this module does support. Reverse this
+decision the day ERPNext grows a `make_reverse_payment_entry`, or the day Nyabo models the
+Payment Ledger well enough to restore an outstanding amount by hand.
+
 ## parsers + matching (stage 2)
 
 ### BANK-01 Candidates come from the GL, not from each DocType's amount fields
@@ -436,6 +461,69 @@ as an advance on the supplier: the accountant splits it or picks another documen
 posting behind a human tap, so the line stays unmatched and its card carries
 [Төлбөр бүртгэх]. Reverse by deleting `settle` and the button; the refusal in `reconcile`
 must stay either way, because the allocation it refuses does not do what it looks like.
+
+### BANK-09 What `settle` refuses, and why every one of those refusals is a book entry saved
+Two independent reviews reproduced eighteen problems with the first settlement branch, six
+of which corrupted the books. `settle` now checks everything it can before it writes
+anything, and each check is here because a probe produced a wrong ledger without it:
+
+- **The invoice's company must be the statement line's.** The voucher name arrives in
+  callback data, and `frappe.db.exists` is a global question. Without the check
+  `get_payment_entry` built a Payment Entry in the *other* company's books with this
+  company's bank account on it; only `submit` noticed, in English, and a docstatus-1
+  document with no GL behind it was left in the other company's ledger — one more per retry.
+- **The direction must agree**: only a withdrawal pays a Purchase Invoice, only a deposit
+  collects a Sales Invoice, and the `payment_type` ERPNext derives is asserted as well
+  (`Pay` for an outflow, `Receive` for an inflow). The wrong pairing produced a `Receive`
+  that DEBITED the bank for a line where money left it, and then marked the line Reconciled:
+  double the overstatement this change exists to remove.
+- **A line a Nyabo Proposal already explains may not also be settled.** `existing_proposal`
+  asked for status `proposed` only, so a *posted* bank-line proposal made the line look
+  untouched: `run` re-carded it, the button was offered, and 187,000₮ of bank credit came
+  out of one 93,500₮ statement line. The lookup now covers `proposed`, `approved` and
+  `posted` — every state that means the line is spoken for — and `settle`, `run`, the card
+  text and the button all ask the same question.
+- **The currencies must agree** (invoice, party account, bank account, statement line).
+  `outstanding_amount` is in the invoice's currency and `unallocated_amount` in the bank's,
+  so the over-allocation guard and the allocated amount compared and wrote across
+  currencies: a 93,500 USD invoice was offered for a 93,500₮ withdrawal. Supporting it
+  properly means writing `paid_amount`, `received_amount` and `allocated_amount` in three
+  currencies through `conversion_rate`; until that is built and tested against a real bench
+  the tap is refused and the accountant posts by hand.
+- **A reversed invoice is not a candidate**: `is_return`, a status of Return / Debit Note
+  Issued / Credit Note Issued / Cancelled / Closed, or a submitted return naming it. ERPNext's
+  repost normally zeroes the outstanding too, but nothing here may depend on that having
+  happened — settling a voided invoice credits the bank against a payable that already nets
+  to zero and leaves a phantom prepayment on the supplier.
+- **A closed period is refused with `MSG_POSTING_IN_CLOSED_PERIOD`**, the message every other
+  posting path gives (`post.refuse_if_closed`). ERPNext refuses it too, in English, which
+  reached the accountant as the generic "error, admin notified".
+- **A bank account with no GL account is refused.** `get_payment_entry` silently falls back
+  to `Company.default_bank_account`, so an empty mapping credited a bank the statement line
+  never touched.
+- **Nothing partial survives a failure.** `insert` + `submit` + `reconcile` run inside one
+  `frappe.db.savepoint`; the rollback is what a site relies on, and an explicit cancel +
+  delete of the Payment Entry makes the invariant observable in the harness, which has no
+  real transaction. Before, a `reconcile` that threw left a *submitted* Payment Entry, the
+  invoice at zero outstanding and the line Unreconciled — and, because `settlement_needed`
+  was then false, every retry was refused, so the accountant could neither settle nor
+  reconcile the line from Telegram.
+
+Authorisation: `check_can_settle` asks `access.require_company` and `post.approver_kind`, and
+the Payment Entry is then inserted with `ignore_permissions`, as every other Nyabo posting
+path does (`agent.post.post_proposal`). The alternative — posting as the tapping user and
+relying on ERPNext's own role — was rejected: a linked accountant does get `Accounts User`
+at link time (TG-05), but making the tap depend on a role a site's admin can revoke turns a
+posting Nyabo has already authorised into a dead button. `MSG_BANK_SETTLE_ERPNEXT_PERMISSION`
+stays as the Mongolian answer for the paths that still reach a `PermissionError`.
+
+Cost: the candidate scan used to be O(open invoices) round trips per line, per card and per
+[Буцах] tap — a 300-line statement against 200 open invoices was ~60,000 `get_value` calls
+per import. `open_invoice_candidates` now fetches the party and reference columns in the same
+`get_all` (no `voucher_details` per row) plus one query for the returns that void them, and
+`run` builds the list once per (direction, currency) instead of once per line. The card's
+settlement hint and the button both catch broadly: the hint is decoration, and decoration
+must never suppress a card.
 
 ## integration (stage 2 seams: rules + compliance + reports)
 
