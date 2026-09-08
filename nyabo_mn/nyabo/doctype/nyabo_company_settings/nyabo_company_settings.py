@@ -1,7 +1,7 @@
 """Nyabo Company Settings: per-company policy, regime history and bank rows.
 
 The regime history must be contiguous and non-overlapping: `regime_on` tolerates
-overlaps (latest start wins, D-004) but a gap would refuse every posting dated inside
+overlaps (latest start wins, CORE-04) but a gap would refuse every posting dated inside
 it, and an overlap hides which regime the accountant meant. `default_expense_code`
 must resolve to an account of the installed chart, because the classifier falls back
 to it on every receipt it cannot place.

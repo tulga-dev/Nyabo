@@ -59,7 +59,7 @@ def test_vat_payer_receipt_proposes_purchase_invoice_with_input_vat(run_receipt)
 
 def test_vat_payer_receipt_paid_in_cash_credits_cash_not_the_payable(run_receipt):
 	"""A receipt paid over the counter credits cash even when the input VAT makes it an invoice:
-	no bank statement line will ever settle a payable that was already paid (D-019)."""
+	no bank statement line will ever settle a payable that was already paid (PIPE-03)."""
 	proposal = run_receipt("petrovis_fuel", payment_method="cash")
 	assert proposal.vat_treatment == "withheld"
 	entry = _entry(proposal)
@@ -173,7 +173,9 @@ def test_a_decoded_qr_reaches_the_proposal_the_card_and_the_posted_document(run_
 	text, _markup = card_for(proposal)
 	# UX-10 moved the three verification facts off the money line onto their own line so the
 	# money line stays readable on a phone; the QR fact sits next to the unchecked-receipt one.
-	expected = f"{mn.VERIFICATION_SELLER_OK} · {mn.VERIFICATION_RECEIPT_UNCHECKED} · {mn.VERIFICATION_QR_FOUND}"
+	expected = (
+		f"{mn.VERIFICATION_SELLER_OK} · {mn.VERIFICATION_RECEIPT_UNCHECKED} · {mn.VERIFICATION_QR_FOUND}"
+	)
 	assert any(line.endswith(expected) for line in text.split("\n")), text
 
 	result = post.post_proposal(proposal.name, ACCOUNTANT, approver_telegram_id="700002")

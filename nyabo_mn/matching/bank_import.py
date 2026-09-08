@@ -302,7 +302,7 @@ def import_statement(document_name: str, *, run_matching: bool = True) -> dict[s
 	summary["guess"] = _layout_dict(guess)
 	if layout is None:
 		# A stored layout whose signature matches but which nobody verified must not restart
-		# the mapping conversation: the admin verifies the row instead (D-008, §1.2).
+		# the mapping conversation: the admin verifies the row instead (CORE-08, §1.2).
 		unverified = detect_mod.unverified_match(rows, company)
 		summary["status"] = "unverified_layout" if unverified is not None else "unknown_layout"
 		summary["unknown_layout"] = True

@@ -22,7 +22,7 @@ def test_params_get_is_dated_and_never_falls_back(seeded):
 		"vat.registration_threshold", dt.date(2027, 1, 1), allow_unverified=True
 	) == Decimal("400000000")
 	assert params.get("vat.rate", dt.date(2027, 6, 1), allow_unverified=True).as_decimal() == Decimal("0.1")
-	# the 2027 simplified-regime change is still a Government bill: pending, value null (D-012)
+	# the 2027 simplified-regime change is still a Government bill: pending, value null (CORE-12)
 	with pytest.raises(PendingRuleError):
 		params.get("simplified.revenue_threshold", dt.date(2027, 3, 1), allow_unverified=True)
 	with pytest.raises(MissingRuleError):

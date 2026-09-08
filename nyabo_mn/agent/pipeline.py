@@ -863,7 +863,7 @@ def _run(
 		else "journal_entry"
 	)
 	# A cash receipt credits cash whatever the document kind: no bank statement line will ever
-	# arrive to settle a payable that was paid over the counter (D-019). The Purchase Invoice
+	# arrive to settle a payable that was paid over the counter (PIPE-03). The Purchase Invoice
 	# books it as ERPNext's paid invoice (``is_paid``) in ``post.build_purchase_invoice``.
 	overrides = {"payable": "cash"} if receipt.payment_method == "cash" else {}
 	resolver = make_resolver(

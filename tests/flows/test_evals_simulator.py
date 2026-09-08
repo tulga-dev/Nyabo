@@ -20,7 +20,7 @@ def test_fuel_receipt_snapshot_off_site():
 
 
 def test_both_regimes_credit_the_payable_like_the_pipeline():
-	"""D-019: only a cash receipt credits cash; card/QPay/transfer keep the payable.
+	"""PIPE-03: only a cash receipt credits cash; card/QPay/transfer keep the payable.
 
 	The simulator is the founder's sanity check, so an entry it prints must be the entry
 	``agent.pipeline`` would post. The fuel receipt is paid by QPay.

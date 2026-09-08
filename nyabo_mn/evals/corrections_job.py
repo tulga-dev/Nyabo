@@ -139,7 +139,7 @@ def propose_learned_rules(corrections: list[dict[str, Any]]) -> int:
 
 	``nyabo_mn.agent.pipeline.propose_learned_rules(corrections)`` wins when it exists (a
 	batch entry point); otherwise each account correction goes through
-	``nyabo_mn.agent.post.learn_from_correction`` (D-022: two agreeing corrections for one
+	``nyabo_mn.agent.post.learn_from_correction`` (PIPE-06: two agreeing corrections for one
 	supplier or description create one pending ``Nyabo Rule``, an existing rule blocks a
 	duplicate, so re-running the night is safe). Without either learner the count is 0.
 	"""

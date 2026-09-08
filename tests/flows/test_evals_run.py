@@ -62,7 +62,7 @@ def test_full_run_meets_the_thresholds_except_known_gaps():
 
 
 def test_cash_receipt_credits_cash_even_when_the_input_vat_makes_it_an_invoice():
-	"""D-019: the simulator must show what ``agent.pipeline`` would post, and a receipt paid over
+	"""PIPE-03: the simulator must show what ``agent.pipeline`` would post, and a receipt paid over
 	the counter credits cash whatever the document kind (the invoice is posted as ``is_paid``)."""
 	case = next(
 		c for c in loader.load_golden(["classification"]) if c.case_id == "classify_petrovis_fuel_vat_payer"

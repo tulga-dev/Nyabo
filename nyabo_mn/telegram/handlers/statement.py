@@ -5,7 +5,7 @@ runs on the ``long`` queue. When the importer does not recognise the layout it r
 ``status = "unknown_layout"`` with the header row and a preview; the accountant is then
 asked, one column at a time, which role the column plays, and the answer is saved as a
 ``Nyabo Bank Layout`` with ``verified = 0`` so nothing is imported on a guessed mapping
-(D-008). A layout that was already mapped but not verified comes back as
+(CORE-08). A layout that was already mapped but not verified comes back as
 ``status = "unverified_layout"``: the admin verifies that row, the accountant is not asked
 the same questions again. Anything the importer refuses (no bank account, unreadable file)
 arrives as an exception whose ``message_mn`` is the reply.

@@ -139,7 +139,7 @@ def test_learned_rules_go_through_the_pipeline_when_it_exists(corrected, monkeyp
 
 
 def test_two_agreeing_corrections_learn_a_rule_through_the_nightly_job(company):
-	"""Without ``pipeline.propose_learned_rules`` the job calls ``agent.post.learn_from_correction`` (D-022)."""
+	"""Without ``pipeline.propose_learned_rules`` the job calls ``agent.post.learn_from_correction`` (PIPE-06)."""
 	import frappe
 
 	from nyabo_mn.rules.regime import set_regime

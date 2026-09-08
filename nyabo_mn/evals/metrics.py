@@ -18,7 +18,7 @@ from typing import Any
 
 from nyabo_mn.core.money import quantize, to_decimal
 
-MONEY_TOLERANCE = Decimal("1")  # tögrög (D-002)
+MONEY_TOLERANCE = Decimal("1")  # tögrög (CORE-02)
 EXTRACTION_FIELDS: tuple[str, ...] = ("total", "date", "vat_amount")
 
 THRESHOLDS: dict[str, float] = {

@@ -72,7 +72,7 @@ def test_score_requires_name_or_reference_on_top_of_amount_and_date():
 
 def test_score_ignores_a_reference_too_short_to_identify():
 	# A handwritten supplier bill_no of "5" or a bill_no that is the year must not auto-match:
-	# every narrative carries a date, an account number and an amount. D-010/§5.4 ask for a
+	# every narrative carries a date, an account number and an amount. CORE-10/§5.4 ask for a
 	# name or a reference, and a wrong automatic match is worse than an unmatched line.
 	line = _line("-85000", "QPay 5012345678 шилжүүлэг 2026.09.02")
 	for short in ("5", "1", "12", "2026", "042"):
