@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import logging
 import sys
 from collections.abc import Callable, Iterable, Sequence
 from typing import Any
@@ -30,10 +31,18 @@ from nyabo_mn.config import (
 	Settings,
 )
 from nyabo_mn.evals import harness, metrics
-from nyabo_mn.evals.loader import ALL_KINDS, MODEL_KINDS, RULES_KINDS, EvalCase, load_golden
+from nyabo_mn.evals.loader import (
+	ALL_KINDS,
+	MODEL_KINDS,
+	RULES_KINDS,
+	EvalCase,
+	GoldenCaseError,
+	load_golden,
+)
 from nyabo_mn.evals.runners import RunContext, run_case
 
 ClientFactory = Callable[[str, str], LlmClient]  # (provider, model) -> client
+logger = logging.getLogger("nyabo.evals")
 
 
 def _settings() -> Settings:
@@ -57,30 +66,68 @@ def is_simulation() -> bool:
 	return not _settings().openai_api_key
 
 
-def configured_models(settings: Settings | None = None) -> list[tuple[str, str]]:
+def configured_models(
+	settings: Settings | None = None, *, simulation: bool | None = None
+) -> list[tuple[str, str]]:
 	"""(provider, model) pairs for a sweep: OPENAI_MODEL, OPENAI_SWEEP_MODEL, ANTHROPIC_MODEL when keyed."""
 	settings = settings or _settings()
+	simulated = is_simulation() if simulation is None else simulation
 	models = [("openai", settings.openai_model or DEFAULT_OPENAI_MODEL)]
 	sweep = settings.openai_sweep_model or DEFAULT_OPENAI_SWEEP_MODEL
 	if sweep and sweep != models[0][1]:
 		models.append(("openai", sweep))
-	if settings.anthropic_api_key or is_simulation():
+	if settings.anthropic_api_key or simulated:
 		models.append(("anthropic", settings.anthropic_model or DEFAULT_ANTHROPIC_MODEL))
 	return models
 
 
-def default_client_factory(records: list[CallRecord]) -> ClientFactory:
+def default_client_factory(records: list[CallRecord], *, simulation: bool | None = None) -> ClientFactory:
 	settings = _settings()
-	simulation = is_simulation()
+	simulated = is_simulation() if simulation is None else simulation
 
 	def factory(provider: str, model: str) -> LlmClient:
-		if simulation:
+		if simulated:
 			return MockLlmClient(model=model, record_call=records.append)
 		override = dict(settings.values)
 		override["OPENAI_MODEL" if provider == "openai" else "ANTHROPIC_MODEL"] = model
 		return get_client(Settings.from_mapping(override), provider, record_call=records.append)
 
 	return factory
+
+
+def load_site_cases(company: str | None) -> list[EvalCase]:
+	"""Nyabo Eval Case rows of the company (golden image cases, nightly correction cases); [] without a site."""
+	if not company:
+		return []
+	try:
+		import frappe
+
+		rows = frappe.get_all(
+			"Nyabo Eval Case",
+			filters={"company": company},
+			fields=[
+				"name",
+				"kind",
+				"source",
+				"company",
+				"regime",
+				"on_date",
+				"input_document",
+				"input_json",
+				"expected_json",
+				"notes",
+			],
+			order_by="creation asc",
+		)
+	except Exception:  # noqa: BLE001 - no site, or the DocType is not installed yet
+		return []
+	cases: list[EvalCase] = []
+	for row in rows:
+		try:
+			cases.append(EvalCase.from_doc(row))
+		except GoldenCaseError as exc:
+			logger.warning("skipping Nyabo Eval Case %s: %s", row.get("name"), exc)
+	return cases
 
 
 def _select_kinds(kinds: Iterable[str] | None, rules_only: bool) -> tuple[str, ...]:
@@ -105,6 +152,7 @@ def run(
 	adapters: harness.Adapters | None = None,
 	client_factory: ClientFactory | None = None,
 	models: Sequence[tuple[str, str]] | None = None,
+	simulation: bool | None = None,
 ) -> dict[str, Any]:
 	"""Run the golden set (or ``cases``) and return the report dict.
 
@@ -112,20 +160,27 @@ def run(
 	(thresholds, pass/fail, failed checks), ``failures`` (case ids with details),
 	``llm`` (p50 latency / cost per document from the recorded calls), ``sweep``
 	(per-model metrics when requested), ``simulation`` and ``adapters``.
+
+	``simulation=None`` means auto-detect (:func:`is_simulation`); the deterministic
+	kinds always use the fixture-driven mock for the classification their cases start
+	from, so ``rules_only`` never needs a key.
 	"""
 	selected = _select_kinds(kinds, rules_only)
 	if isinstance(kinds, str):
 		selected = tuple(k.strip() for k in kinds.split(",") if k.strip())
-	all_cases = list(cases) if cases is not None else load_golden(selected)
+	simulated = is_simulation() if simulation is None else bool(simulation)
+	all_cases = list(cases) if cases is not None else load_golden(selected) + load_site_cases(company)
 	all_cases = [c for c in all_cases if c.kind in selected]
 	records: list[CallRecord] = []
-	factory = client_factory or default_client_factory(records)
+	factory = client_factory or default_client_factory(records, simulation=simulated)
 	adapters = adapters or harness.default_adapters()
-	model_list = list(models) if models is not None else configured_models()
+	model_list = list(models) if models is not None else configured_models(simulation=simulated)
 	primary_provider, primary_model = model_list[0]
-	client = (
-		factory(primary_provider, primary_model) if any(c.kind in MODEL_KINDS for c in all_cases) else None
-	)
+	if any(c.kind in MODEL_KINDS for c in all_cases):
+		client: LlmClient = factory(primary_provider, primary_model)
+	else:
+		client = MockLlmClient(record_call=records.append)
+		primary_model = client.model
 	ctx = RunContext(client, adapters, company)
 	results = _run_cases(all_cases, ctx)
 	summary = metrics.summarize(results, RULES_KINDS)
@@ -135,9 +190,9 @@ def run(
 		"kinds": list(selected),
 		"cases": len(results),
 		"company": company,
-		"simulation": is_simulation(),
+		"simulation": simulated,
 		"adapters": adapters.source,
-		"model": primary_model if client is not None else None,
+		"model": primary_model,
 		"results": [r.as_dict() for r in results],
 		"metrics": summary,
 		"verdict": verdict,
@@ -231,11 +286,23 @@ def format_table(report: dict[str, Any]) -> str:
 	return "\n".join(lines)
 
 
-def run_cli(kinds: Any = None, sweep: Any = 0, rules: Any = 0, company: str | None = None) -> dict[str, Any]:
+def run_cli(
+	kinds: Any = None,
+	sweep: Any = 0,
+	rules: Any = 0,
+	company: str | None = None,
+	simulation: Any = None,
+) -> dict[str, Any]:
 	"""bench entry point: prints the table, returns the report (bench shows it as JSON)."""
 	if isinstance(kinds, str):
 		kinds = [k.strip() for k in kinds.split(",") if k.strip()]
-	report = run(kinds=kinds, sweep=bool(int(sweep or 0)), rules_only=bool(int(rules or 0)), company=company)
+	report = run(
+		kinds=kinds,
+		sweep=bool(int(sweep or 0)),
+		rules_only=bool(int(rules or 0)),
+		company=company,
+		simulation=None if simulation is None else bool(int(simulation)),
+	)
 	print(format_table(report))
 	return {k: v for k, v in report.items() if k != "results"}
 

@@ -10,11 +10,14 @@ from __future__ import annotations
 
 import datetime as dt
 from collections.abc import Callable, Mapping
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
 
 from nyabo_mn.agent.cost import estimate
+from nyabo_mn.agent.extract import extract_receipt_full
 from nyabo_mn.agent.llm_client import LlmClient
+from nyabo_mn.agent.mock_client import MockLlmClient
 from nyabo_mn.core import matching as matching_mod
 from nyabo_mn.core.models import BankLine, MatchCandidate
 from nyabo_mn.core.money import quantize, to_decimal
@@ -84,14 +87,44 @@ def _check_lines(details: list[str], expected: Any, actual: Any, label: str = "l
 # --- runners ----------------------------------------------------------------------------------------
 
 
+def _site_image(document_name: str) -> tuple[bytes, str]:
+	"""The bytes and mime of the file attached to a Nyabo Document (real image cases on a site)."""
+	import frappe
+
+	document = frappe.get_doc("Nyabo Document", document_name)
+	file_name = frappe.db.get_value("File", {"file_url": document.file}, "name")
+	if not file_name:
+		raise LookupError(f"Nyabo Document {document_name} has no File row for {document.file!r}")
+	content = frappe.get_doc("File", file_name).get_content()
+	if isinstance(content, str):
+		content = content.encode("utf-8")
+	return content, str(document.mime_type or "image/jpeg")
+
+
 def run_extraction(case: EvalCase, ctx: RunContext) -> CaseResult:
 	if ctx.client is None:
 		raise ValueError("extraction cases need an LLM client")
-	fixture = str(case.input_json.get("llm_fixture") or "extract/default")
 	mime = str((case.input_json.get("image") or {}).get("mime") or "image/jpeg")
-	outcome = harness.extract_case(
-		ctx.client, fixture, company_context=str(case.input_json.get("company") or ctx.company), mime=mime
-	)
+	company_context = str(case.input_json.get("company") or ctx.company)
+	if case.input_document:
+		# A real receipt image on the site: only meaningful against a real model.
+		if isinstance(ctx.client, MockLlmClient):
+			return CaseResult(
+				case.case_id,
+				case.kind,
+				True,
+				case.expected_json,
+				{"skipped": "simulation"},
+				[],
+				ctx.client.model,
+			)
+		image, mime = _site_image(case.input_document)
+		outcome = extract_receipt_full(
+			ctx.client, image, mime, company_context=company_context, now=datetime.now(timezone.utc)
+		)
+	else:
+		fixture = str(case.input_json.get("llm_fixture") or "extract/default")
+		outcome = harness.extract_case(ctx.client, fixture, company_context=company_context, mime=mime)
 	receipt = outcome.receipt_dict
 	actual: dict[str, Any] = {
 		"seller_name": receipt.get("seller_name"),

@@ -180,6 +180,34 @@ class Adapters:
 	source: str = "fallback"
 
 
+def site_period_is_closed(company: str) -> Callable[[Iterable[Mapping[str, Any]], dt.date], bool]:
+	"""Period lock from the company's own Accounting Period rows (the case's list is ignored).
+
+	Same inclusive rule as ``validate_accounting_period_on_doc_save``; the case's
+	``closed_periods`` are expected to have been created on the site by the caller.
+	"""
+
+	def _closed(_closed_periods: Iterable[Mapping[str, Any]], on_date: dt.date) -> bool:
+		import frappe
+
+		rows = frappe.get_all(
+			"Accounting Period",
+			filters={"company": company, "disabled": 0},
+			fields=["start_date", "end_date"],
+		)
+		return fallback_period_is_closed([dict(r) for r in rows], on_date)
+
+	return _closed
+
+
+def site_adapters(company: str) -> Adapters:
+	"""Adapters that read the site: real Accounting Periods, plus the rules guard when present."""
+	base = default_adapters()
+	return dataclasses.replace(
+		base, period_is_closed=site_period_is_closed(company), source=f"{base.source}+site"
+	)
+
+
 def default_adapters() -> Adapters:
 	"""Real ``nyabo_mn.rules.guard.require_verified`` when importable, else the fallbacks.
 

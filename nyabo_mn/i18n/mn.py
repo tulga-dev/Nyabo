@@ -533,5 +533,6 @@ EVAL_FLAG_LABELS = {
 	"entry_invalid": "бичилт шалгалтад тэнцсэнгүй",
 	"low_classification_confidence": "дансны сонголт тодорхойгүй",
 }
+EVAL_NIGHTLY_REASON = "{day} өдрийн залруулгаас {created} үнэлгээний тохиолдол үүсгэв."
 MSG_EVAL_CASE_BAD_JSON = "«{field}» талбарын JSON буруу байна: {error}"
 MSG_EVAL_CASE_REGIME_REQUIRED = "«{kind}» төрлийн тохиолдолд татварын горим заавал хэрэгтэй."

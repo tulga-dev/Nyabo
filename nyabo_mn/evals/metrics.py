@@ -123,7 +123,7 @@ def extraction_accuracy(
 	"""Per-field and overall accuracy on ``total`` / ``date`` / ``vat_amount`` (the brief's fields)."""
 	per_field: dict[str, list[bool]] = {name: [] for name in fields}
 	for r in results:
-		if r.kind != "extraction":
+		if r.kind != "extraction" or r.actual.get("skipped"):
 			continue
 		checks = r.actual.get("field_checks") or compare_extraction(r.expected, r.actual)
 		for name in fields:
@@ -133,7 +133,7 @@ def extraction_accuracy(
 	return {
 		"per_field": {name: _rate(sum(values), len(values)) for name, values in per_field.items()},
 		"overall": _rate(sum(flat), len(flat)),
-		"documents": sum(1 for r in results if r.kind == "extraction"),
+		"documents": sum(1 for r in results if r.kind == "extraction" and not r.actual.get("skipped")),
 	}
 
 

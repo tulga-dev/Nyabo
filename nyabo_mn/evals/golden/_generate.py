@@ -469,9 +469,11 @@ def build() -> tuple[dict[str, list[dict]], dict[str, dict]]:
 		input_json.update(extra_input)
 		negatives.append(case(case_id, "rules", regime, date, input_json, expected, notes))
 
-	personal_fixture = lambda reason: classify_fixture(
-		DEFAULT_EXPENSE, "in_expense", reason, confidence=0.3, comment="model is unsure: looks personal"
-	)  # noqa: E731
+	def personal_fixture(reason: str) -> dict[str, Any]:
+		return classify_fixture(
+			DEFAULT_EXPENSE, "in_expense", reason, confidence=0.3, comment="model is unsure: looks personal"
+		)
+
 	cashmere = dict(
 		by_id["nomin_supermarket"],
 		id="personal_cashmere",

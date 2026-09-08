@@ -142,6 +142,8 @@ def validate_case(raw: Mapping[str, Any], *, path: str = "", name: str | None = 
 		value = raw.get(fieldname) or ""
 		if fieldname == "kind" and not value:
 			raise GoldenCaseError(f"{case_id}: kind is required")
+		if fieldname == "source" and not value:
+			value = "golden"  # the DocType default
 		if value not in options[fieldname]:
 			raise GoldenCaseError(f"{case_id}: {fieldname}={value!r} not in {options[fieldname]}")
 	on_date_raw = raw.get("on_date")
