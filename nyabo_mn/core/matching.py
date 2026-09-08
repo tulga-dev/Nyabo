@@ -22,11 +22,12 @@ NAME_SIMILARITY_MIN = 0.8
 DEFAULT_THRESHOLD = 0.8
 
 # Score composition: an exact amount within the date window earns the base; the date and
-# the party name add the rest. Base + full date score reaches the default threshold on
-# its own, so a same-day exact amount matches even when the party name is unknown.
-SCORE_BASE = 0.55
-SCORE_DATE = 0.25
-SCORE_NAME = 0.20
+# the party name (or a reference number) add the rest. Base + full date score stays under
+# the default threshold on purpose: ARCHITECTURE §5.4 asks for amount + date + name, so a
+# same-day exact amount with an unknown party goes to the accountant instead of matching.
+SCORE_BASE = 0.50
+SCORE_DATE = 0.20
+SCORE_NAME = 0.30
 
 _LEGAL_FORMS = {
 	"ххк",
@@ -87,12 +88,12 @@ def amount_matches(a: Decimal, b: Decimal, tolerance: Decimal = AMOUNT_TOLERANCE
 
 
 def date_score(days: int) -> float:
-	"""1.0 at 0-1 days, 0.5 at 2, 0.0 at 3 or more."""
+	"""1.0 at 0-1 days, 0.5 at 2-3 days (still inside the window), 0.0 beyond."""
 	if days <= 1:
 		return 1.0
-	if days >= DATE_WINDOW_DAYS:
-		return 0.0
-	return (DATE_WINDOW_DAYS - days) / (DATE_WINDOW_DAYS - 1)
+	if days <= DATE_WINDOW_DAYS:
+		return 0.5
+	return 0.0
 
 
 def is_bank_fee(description: str) -> bool:
@@ -101,14 +102,17 @@ def is_bank_fee(description: str) -> bool:
 
 
 def is_own_transfer(description: str, own_account_numbers: Iterable[str]) -> bool:
-	"""True when one of the company's own account numbers appears in the narrative."""
-	digits_in_text = _DIGITS.findall(description or "")
-	if not digits_in_text:
+	"""True when one of the company's own account numbers appears in the narrative.
+
+	Only contiguous digit groups are compared (not the digits of the whole text joined),
+	so a date and an amount next to each other cannot spell out an account number.
+	"""
+	groups = _DIGITS.findall(description or "")
+	if not groups:
 		return False
-	joined = "".join(digits_in_text)
 	for number in own_account_numbers:
 		clean = "".join(_DIGITS.findall(str(number)))
-		if len(clean) >= 6 and clean in joined:
+		if len(clean) >= 6 and any(clean in group for group in groups):
 			return True
 	return False
 
