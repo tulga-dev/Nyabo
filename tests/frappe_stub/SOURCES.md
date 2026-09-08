@@ -54,6 +54,8 @@ ERPNext base: `https://raw.githubusercontent.com/frappe/erpnext/version-16/`
 | Financial Report Template | erpnext/accounts/doctype/financial_report_template/financial_report_template.json |
 | Financial Report Row | erpnext/accounts/doctype/financial_report_row/financial_report_row.json |
 | Account Category | erpnext/accounts/doctype/account_category/account_category.json |
+| Item Group | erpnext/setup/doctype/item_group/item_group.json |
+| Supplier Group | erpnext/setup/doctype/supplier_group/supplier_group.json |
 
 Frappe base: `https://raw.githubusercontent.com/frappe/frappe/version-16/`
 
@@ -112,3 +114,85 @@ What is deliberately *not* mirrored raises `NotImplementedError` with a message
 (`frappe.db.sql`, SQL-ish aggregate fields, `descendants of` filters, ERPNext's external
 exchange-rate provider, item tax templates on invoice rows, "On Previous Row" charges,
 "Valuation" purchase taxes, the Standard chart of accounts, ...).
+
+## Bank Transaction: the version-16 source the stub follows
+
+`erpnext/accounts/doctype/bank_transaction/bank_transaction.py`, read 2026-09-08. The
+stub keeps the method bodies; only the two SQL helpers (`get_total_allocated_amount`,
+`get_related_bank_gl_entries`) are re-expressed as loops over the in-memory tables.
+(Plain fence on purpose: ruff formats ```python blocks in Markdown and this is a quote.)
+
+```
+def add_payment_entries(self, vouchers, is_new_voucher: bool = False):
+	"""
+	Add the vouchers with zero allocation. Save() will perform the allocations and clearance
+
+	is_new_voucher - is used to set the reonciliation type - whether the voucher was added as a result of "Matching" or a new voucher was created.
+	Used in bank reconciliation
+	"""
+	if 0.0 >= self.unallocated_amount:
+		frappe.throw(_("Bank Transaction {0} is already fully reconciled").format(self.name))
+
+	for voucher in vouchers:
+		self.append(
+			"payment_entries",
+			{
+				"payment_document": voucher["payment_doctype"],
+				"payment_entry": voucher["payment_name"],
+				"allocated_amount": 0.0,  # Temporary
+				"reconciliation_type": "Voucher Created" if is_new_voucher else "Matched",
+			},
+		)
+
+def before_update_after_submit(self):
+	self.validate_duplicate_references()
+	self.update_allocated_amount()
+	self.delink_old_payment_entries()
+	self.allocate_payment_entries()
+	self.set_status()
+
+def update_allocated_amount(self):
+	allocated_amount = (
+		sum(p.allocated_amount for p in self.payment_entries) if self.payment_entries else 0.0
+	)
+	unallocated_amount = abs(flt(self.withdrawal) - flt(self.deposit)) - allocated_amount
+
+	self.allocated_amount = flt(allocated_amount, self.precision("allocated_amount"))
+	self.unallocated_amount = flt(unallocated_amount, self.precision("unallocated_amount"))
+
+def set_status(self):
+	if self.docstatus == 2:
+		self.db_set("status", "Cancelled")
+	elif self.docstatus == 1:
+		if self.unallocated_amount > 0:
+			self.db_set("status", "Unreconciled")
+		elif self.unallocated_amount <= 0:
+			self.db_set("status", "Reconciled")
+```
+
+`allocate_payment_entries`, `get_clearance_details`, `clear_linked_payment_entry`,
+`update_linked_bank_transaction`, `remove_payment_entry`, `delink_payment_entry`,
+`validate_duplicate_references`, `validate_currency` and `validate_included_fee` are in
+the stub module with the same bodies. `delink_old_payment_entries` (rows removed from the
+table since the last save) and `auto_set_party` (Accounts Settings party matching) are
+not mirrored: the first is a no-op in the stub, the second is skipped.
+
+## Stub-only behaviour (deviations, all deliberate)
+
+| Where | What differs from a bench and why |
+|---|---|
+| `Document.__setattr__` | An unknown field raises `frappe.ValidationError`; Frappe keeps the attribute and drops it on save. Typos must fail tests. Private (`_x`) names, the standard fields and a controller's `_stub_extra_fields` are exempt. |
+| Link validation | Checked only when the target table has rows, or always with `frappe.flags.stub_strict_links = True` (a target without meta then raises `DoesNotExistError`). Links to `DocType` are checked only in strict mode because the stub's DocType table is a partial view of a site. |
+| `save_version` | Versions are written in tests (Frappe sets `ignore_version = frappe.in_test`), so audit-trail assertions work. `docstatus` changes are listed under `changed`. |
+| `frappe.enqueue` | Runs the job inline (also with `enqueue_after_commit`) and records it in `frappe.enqueued`. |
+| `get_pdf` | Returns the HTML encoded as bytes and records the call; wkhtmltopdf is not run. |
+| `make_xlsx` | openpyxl instead of xlsxwriter; same data layout, bold header row. |
+| Invoice totals | Single currency, `Actual` / `On Net Total` charges only, no rounding adjustment (`rounded_total = grand_total`), no discounts, no stock GL (`update_stock` raises). |
+| `get_balance_on` | Descendants of a group account are found by walking `parent_account`; `lft`/`rgt` are not maintained. `cost_center` / `finance_book` filters raise. |
+| Custom fields | `nyabo_mn.setup.custom_fields.get_custom_fields()` is merged into the metas at `reset()` (as on a migrated site); `create_custom_fields` then creates the Custom Field rows without duplicating fields. |
+| Hooks | `frappe._stub.hooks.temporary_hooks(...)` layers extra hooks or drops an app's hooks for one block; a missing handler module raises `ImportError` naming the dotted path. |
+| `sync_financial_report_templates` | Records the call and imports only `nyabo_mn/nyabo/financial_report_template/*` when the folder exists. |
+| `frappe.desk.query_report.run` | Runs Nyabo Script Reports (`nyabo_mn.nyabo.report.<scrub>.<scrub>.execute`); ERPNext's reports raise `DoesNotExistError`. |
+| `delete_doc` | Deletes attached Files, Comments and Versions and writes a Deleted Document (`delete_dynamic_links` in frappe/model/delete_doc.py). |
+| `Company.on_update` | Raises `NotImplementedError` instead of creating the Standard chart unless `frappe.local.flags.ignore_chart_of_accounts` is set; `create_default_cost_center` runs like on a site. |
+| `Accounts Settings.allow_stale` | Unset in the stub means 1 (the field default in ERPNext); set it to 0 to test stale-rate refusal. |
