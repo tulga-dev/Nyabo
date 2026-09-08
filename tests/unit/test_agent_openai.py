@@ -6,7 +6,14 @@ from types import SimpleNamespace
 
 import pytest
 
-from nyabo_mn.agent.llm_client import ImagePart, LlmRateLimited, LlmSchemaError, RetryPolicy, TextPart, ToolSpec
+from nyabo_mn.agent.llm_client import (
+	ImagePart,
+	LlmRateLimited,
+	LlmSchemaError,
+	RetryPolicy,
+	TextPart,
+	ToolSpec,
+)
 from nyabo_mn.agent.openai_client import OpenAIClient
 
 SCHEMA = {
