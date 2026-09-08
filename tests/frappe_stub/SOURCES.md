@@ -214,3 +214,4 @@ importer inserts and submits too. `reconcile_vouchers` in
 mirrors: `add_payment_entries(vouchers, is_new_voucher)`, `validate_duplicate_references()`,
 `allocate_payment_entries()`, `update_allocated_amount()`, `set_status()`, `save()`, with
 vouchers shaped `{"payment_doctype", "payment_name", "amount"}`.
+- `User Permission` — https://raw.githubusercontent.com/frappe/frappe/version-16/frappe/core/doctype/user_permission/user_permission.json (added for the company-scoping tests, SEC-06)

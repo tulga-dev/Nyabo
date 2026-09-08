@@ -922,3 +922,16 @@ list and the order named in the report footers are gone; the table is labelled N
 internal readiness list (`READINESS_SOURCE_PENDING`) and reports with no MoF form behind them
 are footed `FORM_SOURCE_INTERNAL`. When the procedure text is fetched, the rows are mapped to
 it with the verbatim quotes `docs/legal/README.md` requires.
+
+### D-I03 Company scoping is enforced in two layers, not only in the handlers
+The DocType permission tables gave `Nyabo Accountant` read and write on every row of
+every Nyabo DocType, and the app declared no `permission_query_conditions`. One missed
+company check in a handler was therefore a full cross-tenant read of another client's
+proposals and the private URLs of their receipt photos (review finding SEC-06).
+`nyabo_mn/permissions.py` now narrows every list, report and `get_doc` on a Nyabo DocType
+to the caller's linked companies, and `consume_link_code` writes a Frappe `User Permission`
+(Company) per link so ERPNext's own documents are scoped by the standard mechanism too.
+Admins (`System Manager`, `Nyabo Admin`, the Administrator) stay unrestricted, and a row
+with no company stays visible. Telegram users keep `user_type: "System User"` because the
+reversal and journal-export paths need ERPNext's own roles; the User Permission rows, not
+the user type, are what confine them.

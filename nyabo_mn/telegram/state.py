@@ -16,6 +16,7 @@ from typing import Any
 import frappe
 from frappe.utils import add_to_date, cint, get_datetime, now_datetime
 
+from nyabo_mn import permissions
 from nyabo_mn.log import log_event
 
 CHAT_STATE = "Nyabo Chat State"
@@ -230,6 +231,8 @@ def consume_link_code(code: str, telegram_user: dict[str, Any]) -> Any:
 			link.active_company = link_code.company
 	link.flags.ignore_permissions = True
 	link.save()
+	# Frappe User Permissions scope ERPNext's own documents for this user (SEC-06).
+	permissions.sync_user_permissions(link.name)
 
 	link_code.status = "used"
 	link_code.used_by_telegram_id = telegram_id

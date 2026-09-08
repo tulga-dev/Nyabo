@@ -14,6 +14,23 @@ required_apps = ["erpnext"]
 after_install = "nyabo_mn.setup.install.after_install"
 after_migrate = "nyabo_mn.setup.install.after_migrate"
 
+# Company scoping (SEC-06): a linked accountant sees only their own clients' rows, in the
+# desk, in reports and through the REST API. nyabo_mn/permissions.py explains both layers.
+_SCOPED_DOCTYPES = (
+	"Nyabo Document",
+	"Nyabo Proposal",
+	"Nyabo Correction",
+	"Nyabo Event",
+	"Nyabo Rule",
+	"Nyabo Account Alias",
+	"Nyabo Inventory Intake",
+	"Nyabo Eval Case",
+	"Nyabo LLM Call",
+	"Nyabo Company Settings",
+)
+permission_query_conditions = {dt: "nyabo_mn.permissions.query_conditions" for dt in _SCOPED_DOCTYPES}
+has_permission = {dt: "nyabo_mn.permissions.has_permission" for dt in _SCOPED_DOCTYPES}
+
 fixtures = [
 	{"dt": "Role", "filters": [["name", "in", ["Nyabo Admin", "Nyabo Accountant", "Nyabo Owner"]]]},
 ]

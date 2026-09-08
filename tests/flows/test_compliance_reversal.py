@@ -135,6 +135,8 @@ def test_reverse_cash_paid_purchase_invoice_gives_the_cash_back(company, supplie
 	assert note.is_return == 1 and note.paid_amount == -85000.0
 	assert get_balance_on(CASH, "2026-03-31") == 0.0
 	assert get_balance_on(PAYABLE, "2026-03-31") == 0.0
+
+
 def test_a_reversal_cannot_itself_be_reversed(company, supplier):
 	"""F-06: the correction chain stays one level deep (art. 15.1), refused in Mongolian.
 
