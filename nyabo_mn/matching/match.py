@@ -844,6 +844,13 @@ def settle(
 	transaction = frappe.get_doc("Bank Transaction", bank_transaction_name)
 	company = str(transaction.company or "")
 	check_can_settle(company, user)
+	if int(transaction.docstatus or 0) != 1:
+		# A cancelled (or still draft) line has no allocation to make. Without this it reached
+		# ERPNext's own Bank Transaction controller and came back as a raw English
+		# ValidationError ("Cannot edit cancelled document") with no ``message_mn``, so
+		# ``telegram.handlers.bank.settle_chosen`` re-raised and the accountant got the generic
+		# "admin notified" reply instead of a sentence naming what is wrong.
+		raise MatchError(mn.MSG_BANK_LINE_NOT_ACTIVE)
 
 	row = invoice_row(voucher_doctype, voucher_name)
 	# The company is the line's, never the voucher's: an invoice of another company reaching

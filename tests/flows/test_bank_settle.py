@@ -629,6 +629,30 @@ def test_a_failed_reconcile_leaves_no_payment_entry_behind_under_the_guards(
 	_assert_a_failed_reconcile_leaves_no_payment_entry(books, banks, as_user, monkeypatch)
 
 
+def test_a_cancelled_statement_line_is_refused_in_mongolian(books, banks, as_user):
+	"""K5: ``settle`` never looked at the line's docstatus.
+
+	A cancelled Bank Transaction went all the way into ERPNext and failed there with a plain
+	English ``ValidationError`` ("Cannot edit cancelled document"), which carries no
+	``message_mn``; ``telegram.handlers.bank.settle_chosen`` re-raises anything without one, so
+	the accountant saw the generic "admin notified" reply for something a sentence explains.
+	"""
+	import frappe
+
+	pi = helpers.unpaid_purchase_invoice(books, "Петровис ХХК", 93500, "2026-09-01")
+	_import(books, fixtures.khan_xlsx)
+	bt = _bt(withdrawal=93500.0)
+	bt.flags.ignore_permissions = True
+	bt.cancel()
+	assert int(frappe.db.get_value("Bank Transaction", bt.name, "docstatus")) == 2
+
+	with as_user(ACCOUNTANT, ACCOUNTANT_ROLES) as user, pytest.raises(match.MatchError) as info:
+		match.settle(bt.name, "Purchase Invoice", pi.name, user)
+	assert info.value.message_mn == mn.MSG_BANK_LINE_NOT_ACTIVE
+	assert frappe.db.count("Payment Entry") == 0
+	assert frappe.db.get_value("Purchase Invoice", pi.name, "outstanding_amount") == 93500.0
+
+
 def test_a_bank_account_with_no_gl_account_is_refused(books, banks, as_user):
 	"""S3: an empty GL account made get_payment_entry credit the company default bank."""
 	import frappe

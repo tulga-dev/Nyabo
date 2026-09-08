@@ -918,6 +918,10 @@ MSG_LAYOUT_VERIFY_NEEDS_COLUMNS = (
 MSG_LAYOUT_BAD_DATE_FORMAT = "Огнооны формат «{fmt}» буруу байна."
 MSG_LAYOUT_LEARNED_NOTE = "{company} компанийн {document} хуулгаас нягтлангийн зааснаар сурсан формат."
 MSG_BANK_LINE_ALREADY_RECONCILED = "Энэ гүйлгээ аль хэдийн тулгагдсан байна."
+MSG_BANK_LINE_NOT_ACTIVE = (
+	"Энэ банкны гүйлгээ идэвхгүй (цуцлагдсан эсвэл ноорог) тул төлбөр бүртгэх боломжгүй. "
+	"Хуулгыг дахин оруулна уу."
+)
 MSG_BANK_VOUCHER_NOT_FOUND = "{doctype} {name} олдсонгүй."
 MSG_BANK_VOUCHER_NOT_ALLOWED = "{doctype} төрлийн баримтыг банкны гүйлгээтэй тулгах боломжгүй."
 MSG_BANK_NEEDS_PAYMENT_ENTRY = (
