@@ -28,7 +28,9 @@ def columns() -> list[dict[str, Any]]:
 	]
 
 
-def execute(filters: Any = None) -> tuple[list[dict[str, Any]], list[dict[str, Any]], None, None, list[dict[str, Any]]]:
+def execute(
+	filters: Any = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], None, None, list[dict[str, Any]]]:
 	filters = frappe._dict(filters or {})
 	if not (filters.company and filters.from_date and filters.to_date):
 		return columns(), [], None, None, []

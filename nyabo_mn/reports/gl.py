@@ -90,7 +90,10 @@ def rows(
 	if extra_filters:
 		filters.update(extra_filters)
 	return frappe.get_all(
-		"GL Entry", filters=filters, fields=list(GL_FIELDS), order_by="posting_date asc, voucher_no asc, name asc"
+		"GL Entry",
+		filters=filters,
+		fields=list(GL_FIELDS),
+		order_by="posting_date asc, voucher_no asc, name asc",
 	)
 
 
@@ -112,7 +115,9 @@ def primary_document_of(voucher_type: str, voucher_no: str, cache: dict[tuple[st
 		meta = frappe.get_meta(voucher_type)
 	except frappe.DoesNotExistError:
 		meta = None
-	fields = ["owner"] + [f for f in VOUCHER_REFERENCE_FIELDS if meta is not None and meta.has_field(f) and f != "owner"]
+	fields = ["owner"] + [
+		f for f in VOUCHER_REFERENCE_FIELDS if meta is not None and meta.has_field(f) and f != "owner"
+	]
 	row = frappe.db.get_value(voucher_type, voucher_no, fields, as_dict=True) if meta is not None else None
 	cache[key] = row or frappe._dict()
 	return cache[key]

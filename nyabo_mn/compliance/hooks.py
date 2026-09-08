@@ -134,7 +134,8 @@ def _row_values(row: Any, table_meta: Any) -> dict[str, Any]:
 		return {
 			k: v
 			for k, v in data.items()
-			if k not in _SYSTEM_FIELDS and k not in ("name", "parent", "parenttype", "parentfield", "doctype")
+			if k not in _SYSTEM_FIELDS
+			and k not in ("name", "parent", "parenttype", "parentfield", "doctype")
 			and not _editable(k)
 		}
 	return {

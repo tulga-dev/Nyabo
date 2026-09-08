@@ -4,12 +4,11 @@ from __future__ import annotations
 
 import frappe
 import pytest
+from compliance_helpers import CASH, make_je, make_nyabo_document, make_pi, make_supplier
 from frappe.utils import add_years, getdate
 
 from nyabo_mn.compliance import hooks as compliance_hooks
 from nyabo_mn.i18n import mn
-
-from compliance_helpers import CASH, make_je, make_nyabo_document, make_pi, make_supplier
 
 
 @pytest.fixture
@@ -59,7 +58,9 @@ def test_explanation_length_and_proposal_link_are_validated(company):
 	with pytest.raises(frappe.ValidationError) as exc:
 		je.insert()
 	assert "301" in str(exc.value)
-	frappe.get_doc({"doctype": "Company", "company_name": "Өөр ХХК", "abbr": "OOR", "default_currency": "MNT"})
+	frappe.get_doc(
+		{"doctype": "Company", "company_name": "Өөр ХХК", "abbr": "OOR", "default_currency": "MNT"}
+	)
 	proposal = frappe.get_doc({"doctype": "Nyabo Proposal", "company": company, "kind": "receipt"}).insert()
 	je = make_je(company, nyabo_proposal=proposal.name, nyabo_primary_document_ref="x").insert()
 	assert je.nyabo_proposal == proposal.name

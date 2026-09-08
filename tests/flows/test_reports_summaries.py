@@ -6,11 +6,11 @@ from decimal import Decimal
 
 import frappe
 import pytest
+from compliance_helpers import BANK, CASH, EXPENSE, INCOME, INPUT_VAT, OUTPUT_VAT, make_je, make_pi, make_si
 from openpyxl import load_workbook
 
 from nyabo_mn.i18n import mn
 from nyabo_mn.reports import export, month_end, rules_bridge, simplified_summary, vat_summary
-from compliance_helpers import BANK, CASH, EXPENSE, INCOME, INPUT_VAT, OUTPUT_VAT, make_je, make_pi, make_si
 
 
 @pytest.fixture
@@ -22,12 +22,21 @@ def books(company):
 		company,
 		supplier,
 		nyabo_primary_document_ref="AB-1",
-		taxes=[{"account_head": INPUT_VAT, "charge_type": "On Net Total", "rate": 10, "description": "НӨАТ 10%"}],
+		taxes=[
+			{"account_head": INPUT_VAT, "charge_type": "On Net Total", "rate": 10, "description": "НӨАТ 10%"}
+		],
 	).insert()
 	pi.submit()
 	si = make_si(company, customer, amount=200000, nyabo_primary_document_ref="SI-1").insert()
 	si.submit()
-	je = make_je(company, amount=50000, posting_date="2026-03-20", debit=EXPENSE, credit=BANK, nyabo_primary_document_ref="x")
+	je = make_je(
+		company,
+		amount=50000,
+		posting_date="2026-03-20",
+		debit=EXPENSE,
+		credit=BANK,
+		nyabo_primary_document_ref="x",
+	)
 	je.insert()
 	je.submit()
 	return company
@@ -35,7 +44,11 @@ def books(company):
 
 def _settings(company, regime):
 	name = frappe.db.get_value("Nyabo Company Settings", {"company": company}, "name")
-	doc = frappe.get_doc("Nyabo Company Settings", name) if name else frappe.get_doc({"doctype": "Nyabo Company Settings", "company": company})
+	doc = (
+		frappe.get_doc("Nyabo Company Settings", name)
+		if name
+		else frappe.get_doc({"doctype": "Nyabo Company Settings", "company": company})
+	)
 	doc.regimes = []
 	doc.append("regimes", {"regime": regime, "effective_from": "2026-01-01"})
 	doc.accountant_of_record_name = "Б. Батаа"
@@ -85,8 +98,12 @@ def test_simplified_summary_uses_the_parameter_row_and_refuses_unverified(books)
 
 
 def test_month_end_checklist_and_trial_balance(books):
-	frappe.get_doc({"doctype": "Nyabo Proposal", "company": books, "kind": "receipt", "status": "proposed"}).insert()
-	frappe.get_doc({"doctype": "Supplier", "supplier_name": "Шинэ ХХК", "nyabo_pending_confirmation": 1}).insert()
+	frappe.get_doc(
+		{"doctype": "Nyabo Proposal", "company": books, "kind": "receipt", "status": "proposed"}
+	).insert()
+	frappe.get_doc(
+		{"doctype": "Supplier", "supplier_name": "Шинэ ХХК", "nyabo_pending_confirmation": 1}
+	).insert()
 	check = month_end.checklist(books, "2026-03")
 	assert (check["proposals"], check["pending_suppliers"], check["unverified_rules"]) == (1, 1, 0)
 	assert check["blocking"] is False and check["inventory_count_required"] is False
@@ -96,7 +113,9 @@ def test_month_end_checklist_and_trial_balance(books):
 	tb = month_end.trial_balance(books, "2026-03")
 	assert tb["source"] == "gl_entry" and tb["debit"] == tb["credit"] == Decimal("363500.00")
 	by_account = {r["account"]: r for r in tb["rows"]}
-	assert by_account[EXPENSE]["debit"] == Decimal("135000.00") and by_account[EXPENSE]["account_code"] == "6210"
+	assert (
+		by_account[EXPENSE]["debit"] == Decimal("135000.00") and by_account[EXPENSE]["account_code"] == "6210"
+	)
 	assert by_account[INCOME]["credit"] == Decimal("200000.00")
 	assert by_account[CASH]["credit"] == Decimal("0.00") if CASH in by_account else True
 

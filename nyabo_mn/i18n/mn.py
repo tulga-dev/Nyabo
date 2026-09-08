@@ -302,9 +302,7 @@ MSG_PROPOSAL_COMPANY_MISMATCH = (
 MSG_CORRECTION_REASON_UNKNOWN = "Залруулгын шалтгааны код танигдсангүй: {code}."
 MSG_CORRECTION_NOT_SUBMITTED = "Зөвхөн бүртгэгдсэн (батлагдсан) баримтыг буцаах боломжтой: {name}."
 MSG_CORRECTION_UNSUPPORTED_DOCTYPE = "{doctype} төрлийн баримтыг буцаах боломжгүй."
-EXPL_REVERSAL = (
-	"{original} баримтын буцаалт. Шалтгаан: {reason}. — Нягтлан бодох бүртгэлийн тухай хууль 15.1"
-)
+EXPL_REVERSAL = "{original} баримтын буцаалт. Шалтгаан: {reason}. — Нягтлан бодох бүртгэлийн тухай хууль 15.1"
 EVENT_PERIOD_LOCKED = "period_locked"
 EVENT_PERIOD_REOPENED = "period_reopened"
 EVENT_PERIOD_CHANGED = "period_changed"
@@ -489,9 +487,7 @@ POLICY_SECTIONS = [
 POLICY_SIGN_DIRECTOR = "Батлав: Захирал ______________________ ( [ ] )"
 POLICY_SIGN_ACCOUNTANT = "Боловсруулав: Нягтлан бодогч ______________________ ( {accountant} )"
 POLICY_FILE_NAME = "НББ-ийн бодлого — {company}.pdf"
-POLICY_SOURCES_FOOTER = (
-	"Эх сурвалж: Нягтлан бодох бүртгэлийн тухай хууль (2015); Сангийн сайдын 116/2000, 347/2017, 100/2018 дугаар тушаал."
-)
+POLICY_SOURCES_FOOTER = "Эх сурвалж: Нягтлан бодох бүртгэлийн тухай хууль (2015); Сангийн сайдын 116/2000, 347/2017, 100/2018 дугаар тушаал."
 
 # --- questions ---------------------------------------------------------------------------
 MSG_QUESTION_THINKING = "Шалгаж байна…"

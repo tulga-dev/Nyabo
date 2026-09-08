@@ -33,7 +33,13 @@ def columns(foreign: bool) -> list[dict[str, Any]]:
 		},
 		{"label": mn.COL_VOUCHER_TYPE, "fieldname": "voucher_type", "fieldtype": "Data", "width": 110},
 		{"label": mn.COL_DESCRIPTION, "fieldname": "remarks", "fieldtype": "Data", "width": 220},
-		{"label": mn.COL_ACCOUNT, "fieldname": "account", "fieldtype": "Link", "options": "Account", "width": 200},
+		{
+			"label": mn.COL_ACCOUNT,
+			"fieldname": "account",
+			"fieldtype": "Link",
+			"options": "Account",
+			"width": 200,
+		},
 	]
 	if foreign:
 		cols += [
@@ -47,7 +53,12 @@ def columns(foreign: bool) -> list[dict[str, Any]]:
 		{"label": mn.LBL_COUNTER_ACCOUNT, "fieldname": "against", "fieldtype": "Data", "width": 220},
 		{"label": mn.COL_PARTY, "fieldname": "party", "fieldtype": "Data", "width": 140},
 		{"label": mn.LBL_REFERENCE, "fieldname": "reference", "fieldtype": "Data", "width": 120},
-		{"label": mn.COL_PRIMARY_DOCUMENT, "fieldname": "primary_document", "fieldtype": "Data", "width": 160},
+		{
+			"label": mn.COL_PRIMARY_DOCUMENT,
+			"fieldname": "primary_document",
+			"fieldtype": "Data",
+			"width": 160,
+		},
 	]
 	return cols
 
@@ -58,7 +69,9 @@ def _balance(account: str, on_date: Any, company: str) -> Decimal:
 	return quantize(Decimal(str(get_balance_on(account, on_date, company=company) or 0)))
 
 
-def execute(filters: Any = None) -> tuple[list[dict[str, Any]], list[dict[str, Any]], None, None, list[dict[str, Any]]]:
+def execute(
+	filters: Any = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], None, None, list[dict[str, Any]]]:
 	filters = frappe._dict(filters or {})
 	if not (filters.company and filters.from_date and filters.to_date):
 		return columns(False), [], None, None, []
@@ -100,7 +113,11 @@ def execute(filters: Any = None) -> tuple[list[dict[str, Any]], list[dict[str, A
 		}
 		for a in selected
 	] + [
-		{"label": f"{mn.COL_CLOSING} ({a})", "value": float(_balance(a, end, filters.company)), "datatype": "Currency"}
+		{
+			"label": f"{mn.COL_CLOSING} ({a})",
+			"value": float(_balance(a, end, filters.company)),
+			"datatype": "Currency",
+		}
 		for a in selected
 	]
 	return columns(foreign), data, None, None, summary

@@ -107,7 +107,12 @@ def lock(company: str, period: str, user: str, telegram_id: str | int | None = N
 		company=company,
 		ref_doctype="Accounting Period",
 		ref_name=doc.name,
-		payload={"period": period, "start_date": start.isoformat(), "end_date": end.isoformat(), "user": user},
+		payload={
+			"period": period,
+			"start_date": start.isoformat(),
+			"end_date": end.isoformat(),
+			"user": user,
+		},
 		actor_telegram_id=telegram_id,
 	)
 	return doc.name
@@ -185,7 +190,8 @@ def log_period_change(doc: Any, method: str | None = None) -> None:
 def log_period_delete(doc: Any, method: str | None = None) -> None:
 	"""on_trash: a period Nyabo locked is never deleted (reopen instead); others are logged."""
 	if frappe.db.exists(
-		"Nyabo Event", {"ref_doctype": "Accounting Period", "ref_name": doc.name, "event_type": mn.EVENT_PERIOD_LOCKED}
+		"Nyabo Event",
+		{"ref_doctype": "Accounting Period", "ref_name": doc.name, "event_type": mn.EVENT_PERIOD_LOCKED},
 	):
 		frappe.throw(mn.MSG_PERIOD_DELETE_BLOCKED.format(name=doc.name))
 	events.log(

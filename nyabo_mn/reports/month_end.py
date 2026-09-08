@@ -188,7 +188,9 @@ def summaries(company: str, period: str, *, simulation: bool = False) -> dict[st
 			)
 		)
 		text_lines.extend(
-			mn.MSG_CLOSE_SIMPLIFIED_MONTH_LINE.format(month=period_label(m["period"]), revenue=fmt_mnt(m["revenue"]))
+			mn.MSG_CLOSE_SIMPLIFIED_MONTH_LINE.format(
+				month=period_label(m["period"]), revenue=fmt_mnt(m["revenue"])
+			)
 			for m in summary["months"]
 		)
 		pdfs["simplified_summary"] = export.report_to_pdf(

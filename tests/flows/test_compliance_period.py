@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import frappe
 import pytest
+from compliance_helpers import make_je
 
 from nyabo_mn.compliance import period
 from nyabo_mn.i18n import mn
-from compliance_helpers import make_je
 
 
 def _pattern(pattern_id: str, verified: int):
@@ -97,7 +97,12 @@ def test_reopen_disables_the_period_and_writes_an_event(company, as_user):
 		assert period.reopen(company, "2026-02", user, "буруу хаасан") == name
 	assert frappe.db.get_value("Accounting Period", name, "disabled") == 1
 	assert period.is_locked(company, "2026-02-15") == (False, None)
-	events = frappe.get_all("Nyabo Event", filters={"ref_name": name}, fields=["event_type", "reason", "actor_user"], order_by="name asc")
+	events = frappe.get_all(
+		"Nyabo Event",
+		filters={"ref_name": name},
+		fields=["event_type", "reason", "actor_user"],
+		order_by="name asc",
+	)
 	assert [e.event_type for e in events] == [mn.EVENT_PERIOD_LOCKED, mn.EVENT_PERIOD_REOPENED]
 	assert events[1].reason == "буруу хаасан" and events[1].actor_user == "admin2@example.com"
 	make_je(company, posting_date="2026-02-10", nyabo_primary_document_ref="x").insert()
@@ -118,7 +123,9 @@ def test_manual_desk_changes_and_deletes_leave_events(company):
 	frappe.delete_doc("Accounting Period", doc.name)
 	rows = [
 		r
-		for r in frappe.get_all("Nyabo Event", fields=["event_type", "payload_json", "ref_name"], order_by="name asc")
+		for r in frappe.get_all(
+			"Nyabo Event", fields=["event_type", "payload_json", "ref_name"], order_by="name asc"
+		)
 		if doc.name in r.payload_json
 	]
 	assert [r.event_type for r in rows] == [

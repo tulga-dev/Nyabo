@@ -1,0 +1,53 @@
+{#- Төлбөрийн даалгаврын жагсаалт: "Төлбөрийн даалгавар" is a bank form, not an MoF primary
+    document form, so this prints a provisional list of the Payment Entry for the bank. -#}
+{% set L = frappe.call("nyabo_mn.reports.labels.print_labels") %}
+{% set company = frappe.get_doc("Company", doc.company) %}
+<style>
+	.nyabo-form { font-family: "DejaVu Sans", "Noto Sans", sans-serif; font-size: 10pt; }
+	.nyabo-form .watermark { color: #b00; font-size: 8pt; text-align: center; margin-bottom: 4px; }
+	.nyabo-form h3 { text-align: center; margin: 2px 0 8px 0; }
+	.nyabo-form table.f { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+	.nyabo-form td, .nyabo-form th { border: 1px solid #333; padding: 4px 6px; vertical-align: top; }
+	.nyabo-form th { background: #eee; }
+	.nyabo-form td.num { text-align: right; white-space: nowrap; }
+	.nyabo-form .note { font-size: 8.5pt; color: #444; margin-bottom: 8px; }
+	.nyabo-form .sig td { border: none; padding-top: 14px; }
+</style>
+<div class="nyabo-form">
+	<div class="watermark">{{ L.FORM_PROVISIONAL_WATERMARK }}</div>
+	<h3>{{ L.FORM_PAYMENT_ORDER_LIST }}</h3>
+	<div class="note">{{ L.FORM_PAYMENT_ORDER_NOTE }}</div>
+	<table class="f">
+		<tr><td>{{ L.FORM_LBL_ORG }}</td><td>{{ doc.company }} ({{ company.tax_id or "" }})</td><td>{{ L.FORM_LBL_DATE }}</td><td>{{ frappe.format(doc.posting_date, {"fieldtype": "Date"}) }}</td></tr>
+		<tr><td>{{ L.FORM_LBL_PAYER_ACCOUNT }}</td><td>{{ doc.paid_from or "" }} {{ doc.bank_account or "" }}</td><td>{{ L.FORM_LBL_STATUS }}</td><td>{{ doc.status or "" }}</td></tr>
+	</table>
+	<table class="f">
+		<thead>
+			<tr>
+				<th>{{ L.LBL_ROW_NO }}</th>
+				<th>{{ L.FORM_LBL_DOC_NO }}</th>
+				<th>{{ L.FORM_LBL_PAYEE }}</th>
+				<th>{{ L.FORM_LBL_PAYEE_BANK }}</th>
+				<th>{{ L.FORM_LBL_PURPOSE }}</th>
+				<th class="num">{{ L.FORM_LBL_AMOUNT }}</th>
+			</tr>
+		</thead>
+		<tbody>
+			<tr>
+				<td>1</td>
+				<td>{{ doc.name }}{% if doc.reference_no %} / {{ doc.reference_no }}{% endif %}</td>
+				<td>{{ doc.party_name or doc.party or "" }}</td>
+				<td>{{ doc.party_bank_account or "" }}</td>
+				<td>{{ doc.remarks or "" }}{% for ref in doc.references %} {{ ref.reference_doctype }} {{ ref.reference_name }}{% endfor %}</td>
+				<td class="num">{{ frappe.format(doc.paid_amount, {"fieldtype": "Currency"}) }} {{ doc.paid_from_account_currency or "" }}</td>
+			</tr>
+		</tbody>
+	</table>
+	<table class="f sig">
+		<tr>
+			<td>{{ L.FORM_LBL_DIRECTOR }}: __________________ ({{ L.FORM_LBL_SIGNATURE }})</td>
+			<td>{{ L.FORM_LBL_CHIEF_ACCOUNTANT }}: __________________ ({{ L.FORM_LBL_SIGNATURE }})</td>
+			<td>{{ L.FORM_LBL_PREPARED_BY }}: {{ doc.owner }}</td>
+		</tr>
+	</table>
+</div>

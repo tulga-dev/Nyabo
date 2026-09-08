@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import frappe
 import pytest
+from compliance_helpers import BANK, CASH, EXPENSE, make_je, make_nyabo_document
 from frappe.desk import query_report
 
 from nyabo_mn.i18n import mn
 from nyabo_mn.reports import export
-from compliance_helpers import BANK, CASH, EXPENSE, make_je, make_nyabo_document
 
 FILTERS = {"from_date": "2026-03-01", "to_date": "2026-03-31"}
 
@@ -18,7 +18,14 @@ def journal(company):
 	nyd = make_nyabo_document(company)
 	je = make_je(company, amount=85000, source_document=nyd.name, nyabo_approved_by="Administrator").insert()
 	je.submit()
-	bank = make_je(company, amount=30000, posting_date="2026-03-12", debit=EXPENSE, credit=BANK, nyabo_primary_document_ref="Гэрээ 7")
+	bank = make_je(
+		company,
+		amount=30000,
+		posting_date="2026-03-12",
+		debit=EXPENSE,
+		credit=BANK,
+		nyabo_primary_document_ref="Гэрээ 7",
+	)
 	bank.insert()
 	bank.submit()
 	return company, je, bank, nyd
@@ -26,25 +33,43 @@ def journal(company):
 
 def test_general_journal_returns_rows_in_form_order(journal):
 	company, je, bank, nyd = journal
-	result = query_report.run("Nyabo General Journal", filters={"company": company, **FILTERS}, ignore_prepared_report=True)
+	result = query_report.run(
+		"Nyabo General Journal", filters={"company": company, **FILTERS}, ignore_prepared_report=True
+	)
 	labels = [c["label"] for c in result["columns"]]
-	assert labels[:5] == [mn.LBL_ROW_NO, mn.COL_DOC_DATE, mn.COL_VOUCHER_TYPE, mn.COL_DOC_NO, mn.COL_DESCRIPTION]
+	assert labels[:5] == [
+		mn.LBL_ROW_NO,
+		mn.COL_DOC_DATE,
+		mn.COL_VOUCHER_TYPE,
+		mn.COL_DOC_NO,
+		mn.COL_DESCRIPTION,
+	]
 	assert mn.COL_DEBIT in labels and mn.COL_CREDIT in labels and mn.COL_PRIMARY_DOCUMENT in labels
 	rows = result["result"]
 	assert len(rows) == 4 and [r["row_no"] for r in rows] == [1, 2, 3, 4]
 	first = [r for r in rows if r["voucher_no"] == je.name]
-	assert {(r["account"], r["debit"], r["credit"]) for r in first} == {(EXPENSE, 85000.0, 0.0), (CASH, 0.0, 85000.0)}
+	assert {(r["account"], r["debit"], r["credit"]) for r in first} == {
+		(EXPENSE, 85000.0, 0.0),
+		(CASH, 0.0, 85000.0),
+	}
 	assert all(r["primary_document"] == nyd.name and r["approved_by"] == "Administrator" for r in first)
 	assert all(r["prepared_by"] == "Administrator" for r in rows)
 	assert {r["account_code"] for r in rows} == {"6210", "1110", "1120"}
 	second = [r for r in rows if r["voucher_no"] == bank.name]
 	assert second[0]["primary_document"] == "Гэрээ 7"
-	assert query_report.run("Nyabo General Journal", filters={"company": company}, ignore_prepared_report=True)["result"] == []
+	assert (
+		query_report.run("Nyabo General Journal", filters={"company": company}, ignore_prepared_report=True)[
+			"result"
+		]
+		== []
+	)
 
 
 def test_cash_journal_lists_cash_and_bank_rows_with_balances(journal):
 	company, je, bank, _nyd = journal
-	result = query_report.run("Nyabo Cash Journal", filters={"company": company, **FILTERS}, ignore_prepared_report=True)
+	result = query_report.run(
+		"Nyabo Cash Journal", filters={"company": company, **FILTERS}, ignore_prepared_report=True
+	)
 	rows = result["result"]
 	assert [r["account"] for r in rows] == [CASH, BANK]
 	assert rows[0]["credit"] == 85000.0 and rows[0]["against"] == EXPENSE and rows[0]["voucher_no"] == je.name
@@ -55,7 +80,9 @@ def test_cash_journal_lists_cash_and_bank_rows_with_balances(journal):
 	assert summary[f"{mn.COL_CLOSING} ({CASH})"] == -85000.0
 	assert summary[f"{mn.COL_OPENING} ({CASH})"] == 0.0
 	only_bank = query_report.run(
-		"Nyabo Cash Journal", filters={"company": company, "account": BANK, **FILTERS}, ignore_prepared_report=True
+		"Nyabo Cash Journal",
+		filters={"company": company, "account": BANK, **FILTERS},
+		ignore_prepared_report=True,
 	)
 	assert [r["account"] for r in only_bank["result"]] == [BANK]
 

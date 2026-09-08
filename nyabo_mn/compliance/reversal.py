@@ -34,7 +34,9 @@ def already_reversed(doctype: str, name: str) -> bool:
 		return True
 	if doctype == "Journal Entry":
 		return bool(frappe.db.exists("Journal Entry", {"reversal_of": name, "docstatus": 1}))
-	return bool(frappe.db.exists("Purchase Invoice", {"return_against": name, "is_return": 1, "docstatus": 1}))
+	return bool(
+		frappe.db.exists("Purchase Invoice", {"return_against": name, "is_return": 1, "docstatus": 1})
+	)
 
 
 def _primary_document_ref(original: Any) -> str:
@@ -50,9 +52,7 @@ def _stamp(target: Any, original: Any, reason_text_full: str, user: str) -> None
 	target.source_document = original.get("source_document")
 	target.nyabo_primary_document_ref = _primary_document_ref(original)
 	target.nyabo_proposal = original.get("nyabo_proposal")
-	target.nyabo_explanation = mn.EXPL_REVERSAL.format(original=original.name, reason=reason_text_full)[
-		:300
-	]
+	target.nyabo_explanation = mn.EXPL_REVERSAL.format(original=original.name, reason=reason_text_full)[:300]
 
 
 def reverse(
@@ -138,7 +138,9 @@ def reverse(
 		},
 		actor_telegram_id=telegram_id,
 	)
-	original.add_comment("Comment", mn.MSG_CORRECTION_DONE.format(reversal=target.name, reason=label, approver=user))
+	original.add_comment(
+		"Comment", mn.MSG_CORRECTION_DONE.format(reversal=target.name, reason=label, approver=user)
+	)
 	return {
 		"reversal_doctype": doctype,
 		"reversal_name": target.name,

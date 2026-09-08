@@ -33,7 +33,16 @@ def tax_parameter_rows(key: str) -> list[ParameterRow]:
 		for row in frappe.get_all(
 			"Nyabo Tax Parameter",
 			filters={"key": key},
-			fields=["key", "value_json", "unit", "effective_from", "effective_to", "status", "verified", "article"],
+			fields=[
+				"key",
+				"value_json",
+				"unit",
+				"effective_from",
+				"effective_to",
+				"status",
+				"verified",
+				"article",
+			],
 		):
 			value = row.get("value_json")
 			if isinstance(value, str):

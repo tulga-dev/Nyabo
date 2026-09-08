@@ -32,7 +32,9 @@ def execute(filters: Any = None) -> tuple[list[dict[str, Any]], list[dict[str, A
 		return columns(), []
 	end = getdate(filters.to_date)
 	quarter = f"{end.year}-Q{quarter_of(end)}"
-	summary = simplified_summary.compute(filters.company, quarter, simulation=bool(cint(filters.get("simulation"))))
+	summary = simplified_summary.compute(
+		filters.company, quarter, simulation=bool(cint(filters.get("simulation")))
+	)
 	rate_pct = float(summary["rate"] * 100)
 	data = [
 		{"label": period_label(m["period"]), "revenue": float(m["revenue"]), "rate_pct": None, "tax": None}

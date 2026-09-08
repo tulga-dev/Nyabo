@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import frappe
 import pytest
+from compliance_helpers import CASH, EXPENSE, make_je, make_nyabo_document, make_pi
 from erpnext.accounts.utils import get_balance_on
 
 from nyabo_mn.compliance import period, reversal
 from nyabo_mn.i18n import mn
-from compliance_helpers import CASH, EXPENSE, make_je, make_nyabo_document, make_pi
 
 INPUT_VAT = "1810 - Татан суутгах НӨАТ - TST"
 PAYABLE = "2110 - Дансны өглөг - TST"
@@ -16,7 +16,9 @@ PAYABLE = "2110 - Дансны өглөг - TST"
 
 @pytest.fixture
 def supplier(company):
-	return frappe.get_doc({"doctype": "Supplier", "supplier_name": "Петровис ХХК", "tin": "12345678"}).insert()
+	return frappe.get_doc(
+		{"doctype": "Supplier", "supplier_name": "Петровис ХХК", "tin": "12345678"}
+	).insert()
 
 
 def _posted_je(company):
@@ -42,7 +44,10 @@ def test_reverse_journal_entry_in_the_original_period(company, as_user):
 	assert rev.user_remark == rev.nyabo_correction_reason
 	assert rev.source_document == je.source_document and rev.nyabo_proposal == je.nyabo_proposal
 	assert "15.1" in rev.nyabo_explanation and je.name in rev.nyabo_explanation
-	assert [(r.account, r.debit, r.credit) for r in rev.accounts] == [(EXPENSE, 0.0, 85000.0), (CASH, 85000.0, 0.0)]
+	assert [(r.account, r.debit, r.credit) for r in rev.accounts] == [
+		(EXPENSE, 0.0, 85000.0),
+		(CASH, 85000.0, 0.0),
+	]
 	assert get_balance_on(EXPENSE, "2026-03-31") == 0.0
 	# the original is untouched (no cancel, no edit)
 	assert frappe.db.get_value("Journal Entry", je.name, "docstatus") == 1
@@ -61,7 +66,9 @@ def test_reverse_journal_entry_in_the_original_period(company, as_user):
 		"777",
 	)
 	assert c.reason == mn.CORRECT_WRONG_ACCOUNT and c.reversal_name == rev.name
-	events = frappe.get_all("Nyabo Event", filters={"ref_name": je.name}, fields=["event_type", "payload_json"])
+	events = frappe.get_all(
+		"Nyabo Event", filters={"ref_name": je.name}, fields=["event_type", "payload_json"]
+	)
 	assert [e.event_type for e in events] == [mn.EVENT_ENTRY_REVERSED]
 	assert rev.name in events[0].payload_json
 	assert frappe.db.exists("Comment", {"reference_name": je.name})
@@ -90,7 +97,9 @@ def test_reverse_purchase_invoice_creates_a_debit_note(company, supplier):
 		company,
 		supplier,
 		nyabo_primary_document_ref="AB-1",
-		taxes=[{"account_head": INPUT_VAT, "charge_type": "On Net Total", "rate": 10, "description": "НӨАТ 10%"}],
+		taxes=[
+			{"account_head": INPUT_VAT, "charge_type": "On Net Total", "rate": 10, "description": "НӨАТ 10%"}
+		],
 	).insert()
 	pi.submit()
 	result = reversal.reverse("Purchase Invoice", pi.name, "dup", "давхар илгээсэн", "Administrator")
