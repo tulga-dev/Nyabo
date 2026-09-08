@@ -39,6 +39,20 @@ def already_reversed(doctype: str, name: str) -> bool:
 	)
 
 
+def is_reversal(doctype: str, doc: Any) -> bool:
+	"""True when the document is itself a correction, so reversing it would nest the chain.
+
+	ERPNext refuses this too, in English and only at the end of ``make_reverse_journal_entry``
+	/ ``make_debit_note``; the correction chain stays one level deep (art. 15.1), so Nyabo
+	asks first and answers in Mongolian.
+	"""
+	if (doc.get("nyabo_corrects") or "").strip():
+		return True
+	if doctype == "Journal Entry":
+		return bool(doc.get("reversal_of"))
+	return int(doc.get("is_return") or 0) == 1
+
+
 def _primary_document_ref(original: Any) -> str:
 	"""The reversal's own primary document is the correction record naming the original (art. 15.1)."""
 	existing = (original.get("nyabo_primary_document_ref") or "").strip()
@@ -75,6 +89,8 @@ def reverse(
 	original = frappe.get_doc(doctype, name)
 	if int(original.docstatus or 0) != 1:
 		frappe.throw(mn.MSG_CORRECTION_NOT_SUBMITTED.format(name=name))
+	if is_reversal(doctype, original):
+		frappe.throw(mn.MSG_CORRECTION_IS_REVERSAL)
 	if already_reversed(doctype, name):
 		frappe.throw(mn.MSG_CORRECTION_ALREADY_REVERSED)
 	reason_text_full = f"{label}: {reason_text}".strip(": ").strip() if reason_text else label
