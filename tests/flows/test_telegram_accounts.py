@@ -47,9 +47,9 @@ def test_dans_prints_the_closing_balance_against_the_ledger(imported):
 	lines = text.split("\n")
 	assert outcome["result"]["company"] == imported and outcome["result"]["text"] == text
 	assert lines[0] == mn.MSG_RECON_STATUS_HEADER.format(company=imported)
-	# The bank printed 1 905 000₮ as its closing balance; summing the imported lines would
-	# give 905 000₮ (the file opens at 1 000 000₮), and that is not what the account holds.
-	assert lines[1] == "Хаан банк MNT: хуулга 1 905 000₮ · дэвтэр -93 500₮ · зөрүү 1 998 500₮ · тулгаагүй 4"
+	# The bank printed 1 905 000₮ as its closing balance; summing the imported lines would
+	# give 905 000₮ (the file opens at 1 000 000₮), and that is not what the account holds.
+	assert lines[1] == "Хаан банк MNT: хуулга 1 905 000₮ · дэвтэр -93 500₮ · зөрүү 1 998 500₮ · тулгаагүй 4"
 	assert lines[2].startswith("Худалдаа хөгжлийн банк MNT: хуулга 0₮ · дэвтэр 0₮")
 	# The report is dated: the unimported second account is only current as of today.
 	assert lines[-1] == mn.MSG_RECON_AS_OF.format(date=dt.date.today().isoformat())

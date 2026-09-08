@@ -114,7 +114,8 @@ def run_import(document_name: str, chat_id: int | str) -> dict[str, Any]:
 	if status == "unverified_layout":
 		bot.send_message(chat_id, mn.MSG_STATEMENT_LAYOUT_UNVERIFIED)
 		return {"ok": True, "unverified": True}
-	if summary.get("unknown_layout"):
+	# The importer sets both keys; a caller (or a test double) may send only ``status``.
+	if status == "unknown_layout" or summary.get("unknown_layout"):
 		start_layout_mapping(bot, chat_id, document_name, summary)
 		return {"ok": True, "mapping": True}
 	bank_name = summary.get("bank") or ""

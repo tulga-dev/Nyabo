@@ -171,10 +171,10 @@ def test_a_decoded_qr_reaches_the_proposal_the_card_and_the_posted_document(run_
 	assert verification["receipt"]["status"] == "unsupported"
 
 	text, _markup = card_for(proposal)
-	money_line = text.split("\n")[1]
-	assert money_line.endswith(
-		f"{mn.VERIFICATION_SELLER_OK} · {mn.VERIFICATION_RECEIPT_UNCHECKED} · {mn.VERIFICATION_QR_FOUND}"
-	)
+	# UX-10 moved the three verification facts off the money line onto their own line so the
+	# money line stays readable on a phone; the QR fact sits next to the unchecked-receipt one.
+	expected = f"{mn.VERIFICATION_SELLER_OK} · {mn.VERIFICATION_RECEIPT_UNCHECKED} · {mn.VERIFICATION_QR_FOUND}"
+	assert any(line.endswith(expected) for line in text.split("\n")), text
 
 	result = post.post_proposal(proposal.name, ACCOUNTANT, approver_telegram_id="700002")
 	posted = frappe.get_doc(result["posted_doctype"], result["posted_name"])
@@ -392,7 +392,7 @@ def test_posting_date_defaults_to_the_site_date_not_utc(monkeypatch):
 	taking it would post a night-time receipt into the previous day, and on the 1st into a
 	period the accountant may already have closed.
 	"""
-	monkeypatch.setattr(frappe.utils, "nowdate", lambda: "2026-07-04")
+	monkeypatch.setattr(frappe.utils, "today", lambda: "2026-07-04")
 	assert pipeline._today(None) == dt.date(2026, 7, 4)
 	# an explicit timestamp (the caller's, a replay) still decides
 	given = dt.datetime(2026, 1, 2, 3, 4, tzinfo=dt.timezone.utc)

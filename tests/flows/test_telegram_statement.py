@@ -48,12 +48,10 @@ def test_a_verified_layout_imports_and_reports_the_counts(books):
 	bot = FakeBotApi(files={"stmt": data})
 	_send(bot, 9301, filename)
 	assert mn.MSG_STATEMENT_RECEIVED in bot.texts()
-	# Current behaviour, pinned: the reply prints the raw layout key. Everything else the
-	# accountant reads (the no-bank-account message below, /данс) goes through
-	# mn.BANK_NAMES_MN and says «Хаан банк»; handing this line the same map is the fix, and
-	# then the expected string here becomes "🏦 Хаан банк · 5 гүйлгээ …".
+	# UX-05: this line goes through mn.BANK_NAMES_MN like every other bank name the
+	# accountant reads, so it says «Хаан банк», not the layout key.
 	assert bot.last_text == mn.MSG_STATEMENT_IMPORTED.format(
-		bank="Khan Bank", count=5, new=5, dup=0, matched=0, unmatched=5
+		bank=mn.BANK_NAMES_MN["Khan Bank"], count=5, new=5, dup=0, matched=0, unmatched=5
 	)
 	assert frappe.db.count("Bank Transaction") == 5
 

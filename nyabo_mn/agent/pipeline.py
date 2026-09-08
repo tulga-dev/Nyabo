@@ -110,7 +110,7 @@ def _today(now: dt.datetime | None) -> dt.date:
 	A receipt with no readable date is posted "today", and today in Ulaanbaatar (UTC+8) is
 	already tomorrow's date for eight hours of every UTC day: taking the UTC date would post
 	a night-time receipt into the previous day - and, on the 1st of a month, into a period
-	the accountant may already have closed. ``frappe.utils.nowdate`` is the site's own clock;
+	the accountant may already have closed. ``frappe.utils.today`` is the site's own clock;
 	an explicit ``now`` (the caller's, and the tests') still wins.
 	"""
 	if now is not None:
@@ -118,7 +118,7 @@ def _today(now: dt.datetime | None) -> dt.date:
 	try:
 		import frappe
 
-		return dt.date.fromisoformat(frappe.utils.nowdate())
+		return dt.date.fromisoformat(str(frappe.utils.today()))
 	except Exception:  # noqa: BLE001 - no site (pure-Python callers): fall back to the local clock
 		return dt.datetime.now().date()
 

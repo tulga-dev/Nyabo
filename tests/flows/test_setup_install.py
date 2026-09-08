@@ -7,7 +7,6 @@ import frappe
 from nyabo_mn.nyabo.seed import load_seed
 from nyabo_mn.setup import install
 from nyabo_mn.setup.custom_fields import TEMPLATE_CHECKSUM_FIELD, TEMPLATE_DOCTYPE
-from nyabo_mn.setup.install import after_install, after_migrate
 from nyabo_mn.setup.install import (
 	CURRENCY_EXCHANGE_SETTINGS,
 	_setup,
