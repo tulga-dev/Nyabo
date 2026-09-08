@@ -54,7 +54,11 @@ def handle_status(ctx: Ctx) -> Any:
 		return None
 	settings = get_settings()
 	missing = [key for keys in settings.report().values() for key in keys]
-	config = "OK" if not missing else "дутуу: " + ", ".join(sorted(set(missing)))
+	config = (
+		mn.MSG_STATUS_CONFIG_OK
+		if not missing
+		else mn.MSG_STATUS_CONFIG_MISSING.format(keys=", ".join(sorted(set(missing))))
+	)
 	unmatched = frappe.db.count("Bank Transaction", {"status": ["in", ["Pending", "Unreconciled"]]})
 	ctx.reply(
 		mn.MSG_STATUS.format(

@@ -880,6 +880,8 @@ MSG_CHART_CSV_COLUMNS = "CSV файлд code, name, parent_code, root_type, acco
 MSG_CHART_CSV_PARENT_MISSING = "«{code}» дансны эцэг данс «{parent}» файлд алга."
 MSG_CHART_CSV_ROOT_TYPE = "«{code}» язгуур дансны root_type буруу байна: {root_type}."
 MSG_CHART_CSV_REQUIRED = "Нягтлангийн дансны төлөвлөгөө (chart_csv) өгөгдөөгүй байна."
+# The chart's own title, shown wherever ERPNext names the chart of accounts.
+CHART_CSV_NAME = "Нягтлангийн дансны төлөвлөгөө"
 MSG_BANK_UNKNOWN = "«{bank}» банк жагсаалтад алга."
 
 # --- matching (parsers, bank import, rules, cards, status) ----------------------------------------
@@ -930,6 +932,8 @@ MSG_STATUS = (
 	"Шийдвэрлээгүй санал: {proposals} · Тулгаагүй банкны гүйлгээ: {unmatched}\n"
 	"Тохиргоо: {config}"
 )
+MSG_STATUS_CONFIG_OK = "бүрэн"
+MSG_STATUS_CONFIG_MISSING = "дутуу: {keys}"
 MSG_ACCOUNT_SEARCH_RESULTS = "Олдсон данс:"
 MSG_REJECT_TEXT_ASK = "Татгалзсан шалтгаанаа нэг өгүүлбэрээр бичнэ үү:"
 MSG_ONBOARDING_APPLY_PENDING = "Хариултуудыг хадгаллаа; дансны бүртгэлийг админ дуусгасны дараа мэдэгдэнэ."
