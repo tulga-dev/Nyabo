@@ -72,7 +72,7 @@ def test_close_usage_and_full_path(company, monkeypatch):
 	doc = bot.sent("send_document")[0]
 	assert doc["filename"] == "simplified-2026-08.pdf" and doc["content"].startswith(b"%PDF")
 	assert doc["caption"] == mn.MSG_CLOSE_PDF_CAPTION.format(
-		title=mn.REPORT_SIMPLIFIED_SUMMARY, period="2026-08"
+		title=mn.REPORT_SIMPLIFIED_SUMMARY, period="2026 оны 8-р сар"
 	)
 	assert bot.last_text == mn.MSG_CLOSE_CONFIRM
 	assert bot.callback_datas() == ["c:2026-08:confirm", "c:2026-08:cancel"]
@@ -178,7 +178,7 @@ def test_correction_flow_reverses_and_reproposes(company, monkeypatch):
 		)
 		in texts
 	)
-	assert mn.MSG_CORRECTION_PERIOD_CLOSED.format(period="2026-08") in texts
+	assert mn.MSG_CORRECTION_PERIOD_CLOSED.format(period="2026 оны 8-р сар") in texts
 	assert mn.MSG_CORRECTION_NEW_ENTRY_HINT in texts
 	assert proposals and proposals[0][0] == "Journal Entry"
 	assert bot.last_text.startswith("🧾")  # the new proposal card

@@ -35,10 +35,12 @@ def handle_command(ctx: Ctx) -> Any:
 	checklist = _deps.checklist(ctx.company, period) or {}
 	summaries = _deps.summaries(ctx.company, period) or {}
 	ctx.reply(cards.close_card(ctx.company, period, checklist, summaries))
+	label = dates.period_label(period)
 	for pdf in summaries.get("pdfs") or []:
+		# The filename keeps the ISO period (a machine sorts those); the caption is read.
 		filename, content, title = _pdf_parts(pdf, period)
 		ctx.send_document(
-			content, filename, caption=mn.MSG_CLOSE_PDF_CAPTION.format(title=title, period=period)
+			content, filename, caption=mn.MSG_CLOSE_PDF_CAPTION.format(title=title, period=label)
 		)
 	ctx.reply(mn.MSG_CLOSE_CONFIRM, keyboards.close_confirm(period))
 	return {"period": period, "checklist": checklist}

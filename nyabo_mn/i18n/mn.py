@@ -62,7 +62,9 @@ CORRECT_REASONS = {
 MSG_CORRECTION_ASK_REASON = "Залруулгын шалтгааныг сонгоно уу:"
 MSG_CORRECTION_ASK_TEXT = "Шалтгааныг нэг өгүүлбэрээр бичнэ үү:"
 MSG_CORRECTION_DONE = "↩️ Буцаалт бүртгэлээ: {reversal}\nШалтгаан: {reason} · Баталсан: {approver}"
-MSG_CORRECTION_PERIOD_CLOSED = "⚠️ Анхны бичилтийн сар ({period}) хаагдсан тул буцаалтыг өнөөдрийн огноогоор бүртгэлээ. Нягтлан анхаарна уу."
+# {period} is always a period label from core.dates.period_label ("2026 оны 8-р сар"),
+# which already ends in «сар» — no message may add the word again (UX-04).
+MSG_CORRECTION_PERIOD_CLOSED = "⚠️ Анхны бичилт хамаарах {period} хаагдсан тул буцаалтыг өнөөдрийн огноогоор бүртгэлээ. Нягтлан анхаарна уу."
 MSG_CORRECTION_NEW_ENTRY_HINT = "Одоо зөв утгаар шинэ бичилтийн саналыг илгээж байна."
 MSG_CORRECTION_ALREADY_REVERSED = "Энэ бичилт аль хэдийн буцаагдсан байна."
 MSG_CORRECTION_IS_REVERSAL = (
@@ -261,16 +263,16 @@ MSG_CLOSE_TRIAL_BALANCE = "Гүйлгээ баланс: дебет {debit}₮ ·
 MSG_CLOSE_VAT_SUMMARY = "НӨАТ: борлуулалтын {output}₮ · татан суутгах {input}₮ · төлөх {net}₮"
 MSG_CLOSE_SIMPLIFIED_SUMMARY = "Хялбаршуулсан горим: улирлын орлого {revenue}₮ · 1% татвар {tax}₮ ({quarter})"
 MSG_CLOSE_CONFIRM = "Сарыг хаах уу? Хаасны дараа энэ сард бичилт хийх боломжгүй."
-MSG_CLOSE_DONE = "🔒 {period} сар хаагдлаа ({name})."
+MSG_CLOSE_DONE = "🔒 {period} хаагдлаа ({name})."
 MSG_CLOSE_BLOCKED = "Хаах боломжгүй: {reason}"
 MSG_PERIOD_NOT_ENDED = "Сар дуусаагүй байна ({end_date} хүртэл)."
 MSG_PERIOD_ALREADY_CLOSED = "Энэ сар аль хэдийн хаагдсан ({name})."
 MSG_PERIOD_UNVERIFIED_RULES = (
 	"Баталгаажаагүй дүрмээр хийсэн бичилт байна; админ дүрмийг баталгаажуулах шаардлагатай."
 )
-MSG_PERIOD_REOPENED = "🔓 {period} сарыг дахин нээлээ. Шалтгаан: {reason}"
+MSG_PERIOD_REOPENED = "🔓 {period} үеийг дахин нээлээ. Шалтгаан: {reason}"
 MSG_PERIOD_DELETE_BLOCKED = "Нябо-гоор хаасан тайлант үеийг ({name}) устгахгүй; шаардлагатай бол дахин нээнэ."
-MSG_POSTING_IN_CLOSED_PERIOD = "{date} огноо хаагдсан {period} сард байна. Бичилт хийх боломжгүй."
+MSG_POSTING_IN_CLOSED_PERIOD = "{date} огноо хаагдсан {period}-д багтаж байна. Бичилт хийх боломжгүй."
 MSG_CLOSE_SIMPLIFIED_MONTH_LINE = "• {month}: орлого {revenue}₮"
 MSG_SIMPLIFIED_NOT_ELIGIBLE_VAT = (
 	"Хялбаршуулсан 1%-ийн горим НӨАТ-ын суутган төлөгчид хамаарахгүй (ААНОАТ-ын тухай хууль 29.3.1); "

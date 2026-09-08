@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import collections
 import datetime as dt
 
 import pytest
@@ -59,6 +60,26 @@ def test_period_label_and_quarter_label():
 	assert dates.period_label("2026-08") == "2026 оны 8-р сар"
 	assert dates.period_label("2026-12") == "2026 оны 12-р сар"
 	assert dates.quarter_label(2026, 3) == "2026 оны 3-р улирал"
+
+
+PERIOD_MESSAGES = [name for name in dir(mn) if name.isupper() and "{period}" in str(getattr(mn, name))]
+
+
+def test_no_period_message_repeats_the_word_in_the_label():
+	"""UX-04: the label already ends in «сар», so "…8-р сар сар хаагдлаа" read as a stutter.
+
+	Every ``{period}`` placeholder is filled with ``dates.period_label``; a message that
+	adds «сар» (or «сарын», «сард») right after it doubles the word.
+	"""
+	assert PERIOD_MESSAGES, "no {period} messages found — did the placeholder name change?"
+	label = dates.period_label("2026-08")
+	offenders = []
+	for name in PERIOD_MESSAGES:
+		rendered = str(getattr(mn, name)).format_map(collections.defaultdict(str, period=label))
+		after = rendered.split(label, 1)[1].lstrip(" -·(")
+		if after.startswith("сар"):
+			offenders.append(name)
+	assert offenders == []
 
 
 @pytest.mark.parametrize(
