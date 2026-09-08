@@ -7,8 +7,9 @@ wanted, not only against the synthetic golden set. Rows are keyed on the correct
 inside ``notes`` so a re-run of the job (or a crash halfway) never creates a case twice.
 
 Learned rules are proposed through ``nyabo_mn.agent.pipeline.propose_learned_rules`` when
-that function exists (the pipeline is owned by another agent); otherwise the count is 0
-and the event says so. The job never posts anything and never touches the books.
+that function exists, else through ``nyabo_mn.agent.post.learn_from_correction`` for every
+account correction of the day; the event carries the count. The job never posts anything
+and never touches the books.
 """
 
 from __future__ import annotations
@@ -134,21 +135,43 @@ def build_case(correction: Mapping[str, Any], proposal: Any | None) -> dict[str,
 
 
 def propose_learned_rules(corrections: list[dict[str, Any]]) -> int:
-	"""Hand the day's corrections to the pipeline's rule learner when it exists; else 0."""
+	"""Hand the day's corrections to the pipeline's rule learner; returns the number of rules proposed.
+
+	``nyabo_mn.agent.pipeline.propose_learned_rules(corrections)`` wins when it exists (a
+	batch entry point); otherwise each account correction goes through
+	``nyabo_mn.agent.post.learn_from_correction`` (D-022: two agreeing corrections for one
+	supplier or description create one pending ``Nyabo Rule``, an existing rule blocks a
+	duplicate, so re-running the night is safe). Without either learner the count is 0.
+	"""
 	try:
 		pipeline = importlib.import_module("nyabo_mn.agent.pipeline")
 	except ImportError:
 		return 0
 	fn = getattr(pipeline, "propose_learned_rules", None)
-	if not callable(fn):
-		return 0
-	result = fn(corrections)
-	if isinstance(result, int):
-		return result
+	if callable(fn):
+		result = fn(corrections)
+		if isinstance(result, int):
+			return result
+		try:
+			return len(result)
+		except TypeError:
+			return 0
 	try:
-		return len(result)
-	except TypeError:
+		post = importlib.import_module("nyabo_mn.agent.post")
+	except ImportError:
 		return 0
+	learn = getattr(post, "learn_from_correction", None)
+	if not callable(learn):
+		return 0
+	import frappe
+
+	proposed = 0
+	for row in corrections:
+		if row.get("field") != "account_code" or not row.get("name"):
+			continue
+		if learn(frappe.get_doc("Nyabo Correction", row["name"])):
+			proposed += 1
+	return proposed
 
 
 def run_nightly(day: dt.date | str | None = None) -> dict[str, Any]:

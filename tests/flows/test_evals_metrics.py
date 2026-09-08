@@ -204,6 +204,12 @@ def test_quality_summary_from_site_rows(company):
 	import frappe
 
 	def proposal(status: str) -> str:
+		# A "posted" proposal must name its document (Nyabo Proposal.validate).
+		posted = (
+			{"posted_doctype": "Journal Entry", "posted_name": "ACC-JV-2026-00001"}
+			if status == "posted"
+			else {}
+		)
 		return (
 			frappe.get_doc(
 				{
@@ -212,6 +218,7 @@ def test_quality_summary_from_site_rows(company):
 					"kind": "receipt",
 					"status": status,
 					"total": 1000,
+					**posted,
 				}
 			)
 			.insert()

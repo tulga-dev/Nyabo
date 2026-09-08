@@ -120,7 +120,12 @@ def _frappe(use_site: bool | None = None) -> Any | None:
 
 
 def provision_sim_company(regime: str, use_site: bool | None = None) -> str | None:
-	"""``SIM-<regime>`` through the real provisioning code; None when there is no site."""
+	"""``SIM-<regime>`` through the real provisioning code; None when there is no site.
+
+	``provision_company`` writes the Nyabo Company Settings and the first regime row itself
+	(``vat_registered`` decides the regime, effective from the fiscal-year start), so the
+	simulator adds nothing on top: a second regime row would only overlap the real one.
+	"""
 	frappe = _frappe(use_site)
 	if frappe is None:
 		return None
@@ -131,12 +136,6 @@ def provision_sim_company(regime: str, use_site: bool | None = None) -> str | No
 	report = provision_company(name, abbr, vat_registered=1 if regime == "vat_payer" else 0)
 	if not report["verify"]["ok"]:
 		raise RuntimeError(f"simulation company {name} did not verify: {report['verify']['problems']}")
-	if frappe.db.exists("Nyabo Company Settings", name):
-		settings = frappe.get_doc("Nyabo Company Settings", name)
-		if not settings.get("regimes"):
-			settings.append("regimes", {"regime": regime, "effective_from": "2026-01-01"})
-			settings.flags.ignore_permissions = True
-			settings.save()
 	return name
 
 
@@ -187,8 +186,22 @@ def cleanup_sim_company(name: str) -> list[str]:
 		for row in sorted(remaining):
 			problems.append(f"{doctype} {row}: could not be deleted (children remain)")
 
-	for doctype in ("Nyabo LLM Call", "Nyabo Proposal", "Nyabo Document", "Nyabo Company Settings"):
-		delete_all(doctype, {"company": name})
+	# The simulation's Nyabo Documents are placeholders, not received primary documents: the
+	# retention guard (art. 11.1) is lifted for this cleanup with the same flag maintenance
+	# jobs use (``compliance.hooks.block_retained_document_delete``).
+	frappe.flags.nyabo_allow_file_delete = True
+	try:
+		for doctype in (
+			"Nyabo LLM Call",
+			"Nyabo Proposal",
+			"Nyabo Document",
+			"Nyabo Rule",
+			"Nyabo Account Alias",
+			"Nyabo Company Settings",
+		):
+			delete_all(doctype, {"company": name})
+	finally:
+		frappe.flags.pop("nyabo_allow_file_delete", None)
 	for doctype in (
 		"Sales Taxes and Charges Template",
 		"Purchase Taxes and Charges Template",
@@ -430,11 +443,13 @@ def simulate_statement(path: str | Path, *, print_output: bool = True) -> str:
 
 
 def _read_rows(path: Path) -> list[list[Any]]:
+	"""``parsers.excel.read_rows(data, filename)`` — the bot's own reader — else a plain csv/xlsx read."""
 	try:
 		excel = importlib.import_module("nyabo_mn.parsers.excel")
-		return list(excel.read_rows(path))
-	except (ImportError, AttributeError):
-		pass
+	except ImportError:
+		excel = None
+	if excel is not None:
+		return list(excel.read_rows(path.read_bytes(), path.name))
 	if path.suffix.lower() == ".csv":
 		import csv
 

@@ -1,14 +1,16 @@
 """Deterministic mini-pipeline the evals and the simulator run cases through.
 
-Why a harness and not the real ``agent.pipeline``: the evals must run without a bench,
-without network and without the Frappe-side ``nyabo_mn.rules`` / ``compliance`` packages
-being importable (they are owned by other agents and may lag this worktree). Everything
-here is built from ``nyabo_mn.core`` and ``nyabo_mn.agent`` plus the seed JSON, so the
-same case gives the same answer on a laptop, in CI and on a site. The parts that live on
-the Frappe side (verified-rule guard, primary-document rule, period lock, reversal, FX
-rate lookup) are reached through :class:`Adapters`; ``default_adapters()`` uses the real
-module when it is importable and a core-only fallback with the same contract otherwise,
-so a missing dependency never turns into a silently skipped check.
+Why a harness and not the real ``agent.pipeline``: the evals must run without a bench
+and without network, so the same case gives the same answer on a laptop, in CI and on a
+site. Everything here is built from ``nyabo_mn.core`` and ``nyabo_mn.agent`` plus the
+seed JSON. The parts that live on the Frappe side are reached through :class:`Adapters`:
+``default_adapters()`` wires ``nyabo_mn.rules.guard`` (``require_verified`` /
+``is_verified`` take a core ``PatternSpec``, no site needed) and keeps the core fallbacks
+for the functions that take site documents or a company (primary-document hook, period
+lock, reversal, FX rate); ``site_adapters(company)`` swaps in
+``compliance.period.is_locked`` and ``compliance.hooks.require_primary_document`` on a
+connected site. A pure-Python run without ``frappe`` importable gets the fallbacks, which
+carry the same contract, so a missing dependency never turns into a silently skipped check.
 
 The defences mirror docs/ARCHITECTURE.md §5.3 step 7 and §1.9: a low confidence on
 ``total`` / ``date`` / ``vat_amount``, a new supplier, an unverified rule, a suspected
@@ -24,6 +26,7 @@ import dataclasses
 import datetime as dt
 import hashlib
 import importlib
+import importlib.util
 import json
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
@@ -82,15 +85,33 @@ class UnverifiedRuleError(Exception):
 class PrimaryDocumentError(Exception):
 	"""A posting without a primary document (Law on Accounting art. 13.7)."""
 
-	def __init__(self) -> None:
+	def __init__(self, message_mn: str | None = None) -> None:
 		super().__init__("primary document required")
-		self.message_mn = mn.MSG_PRIMARY_DOCUMENT_REQUIRED
+		self.message_mn = message_mn or mn.MSG_PRIMARY_DOCUMENT_REQUIRED
 
 
 def fallback_require_verified(pattern: re_.PatternSpec) -> None:
 	"""Core-only stand-in for ``rules.guard.require_verified``: refuse an unverified pattern."""
 	if not pattern.verified:
 		raise UnverifiedRuleError(pattern.pattern_id)
+
+
+def fallback_is_verified(pattern: re_.PatternSpec) -> bool:
+	"""Core-only stand-in for ``rules.guard.is_verified`` (the card check, no simulation bypass)."""
+	return bool(pattern.verified)
+
+
+def require_nyabo_document_complete(fields: Mapping[str, Any]) -> None:
+	"""ARCHITECTURE §1.4: a Nyabo-created posting links its proposal, its document and an explanation.
+
+	The compliance hook enforces the primary document (art. 13.7) and the proposal link;
+	the explanation is what the pipeline guarantees, so the harness keeps this rule in
+	front of both the fallback and the real hook.
+	"""
+	if fields.get("nyabo_proposal") and not (
+		fields.get("source_document") and str(fields.get("nyabo_explanation") or "").strip()
+	):
+		raise PrimaryDocumentError()
 
 
 def fallback_require_primary_document(fields: Mapping[str, Any]) -> None:
@@ -100,14 +121,45 @@ def fallback_require_primary_document(fields: Mapping[str, Any]) -> None:
 	its primary document in ``nyabo_primary_document_ref``; a Nyabo-created document must
 	link its proposal *and* carry the explanation (ARCHITECTURE §1.4).
 	"""
+	require_nyabo_document_complete(fields)
+	if fields.get("nyabo_proposal"):
+		return
 	has_document = bool(fields.get("source_document") or fields.get("has_attachment"))
 	has_ref = bool(str(fields.get("nyabo_primary_document_ref") or "").strip())
-	if fields.get("nyabo_proposal"):
-		if not (fields.get("source_document") and str(fields.get("nyabo_explanation") or "").strip()):
-			raise PrimaryDocumentError()
-		return
 	if not (has_document or has_ref):
 		raise PrimaryDocumentError()
+
+
+class _DocShim:
+	"""The slice of a Frappe document ``compliance.hooks.require_primary_document`` reads.
+
+	``is_new()`` is True so the hook never queries File rows: a case states its attachment
+	with ``has_attachment`` and the adapter honours that before calling the hook.
+	"""
+
+	def __init__(self, fields: Mapping[str, Any], doctype: str) -> None:
+		self._fields = dict(fields)
+		self.doctype = doctype
+		self.name = None
+
+	def get(self, key: str, default: Any = None) -> Any:
+		return self._fields.get(key, default)
+
+	def is_new(self) -> bool:
+		return True
+
+
+def hook_require_primary_document(fields: Mapping[str, Any], doctype: str = "Journal Entry") -> None:
+	"""The real ``compliance.hooks.require_primary_document`` on the case's fields."""
+	from nyabo_mn.compliance import hooks as compliance_hooks
+
+	require_nyabo_document_complete(fields)
+	if fields.get("has_attachment"):
+		return  # the case asserts a File row is attached; on a site the hook would find it
+	try:
+		compliance_hooks.require_primary_document(_DocShim(fields, doctype))
+	except Exception as exc:  # noqa: BLE001 - frappe.ValidationError carries the Mongolian text
+		raise PrimaryDocumentError(str(exc)) from exc
 
 
 def fallback_period_is_closed(closed_periods: Iterable[Mapping[str, Any]], on_date: dt.date) -> bool:
@@ -170,9 +222,15 @@ def fallback_rate_on(
 
 @dataclass(frozen=True)
 class Adapters:
-	"""The Frappe-side contracts the harness needs, as callables (tests pass fakes)."""
+	"""The Frappe-side contracts the harness needs, as callables (tests pass fakes).
+
+	``require_verified`` is the posting-time guard (it honours ``frappe.flags.nyabo_simulation``
+	exactly like the pipeline); ``is_verified`` is the plain card check that decides
+	``needs_accountant`` and never bypasses (ARCHITECTURE §5.3 step 5, D-006).
+	"""
 
 	require_verified: Callable[[re_.PatternSpec], None] = fallback_require_verified
+	is_verified: Callable[[re_.PatternSpec], bool] = fallback_is_verified
 	require_primary_document: Callable[[Mapping[str, Any]], None] = fallback_require_primary_document
 	period_is_closed: Callable[[Iterable[Mapping[str, Any]], dt.date], bool] = fallback_period_is_closed
 	reverse_entry: Callable[[ProposedEntry, dt.date, str], ProposedEntry] = fallback_reverse_entry
@@ -180,14 +238,23 @@ class Adapters:
 	source: str = "fallback"
 
 
+SOURCE_MODULES = "nyabo_mn.rules+compliance"
+
+
 def site_period_is_closed(company: str) -> Callable[[Iterable[Mapping[str, Any]], dt.date], bool]:
 	"""Period lock from the company's own Accounting Period rows (the case's list is ignored).
 
-	Same inclusive rule as ``validate_accounting_period_on_doc_save``; the case's
+	``compliance.period.is_locked`` is what the pipeline and the reversal ask; the case's
 	``closed_periods`` are expected to have been created on the site by the caller.
 	"""
 
 	def _closed(_closed_periods: Iterable[Mapping[str, Any]], on_date: dt.date) -> bool:
+		try:
+			from nyabo_mn.compliance import period as compliance_period
+		except ImportError:
+			compliance_period = None
+		if compliance_period is not None:
+			return bool(compliance_period.is_locked(company, on_date)[0])
 		import frappe
 
 		rows = frappe.get_all(
@@ -201,30 +268,38 @@ def site_period_is_closed(company: str) -> Callable[[Iterable[Mapping[str, Any]]
 
 
 def site_adapters(company: str) -> Adapters:
-	"""Adapters that read the site: real Accounting Periods, plus the rules guard when present."""
+	"""Adapters that read the site: real Accounting Periods and the real primary-document hook.
+
+	Reversal and FX stay on the fallbacks even here: ``compliance.reversal.reverse`` needs a
+	submitted document and the FX cases carry their own rate rows, while the harness works
+	on ``ProposedEntry`` values that are never posted.
+	"""
 	base = default_adapters()
+	require_document = base.require_primary_document
+	if importlib.util.find_spec("nyabo_mn.compliance.hooks") is not None:
+		require_document = hook_require_primary_document
 	return dataclasses.replace(
-		base, period_is_closed=site_period_is_closed(company), source=f"{base.source}+site"
+		base,
+		period_is_closed=site_period_is_closed(company),
+		require_primary_document=require_document,
+		source=f"{base.source}+site",
 	)
 
 
 def default_adapters() -> Adapters:
-	"""Real ``nyabo_mn.rules.guard.require_verified`` when importable, else the fallbacks.
+	"""The real ``nyabo_mn.rules.guard`` when ``frappe`` is importable, else the core fallbacks.
 
-	Only the verified-rule guard has a documented signature (ARCHITECTURE §1.2); the other
-	Frappe-side functions take documents, not dicts, so the core fallbacks stay in place
-	until an adapter for them is written against the landed module.
+	``guard.require_verified`` / ``guard.is_verified`` accept a core ``PatternSpec`` (an
+	object with ``pattern_id`` and ``verified``), so no site is needed. The compliance
+	functions take a company or a site document; :func:`site_adapters` wires those.
 	"""
 	try:
 		guard = importlib.import_module("nyabo_mn.rules.guard")
 	except ImportError:
 		return Adapters()
-	# UNVERIFIED: ARCHITECTURE §1.2 names require_verified() and the error it raises but not
-	# its parameter; the harness passes the PatternSpec and treats any exception as "refused".
-	require = getattr(guard, "require_verified", None)
-	if not callable(require):
-		return Adapters()
-	return Adapters(require_verified=require, source="nyabo_mn.rules.guard")
+	return Adapters(
+		require_verified=guard.require_verified, is_verified=guard.is_verified, source=SOURCE_MODULES
+	)
 
 
 # --- rules data ----------------------------------------------------------------------------------
@@ -578,11 +653,17 @@ def propose(
 			if found:
 				problems = tuple(found)
 				flags.append(FLAG_ENTRY_INVALID)
+			pattern = _pattern_by_id(rules, entry.pattern_id)
+			refused: Exception | None = None
 			try:
-				adapters.require_verified(_pattern_by_id(rules, entry.pattern_id))
+				adapters.require_verified(pattern)
 			except Exception as exc:  # noqa: BLE001 - any guard error means "hold for the accountant"
+				refused = exc
+			# The card flag never bypasses (D-006): a simulated posting may pass the guard,
+			# the card still says the rule is unverified.
+			if refused is not None or not adapters.is_verified(pattern):
 				flags.append(FLAG_UNVERIFIED_RULE)
-				text = str(getattr(exc, "message_mn", "") or mn.WARN_UNVERIFIED_RULE)
+				text = str(getattr(refused, "message_mn", "") or mn.WARN_UNVERIFIED_RULE)
 				if text not in warnings:
 					warnings.append(text)
 
@@ -1000,12 +1081,14 @@ __all__ = [
 	"ProposalOutcome",
 	"ProposeInput",
 	"RulesData",
+	"SOURCE_MODULES",
 	"UnverifiedRuleError",
 	"convert_fx",
 	"correct",
 	"default_adapters",
 	"document_allowed",
 	"extract_case",
+	"hook_require_primary_document",
 	"is_duplicate",
 	"is_wrong_company",
 	"lines_of",

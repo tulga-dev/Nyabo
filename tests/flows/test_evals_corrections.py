@@ -14,13 +14,17 @@ from nyabo_mn.evals import corrections_job
 
 @pytest.fixture
 def corrected(company):
-	"""A proposal with three corrections today: account, VAT treatment, and an unsupported total."""
+	"""A proposal with three corrections today: account, VAT treatment, and an unsupported total.
+
+	Provisioning already wrote the first regime row (simplified 1% from the fiscal-year
+	start), so the company becomes a VAT payer through ``rules.regime.set_regime``, which
+	closes that row the day before; the proposal's June posting date falls in the VAT period.
+	"""
 	import frappe
 
-	settings = frappe.get_doc("Nyabo Company Settings", company)
-	settings.append("regimes", {"regime": "vat_payer", "effective_from": "2026-01-01"})
-	settings.flags.ignore_permissions = True
-	settings.save()
+	from nyabo_mn.rules.regime import set_regime
+
+	set_regime(company, "vat_payer", "2026-02-01")
 	document = frappe.get_doc(
 		{
 			"doctype": "Nyabo Document",
@@ -37,6 +41,8 @@ def corrected(company):
 			"document": document.name,
 			"kind": "receipt",
 			"status": "posted",
+			"posted_doctype": "Journal Entry",
+			"posted_name": "ACC-JV-2026-00001",
 			"posting_date": "2026-06-15",
 			"account_code": "6210",
 			"vat_treatment": "withheld",
@@ -132,7 +138,73 @@ def test_learned_rules_go_through_the_pipeline_when_it_exists(corrected, monkeyp
 	assert {row["field"] for row in seen} == {"account_code", "vat_treatment", "total"}
 
 
-def test_regime_lookup_falls_back_to_company_settings(corrected, company):
+def test_two_agreeing_corrections_learn_a_rule_through_the_nightly_job(company):
+	"""Without ``pipeline.propose_learned_rules`` the job calls ``agent.post.learn_from_correction`` (D-022)."""
+	import frappe
+
+	from nyabo_mn.rules.regime import set_regime
+
+	set_regime(company, "vat_payer", "2026-02-01")
+	for n in (1, 2):
+		document = frappe.get_doc(
+			{
+				"doctype": "Nyabo Document",
+				"company": company,
+				"doc_type": "receipt",
+				"file_hash": f"hash-{n}",
+				"file": "/private/files/receipt.jpg",
+			}
+		).insert()
+		proposal = frappe.get_doc(
+			{
+				"doctype": "Nyabo Proposal",
+				"company": company,
+				"document": document.name,
+				"kind": "receipt",
+				"status": "posted",
+				"posted_doctype": "Journal Entry",
+				"posted_name": f"ACC-JV-2026-0000{n}",
+				"posting_date": "2026-06-15",
+				"account_code": "6910",
+				"vat_treatment": "in_expense",
+				"extracted_json": json.dumps(
+					{"seller_name": "Ганбат", "total": "50000.00", "lines": [{"description": "Дизель"}]},
+					ensure_ascii=False,
+				),
+			}
+		).insert()
+		frappe.get_doc(
+			{
+				"doctype": "Nyabo Correction",
+				"company": company,
+				"proposal": proposal.name,
+				"field": "account_code",
+				"proposed_value": "6910",
+				"corrected_value": "6210",
+				"reason": "account",
+			}
+		).insert()
+	counts = corrections_job.run_nightly(dt.date.today())
+	assert counts["created"] == 2 and counts["rules_proposed"] == 1 and counts["errors"] == 0
+	rules = frappe.get_all(
+		"Nyabo Rule",
+		filters={"company": company, "source": "learned"},
+		fields=["match_type", "match_value", "target_account_code", "status"],
+	)
+	assert [dict(r) for r in rules] == [
+		{
+			"match_type": "description_pattern",
+			"match_value": "дизель",
+			"target_account_code": "6210",
+			"status": "pending_confirmation",
+		}
+	]
+	again = corrections_job.run_nightly(dt.date.today())
+	assert again["rules_proposed"] == 0 and again["skipped"] == 2  # an existing rule blocks a duplicate
+
+
+def test_regime_lookup_reads_the_regime_history(corrected, company):
 	assert corrections_job.regime_for(company, dt.date(2026, 6, 15)) == "vat_payer"
+	assert corrections_job.regime_for(company, dt.date(2026, 1, 15)) == "simplified_1pct"  # provisioned
 	assert corrections_job.regime_for(company, dt.date(2025, 6, 15)) == ""  # before onboarding
 	assert corrections_job.regime_for("Байхгүй ХХК", dt.date(2026, 6, 15)) == ""
