@@ -46,7 +46,9 @@ _LABEL_RE = re.compile(r"[^a-z0-9_.-]+")
 
 # Order matters only for readability; every pattern is tried. Cyrillic patterns use the
 # stems accountants would not print on a receipt: "заавар" (instruction), "промпт",
-# "дүрмийг март" (forget the rules), and imperative "батал…" aimed at the bot.
+# "дүрмийг март" (forget the rules), imperative "батал…" aimed at the bot, and the two
+# ways Mongolian says "don't": the negative imperative particle "бүү" and the caritive
+# endings "-гүй / -гүйгээр" ("шалгах шаардлагагүй", "шалгалтгүйгээр батал").
 _INJECTION_PATTERNS: tuple[re.Pattern[str], ...] = tuple(
 	re.compile(p, re.IGNORECASE | re.UNICODE)
 	for p in (
@@ -75,7 +77,12 @@ _INJECTION_PATTERNS: tuple[re.Pattern[str], ...] = tuple(
 		r"(чи|та)\s+одоо\s+(бол|нь)?\s*\S*\s*(админ|нягтлан|систем|хөгжүүлэгч|туслах)",
 		r"(энэ|уг|доорх|дээрх)\s+(баримт|гүйлгээ|зардл|санал|нэхэмжлэх)\S*\s+(шууд\s+|заавал\s+|яаралтай\s+)?(батал|зөвшөөр|бүртгэ)",
 		# "батлах" loses its second а before an ending ("батлаарай"): match the stem бата?л.
-		r"(шууд|заавал|яаралтай|асуулгүй|шалгалгүй|шалгахгүй)\s+(бата?л|зөвшөөр|бүртгэ)",
+		# The adverbs keep their endings ("шалгалтгүйгээр", "асуулгүйгээр"), hence \w*.
+		r"(шууд|заавал|яаралтай|асуулгүй\w*|шалгалгүй\w*|шалгахгүй|шалгалтгүй\w*)\s+(бата?л|зөвшөөр|бүртгэ)",
+		# Negative imperative: "бүү шалга" (do not check), "нягтланд бүү мэдэгд" (do not tell
+		# the accountant). Only verbs aimed at the bot are listed — receipts really do print
+		# "Сугалаагаа бүү мартаарай!", and that must stay clean.
+		r"\bбүү\s+(шалга|асуу|мэдэгд|хэл|бүртгэ|няг|тоо)\w*",
 		r"\bбатлах\s+(товч|команд|үйлдлийг)",
 		r"\bбата?л(на\s+уу|аарай|аач|аад\s+өг|ж\s+өг|ах\s+хэрэгтэй)\b",
 		r"нягтлан(д|гүй)\s+(хэлэлгүй|мэдэгдэлгүй|шалгуулалгүй)",

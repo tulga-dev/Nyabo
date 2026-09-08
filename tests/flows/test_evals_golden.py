@@ -14,7 +14,7 @@ EXPECTED_COUNTS = {
 	"extraction": 10,
 	"classification": 20,
 	"rules": 10,
-	"injection": 5,
+	"injection": 8,
 	"correction": 5,
 	"document_required": 5,
 	"period_lock": 5,
