@@ -181,6 +181,20 @@ def test_primary_button_alone_on_top():
 	assert markup["inline_keyboard"][0][0]["callback_data"] == "p:NYP-00001:ap"
 
 
+def test_every_mn_string_referenced_by_the_telegram_layer_exists():
+	"""ARCHITECTURE §8.1: a typo in an ``mn.X`` name must fail here, not in a user's chat."""
+	import re
+
+	root = Path(__file__).resolve().parent.parent.parent / "nyabo_mn" / "telegram"
+	pattern = re.compile(r"\bmn\.([A-Z][A-Z0-9_]+)")
+	missing = set()
+	for path in root.rglob("*.py"):
+		for name in pattern.findall(path.read_text(encoding="utf-8")):
+			if not hasattr(mn, name):
+				missing.add(f"{path.name}: mn.{name}")
+	assert not missing, sorted(missing)
+
+
 def test_chunk_text_splits_on_newlines():
 	text = "\n".join(f"line {i} " + "x" * 50 for i in range(200))
 	chunks = api.chunk_text(text)
