@@ -431,3 +431,52 @@ Whenever the two disagree, the pipeline is the authority: it is what reaches the
 Seven agents each numbered their decisions from D-017, so the log holds five different
 D-017s. Section headings disambiguate them for now; a citation in code or on a card must
 name the section as well as the number until they are renumbered.
+
+## telegram review (post-merge)
+
+### D-T01 `_deps` names the module that owns the function, not the one in the contract
+ARCHITECTURE §5.3 step 6 calls the posting entry point `agent.pipeline.post_proposal`, but
+posting landed in `agent/post.py` and `pipeline.py` cannot re-export it (post.py imports
+pipeline, so the re-export would be circular). The six shims - `post_proposal`,
+`change_account`, `reject`, `top_accounts`, `search_accounts`,
+`make_correction_proposal` - therefore resolve `nyabo_mn.agent.post`.
+`tests/unit/test_telegram_deps.py` imports every `_call` target so a shim can never again
+name a function that does not exist.
+
+### D-T02 The rejection reason travels as a code, the free text beside it
+`post.reject` takes `reason_code` (a key of `mn.REJECT_REASONS`) and now an explicit
+`reason_text` for the "other" case. The handler renders the label for the card and the
+proposal's `rejection_reason`, but `Nyabo Correction.reason` keeps the code, because the
+corrections job and `learn_from_correction` read the code, not the Mongolian label.
+
+### D-T03 Company scoping lives in `nyabo_mn/access.py`, next to every entry point
+Callback data is attacker-chosen and ERPNext document names are a global sequence, so a
+name alone never authorises anything: `correct`, `bank`, `compliance.reversal`,
+`matching.match` and `compliance.period` all re-check the document's company against the
+caller's `Nyabo User Company` rows. The handlers check it *and* the functions do, so a new
+caller cannot reintroduce the hole.
+
+### D-T04 The link role is per company
+`Nyabo User Company` carries a `role`; `Ctx.role` and `agent.post.approver_kind` resolve it
+for the active company and fall back to the link-level role (which is what a link with no
+company carries, and what rows written before this field fall back to, so nothing needs
+migrating). One person is often the owner of their own company and the bookkeeper of
+another; the old site-wide role let an Accountant code for one company make them an
+accountant everywhere. `approver_kind` asks the link before the site-wide Frappe roles for
+the same reason.
+
+### D-T05 A linked accountant gets ERPNext roles, and guessing link codes is capped
+`ensure_frappe_user` adds `Accounts User` for an Accountant link and `Accounts Manager` for
+an Admin link (an Owner gets neither: an owner only taps cards). Without them ERPNext
+refuses `make_reverse_journal_entry`, `make_debit_note` and `query_report.run` for the
+session the bot runs as, which is the approver's. The roles are site-wide, so the company
+boundary is D-T03's, not ERPNext's. Separately, five wrong link codes block a chat for an
+hour (`Nyabo Chat State.link_attempts` / `link_blocked_until`) and raise a Nyabo Event:
+a six-digit code is the only credential guarding a company's books.
+
+### D-T06 The bot token never reaches an error string
+A `requests` transport failure embeds the request URL, and the request URL contains the
+token, so `api.call` / `api.download` log and raise only the exception's class name.
+`log.scrub` masks anything token-shaped in any logged value, in the desk Error Log
+traceback and in the admin notice, as a backstop for paths that repr an exception.
+
