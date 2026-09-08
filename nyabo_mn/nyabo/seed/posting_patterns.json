@@ -11,7 +11,7 @@
     "line.alternatives": "other classes/roles for the same line under a stated condition; the pipeline picks by hint (paid_in_cash, ...) or the accountant taps",
     "line.v1_code_range": "for expense lines: the V1 codes the classified account may come from",
     "line.class_assumed": "the reference does not name the class; Nyabo assumed it (confirm with the accountant)",
-    "citation": "Заавар 116 (2000) sections are not in the reference: section null, verified false on every pattern; the explanation suffix is generated at runtime from the citation (rules_engine.citation_suffix), not stored",
+    "citation": "Заавар 116 (2000) sections come from two independent readings of the instrument text (legalinfo.mn lawId=205201, fetched 2026-09-08) reconciled by a third; section and quote are set, and verified is true, only where both readers (or the reconciler) rated the section exact and the quoted sentence was found verbatim in the text (docs/legal/order116.md). Otherwise section and quote are null, verified is false and notes list the candidate sections. The explanation suffix is generated at runtime from the citation (rules_engine.citation_suffix), not stored.",
     "primary_document_mn": "the primary document required by Law on Accounting art. 13.7 for this entry",
     "document_types": "ERPNext DocTypes the pattern may produce or explain; sale_*/purchase_* are the invoice only (settlement legs are receivable_collect / payable_pay)"
   },
@@ -79,15 +79,15 @@
       "citation": {
         "instrument": "Заавар 116 (2000)",
         "instrument_full": "Аж ахуйн нэгж, байгууллагад мөрдөх нягтлан бодох бүртгэлийн дансны үлгэрчилсэн заавар (Сангийн сайдын 2000 оны 116 дугаар тушаал)",
-        "section": null,
-        "verified": false,
+        "section": "11.2.1; 9.4.1.1",
+        "verified": true,
         "url": "https://legalinfo.mn/mn/detail?lawId=205201",
-        "quote": null
+        "quote": "Орлого тооцох аргачлалаар тооцсон тайлангийн хугацааны үндсэн борлуулалтын хэмжээгээр хийгдэх бүртгэлийн үндсэн бичилт: Дт Дансны авлага/Мөнгө Кт Борлуулалт — Гадагш худалдсан бараа материал, үзүүлсэн ажил үйлчилгээнд ногдох нэмэгдсэн өртгийн албан татварын хэмжээгээр: Дт Мөнгөн хөрөнгө/Дансны авлага Кт НӨАТатварын өглөг"
       },
-      "verified": false,
+      "verified": true,
       "enabled": true,
       "reference_bullet": "§3 'Cash sale / credit sale'",
-      "notes": "Дт Мөнгө — Кт Борлуулалт (+ Кт НӨАТ өглөг for VAT payers). ERPNext books the model's one-line entry as two legs: the invoice credits 51/31 against debit_to (receivable) and the POS/payment leg debits cash against the receivable (version-16 sales_invoice.py make_pos_gl_entries); the matcher must treat invoice + settlement as this pattern. Sales template 'НӨАТ 10%' routes the VAT row to the output VAT account (setup/taxes.py)."
+      "notes": "Дт Мөнгө — Кт Борлуулалт (+ Кт НӨАТ өглөг for VAT payers). ERPNext books the model's one-line entry as two legs: the invoice credits 51/31 against debit_to (receivable) and the POS/payment leg debits cash against the receivable (version-16 sales_invoice.py make_pos_gl_entries); the matcher must treat invoice + settlement as this pattern. Sales template 'НӨАТ 10%' routes the VAT row to the output VAT account (setup/taxes.py). Citation: mapper A read 1.4 + 9.4.1.1 (probable), mapper B 11.2.1 + 9.4.1.1 (probable); the reconciler settled on 11.2.1 (the instrument's own «бүртгэлийн үндсэн бичилт») plus the 9.4.1.1 output-VAT sentence, corroborated by 1.4 «Дт Мөнгөн хөрөнгө Кт Борлуулалт (Авлага)», confidence exact. The instrument prints the sale and the VAT as two entries; this pattern is their composite."
     },
     {
       "pattern_id": "sale_credit_vat_payer",
@@ -153,7 +153,7 @@
       "verified": false,
       "enabled": true,
       "reference_bullet": "§3 'Cash sale / credit sale'",
-      "notes": "Дт Дансны авлага — Кт Борлуулалт, Кт НӨАТ өглөг. Credit variant; the settlement is receivable_collect."
+      "notes": "Дт Дансны авлага — Кт Борлуулалт, Кт НӨАТ өглөг. Credit variant; the settlement is receivable_collect. Citation: both mappers rate 3.4.1 а) («Дт Дансны авлага Кт Борлуулалт») + 9.4.1.1 (output VAT «Дт Мөнгөн хөрөнгө/Дансны авлага Кт НӨАТатварын өглөг») as probable only — the instrument prints the two entries separately, never a single three-line credit sale with VAT; the reconciler did not rule on this id. Section left null until a human confirms the composite."
     },
     {
       "pattern_id": "sale_cash_non_vat",
@@ -207,15 +207,15 @@
       "citation": {
         "instrument": "Заавар 116 (2000)",
         "instrument_full": "Аж ахуйн нэгж, байгууллагад мөрдөх нягтлан бодох бүртгэлийн дансны үлгэрчилсэн заавар (Сангийн сайдын 2000 оны 116 дугаар тушаал)",
-        "section": null,
-        "verified": false,
+        "section": "11.2.1",
+        "verified": true,
         "url": "https://legalinfo.mn/mn/detail?lawId=205201",
-        "quote": null
+        "quote": "Орлого тооцох аргачлалаар тооцсон тайлангийн хугацааны үндсэн борлуулалтын хэмжээгээр хийгдэх бүртгэлийн үндсэн бичилт: Дт Дансны авлага/Мөнгө Кт Борлуулалт"
       },
-      "verified": false,
+      "verified": true,
       "enabled": true,
       "reference_bullet": "§3 'Cash sale / credit sale'",
-      "notes": "Same bullet without the VAT parenthesis. 'gross' is the full receipt amount; there is no net/VAT split. Keyed on VAT status only (a non-VAT company under regular CIT uses it too)."
+      "notes": "Same bullet without the VAT parenthesis. 'gross' is the full receipt amount; there is no net/VAT split. Keyed on VAT status only (a non-VAT company under regular CIT uses it too). Citation: both mappers exact (A: 1.4, B: 11.2.1); reconciler: 11.2.1 prescribes, 1.4 «Үүнийг : Дт Мөнгөн хөрөнгө Кт Борлуулалт (Авлага) гэж бүртгэнэ.» corroborates. No sentence addresses non-VAT sellers specifically; the absence of a VAT line follows from 9.4.1.1 applying only to entities «Нэмэгдсэн өртгийн албан татвар төлөгчөөр бүртгэгдсэн»."
     },
     {
       "pattern_id": "sale_credit_non_vat",
@@ -262,15 +262,15 @@
       "citation": {
         "instrument": "Заавар 116 (2000)",
         "instrument_full": "Аж ахуйн нэгж, байгууллагад мөрдөх нягтлан бодох бүртгэлийн дансны үлгэрчилсэн заавар (Сангийн сайдын 2000 оны 116 дугаар тушаал)",
-        "section": null,
-        "verified": false,
+        "section": "3.4.1 а)",
+        "verified": true,
         "url": "https://legalinfo.mn/mn/detail?lawId=205201",
-        "quote": null
+        "quote": "а) Зээлээр борлуулсан бүтээгдэхүүн, бараа, ажил үйлчилгээг : Дт Дансны авлага Кт Борлуулалт"
       },
-      "verified": false,
+      "verified": true,
       "enabled": true,
       "reference_bullet": "§3 'Cash sale / credit sale'",
-      "notes": "Credit variant, no VAT."
+      "notes": "Credit variant, no VAT. Citation: both mappers exact on 3.4.1 а) (also 11.2.1 «Дт Дансны авлага/Мөнгө Кт Борлуулалт»)."
     },
     {
       "pattern_id": "purchase_expense_vat_payer",
@@ -353,7 +353,7 @@
       "verified": false,
       "enabled": true,
       "reference_bullet": "§3 'Purchase of goods/services (VAT payer)'",
-      "notes": "Дт Зардал, Дт НӨАТ авлага — Кт Мөнгө / Дансны өглөг. The class-70 line has no role: the resolver returns the classified expense account. README Phase 0 check expects GL 6210 Dr 100 000, 1810 Dr 10 000, 2110 Cr 110 000 — exactly this pattern. Which expense categories are non-deductible for VAT (reference §1.3, widened from 2027, VERIFY) is not in the reference: see tax parameter vat.input_deduction_categories (pending)."
+      "notes": "Дт Зардал, Дт НӨАТ авлага — Кт Мөнгө / Дансны өглөг. The class-70 line has no role: the resolver returns the classified expense account. README Phase 0 check expects GL 6210 Dr 100 000, 1810 Dr 10 000, 2110 Cr 110 000 — exactly this pattern. Which expense categories are non-deductible for VAT (reference §1.3, widened from 2027, VERIFY) is not in the reference: see tax parameter vat.input_deduction_categories (pending). Citation: candidates 12.2.2 А (expense debit «Дт Гадны үйлчилгээний зардал Кт Дансны өглөг/Мөнгө», «Дт Ашиглалтын зардал Кт Дансны өглөг») + 9.4.1.1 (input VAT «Дт НӨАТатварын авлага Кт Мөнгөн хөрөнгө/Дансны өглөг»); both mappers and the reconciler: probable. The VAT-receivable sentence is worded for «гаднаас авсан бараа материал» only; no sentence in Order 116 debits НӨАТатварын авлага against a service/expense purchase, so that leg is an application of 9.4.1.1 with the VAT Law art. 14 as the authority for deductibility."
     },
     {
       "pattern_id": "purchase_inventory_vat_payer",
@@ -424,15 +424,15 @@
       "citation": {
         "instrument": "Заавар 116 (2000)",
         "instrument_full": "Аж ахуйн нэгж, байгууллагад мөрдөх нягтлан бодох бүртгэлийн дансны үлгэрчилсэн заавар (Сангийн сайдын 2000 оны 116 дугаар тушаал)",
-        "section": null,
-        "verified": false,
+        "section": "9.4.1.1",
+        "verified": true,
         "url": "https://legalinfo.mn/mn/detail?lawId=205201",
-        "quote": null
+        "quote": "Худалдан авсан бараа, материал, үзүүлсэн ажил үйлчилгээний үнийг дараа төлөхөөр тооцоо үүсгэсэн бол: Дт Бараа материал Кт Дансны өглөг — Нэмэгдсэн өртгийн албан татвар төлөгчөөр бүртгэгдсэн аж ахуйн нэгж, байгууллага гаднаас авсан бараа материалд ногдох НӨАТ-ын дүнгээр: Дт НӨАТатварын авлага Кт Мөнгөн хөрөнгө/Дансны өглөг гэж бичнэ."
       },
-      "verified": false,
+      "verified": true,
       "enabled": true,
       "reference_bullet": "§3 'Purchase of goods/services (VAT payer)'",
-      "notes": "Inventory variant. Class 15 is primary for traders (reviewer), class 14 for raw materials; both map to V1 1410. With Company.enable_perpetual_inventory on, ERPNext posts stock through Purchase Receipt (Dr stock / Cr Stock Received But Not Billed) and the invoice clears it against the payable; Nyabo's default is periodic inventory."
+      "notes": "Inventory variant. Class 15 is primary for traders (reviewer), class 14 for raw materials; both map to V1 1410. With Company.enable_perpetual_inventory on, ERPNext posts stock through Purchase Receipt (Dr stock / Cr Stock Received But Not Billed) and the invoice clears it against the payable; Nyabo's default is periodic inventory. Citation: both mappers and the reconciler exact on 9.4.1.1 (two separate entries in the same section, ~40 lines apart); materials also 4.7 «Дт ТЭҮМ Бусад хангамжийн зүйлс Кт Дансны өглөг/ Мөнгөн хөрөнгө», goods 4.8.6 «Дт Бараа (Барааны нэр төрлийн данс) Кт Мөнгөн хөрөнгө / Дансны өглөг»."
     },
     {
       "pattern_id": "purchase_expense_non_vat",
@@ -504,7 +504,7 @@
       "verified": false,
       "enabled": true,
       "reference_bullet": "§3 'Purchase (not VAT-registered)'",
-      "notes": "VAT is included in cost: Дт Зардал (gross) — Кт Мөнгө / Өглөг. 'This is the default for simplified-regime clients.' README Phase 0: 'Non-VAT company: purchase VAT stays in the expense, no template is default.'"
+      "notes": "VAT is included in cost: Дт Зардал (gross) — Кт Мөнгө / Өглөг. 'This is the default for simplified-regime clients.' README Phase 0: 'Non-VAT company: purchase VAT stays in the expense, no template is default.' Citation: candidates 9.4.1.1 (VAT-in-cost rule, whose wording covers «бараа, ажил үйлчилгээ» but whose printed debit is «Бараа матераил» only) + 12.2.2 А (expense debit); both mappers and the reconciler: probable. The gross expense debit is an application of the rule, not a printed entry."
     },
     {
       "pattern_id": "purchase_inventory_non_vat",
@@ -564,15 +564,15 @@
       "citation": {
         "instrument": "Заавар 116 (2000)",
         "instrument_full": "Аж ахуйн нэгж, байгууллагад мөрдөх нягтлан бодох бүртгэлийн дансны үлгэрчилсэн заавар (Сангийн сайдын 2000 оны 116 дугаар тушаал)",
-        "section": null,
-        "verified": false,
+        "section": "9.4.1.1",
+        "verified": true,
         "url": "https://legalinfo.mn/mn/detail?lawId=205201",
-        "quote": null
+        "quote": "Нэмэгдсэн өртгийн албан татвар төлөгчөөр бүртгэгдээгүй аж ахуйн нэгж, байгууллага импортоор болон бусад байгууллагаас авсан бараа, ажил үйлчилгээнд ногдох нэмэгдсэн өртгийн татварыг уг бараа, ажил үйлчилгээний өртөгт оруулан: Дт Бараа матераил Кт Мөнгөн хөрөнгө/Өглөг гэж бичнэ."
       },
-      "verified": false,
+      "verified": true,
       "enabled": true,
       "reference_bullet": "§3 'Purchase (not VAT-registered)'",
-      "notes": "Inventory variant without VAT; same perpetual/periodic remark as purchase_inventory_vat_payer."
+      "notes": "Inventory variant without VAT; same perpetual/periodic remark as purchase_inventory_vat_payer. Citation: both mappers exact on 9.4.1.1 (the printed debit reads «Бараа матераил» [sic] in the source)."
     },
     {
       "pattern_id": "receivable_collect",
@@ -628,7 +628,7 @@
       "verified": false,
       "enabled": true,
       "reference_bullet": "§3 'Cash sale / credit sale' (collection implied) and 'Payroll' payment bullet 'Дт өглөг — Кт Мөнгө'",
-      "notes": "Added per reviewer: the most frequent bank-statement inflow. The credit-sale bullet 'Дт Дансны авлага — Кт Борлуулалт' implies its collection; the reference gives no separate bullet, hence verified=false."
+      "notes": "Added per reviewer: the most frequent bank-statement inflow. The credit-sale bullet 'Дт Дансны авлага — Кт Борлуулалт' implies its collection; the reference gives no separate bullet, hence verified=false. Citation: not in either mapper's list (added per reviewer after the mapping). Integrator's candidate: 3.4.1 в) «Худалдан авагчаас төлсөн төлбөрийн хэмжээгээр : Дт Мөнгөн хөрөнгө Кт Дансны авлага» — verbatim in the saved text, but single-reader; a second reader must confirm before verified is set."
     },
     {
       "pattern_id": "payable_pay",
@@ -684,7 +684,7 @@
       "verified": false,
       "enabled": true,
       "reference_bullet": "§3 'Payroll' payment bullet 'Дт өглөг — Кт Мөнгө' (generalised)",
-      "notes": "Added per reviewer: the most frequent bank-statement outflow. payroll_pay and income_tax_pay are specialisations for tax and payroll payables."
+      "notes": "Added per reviewer: the most frequent bank-statement outflow. payroll_pay and income_tax_pay are specialisations for tax and payroll payables. Citation: not in either mapper's list. Integrator's candidate: 1.4 «Мөнгөн зарлагын үндсэн хэлбэр нь бараа, материал худалдан авсан болон бусад байгууллага, хүмүүсээс авсан төрөл бүрийн үйлчилгээний төлбөр байна. Үүнийг : Дт Хөрөнгө/ (Зардал)/ Дансны өглөг Кт Мөнгөн хөрөнгө гэж бичнэ.» (single-reader; confirm before verified is set)."
     },
     {
       "pattern_id": "vat_settle",
@@ -745,7 +745,7 @@
       "verified": false,
       "enabled": true,
       "reference_bullet": "§3 'Payroll' payment bullet 'Дт өглөг — Кт Мөнгө' (generalised); VAT accounts from §2 classes 12 and 31",
-      "notes": "Added per reviewer. Filing: tax parameter filing.vat (monthly by the 10th, VERIFY); 2027 payment deferral in vat.payment_timing."
+      "notes": "Added per reviewer. Filing: tax parameter filing.vat (monthly by the 10th, VERIFY); 2027 payment deferral in vat.payment_timing. Citation: not in either mapper's list, and Order 116 prints no VAT settlement entry (9.4.1.1 only creates НӨАТатварын өглөг / НӨАТатварын авлага). Integrator's candidate for the payment leg: 1.4 «Татвар цалин гэх мэт бусад мөнгөн зарлага гарсан тохиолдолд: Дт Татварын өглөг/ ... Кт Мөнгөн хөрөнгө»; the offset of input against output VAT is VAT Law art. 14, not Order 116."
     },
     {
       "pattern_id": "income_tax_pay",
@@ -801,7 +801,7 @@
       "verified": false,
       "enabled": true,
       "reference_bullet": "§3 'Income tax' (payment implied) and 'Payroll' payment bullet 'Дт өглөг — Кт Мөнгө'",
-      "notes": "Added per reviewer (CIT payment was absent)."
+      "notes": "Added per reviewer (CIT payment was absent). Citation: not in either mapper's list. Integrator's candidate: 9.4.1.1 «Төлсөн татварын дүнгээр: Дт Орлогын татварын өглөг Кт Мөнгөн хөрөнгө» — verbatim in the saved text (the reconciler quotes it under payroll_pay as the entity's own income-tax payment), single-reader; confirm before verified is set."
     },
     {
       "pattern_id": "petty_cash_establish",
@@ -850,15 +850,15 @@
       "citation": {
         "instrument": "Заавар 116 (2000)",
         "instrument_full": "Аж ахуйн нэгж, байгууллагад мөрдөх нягтлан бодох бүртгэлийн дансны үлгэрчилсэн заавар (Сангийн сайдын 2000 оны 116 дугаар тушаал)",
-        "section": null,
-        "verified": false,
+        "section": "1.4",
+        "verified": true,
         "url": "https://legalinfo.mn/mn/detail?lawId=205201",
-        "quote": null
+        "quote": "Нөхөн дүүргэх жижиг мөнгөн санг байгуулахад: Дт Жижиг мөнгөн сан Кт Мөнгө"
       },
-      "verified": false,
+      "verified": true,
       "enabled": true,
       "reference_bullet": "§3 'Petty cash'",
-      "notes": "Establish Дт Жижиг мөнгөн сан — Кт Мөнгө. Class 10 sub-accounts are 'by currency, cashier, purpose'; v0.3 has 1002; the V1 chart has none (role petty_cash is null in scheme v1)."
+      "notes": "Establish Дт Жижиг мөнгөн сан — Кт Мөнгө. Class 10 sub-accounts are 'by currency, cashier, purpose'; v0.3 has 1002; the V1 chart has none (role petty_cash is null in scheme v1). Citation: both mappers and the reconciler exact on 1.4; definition of the fund in 1.1 «Тусгай зориулалт бүхий мөнгөн санд жижиг мөнгөн сан, цалин ба ногдол ашгийн сан зэрэг орно.»"
     },
     {
       "pattern_id": "petty_cash_replenish",
@@ -918,15 +918,15 @@
       "citation": {
         "instrument": "Заавар 116 (2000)",
         "instrument_full": "Аж ахуйн нэгж, байгууллагад мөрдөх нягтлан бодох бүртгэлийн дансны үлгэрчилсэн заавар (Сангийн сайдын 2000 оны 116 дугаар тушаал)",
-        "section": null,
-        "verified": false,
+        "section": "1.4",
+        "verified": true,
         "url": "https://legalinfo.mn/mn/detail?lawId=205201",
-        "quote": null
+        "quote": "Уг санг нөхөн дүүргэх үед (зарлагын баримтуудыг үндэслэн чек бичсэн дүнгээр) : Дт Холбогдох зардлын данс Кт Мөнгө"
       },
-      "verified": false,
+      "verified": true,
       "enabled": true,
       "reference_bullet": "§3 'Petty cash'",
-      "notes": "Replenish Дт зардлын дансууд — Кт Мөнгө; 'the fund account itself is not touched by expenses.'"
+      "notes": "Replenish Дт зардлын дансууд — Кт Мөнгө; 'the fund account itself is not touched by expenses.' Citation: both mappers exact on 1.4. The adjustment entry for a surplus/shortage in the fund («Дт Мөнгө Кт Жижиг мөнгөн сан») is printed next to it and is not a Nyabo pattern."
     },
     {
       "pattern_id": "payroll_accrue",
@@ -973,15 +973,15 @@
       "citation": {
         "instrument": "Заавар 116 (2000)",
         "instrument_full": "Аж ахуйн нэгж, байгууллагад мөрдөх нягтлан бодох бүртгэлийн дансны үлгэрчилсэн заавар (Сангийн сайдын 2000 оны 116 дугаар тушаал)",
-        "section": null,
-        "verified": false,
+        "section": "9.4.1.2",
+        "verified": true,
         "url": "https://legalinfo.mn/mn/detail?lawId=205201",
-        "quote": null
+        "quote": "Ажилчин албан хаагчдын цалин хөлсний өглөгийг: Дт Цалингийн зардал Кт Цалингийн өглөг гэж бүртгэнэ."
       },
-      "verified": false,
+      "verified": true,
       "enabled": true,
       "reference_bullet": "§3 'Payroll' entry 1 of 4",
-      "notes": "Дт Цалингийн зардал — Кт Цалингийн өглөг."
+      "notes": "Дт Цалингийн зардал — Кт Цалингийн өглөг. Citation: both mappers and the reconciler exact on 9.4.1.2; the same entry is printed in 12.2.2 А (general and administrative staff), 12.2.2 Б (sales and marketing staff) and 4.8.7 а (service entities)."
     },
     {
       "pattern_id": "payroll_withhold_pit",
@@ -1021,15 +1021,15 @@
       "citation": {
         "instrument": "Заавар 116 (2000)",
         "instrument_full": "Аж ахуйн нэгж, байгууллагад мөрдөх нягтлан бодох бүртгэлийн дансны үлгэрчилсэн заавар (Сангийн сайдын 2000 оны 116 дугаар тушаал)",
-        "section": null,
-        "verified": false,
+        "section": "9.4.1.1",
+        "verified": true,
         "url": "https://legalinfo.mn/mn/detail?lawId=205201",
-        "quote": null
+        "quote": "Төлөхөөр тооцоолсон хүн амын орлогын татварыг: Дт Цалингийн өглөг Кт Хүн амын орлогын татварын өглөг"
       },
-      "verified": false,
+      "verified": true,
       "enabled": true,
       "reference_bullet": "§3 'Payroll' entry 2 of 4",
-      "notes": "Withholding Дт Цалингийн өглөг — Кт ХХОАТ өглөг. The V1 chart has no PIT-payable account (role pit_payable null in v1; v0.3 3112)."
+      "notes": "Withholding Дт Цалингийн өглөг — Кт ХХОАТ өглөг. The V1 chart has no PIT-payable account (role pit_payable null in v1; v0.3 3112). Citation: both mappers exact on 9.4.1.1; the account is named «Хүн амын орлогын татварын өглөг» (the 2000-era name for ХХОАТ)."
     },
     {
       "pattern_id": "payroll_withhold_employee_si",
@@ -1077,7 +1077,7 @@
       "verified": false,
       "enabled": true,
       "reference_bullet": "§3 'Payroll' 'social insurance Дт зардал — Кт НДШ өглөг' with §1.3 employee 11.5%",
-      "notes": "Added per reviewer: without it net pay and Цалингийн өглөг are overstated by the employee share every month."
+      "notes": "Added per reviewer: without it net pay and Цалингийн өглөг are overstated by the employee share every month. Citation: not in either mapper's list, and Order 116 prints no employee-share withholding entry — 9.4.1.1 has only the employer-side «Нийгмийн даатгалын байгууллагад өгөх даатгалын өглөгийг: Дт Зардлын холбогдох дансад Кт Холбогдох даатгалын өглөг». The employee withholding is required by the General Law on Social Insurance art. 21.1 («сар бүр тооцон суутгаж»), not by this instrument. Whether the SI deduction reduces the PIT base is UNCONFIRMED."
     },
     {
       "pattern_id": "payroll_employer_si",
@@ -1124,15 +1124,15 @@
       "citation": {
         "instrument": "Заавар 116 (2000)",
         "instrument_full": "Аж ахуйн нэгж, байгууллагад мөрдөх нягтлан бодох бүртгэлийн дансны үлгэрчилсэн заавар (Сангийн сайдын 2000 оны 116 дугаар тушаал)",
-        "section": null,
-        "verified": false,
+        "section": "9.4.1.1",
+        "verified": true,
         "url": "https://legalinfo.mn/mn/detail?lawId=205201",
-        "quote": null
+        "quote": "Нийгмийн даатгалын байгууллагад өгөх даатгалын өглөгийг: Дт Зардлын холбогдох дансад Кт Холбогдох даатгалын өглөг"
       },
-      "verified": false,
+      "verified": true,
       "enabled": true,
       "reference_bullet": "§3 'Payroll' entry 3 of 4",
-      "notes": "Social insurance Дт зардал — Кт НДШ өглөг. V1 has 6120 (expense) but no SI-payable account."
+      "notes": "Social insurance Дт зардал — Кт НДШ өглөг. V1 has 6120 (expense) but no SI-payable account. Citation: both mappers exact on 9.4.1.1."
     },
     {
       "pattern_id": "payroll_pay",
@@ -1194,15 +1194,15 @@
       "citation": {
         "instrument": "Заавар 116 (2000)",
         "instrument_full": "Аж ахуйн нэгж, байгууллагад мөрдөх нягтлан бодох бүртгэлийн дансны үлгэрчилсэн заавар (Сангийн сайдын 2000 оны 116 дугаар тушаал)",
-        "section": null,
-        "verified": false,
+        "section": "1.4",
+        "verified": true,
         "url": "https://legalinfo.mn/mn/detail?lawId=205201",
-        "quote": null
+        "quote": "Татвар цалин гэх мэт бусад мөнгөн зарлага гарсан тохиолдолд: Дт Татварын өглөг/ Цалингийн өглөг/ бусад холбогдох дансад Кт Мөнгөн хөрөнгө гэж тус тус бүртгэнэ."
       },
-      "verified": false,
+      "verified": true,
       "enabled": true,
       "reference_bullet": "§3 'Payroll' entry 4 of 4",
-      "notes": "Payment Дт өглөг — Кт Мөнгө. Deadlines: filing.pit_withholding, filing.si (VERIFY)."
+      "notes": "Payment Дт өглөг — Кт Мөнгө. Deadlines: filing.pit_withholding, filing.si (VERIFY). Citation: both mappers and the reconciler exact on 1.4, the only sentence that pays Цалингийн өглөг from cash. The 9.4.1.1 sentence «Төлсөн татварын дүнгээр: Дт Орлогын татварын өглөг Кт Мөнгөн хөрөнгө» is the entity's own income tax, not payroll withholding."
     },
     {
       "pattern_id": "prepaid_expense_pay",
@@ -1257,15 +1257,15 @@
       "citation": {
         "instrument": "Заавар 116 (2000)",
         "instrument_full": "Аж ахуйн нэгж, байгууллагад мөрдөх нягтлан бодох бүртгэлийн дансны үлгэрчилсэн заавар (Сангийн сайдын 2000 оны 116 дугаар тушаал)",
-        "section": null,
-        "verified": false,
+        "section": "5.4",
+        "verified": true,
         "url": "https://legalinfo.mn/mn/detail?lawId=205201",
-        "quote": null
+        "quote": "Бэлтгэн нийлүүлэгчид төлсөн урьдчилгаа ба урьдчилан гарсан зардлыг : Дт Урьдчилж төлсөн төлбөрүүд Кт Мөнгөн хөрөнгө/ Дансны өглөг гэж бүртгэнэ."
       },
-      "verified": false,
+      "verified": true,
       "enabled": true,
       "reference_bullet": "§3 'Prepaid expenses (rent, insurance)' entry 1 of 2",
-      "notes": "Дт Урьдчилж төлсөн зардал — Кт Мөнгө. ERPNext v16 can automate the pair (Purchase Invoice Item enable_deferred_expense / deferred_expense_account / service dates; Company.default_deferred_expense_account). VAT part of a prepaid invoice for a VAT payer is UNCONFIRMED — no VAT line."
+      "notes": "Дт Урьдчилж төлсөн зардал — Кт Мөнгө. ERPNext v16 can automate the pair (Purchase Invoice Item enable_deferred_expense / deferred_expense_account / service dates; Company.default_deferred_expense_account). VAT part of a prepaid invoice for a VAT payer is UNCONFIRMED — no VAT line. Citation: both mappers and the reconciler exact on 5.4; 5.1 defines the item («Бэлтгэн нийлүүлэгчид төлсөн урьдчилгаа», «Урьдчилж төлсөн түрээс, даатгал, татварын төлбөр»)."
     },
     {
       "pattern_id": "prepaid_expense_amortize",
@@ -1312,15 +1312,15 @@
       "citation": {
         "instrument": "Заавар 116 (2000)",
         "instrument_full": "Аж ахуйн нэгж, байгууллагад мөрдөх нягтлан бодох бүртгэлийн дансны үлгэрчилсэн заавар (Сангийн сайдын 2000 оны 116 дугаар тушаал)",
-        "section": null,
-        "verified": false,
+        "section": "5.4",
+        "verified": true,
         "url": "https://legalinfo.mn/mn/detail?lawId=205201",
-        "quote": null
+        "quote": "Бэлтгэн нийлүүлэгчид төлсөн урьдчилгаа ба урьдчилж гарсан зардлын тухайн тайлангийн үед ногдох хэмжээгээр : Дт Бараа материал / Үйлдвэрлэлийн ба ерөнхий зардал Кт Урьдчилж төлсөн төлбөрүүд гэж бичнэ."
       },
-      "verified": false,
+      "verified": true,
       "enabled": true,
       "reference_bullet": "§3 'Prepaid expenses' entry 2 of 2",
-      "notes": "Monthly Дт Зардал — Кт Урьдчилж төлсөн зардал."
+      "notes": "Monthly Дт Зардал — Кт Урьдчилж төлсөн зардал. Citation: both mappers exact on 5.4 (second entry)."
     },
     {
       "pattern_id": "customer_prepayment_receive",
@@ -1368,15 +1368,15 @@
       "citation": {
         "instrument": "Заавар 116 (2000)",
         "instrument_full": "Аж ахуйн нэгж, байгууллагад мөрдөх нягтлан бодох бүртгэлийн дансны үлгэрчилсэн заавар (Сангийн сайдын 2000 оны 116 дугаар тушаал)",
-        "section": null,
-        "verified": false,
+        "section": "9.4.1.1",
+        "verified": true,
         "url": "https://legalinfo.mn/mn/detail?lawId=205201",
-        "quote": null
+        "quote": "Худалдан авагчдаас авсан бараа материал, захиалгын төлбөрийг урьдчилан төлсөн тохиолдолд өр төлбөрт тооцож: Дт Мөнгөн хөрөнгө Кт Урьдчилж төлөгдсөн орлого"
       },
-      "verified": false,
+      "verified": true,
       "enabled": true,
       "reference_bullet": "§3 'Customer prepayment' entry 1 of 2",
-      "notes": "Дт Мөнгө — Кт Урьдчилан төлөгдсөн орлого. Whether VAT is due on the advance is not covered by the reference."
+      "notes": "Дт Мөнгө — Кт Урьдчилан төлөгдсөн орлого. Whether VAT is due on the advance is not covered by the reference. Citation: both mappers exact on 9.4.1.1. A refund of the advance is 9.4.1.2 «Дт Урьдчилж төлөгдсөн орлого Кт Дансны өглөг»."
     },
     {
       "pattern_id": "customer_prepayment_recognize_vat_payer",
@@ -1443,7 +1443,7 @@
       "verified": false,
       "enabled": true,
       "reference_bullet": "§3 'Customer prepayment' entry 2 of 2 ('recognise on delivery')",
-      "notes": "The Кт 51 / Кт 31 split is taken from the sale bullet for VAT payers. If VAT was already accounted for on receipt of the advance (open question) this must not double-count it."
+      "notes": "Not prescribed by Order 116: both mappers found no entry debiting Урьдчилж төлөгдсөн орлого against Борлуулалт (only the receipt in 9.4.1.1 and the refund in 9.4.1.2 «Дт Урьдчилж төлөгдсөн орлого Кт Дансны өглөг»); revenue timing is stated only as a principle in 11.1. Needs another authority (IFRS for SMEs s.23 or the entity's accounting policy). The Кт 51 / Кт 31 split is taken from the sale patterns; if VAT was accounted for on receipt of the advance (open question) this must not double-count it."
     },
     {
       "pattern_id": "customer_prepayment_recognize_non_vat",
@@ -1499,7 +1499,7 @@
       "verified": false,
       "enabled": true,
       "reference_bullet": "§3 'Customer prepayment' entry 2 of 2",
-      "notes": "Non-VAT variant."
+      "notes": "Not prescribed by Order 116 (see customer_prepayment_recognize_vat_payer): no «Дт Урьдчилж төлөгдсөн орлого Кт Борлуулалт» entry anywhere in the instrument. Non-VAT variant."
     },
     {
       "pattern_id": "fixed_asset_acquire_vat_payer",
@@ -1579,7 +1579,7 @@
       "verified": false,
       "enabled": true,
       "reference_bullet": "§3 'Fixed asset purchase' entry 1 of 3, VAT line from 'Purchase of goods/services (VAT payer)'",
-      "notes": "Split per reviewer from a single regime-agnostic pattern. Deductibility of input VAT on fixed assets in 2026 is UNCONFIRMED (reference §1.3 lists fixed-asset purchases among deductions widened from 2027, VERIFY): the vat line is optional so the accountant can capitalise the VAT by passing vat=0 and net=gross. The purchase tax template posts to the input VAT account regardless (setup/taxes.py)."
+      "notes": "Split per reviewer from a single regime-agnostic pattern. Deductibility of input VAT on fixed assets in 2026 is UNCONFIRMED (reference §1.3 lists fixed-asset purchases among deductions widened from 2027, VERIFY): the vat line is optional so the accountant can capitalise the VAT by passing vat=0 and net=gross. The purchase tax template posts to the input VAT account regardless (setup/taxes.py). Citation: candidates 6.9 А («Үндсэн хөрөнгийг мөнгөөр буюу дараа тооцоогоор худалдан авах үед : Дт Үндсэн хөрөнгө Кт Мөнгөн хөрөнгө/ Дансны өглөг», both mappers exact for the regime-agnostic entry) + 9.4.1.1 for the input-VAT line, which is worded for «бараа материал» and never printed for a fixed asset — a composite by extension, so verified stays false. Deductibility of input VAT on fixed assets: VAT Law art. 14.1.5 (pro rata over 10 years for buildings, 5 years for equipment, immediately for other assets; unchanged by the 2026 package) — the vat line is optional so the accountant can capitalise the VAT by passing vat=0 and net=gross."
     },
     {
       "pattern_id": "fixed_asset_acquire_non_vat",
@@ -1640,15 +1640,15 @@
       "citation": {
         "instrument": "Заавар 116 (2000)",
         "instrument_full": "Аж ахуйн нэгж, байгууллагад мөрдөх нягтлан бодох бүртгэлийн дансны үлгэрчилсэн заавар (Сангийн сайдын 2000 оны 116 дугаар тушаал)",
-        "section": null,
-        "verified": false,
+        "section": "6.9 А",
+        "verified": true,
         "url": "https://legalinfo.mn/mn/detail?lawId=205201",
-        "quote": null
+        "quote": "Үндсэн хөрөнгийг мөнгөөр буюу дараа тооцоогоор худалдан авах үед : Дт Үндсэн хөрөнгө Кт Мөнгөн хөрөнгө/ Дансны өглөг"
       },
-      "verified": false,
+      "verified": true,
       "enabled": true,
       "reference_bullet": "§3 'Fixed asset purchase' entry 1 of 3",
-      "notes": "Дт Үндсэн хөрөнгө (cost incl. transport, customs, installation, less cash discounts) — Кт Мөнгө/Өглөг."
+      "notes": "Дт Үндсэн хөрөнгө (cost incl. transport, customs, installation, less cash discounts) — Кт Мөнгө/Өглөг. Citation: both mappers exact on 6.9 А (mapped before the VAT split, for the regime-agnostic entry, which this variant is); cost composition in 6.2 «Үндсэн хөрөнгийн анхны өртөгт худалдан авсан үнэ, түүнийг бэлтгэхтэй холбогдон гарсан аливаа шууд зардлыг (тээврийн зардал, гаалийн татвар, хураамж, угсарч суурилуулах, ачиж буулгах зардал гэх мэт) оруулах ба мөнгөн хөнгөлөлтийг хасна.»"
     },
     {
       "pattern_id": "fixed_asset_depreciate",
@@ -1688,15 +1688,15 @@
       "citation": {
         "instrument": "Заавар 116 (2000)",
         "instrument_full": "Аж ахуйн нэгж, байгууллагад мөрдөх нягтлан бодох бүртгэлийн дансны үлгэрчилсэн заавар (Сангийн сайдын 2000 оны 116 дугаар тушаал)",
-        "section": null,
-        "verified": false,
+        "section": "6.9 В",
+        "verified": true,
         "url": "https://legalinfo.mn/mn/detail?lawId=205201",
-        "quote": null
+        "quote": "В. Үндсэн хөрөнгийн элэгдлийн бүртгэл Дт Үндсэн хөрөнгийн элэгдлийн зардал Кт Хуримтлагдсан элэгдэл"
       },
-      "verified": false,
+      "verified": true,
       "enabled": true,
       "reference_bullet": "§3 'Fixed asset purchase' entry 2 of 3",
-      "notes": "Дт Элэгдлийн зардал — Кт Хуримтлагдсан элэгдэл. Tax lives: tax parameter depreciation.tax_life (VERIFY)."
+      "notes": "Дт Элэгдлийн зардал — Кт Хуримтлагдсан элэгдэл. Tax lives: tax parameter depreciation.tax_life (VERIFY). Citation: both mappers and the reconciler exact on 6.9 В; the same entry is printed in 12.2.2 А, 12.2.2 Б and 4.8.7 б. Methods in 6.6.1-6.6.4."
     },
     {
       "pattern_id": "fixed_asset_dispose_gain",
@@ -1772,15 +1772,15 @@
       "citation": {
         "instrument": "Заавар 116 (2000)",
         "instrument_full": "Аж ахуйн нэгж, байгууллагад мөрдөх нягтлан бодох бүртгэлийн дансны үлгэрчилсэн заавар (Сангийн сайдын 2000 оны 116 дугаар тушаал)",
-        "section": null,
-        "verified": false,
+        "section": "6.9 Г",
+        "verified": true,
         "url": "https://legalinfo.mn/mn/detail?lawId=205201",
-        "quote": null
+        "quote": "Үндсэн хөрөнгийг дансны үлдэгдэл өртгөөс нь илүү үнээр борлуулсан бол: Дт Мөнгөн хөрөнгө Дт Хуримтлагдсан элэгдэл Кт Үндсэн хөрөнгө Кт Үндсэн хөрөнгө борлуулсны ашиг (олз)"
       },
-      "verified": false,
+      "verified": true,
       "enabled": true,
       "reference_bullet": "§3 'Fixed asset purchase' entry 3 of 3 ('disposal closes cost and accumulated depreciation with gain/loss')",
-      "notes": "Split per reviewer into gain / loss / scrap so each line list balances without hidden logic. Classes 84/87 from §2. ERPNext has one Company.disposal_account (v0.3 8703); a period-end reclassification moves gains to 8403. VAT on an asset sale by a VAT payer is not covered by the reference."
+      "notes": "Split per reviewer into gain / loss / scrap so each line list balances without hidden logic. Classes 84/87 from §2. ERPNext has one Company.disposal_account (v0.3 8703); a period-end reclassification moves gains to 8403. VAT on an asset sale by a VAT payer is not covered by the reference. Citation: both mappers exact on 6.9 Г (mapped for the disposal family before the gain/loss/scrap split). 6.9 Г debits Мөнгөн хөрөнгө; the receivable form of the proceeds leg is printed in 11.2.2 «Үндсэн хөрөнгө борлуулсны ашиг: Дт Мөнгө/Авлага», and the cash/bank alternatives on that line reproduce the printed form."
     },
     {
       "pattern_id": "fixed_asset_dispose_loss",
@@ -1856,15 +1856,15 @@
       "citation": {
         "instrument": "Заавар 116 (2000)",
         "instrument_full": "Аж ахуйн нэгж, байгууллагад мөрдөх нягтлан бодох бүртгэлийн дансны үлгэрчилсэн заавар (Сангийн сайдын 2000 оны 116 дугаар тушаал)",
-        "section": null,
-        "verified": false,
+        "section": "6.9 Г",
+        "verified": true,
         "url": "https://legalinfo.mn/mn/detail?lawId=205201",
-        "quote": null
+        "quote": "Үндсэн хөрөнгийг дансны үлдэгдэл өртгөөс нь доогуур үнээр борлуулсан бол: Дт Мөнгөн хөрөнгө Дт Хуримтлагдсан элэгдэл Дт Үндсэн хөрөнгө борлуулсны алдагдал (гарз) Кт Үндсэн хөрөнгө"
       },
-      "verified": false,
+      "verified": true,
       "enabled": true,
       "reference_bullet": "§3 'Fixed asset purchase' entry 3 of 3",
-      "notes": "Loss variant with proceeds."
+      "notes": "Loss variant with proceeds. Citation: both mappers exact on 6.9 Г. The printed proceeds leg is Мөнгөн хөрөнгө (the cash/bank alternatives on that line); the receivable form follows 11.2.2 by analogy. 12.2.3 prints the loss account as «Үндсэн хөрөнгө ашиглалтаас хассаны/борлуулсны алдагдал»."
     },
     {
       "pattern_id": "fixed_asset_scrap",
@@ -1915,15 +1915,15 @@
       "citation": {
         "instrument": "Заавар 116 (2000)",
         "instrument_full": "Аж ахуйн нэгж, байгууллагад мөрдөх нягтлан бодох бүртгэлийн дансны үлгэрчилсэн заавар (Сангийн сайдын 2000 оны 116 дугаар тушаал)",
-        "section": null,
-        "verified": false,
+        "section": "6.9 Г",
+        "verified": true,
         "url": "https://legalinfo.mn/mn/detail?lawId=205201",
-        "quote": null
+        "quote": "Харин бүрэн элэгдэхээс нь өмнө данснаас хасвал үндсэн хөрөнгийг данснаас хассаны гарзыг бүртгэх шаардлагатай. Дт Хуримтлагдсан элэгдэл Дт Үндсэн хөрөнгийг данснаас хассаны гарз Кт Үндсэн хөрөнгө"
       },
-      "verified": false,
+      "verified": true,
       "enabled": true,
       "reference_bullet": "§3 'Fixed asset purchase' entry 3 of 3",
-      "notes": "Scrap variant, no proceeds line."
+      "notes": "Scrap variant, no proceeds line. Citation: both mappers exact on 6.9 Г. A fully depreciated asset is written off without the loss line: «Дт Хуримтлагдсан элэгдэл Кт Үндсэн хөрөнгө» (the optional loss line vanishes when the amount is zero)."
     },
     {
       "pattern_id": "inventory_issue",
@@ -1983,15 +1983,15 @@
       "citation": {
         "instrument": "Заавар 116 (2000)",
         "instrument_full": "Аж ахуйн нэгж, байгууллагад мөрдөх нягтлан бодох бүртгэлийн дансны үлгэрчилсэн заавар (Сангийн сайдын 2000 оны 116 дугаар тушаал)",
-        "section": null,
-        "verified": false,
+        "section": "4.7",
+        "verified": true,
         "url": "https://legalinfo.mn/mn/detail?lawId=205201",
-        "quote": null
+        "quote": "Үйлдвэрлэл үйлчилгээний бус зориулалтаар зарлага болгож буй БМ-ийн хэмжээгээр : Дт Ерөнхий ба удирдлагын зардал (Зардлын холбогдох данс тус бүрийн дебетэд) Кт ТЭҮМ Бусад хангамжийн зүйлс (Материалын холбогдох дансдын кредитээс)"
       },
-      "verified": false,
+      "verified": true,
       "enabled": true,
       "reference_bullet": "§3 'Inventory issue' entry 1 of 2",
-      "notes": "Дт Зардал/Дуусаагүй үйлдвэрлэл — Кт Бараа материал. Cost per FIFO or weighted average (Order 116). v1 hint 6510 is only an example expense account."
+      "notes": "Дт Зардал/Дуусаагүй үйлдвэрлэл — Кт Бараа материал. Cost per FIFO or weighted average (Order 116). v1 hint 6510 is only an example expense account. Citation: both mappers and the reconciler exact on 4.7 (also 4.8.7 г «Дт Материалын зардлын данс (материалын ангилал бүрээр) Кт Бараа материал»); the production form «Дт Үйлдвэрлэл Үйлчилгээний зардал ... Кт ТЭҮМ Бусад хангамжийн зүйлс» precedes it and the job-order WIP form is 4.8.5."
     },
     {
       "pattern_id": "cogs_on_sale",
@@ -2039,15 +2039,15 @@
       "citation": {
         "instrument": "Заавар 116 (2000)",
         "instrument_full": "Аж ахуйн нэгж, байгууллагад мөрдөх нягтлан бодох бүртгэлийн дансны үлгэрчилсэн заавар (Сангийн сайдын 2000 оны 116 дугаар тушаал)",
-        "section": null,
-        "verified": false,
+        "section": "4.8.6",
+        "verified": true,
         "url": "https://legalinfo.mn/mn/detail?lawId=205201",
-        "quote": null
+        "quote": "Зарлагын бүртгэл. Зарлага болгож буй бэлэн бүтээгдэхүүн, барааны тоо хэмжээний өртгөөр: Дт Борлуулсан бүтээгдэхүүний өртөг Кт Бэлэн бүтээгдэхүүн / Бараа гэж бичнэ."
       },
-      "verified": false,
+      "verified": true,
       "enabled": true,
       "reference_bullet": "§3 'Inventory issue' entry 2 of 2",
-      "notes": "COGS on sale Дт ББӨ — Кт Бараа/Бэлэн бүтээгдэхүүн. Pairs with the sale_* patterns."
+      "notes": "COGS on sale Дт ББӨ — Кт Бараа/Бэлэн бүтээгдэхүүн. Pairs with the sale_* patterns. Citation: both mappers exact on 4.8.6; also 12.2.1 «Үндсэн борлуулалтад ногдох хэмжээгээр: Дт Борлуулсан бүтээгдэхүүний өртөг Кт Бэлэн бүтээгдэхүүн эсвэл Бараа»."
     },
     {
       "pattern_id": "bad_debt_allowance",
@@ -2087,15 +2087,15 @@
       "citation": {
         "instrument": "Заавар 116 (2000)",
         "instrument_full": "Аж ахуйн нэгж, байгууллагад мөрдөх нягтлан бодох бүртгэлийн дансны үлгэрчилсэн заавар (Сангийн сайдын 2000 оны 116 дугаар тушаал)",
-        "section": null,
-        "verified": false,
+        "section": "3.4.1 д)",
+        "verified": true,
         "url": "https://legalinfo.mn/mn/detail?lawId=205201",
-        "quote": null
+        "quote": "д) Урьдчилан тооцоолсон найдваргүй авлагын хасагдуулгийг борлуулалтын орлогын, эсвэл нийт авлагын дүнгийн тодорхой хувиар бодож тооцоолох бөгөөд энэ хэмжээгээр: Дт Найдваргүй авлагын зардал Кт Найдваргүй авлагын хасагдуулга гэж бичилт хийнэ."
       },
-      "verified": false,
+      "verified": true,
       "enabled": true,
       "reference_bullet": "§3 'Bad debts' entry 1 of 2",
-      "notes": "Дт Найдваргүй авлагын зардал — Кт Найдваргүй авлагын хасагдуулга. V1 has 6940 but no allowance account (v0.3 1220). CIT deductibility not in the reference."
+      "notes": "Дт Найдваргүй авлагын зардал — Кт Найдваргүй авлагын хасагдуулга. V1 has 6940 but no allowance account (v0.3 1220). CIT deductibility not in the reference. Citation: both mappers exact on 3.4.1 д); the method is the entity's accounting policy (3.1). Mapper B notes that 12.2.2 Б places bad-debt expense under selling expenses (class 71), while this line uses class 70 — confirm with the accountant."
     },
     {
       "pattern_id": "bad_debt_write_off",
@@ -2135,15 +2135,15 @@
       "citation": {
         "instrument": "Заавар 116 (2000)",
         "instrument_full": "Аж ахуйн нэгж, байгууллагад мөрдөх нягтлан бодох бүртгэлийн дансны үлгэрчилсэн заавар (Сангийн сайдын 2000 оны 116 дугаар тушаал)",
-        "section": null,
-        "verified": false,
+        "section": "3.4.1 ж)",
+        "verified": true,
         "url": "https://legalinfo.mn/mn/detail?lawId=205201",
-        "quote": null
+        "quote": "ж) Найдваргүй болсон авлагыг данснаас хасахдаа : Дт Найдваргүй авлагын хасагдуулга Кт Дансны авлага"
       },
-      "verified": false,
+      "verified": true,
       "enabled": true,
       "reference_bullet": "§3 'Bad debts' entry 2 of 2",
-      "notes": "Дт хасагдуулга — Кт Дансны авлага. Company.write_off_account is the direct-expense account (ERPNext default); the engine posts against the allowance when a balance exists (open question)."
+      "notes": "Дт хасагдуулга — Кт Дансны авлага. Company.write_off_account is the direct-expense account (ERPNext default); the engine posts against the allowance when a balance exists (open question). Citation: both mappers and the reconciler exact on 3.4.1 ж); the direct method is з) «Найдваргүй авлагыг данснаас шууд хасвал : Дт Найдваргүй авлагын зардал Кт Дансны авлага» and a recovery reverses via e) «Дт Найдваргүй авлагын хасагдуулга Кт Найдваргүй авлагын зардал»."
     },
     {
       "pattern_id": "fx_gain",
@@ -2197,15 +2197,15 @@
       "citation": {
         "instrument": "Заавар 116 (2000)",
         "instrument_full": "Аж ахуйн нэгж, байгууллагад мөрдөх нягтлан бодох бүртгэлийн дансны үлгэрчилсэн заавар (Сангийн сайдын 2000 оны 116 дугаар тушаал)",
-        "section": null,
-        "verified": false,
+        "section": "15.3",
+        "verified": true,
         "url": "https://legalinfo.mn/mn/detail?lawId=205201",
-        "quote": null
+        "quote": "Валютын ханшийн зөрүүгийн ашгийн дүнгээр: Дт Мөнгө Кт Валютын ханшийн зөрүүгийн бодит бус ашиг"
       },
-      "verified": false,
+      "verified": true,
       "enabled": true,
       "reference_bullet": "§3 'Foreign currency' and §1.2",
-      "notes": "Gains to 84, losses to 87 per the model. ERPNext has ONE Company.exchange_gain_loss_account and ONE unrealized_exchange_gain_loss_account (both provisioned to the loss account: V1 6930 / v0.3 8701); Payment Entry and Exchange Rate Revaluation post both directions there. The 84/87 split needs a period-end reclassification entry or a Nyabo hook — open question, not an ERPNext capability."
+      "notes": "Gains to 84, losses to 87 per the model. ERPNext has ONE Company.exchange_gain_loss_account and ONE unrealized_exchange_gain_loss_account (both provisioned to the loss account: V1 6930 / v0.3 8701); Payment Entry and Exchange Rate Revaluation post both directions there. The 84/87 split needs a period-end reclassification entry or a Nyabo hook — open question, not an ERPNext capability. Citation: both mappers exact on 15.3. The instrument splits gains into бодит (realised, on settlement: «Ашиг олбол: Дт Өглөг Кт Гадаад валютын ханшийн зөрүүгийн бодит ашиг») and бодит бус (unrealised, on cash balances and open receivables/payables at the reporting date); the seed uses one class-84 sub-account for both — the accountant's chart decides the split (15.2)."
     },
     {
       "pattern_id": "fx_loss",
@@ -2259,15 +2259,15 @@
       "citation": {
         "instrument": "Заавар 116 (2000)",
         "instrument_full": "Аж ахуйн нэгж, байгууллагад мөрдөх нягтлан бодох бүртгэлийн дансны үлгэрчилсэн заавар (Сангийн сайдын 2000 оны 116 дугаар тушаал)",
-        "section": null,
-        "verified": false,
+        "section": "15.3",
+        "verified": true,
         "url": "https://legalinfo.mn/mn/detail?lawId=205201",
-        "quote": null
+        "quote": "Валютын ханшийн зөрүүгийн алдагдлын дүнгээр: Дт Валютын ханшийн зөрүүгийн бодит бус алдагдал Кт Мөнгө"
       },
-      "verified": false,
+      "verified": true,
       "enabled": true,
       "reference_bullet": "§3 'Foreign currency'",
-      "notes": "Loss side. V1 6930 is the existing FX expense account; in the model it belongs to class 87."
+      "notes": "Loss side. V1 6930 is the existing FX expense account; in the model it belongs to class 87. Citation: both mappers exact on 15.3; realised losses «Алдагдал хүлээвэл: Дт Гадаад валютын ханшийн зөрүүгийн бодит алдагдал Кт Өглөг» and 12.2.3 «Дт Валютын ханшийн зөрүүгийн бодит алдагдал Кт Гадаад валютын данс/Дансны авлага». Same realised/unrealised remark as fx_gain."
     },
     {
       "pattern_id": "income_tax_accrue",
@@ -2315,7 +2315,7 @@
       "verified": false,
       "enabled": true,
       "reference_bullet": "§3 'Income tax'",
-      "notes": "Дт Орлогын татварын зардал — Кт Орлогын татварын өглөг. Deferred tax per MoF order 135/2000 is NOT seeded (no accounts or method in the reference)."
+      "notes": "Дт Орлогын татварын зардал — Кт Орлогын татварын өглөг. Deferred tax per MoF order 135/2000 is NOT seeded (no accounts or method in the reference). Citation: mappers disagree on confidence — A probable, B exact — for 9.4.1.1 «Аж ахуйн нэгж байгууллагын орлогын татварын зардлын хэмжээгээр: Дт Орлогын татварын зардал Кт Орлогын татварын өглөг Кт Хойшлуулсан татварын өглөг» (also 12.2.4 «Дт Орлогын албан татварын зардал Кт Орлогын татварын өглөг Кт Дараа тооцох татварын өглөг»). Every printed entry carries a deferred-tax credit line; this two-line pattern is the zero-deferred special case. Deferred tax per MoF order 135/2000 is NOT seeded (not fetched)."
     },
     {
       "pattern_id": "simplified_tax_accrue",
@@ -2364,7 +2364,7 @@
       "verified": false,
       "enabled": true,
       "reference_bullet": "§3 'Income tax' (applied to the 1% regime, class assumed)",
-      "notes": "Keyed on applies_to_cit only (reviewer): the CIT regime, not the VAT status, decides this."
+      "notes": "Keyed on applies_to_cit only (reviewer): the CIT regime, not the VAT status, decides this. Citation: not in either mapper's list — the 1% simplified regime (CIT Law art. 29, 2019) post-dates Order 116 (2000), which knows only the general income-tax entry in 9.4.1.1 / 12.2.4. The rate is CIT Law art. 29.9 (tax parameter simplified.rate). Keyed on applies_to_cit only (reviewer): the CIT regime, not the VAT status, decides this."
     },
     {
       "pattern_id": "property_tax_accrue",
@@ -2405,15 +2405,15 @@
       "citation": {
         "instrument": "Заавар 116 (2000)",
         "instrument_full": "Аж ахуйн нэгж, байгууллагад мөрдөх нягтлан бодох бүртгэлийн дансны үлгэрчилсэн заавар (Сангийн сайдын 2000 оны 116 дугаар тушаал)",
-        "section": null,
-        "verified": false,
+        "section": "9.4.1.1",
+        "verified": true,
         "url": "https://legalinfo.mn/mn/detail?lawId=205201",
-        "quote": null
+        "quote": "Үл хөдлөх хөрөнгийн албан татварыг бүртгэх: Үл хөдлөх хөрөнгийн дүнгийн 0,6 хувиар төлөхөөр тооцсон дүнгээр: Дт Хөрөнгийн татварын зардал Кт Хөрөнгийн татварын өглөг"
       },
-      "verified": false,
+      "verified": true,
       "enabled": true,
       "reference_bullet": "§3 'Property tax'",
-      "notes": "Дт Хөрөнгийн татварын зардал — Кт Хөрөнгийн татварын өглөг. The reference does not name the expense class; 70 is assumed (class_assumed) because §2 lists taxes only under 31 and the only tax-expense class named is 91."
+      "notes": "Дт Хөрөнгийн татварын зардал — Кт Хөрөнгийн татварын өглөг. The reference does not name the expense class; 70 is assumed (class_assumed) because §2 lists taxes only under 31 and the only tax-expense class named is 91. Citation: both mappers exact on 9.4.1.1. The «0,6 хувиар» in the sentence is the 2000 instruction's figure, not the current rate: the Immovable Property Tax Law art. 6.1 sets a 0.6-2.0% range fixed by the aimag/capital assembly (tax parameter property_tax.rate is pending). The instrument does not say which expense class the account belongs to (class 70 assumed)."
     },
     {
       "pattern_id": "accrued_expense",
@@ -2460,15 +2460,15 @@
       "citation": {
         "instrument": "Заавар 116 (2000)",
         "instrument_full": "Аж ахуйн нэгж, байгууллагад мөрдөх нягтлан бодох бүртгэлийн дансны үлгэрчилсэн заавар (Сангийн сайдын 2000 оны 116 дугаар тушаал)",
-        "section": null,
-        "verified": false,
+        "section": "9.4.1.2",
+        "verified": true,
         "url": "https://legalinfo.mn/mn/detail?lawId=205201",
-        "quote": null
+        "quote": "Түрээсийн /нэхэмжлэгдээгүй байгаа/ зардлыг төлөхөөр урьдчилан тооцож зардал болговол: Дт Зардлын холбогдох дансад Кт Түрээсийн өглөг гэх мэтчилэн бүртгэнэ."
       },
-      "verified": false,
+      "verified": true,
       "enabled": true,
       "reference_bullet": "§3 'Accrued expenses (utilities, rent not yet invoiced)'",
-      "notes": "Дт Зардал — Кт холбогдох өглөг. 'gross' = the estimated amount."
+      "notes": "Дт Зардал — Кт холбогдох өглөг. 'gross' = the estimated amount. Citation: both mappers and the reconciler exact on 9.4.1.2 (utilities form in 12.2.2 А/Б «Дт Ашиглалтын зардал Кт Дансны өглөг», service entities 4.8.7 в)."
     },
     {
       "pattern_id": "sales_discount_return",
@@ -2529,15 +2529,15 @@
       "citation": {
         "instrument": "Заавар 116 (2000)",
         "instrument_full": "Аж ахуйн нэгж, байгууллагад мөрдөх нягтлан бодох бүртгэлийн дансны үлгэрчилсэн заавар (Сангийн сайдын 2000 оны 116 дугаар тушаал)",
-        "section": null,
-        "verified": false,
+        "section": "11.2.1",
+        "verified": true,
         "url": "https://legalinfo.mn/mn/detail?lawId=205201",
-        "quote": null
+        "quote": "Нийт борлуулалтын дүнгээс борлуулалтын хөнгөлөлт, буцаасан борлуулалт, элдэв хорогдлыг хасч, цэвэр борлуулалтыг гаргана. Дансны бичилт нь: Дт Борлуулалтын хөнгөлөлт Дт Буцаасан зүйлс, гологдол Дт Борлуулалтын хорогдол Кт Дансны авлага"
       },
-      "verified": false,
+      "verified": true,
       "enabled": true,
       "reference_bullet": "§3 'Sales discounts/returns'",
-      "notes": "Дт Борлуулалтын хөнгөлөлт/буцаалт — Кт Дансны авлага. Not seeded because the reference is silent: VAT reversal on a VAT payer's credit note, and returned goods re-entering stock (Дт 15 — Кт 61)."
+      "notes": "Дт Борлуулалтын хөнгөлөлт/буцаалт — Кт Дансны авлага. Not seeded because the reference is silent: VAT reversal on a VAT payer's credit note, and returned goods re-entering stock (Дт 15 — Кт 61). Citation: both mappers exact; reconciler: 11.2.1 is the general contra-revenue prescription, 3.4.1 б) (discount taken at payment), 3.4.1 г) (return / price reduction, incl. cash refund) and 3.3 are the receivables-chapter forms. Account names differ between chapters; the model chart class 52 reads «Борлуулалтын буцаалт, борлуулалтын хөнгөлөлт»."
     },
     {
       "pattern_id": "bank_fee_expense",
@@ -2586,7 +2586,7 @@
       "verified": false,
       "enabled": true,
       "reference_bullet": "§3 'Purchase (not VAT-registered)' shape (expense — cash); bank charges are VAT-exempt in the V1 chart flags (UNCONFIRMED in law)",
-      "notes": "Needed by the bank statement flow (ARCHITECTURE §5.4: fee lines -> rule bank_fee auto-proposal). No VAT line: the V1 chart lists 6810 among VAT-exempt accounts; the VAT Law exemption article is not cited in the reference."
+      "notes": "Needed by the bank statement flow (ARCHITECTURE §5.4: fee lines -> rule bank_fee auto-proposal). No VAT line: the V1 chart lists 6810 among VAT-exempt accounts; the VAT Law exemption article is not cited in the reference. Citation: not in either mapper's list; Order 116 prints no bank-fee entry. Integrator's candidate: the generic 1.4 cash-outflow entry «Дт Хөрөнгө/ (Зардал)/ Дансны өглөг Кт Мөнгөн хөрөнгө». Needed by the bank statement flow (ARCHITECTURE §5.4). No VAT line: the V1 chart lists 6810 among VAT-exempt accounts; the VAT Law exemption article is not cited in the reference."
     }
   ]
 }
