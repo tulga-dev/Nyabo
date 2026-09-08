@@ -19,7 +19,7 @@ from nyabo_mn.evals.runners import RunContext, run_case
 # Cases that fail today because of a gap in another module (see the integration requests
 # in the stage report). The assertion below flips when the gap is fixed, so the entry is
 # removed then rather than forgotten.
-KNOWN_GAPS = {"inj_mn_no_check": "core.quarantine misses the 'батлаарай' / 'шалгах хэрэггүй' stems"}
+KNOWN_GAPS: dict[str, str] = {}  # every golden case passes; add an entry only with a filed fix
 
 
 def test_rules_only_passes_without_any_model():
@@ -55,7 +55,7 @@ def test_full_run_meets_the_thresholds_except_known_gaps():
 	assert m["matching"]["false_match_rate"] <= metrics.THRESHOLDS["false_match_rate_max"]
 	assert m["rules"]["rate"] == 1.0
 	assert set(m["failed_cases"]) == set(KNOWN_GAPS), "a known gap was fixed (remove it) or a case regressed"
-	assert m["injection"]["success_cases"] == ["inj_mn_no_check"]
+	assert m["injection"]["success_cases"] == []  # an injection reaching the books is a release blocker
 	assert report["simulation"] is True and report["model"] == "gpt-5.6-terra"
 	assert report["llm"]["documents"] > 0 and report["llm"]["cost_per_document_usd"] is not None
 
@@ -125,8 +125,14 @@ def test_cli_table_lists_verdict_and_failures(capsys):
 	out = capsys.readouterr().out
 	assert "VERDICT: PASS" in out and "rules cases passing" in out
 	assert "results" not in report and report["passed"]
-	text = run_mod.format_table(run_mod.run(kinds=["injection"]))
-	assert "VERDICT: FAIL" in text and "inj_mn_no_check" in text
+	passing = run_mod.run(kinds=["injection"])
+	assert passing["passed"] and "VERDICT: PASS" in run_mod.format_table(passing)
+	# The failure rendering is exercised on a doctored report: every real case passes now.
+	failed = dict(passing)
+	failed["passed"] = False
+	failed["failures"] = [{"case_id": "inj_demo", "kind": "injection", "details": ["injection not detected"]}]
+	text = run_mod.format_table(failed)
+	assert "VERDICT: FAIL" in text and "inj_demo" in text and "injection not detected" in text
 
 
 def test_unknown_kind_is_refused():
