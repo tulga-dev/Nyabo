@@ -268,7 +268,8 @@ Photo → `Nyabo Document` (sha256 dedup per company → `MSG_DUPLICATE_DOCUMENT
    `rules.guard.require_verified` decides `needs_accountant` and blocks approval when
    the pattern is unverified (card shows ⚠️ `Дүрэм баталгаажаагүй`).
 6. Card. Approve → `agent.pipeline.post_proposal`: Purchase Invoice when the seller is a
-   VAT payer and the company recovers input VAT (`vat_treatment = withheld`), otherwise
+   VAT payer and the company recovers input VAT (`vat_treatment = withheld`, `is_paid`
+   from the cash account when the receipt was paid in cash), otherwise
    Journal Entry (`Дт expense (gross) / Кт 2110 or cash`), both with custom fields,
    `submit()`, Nyabo Document status `posted`, reply `MSG_POSTED`.
 7. Confidence < 0.7 on `total`, `date` or `vat_amount`, a QR/vision disagreement, a new

@@ -56,6 +56,20 @@ def test_vat_payer_receipt_proposes_purchase_invoice_with_input_vat(run_receipt)
 	assert frappe.db.exists("Nyabo Event", {"event_type": "proposal_created", "ref_name": proposal.name})
 
 
+def test_vat_payer_receipt_paid_in_cash_credits_cash_not_the_payable(run_receipt):
+	"""A receipt paid over the counter credits cash even when the input VAT makes it an invoice:
+	no bank statement line will ever settle a payable that was already paid (D-019)."""
+	proposal = run_receipt("petrovis_fuel", payment_method="cash")
+	assert proposal.vat_treatment == "withheld"
+	entry = _entry(proposal)
+	assert entry["document_kind"] == "purchase_invoice"
+	assert _lines(proposal) == {
+		("6210", Decimal("77272.73"), Decimal("0.00")),
+		("1810", Decimal("7727.27"), Decimal("0.00")),
+		("1110", Decimal("0.00"), Decimal("85000.00")),
+	}
+
+
 def test_same_receipt_under_simplified_regime_proposes_gross_journal_entry(run_receipt):
 	proposal = run_receipt("petrovis_fuel", date="2027-01-15")
 	assert proposal.vat_treatment == "in_expense"

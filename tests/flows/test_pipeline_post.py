@@ -83,6 +83,26 @@ def test_cash_receipt_journal_entry_credits_cash(run_receipt):
 	assert _gl(result["posted_name"]) == {("6210 - Шатахуун - TST", 42000.0, 0.0), (CASH, 0.0, 42000.0)}
 
 
+def test_cash_paid_vat_payer_invoice_is_posted_as_paid_and_credits_cash(run_receipt):
+	"""The VAT makes it a Purchase Invoice, the cash payment makes it ERPNext's paid invoice:
+	the payable nets to zero and the cash account carries the credit (D-019)."""
+	proposal = run_receipt("petrovis_fuel", payment_method="cash")
+	result = post.post_proposal(proposal.name, ACCOUNTANT)
+	assert result["posted_doctype"] == "Purchase Invoice"
+	pi = frappe.get_doc("Purchase Invoice", result["posted_name"])
+	assert pi.is_paid == 1 and pi.cash_bank_account == CASH and pi.paid_amount == 85000.0
+	assert pi.outstanding_amount == 0.0 and pi.status == "Paid"
+	assert _gl(pi.name) == {
+		(EXPENSE, 77272.73, 0.0),
+		(INPUT_VAT, 7727.27, 0.0),
+		(PAYABLE, 0.0, 85000.0),
+		(PAYABLE, 85000.0, 0.0),
+		(CASH, 0.0, 85000.0),
+	}
+	assert get_balance_on(PAYABLE, "2026-09-30") == 0.0
+	assert get_balance_on(CASH, "2026-09-30") == -85000.0
+
+
 def test_unverified_pattern_is_refused_with_mongolian_message(run_receipt):
 	proposal = run_receipt("petrovis_fuel")
 	frappe.db.set_value("Nyabo Posting Pattern", "purchase_expense_vat_payer", "verified", 0)
