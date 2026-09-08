@@ -98,6 +98,11 @@ Seed data: the 29 standard Account Categories come from
 | `make_reverse_journal_entry` (guards, field_map swapping debit/credit, `reversal_of`) | erpnext/accounts/doctype/journal_entry/journal_entry.py |
 | `make_debit_note` -> `make_return_doc` (`is_return`, `return_against`, negated qty) | erpnext/accounts/doctype/purchase_invoice/purchase_invoice.py, erpnext/controllers/sales_and_purchase_return.py |
 | Bank Transaction `add_payment_entries`, `update_allocated_amount`, `set_status`, `allocate_payment_entries` | erpnext/accounts/doctype/bank_transaction/bank_transaction.py |
+| Payment Entry `setup_party_account_field`, `set_amounts`, `validate_allocated_amount`, `build_gl_map`, `add_party_gl_entries`, `add_bank_gl_entries`, `on_submit` order | erpnext/accounts/doctype/payment_entry/payment_entry.py |
+| `get_payment_entry(dt, dn, bank_account=<GL account>)`, `set_party_type`, `set_party_account`, `set_payment_type`, `get_bank_cash_account` | erpnext/accounts/doctype/payment_entry/payment_entry.py |
+| `get_default_bank_cash_account` (company default, then the single account of the type) | erpnext/accounts/doctype/journal_entry/journal_entry.py |
+| `remove_from_bank_transaction` as the `on_cancel` doc_event of the reconciliation doctypes | erpnext/hooks.py, erpnext/accounts/doctype/bank_transaction/bank_transaction.py |
+| `update_voucher_outstanding` (the `update_outstanding_amt` GL formula; see the deviations table) | erpnext/accounts/utils.py, erpnext/accounts/doctype/gl_entry/gl_entry.py |
 | `get_exchange_rate` (Currency Exchange lookup, `Currency Exchange Settings.disabled`) | erpnext/setup/utils.py |
 | `get_balance_on` signature | erpnext/accounts/utils.py |
 | `sync_financial_report_templates` signature | erpnext/accounts/doctype/financial_report_template/financial_report_template.py |
@@ -199,6 +204,9 @@ not mirrored: the first is a no-op in the stub, the second is skipped.
 | `delete_doc` | Deletes attached Files, Comments and Versions and writes a Deleted Document (`delete_dynamic_links` in frappe/model/delete_doc.py). |
 | `Company.on_update` | Raises `NotImplementedError` instead of creating the Standard chart unless `frappe.local.flags.ignore_chart_of_accounts` is set; `create_default_cost_center` runs like on a site. |
 | `Accounts Settings.allow_stale` | Unset in the stub means 1 (the field default in ERPNext); set it to 0 to test stale-rate refusal. |
+| Payment Entry | One party, one bank/cash account, references that are Purchase / Sales Invoices, company currency on both sides. Internal Transfer, taxes, deductions, advances, payment terms, payment requests, early-payment discounts and multi-currency raise `NotImplementedError`. |
+| `remove_from_bank_transaction` | Takes Frappe's `(doc, method)` handler shape rather than ERPNext's own arguments, and reuses `BankTransaction.remove_payment_entry`; the effect is the same (the voucher is delinked, `clearance_date` cleared and the line falls back to Unreconciled). |
+| Invoice `outstanding_amount` after a payment | version-16 maintains it through the Payment Ledger (`Payment Ledger Entry` + `QueryPaymentLedger`), which the stub does not have. `erpnext.accounts.utils.update_voucher_outstanding` instead sums the party-account GL rows carrying `against_voucher = the invoice` (`debit - credit` in account currency, negated for a Purchase Invoice) - the formula `gl_entry.update_outstanding_amt` uses, identical for single-currency invoices - and is called from `PaymentEntry.update_outstanding_amounts`. |
 
 ## Purchase Invoice paid-invoice branch (added by the bank-matching author)
 

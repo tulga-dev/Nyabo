@@ -193,3 +193,49 @@ def make_reverse_journal_entry(source_name: str, target_doc: Any = None) -> Any:
 		target_doc,
 		post_process,
 	)
+
+
+def get_default_bank_cash_account(
+	company: str,
+	account_type: str | None = None,
+	mode_of_payment: str | None = None,
+	account: str | None = None,
+	*,
+	fetch_balance: bool = True,
+) -> Any:
+	"""erpnext journal_entry.get_default_bank_cash_account (version-16).
+
+	``account`` is a GL Account name; without one the Company default for the type is used
+	and, failing that, the single ledger account of that type. A Mode of Payment is not
+	resolved (the stub has no Mode of Payment Account table) and raises instead of guessing.
+	"""
+	import frappe
+
+	from erpnext.accounts.utils import get_balance_on
+
+	if mode_of_payment:
+		raise NotImplementedError(
+			"frappe stub: get_default_bank_cash_account(mode_of_payment=...) is not implemented"
+		)
+	if not account:
+		if account_type == "Bank":
+			account = frappe.get_cached_value("Company", company, "default_bank_account")
+		elif account_type == "Cash":
+			account = frappe.get_cached_value("Company", company, "default_cash_account")
+		if not account and account_type in ("Bank", "Cash"):
+			account_list = frappe.get_all(
+				"Account", filters={"company": company, "account_type": account_type, "is_group": 0}
+			)
+			if len(account_list) == 1:
+				account = account_list[0].name
+	if not account:
+		return _dict()
+	details = frappe.get_cached_value("Account", account, ["account_currency", "account_type"], as_dict=1)
+	result = {
+		"account": account,
+		"account_currency": details.account_currency,
+		"account_type": details.account_type,
+	}
+	if fetch_balance:
+		result["balance"] = get_balance_on(account)
+	return _dict(result)
