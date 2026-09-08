@@ -5,7 +5,10 @@ runs on the ``long`` queue. When the importer does not recognise the layout it r
 ``status = "unknown_layout"`` with the header row and a preview; the accountant is then
 asked, one column at a time, which role the column plays, and the answer is saved as a
 ``Nyabo Bank Layout`` with ``verified = 0`` so nothing is imported on a guessed mapping
-(D-008).
+(D-008). A layout that was already mapped but not verified comes back as
+``status = "unverified_layout"``: the admin verifies that row, the accountant is not asked
+the same questions again. Anything the importer refuses (no bank account, unreadable file)
+arrives as an exception whose ``message_mn`` is the reply.
 """
 
 from __future__ import annotations
@@ -95,8 +98,9 @@ def run_import(document_name: str, chat_id: int | str) -> dict[str, Any]:
 		bot.send_message(chat_id, mn.MSG_FEATURE_UNAVAILABLE)
 		return {"ok": False}
 	except Exception as exc:
+		# BankImportError (no bank account, unreadable file, no lines) carries the card text.
 		log_error("telegram.statement.import_failed", exc, document=document_name)
-		bot.send_message(chat_id, mn.MSG_ERROR_ADMIN_NOTIFIED)
+		bot.send_message(chat_id, getattr(exc, "message_mn", None) or mn.MSG_ERROR_ADMIN_NOTIFIED)
 		return {"ok": False}
 	status = summary.get("status")
 	if status == "unknown_layout":
@@ -105,9 +109,6 @@ def run_import(document_name: str, chat_id: int | str) -> dict[str, Any]:
 	if status == "unverified_layout":
 		bot.send_message(chat_id, mn.MSG_STATEMENT_LAYOUT_UNVERIFIED)
 		return {"ok": True, "unverified": True}
-	if status == "no_bank_account":
-		bot.send_message(chat_id, mn.MSG_STATEMENT_NO_BANK_ACCOUNT.format(bank=summary.get("bank") or "—"))
-		return {"ok": True}
 	bot.send_message(
 		chat_id,
 		mn.MSG_STATEMENT_IMPORTED.format(
@@ -119,10 +120,8 @@ def run_import(document_name: str, chat_id: int | str) -> dict[str, Any]:
 			unmatched=summary.get("unmatched", 0),
 		),
 	)
-	from nyabo_mn.telegram.handlers import bank
-
-	for txn_name in (summary.get("unmatched_transactions") or [])[:10]:
-		bank.send_bank_card(bot, chat_id, txn_name)
+	# The unmatched lines are carded by matching.match.run while the import is still
+	# running (it is what decides which line is unmatched); nothing to send here.
 	return {"ok": True, "summary": summary}
 
 
