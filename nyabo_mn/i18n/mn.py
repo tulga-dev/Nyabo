@@ -457,6 +457,15 @@ TAX_PURCHASE_VAT_10 = "Татан суутгах НӨАТ 10%"
 TAX_ITEM_EXEMPT = "НӨАТ-аас чөлөөлөгдсөн"
 TAX_ITEM_ZERO = "Тэг хувийн НӨАТ"
 
+# --- agent (classification fallbacks and question answering; code writes these, never the model) --
+AGENT_REASON_CODE_NOT_IN_CHART = "Санал болгосон данс төлөвлөгөөнд байхгүй тул үндсэн зардлын дансыг сонгов."
+AGENT_REASON_VAT_NOT_PAYER = "Компани НӨАТ төлөгч бус тул НӨАТ зардалд орно."
+AGENT_REASON_UNAVAILABLE = "Тайлбар боловсруулж чадсангүй; нягтлан шалгана уу."
+AGENT_ANSWER_INJECTION_REFUSED = (
+	"Уучлаарай, энэ асуултад хариулах боломжгүй. Нягтлан эсвэл админд хандана уу."
+)
+AGENT_ANSWER_TOOL_ERROR = "Дэвтрээс мэдээлэл авахад алдаа гарлаа. Дахин оролдоно уу."
+
 # --- explanation templates (LLM fills only the bracketed part) -----------------------------------
 EXPL_EXPENSE = "{what} тул {debit_code} дебетлэж, {credit_name} кредитлэв."
 EXPL_SUFFIX_CITATION = " — {instrument}, {section}"
