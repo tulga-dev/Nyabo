@@ -293,6 +293,20 @@ def test_chart_scheme_falls_back_to_the_chart_that_is_installed(books):
 	assert pipeline.family_for_code(books, "6210") == pipeline.FAMILY_EXPENSE
 
 
+def test_posting_date_defaults_to_the_site_date_not_utc(monkeypatch):
+	"""A receipt with no readable date is posted on the site's business day.
+
+	Ulaanbaatar is UTC+8, so for eight hours of every UTC day the UTC date is yesterday's:
+	taking it would post a night-time receipt into the previous day, and on the 1st into a
+	period the accountant may already have closed.
+	"""
+	monkeypatch.setattr(frappe.utils, "nowdate", lambda: "2026-07-04")
+	assert pipeline._today(None) == dt.date(2026, 7, 4)
+	# an explicit timestamp (the caller's, a replay) still decides
+	given = dt.datetime(2026, 1, 2, 3, 4, tzinfo=dt.timezone.utc)
+	assert pipeline._today(given) == dt.date(2026, 1, 2)
+
+
 def _vat_rate_row(verified: int):
 	"""An explicit ``vat.rate`` Nyabo Tax Parameter row (the shipped seed row is verified)."""
 	return frappe.get_doc(

@@ -105,7 +105,22 @@ def loads(value: Any) -> Any:
 
 
 def _today(now: dt.datetime | None) -> dt.date:
-	return (now or dt.datetime.now(dt.timezone.utc)).date()
+	"""The site's business date, not UTC's.
+
+	A receipt with no readable date is posted "today", and today in Ulaanbaatar (UTC+8) is
+	already tomorrow's date for eight hours of every UTC day: taking the UTC date would post
+	a night-time receipt into the previous day - and, on the 1st of a month, into a period
+	the accountant may already have closed. ``frappe.utils.nowdate`` is the site's own clock;
+	an explicit ``now`` (the caller's, and the tests') still wins.
+	"""
+	if now is not None:
+		return now.date()
+	try:
+		import frappe
+
+		return dt.date.fromisoformat(frappe.utils.nowdate())
+	except Exception:  # noqa: BLE001 - no site (pure-Python callers): fall back to the local clock
+		return dt.datetime.now().date()
 
 
 def _simulation() -> bool:
@@ -698,6 +713,9 @@ def _run(
 	company = document.company
 	settings_row = company_settings(company)
 	site_settings = _settings_obj()
+	# ``now`` is a UTC timestamp for the call records; the *posting date* must be the site's
+	# business date, so ``_today`` is asked only what the caller actually supplied.
+	given_now = now
 	now = now or dt.datetime.now(dt.timezone.utc)
 	warnings: list[str] = []
 	needs_accountant = False
@@ -738,7 +756,7 @@ def _run(
 	# Dates and regime
 	posting_date = receipt.date
 	if posting_date is None:
-		posting_date = _today(now)
+		posting_date = _today(given_now)
 		warnings.append(mn.MSG_DATE_DEFAULTED_TODAY)
 		needs_accountant = True
 	ctx = regime_context(company, posting_date)
