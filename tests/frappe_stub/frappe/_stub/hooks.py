@@ -113,11 +113,12 @@ def clear_hooks_cache() -> None:
 
 
 @contextmanager
-def temporary_hooks(replace: bool = False, **hooks: Any) -> Iterator[None]:
-	"""Add (or, with ``replace=True``, substitute) hooks for the duration of the block.
+def temporary_hooks(replace: bool = False, without_apps: tuple[str, ...] = (), **hooks: Any) -> Iterator[None]:
+	"""Add hooks for the duration of the block; optionally drop some apps' hooks meanwhile.
 
-	``replace=True`` drops every app's hooks and uses only the given ones: the way to test
-	a document flow while the real handlers of another module are not written yet.
+	``replace=True`` uses only the given hooks; ``without_apps=("nyabo_mn",)`` keeps
+	ERPNext's period lock but drops the app's own handlers: the way to test a document
+	flow while the real handlers of another module are not written yet.
 	"""
 	import frappe
 
@@ -127,6 +128,8 @@ def temporary_hooks(replace: bool = False, **hooks: Any) -> Iterator[None]:
 	try:
 		if replace:
 			HOOK_MODULES.clear()
+		for app in without_apps:
+			HOOK_MODULES.pop(app, None)
 		local.hooks_overrides.append(hooks)
 		clear_hooks_cache()
 		yield

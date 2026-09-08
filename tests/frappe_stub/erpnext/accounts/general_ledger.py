@@ -73,16 +73,29 @@ def raise_debit_credit_not_equal_error(debit_credit_diff: float, voucher_type: s
 
 
 def make_entry(args: dict[str, Any], adv_adj: bool = False, update_outstanding: str = "Yes", from_repost: bool = False) -> Any:
+	"""``frappe.new_doc("GL Entry").update(args).submit()``: keys the GL Entry has no column for are dropped."""
 	import frappe
 
-	payload = dict(args)
+	meta = frappe.get_meta("GL Entry")
+	payload = {k: v for k, v in args.items() if meta.has_field(k)}
 	payload["doctype"] = "GL Entry"
-	payload.pop("name", None)
 	gle = frappe.get_doc(payload)
 	gle.flags.ignore_permissions = True
 	gle.flags.from_repost = from_repost
-	gle.insert()
+	gle.flags.adv_adj = adv_adj
+	gle.flags.update_outstanding = update_outstanding or "Yes"
+	gle.submit()
 	return gle
+
+
+def set_as_cancel(voucher_type: str, voucher_no: str) -> None:
+	"""Mark all GL Entries of the voucher cancelled (used when the passed map carries no row names)."""
+	import frappe
+
+	for name in frappe.get_all(
+		"GL Entry", filters={"voucher_type": voucher_type, "voucher_no": voucher_no, "is_cancelled": 0}, pluck="name"
+	):
+		frappe.db.set_value("GL Entry", name, "is_cancelled", 1)
 
 
 def make_gl_entries(
@@ -134,9 +147,12 @@ def make_reverse_gl_entries(
 	if not gl_entries:
 		return
 	validate_accounting_period(gl_entries)
-	for entry in gl_entries:
-		if entry.get("name"):
-			frappe.db.set_value("GL Entry", entry["name"], "is_cancelled", 1)
+	gle_names = [x.get("name") for x in gl_entries]
+	if not all(gle_names):
+		set_as_cancel(gl_entries[0]["voucher_type"], gl_entries[0]["voucher_no"])
+	else:
+		for name in gle_names:
+			frappe.db.set_value("GL Entry", name, "is_cancelled", 1)
 	for entry in gl_entries:
 		new_gle = _dict(entry)
 		new_gle["name"] = None

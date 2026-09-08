@@ -83,3 +83,7 @@ def cast_fieldtype(fieldtype: str, value: Any) -> Any:
 	from frappe.utils.data import cast
 
 	return cast(fieldtype, value)
+
+
+# Submodules as attributes, so ``frappe.utils.pdf.get_pdf`` works after ``import frappe``.
+from frappe.utils import background_jobs, file_manager, logger, pdf, xlsxutils  # noqa: E402,F401

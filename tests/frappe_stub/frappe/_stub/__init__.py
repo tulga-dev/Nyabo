@@ -109,16 +109,17 @@ def find_links_to(doctype: str, name: str) -> list[tuple[str, str, str]]:
 	return out
 
 
-def record_call(name: str, **kwargs: Any) -> None:
+def record_call(call: str, **kwargs: Any) -> None:
+	"""Remember that ``call`` happened with ``kwargs`` (stubbed side effects: PDF, mail, sync, ...)."""
 	import frappe
 
-	frappe.local.recorded_calls.setdefault(name, []).append(_dict(kwargs))
+	frappe.local.recorded_calls.setdefault(call, []).append(_dict(kwargs))
 
 
-def calls(name: str) -> list[_dict]:
+def calls(call: str) -> list[_dict]:
 	import frappe
 
-	return list(frappe.local.recorded_calls.get(name, []))
+	return list(frappe.local.recorded_calls.get(call, []))
 
 
 def messages() -> list[_dict]:

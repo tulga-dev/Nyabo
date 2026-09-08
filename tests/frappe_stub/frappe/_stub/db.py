@@ -29,6 +29,18 @@ UNSUPPORTED_OPERATORS = frozenset(
 	{"descendants of", "ancestors of", "not descendants of", "not ancestors of", "timespan", "previous", "next", "descendants of (inclusive)"}
 )
 DEFAULT_ORDER = object()
+# Column types of the standard fields (frappe/database/schema.py): timestamps compare as datetimes.
+DEFAULT_FIELDTYPES = {
+	"creation": "Datetime",
+	"modified": "Datetime",
+	"docstatus": "Int",
+	"idx": "Int",
+	"owner": "Data",
+	"modified_by": "Data",
+	"parent": "Data",
+	"parentfield": "Data",
+	"parenttype": "Data",
+}
 _AGGREGATE = re.compile(r"^\s*(count|sum|avg|min|max|group_concat)\s*\(", re.IGNORECASE)
 _seq = itertools.count(1)
 
@@ -80,6 +92,8 @@ class Database:
 		df = meta.get_field(fieldname)
 		if df is not None:
 			return df.fieldtype
+		if fieldname in DEFAULT_FIELDTYPES:
+			return DEFAULT_FIELDTYPES[fieldname]
 		if fieldname in DEFAULT_FIELDS or fieldname.startswith("_"):
 			return None
 		if meta.get("permissive"):

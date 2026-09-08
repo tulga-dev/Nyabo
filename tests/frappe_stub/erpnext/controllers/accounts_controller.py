@@ -111,7 +111,9 @@ class AccountsController(Document):
 			self.rounding_adjustment = 0.0
 			self.base_rounding_adjustment = 0.0
 		if self.meta.has_field("outstanding_amount") and self.docstatus == 0:
-			self.outstanding_amount = self.base_grand_total if self.party_account_currency == self.company_currency else self.grand_total
+			company_currency = self.get_company_currency()
+			party_currency = self.get("party_account_currency") or company_currency
+			self.outstanding_amount = self.base_grand_total if party_currency == company_currency else self.grand_total
 
 	def get_gl_dict(self, args: dict[str, Any], account_currency: str | None = None, item: Any = None) -> _dict:
 		from erpnext.accounts.utils import get_account_currency, get_fiscal_year

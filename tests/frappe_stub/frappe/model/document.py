@@ -412,8 +412,7 @@ class Document:
 	# --- defaults, users, timestamps ----------------------------------------------------
 
 	def _set_defaults(self) -> None:
-		if not self.is_new():
-			return
+		"""Fill empty fields with the DocType defaults (Frappe does this on save too, not only insert)."""
 		import frappe
 
 		for df in self.meta.fields:
@@ -428,7 +427,6 @@ class Document:
 			if value is not None:
 				self.set(df.fieldname, value)
 		for child in self.get_all_children():
-			child.set("__islocal", True)
 			child._set_defaults()
 
 	def set_user_and_timestamp(self) -> None:
@@ -819,6 +817,7 @@ class Document:
 			self.db_insert()
 		for child in self.get_all_children():
 			child.db_insert()
+			child.__dict__.pop("__islocal", None)
 		self.run_method("after_insert")
 		self.flags.in_insert = True
 		self.run_post_save_methods()
