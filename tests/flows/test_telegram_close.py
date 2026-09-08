@@ -112,6 +112,7 @@ def _posted_je(company: str) -> str:
 			"company": company,
 			"posting_date": "2026-08-14",
 			"voucher_type": "Journal Entry",
+			"nyabo_primary_document_ref": "Кассын зарлагын баримт №14 (тест)",
 			"accounts": [
 				{
 					"account": frappe.db.get_value(
@@ -340,7 +341,7 @@ def test_bank_card_find_and_reconcile(company, monkeypatch):
 	from nyabo_mn.telegram.handlers import bank
 
 	bank.send_bank_card(bot, 8030, txn)
-	assert bot.last_text.startswith("🏦 Khan Bank · 2026-08-03 · -120 000₮ · «Түлш»")
+	assert bot.last_text.startswith("🏦 Хаан банк · 2026-08-03 · -120 000₮ · «Түлш»")
 	assert bot.callback_datas() == [f"b:{txn}:find", f"b:{txn}:exp", f"b:{txn}:later"]
 	run(bot, callback_update(8030, f"b:{txn}:find", message_id=41))
 	assert bot.last_text == mn.MSG_BANK_FIND_ASK

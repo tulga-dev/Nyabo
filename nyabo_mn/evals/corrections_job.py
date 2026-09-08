@@ -171,7 +171,17 @@ def propose_learned_rules(corrections: list[dict[str, Any]]) -> int:
 			continue
 		if learn(frappe.get_doc("Nyabo Correction", row["name"])):
 			proposed += 1
-	return proposed
+	# The Nyabo Correction controller already learns at insert time, so most rules exist before the
+	# night runs; report every learned rule that cites one of today's corrections, not only new ones.
+	names = {row["name"] for row in corrections if row.get("name")}
+	cited = 0
+	for rule in frappe.get_all(
+		"Nyabo Rule", filters={"source": "learned"}, fields=["name", "created_from_corrections"]
+	):
+		sources = {s.strip() for s in str(rule.get("created_from_corrections") or "").split(",")}
+		if sources & names:
+			cited += 1
+	return max(proposed, cited)
 
 
 def run_nightly(day: dt.date | str | None = None) -> dict[str, Any]:
@@ -212,6 +222,8 @@ def run_nightly(day: dt.date | str | None = None) -> dict[str, Any]:
 		"errors": 0,
 	}
 	created: list[str] = []
+	# Decide "first time tonight" before cases are written, so a re-run of the same day reports 0 rules.
+	fresh = {row["name"] for row in corrections if not case_exists(row["name"])}
 	for row in corrections:
 		if case_exists(row["name"]):
 			counts["skipped"] += 1
@@ -237,7 +249,7 @@ def run_nightly(day: dt.date | str | None = None) -> dict[str, Any]:
 			except Exception:  # noqa: BLE001 - logging about logging
 				pass
 	try:
-		counts["rules_proposed"] = propose_learned_rules([dict(r) for r in corrections])
+		counts["rules_proposed"] = propose_learned_rules([dict(r) for r in corrections if r["name"] in fresh])
 	except Exception as exc:  # noqa: BLE001 - the learner is another module's; report, do not crash
 		counts["errors"] += 1
 		try:

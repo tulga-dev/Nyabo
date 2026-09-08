@@ -128,7 +128,13 @@ def test_unsupported_document_and_too_large_file(company, monkeypatch):
 	assert bot.last_text == mn.MSG_FILE_TOO_LARGE.format(mb=20)
 
 
-def test_missing_pipeline_module_tells_user_and_admin(company):
+def test_missing_pipeline_module_tells_user_and_admin(company, monkeypatch):
+	"""The pipeline exists now; simulate its absence the way _deps reports it."""
+
+	def _missing(document_name: str) -> None:
+		raise _deps.DependencyMissing("nyabo_mn.agent.pipeline.process_receipt is not available: dependency")
+
+	monkeypatch.setattr(_deps, "process_receipt", _missing)
 	link_user(3005, "Owner", company)
 	bot = FakeBotApi(files={"f": PHOTO})
 	outcome = run(bot, message_update(3005, photo_file_id="f"))
