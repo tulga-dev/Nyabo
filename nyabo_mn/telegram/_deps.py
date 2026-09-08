@@ -76,6 +76,11 @@ def import_statement(document_name: str) -> dict[str, Any]:
 	return _call("nyabo_mn.matching.bank_import", "import_statement", document_name)
 
 
+def recon_status(company: str) -> str:
+	"""The ``/данс`` card: statement vs ledger balance per bank account, as text."""
+	return _call("nyabo_mn.matching.status", "render", company)
+
+
 def render_bank_line(bank_transaction: str) -> str:
 	return _call("nyabo_mn.matching.cards", "render_bank_line", bank_transaction)
 

@@ -315,27 +315,9 @@ def account_chooser_text(accounts: list[tuple[str, str]], query: str | None = No
 	return header
 
 
-# --- reconciliation status (/данс) ----------------------------------------------------------------
-
-
-def recon_status(company: str, rows: list[dict[str, Any]]) -> str:
-	if not rows:
-		return mn.MSG_RECON_NONE
-	lines = [mn.MSG_RECON_STATUS_HEADER.format(company=company)]
-	for row in rows:
-		statement = _money(row.get("statement"))
-		ledger = _money(row.get("ledger"))
-		lines.append(
-			mn.MSG_RECON_STATUS_LINE.format(
-				bank=row.get("bank") or "—",
-				currency=row.get("currency") or "MNT",
-				statement=fmt_mnt(statement),
-				ledger=fmt_mnt(ledger),
-				diff=fmt_mnt(statement - ledger),
-				unmatched=row.get("unmatched", 0),
-			)
-		)
-	return "\n".join(lines)
+# The /данс card is rendered by nyabo_mn.matching.status.render: the statement side needs
+# each import's closing balance, which only the matching module keeps. A copy lived here
+# and drifted (it summed transactions instead), so there is deliberately none now.
 
 
 # --- quality (/чанар) ------------------------------------------------------------------------------
