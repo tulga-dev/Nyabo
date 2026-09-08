@@ -1,0 +1,123 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-09-08 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "telegram_id",
+  "telegram_username",
+  "first_name",
+  "user",
+  "role",
+  "status",
+  "linked_at",
+  "active_company",
+  "companies"
+ ],
+ "fields": [
+  {
+   "fieldname": "telegram_id",
+   "fieldtype": "Data",
+   "label": "Telegram ID",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "telegram_username",
+   "fieldtype": "Data",
+   "label": "Telegram нэр"
+  },
+  {
+   "fieldname": "first_name",
+   "fieldtype": "Data",
+   "label": "Нэр"
+  },
+  {
+   "fieldname": "user",
+   "fieldtype": "Link",
+   "label": "Хэрэглэгч",
+   "options": "User",
+   "reqd": 1
+  },
+  {
+   "fieldname": "role",
+   "fieldtype": "Select",
+   "label": "Үүрэг",
+   "options": "Owner\nAccountant\nAdmin",
+   "reqd": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Төлөв",
+   "options": "active\nblocked",
+   "default": "active"
+  },
+  {
+   "fieldname": "linked_at",
+   "fieldtype": "Datetime",
+   "label": "Холбогдсон"
+  },
+  {
+   "fieldname": "active_company",
+   "fieldtype": "Link",
+   "label": "Идэвхтэй компани",
+   "options": "Company"
+  },
+  {
+   "fieldname": "companies",
+   "fieldtype": "Table",
+   "label": "Компаниуд",
+   "options": "Nyabo User Company"
+  }
+ ],
+ "idx": 0,
+ "index_web_pages_for_search": 0,
+ "istable": 0,
+ "links": [],
+ "modified": "2026-09-08 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Nyabo",
+ "name": "Nyabo User Link",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "submit": 0,
+   "cancel": 0,
+   "amend": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "report": 1,
+   "share": 1
+  },
+  {
+   "role": "Nyabo Admin",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "submit": 0,
+   "cancel": 0,
+   "amend": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "report": 1,
+   "share": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1,
+ "autoname": "field:telegram_id",
+ "naming_rule": "By fieldname"
+}

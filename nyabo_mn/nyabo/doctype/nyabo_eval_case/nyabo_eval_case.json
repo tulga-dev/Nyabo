@@ -1,0 +1,123 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-09-08 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "kind",
+  "source",
+  "company",
+  "regime",
+  "on_date",
+  "input_document",
+  "input_json",
+  "expected_json",
+  "notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "kind",
+   "fieldtype": "Select",
+   "label": "Төрөл",
+   "options": "extraction\nclassification\nvat\nmatching\nrules\ninjection\ncorrection\nperiod_lock\nfx\ndocument_required",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "source",
+   "fieldtype": "Select",
+   "label": "Эх сурвалж",
+   "options": "golden\ncorrection\nsynthetic",
+   "default": "golden",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Компани",
+   "options": "Company"
+  },
+  {
+   "fieldname": "regime",
+   "fieldtype": "Select",
+   "label": "Горим",
+   "options": "\nvat_payer\nsimplified_1pct"
+  },
+  {
+   "fieldname": "on_date",
+   "fieldtype": "Date",
+   "label": "Гүйлгээний огноо"
+  },
+  {
+   "fieldname": "input_document",
+   "fieldtype": "Link",
+   "label": "Оролтын баримт",
+   "options": "Nyabo Document"
+  },
+  {
+   "fieldname": "input_json",
+   "fieldtype": "JSON",
+   "label": "Оролт (JSON)"
+  },
+  {
+   "fieldname": "expected_json",
+   "fieldtype": "JSON",
+   "label": "Хүлээгдэж буй үр дүн (JSON)"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Тэмдэглэл"
+  }
+ ],
+ "idx": 0,
+ "index_web_pages_for_search": 0,
+ "istable": 0,
+ "links": [],
+ "modified": "2026-09-08 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Nyabo",
+ "name": "Nyabo Eval Case",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "submit": 0,
+   "cancel": 0,
+   "amend": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "report": 1,
+   "share": 1
+  },
+  {
+   "role": "Nyabo Admin",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "submit": 0,
+   "cancel": 0,
+   "amend": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "report": 1,
+   "share": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1,
+ "autoname": "NYE-.#####",
+ "naming_rule": "Expression (old style)"
+}

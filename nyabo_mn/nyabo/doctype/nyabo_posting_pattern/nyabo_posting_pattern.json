@@ -1,0 +1,178 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-09-08 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "pattern_id",
+  "name_mn",
+  "document_types",
+  "applies_to_vat",
+  "applies_to_cit",
+  "conditions",
+  "verified",
+  "enabled",
+  "sb_lines",
+  "lines",
+  "primary_document_mn",
+  "sb_citation",
+  "citation_instrument",
+  "citation_section",
+  "citation_quote",
+  "citation_url",
+  "notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "pattern_id",
+   "fieldtype": "Data",
+   "label": "Загварын код",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "name_mn",
+   "fieldtype": "Data",
+   "label": "Нэр",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "document_types",
+   "fieldtype": "Small Text",
+   "label": "Баримтын төрлүүд (таслалаар)",
+   "reqd": 1
+  },
+  {
+   "fieldname": "applies_to_vat",
+   "fieldtype": "Select",
+   "label": "НӨАТ-ын төлөв",
+   "options": "any\nvat_payer\nnon_vat",
+   "default": "any",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "applies_to_cit",
+   "fieldtype": "Select",
+   "label": "ААНОАТ-ын горим",
+   "options": "any\nregular\nsimplified_1pct",
+   "default": "any"
+  },
+  {
+   "fieldname": "conditions",
+   "fieldtype": "Small Text",
+   "label": "Нөхцөл"
+  },
+  {
+   "fieldname": "verified",
+   "fieldtype": "Check",
+   "label": "Баталгаажсан",
+   "default": "0",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Идэвхтэй",
+   "default": "1"
+  },
+  {
+   "fieldname": "sb_lines",
+   "fieldtype": "Section Break",
+   "label": "Бичилт"
+  },
+  {
+   "fieldname": "lines",
+   "fieldtype": "Table",
+   "label": "Мөрүүд",
+   "options": "Nyabo Posting Pattern Line",
+   "reqd": 1
+  },
+  {
+   "fieldname": "primary_document_mn",
+   "fieldtype": "Data",
+   "label": "Анхан шатны баримт"
+  },
+  {
+   "fieldname": "sb_citation",
+   "fieldtype": "Section Break",
+   "label": "Иш татах заалт"
+  },
+  {
+   "fieldname": "citation_instrument",
+   "fieldtype": "Data",
+   "label": "Эрх зүйн акт",
+   "default": "Сангийн сайдын 2000 оны 116 дугаар тушаал (Заавар 116)"
+  },
+  {
+   "fieldname": "citation_section",
+   "fieldtype": "Data",
+   "label": "Заалт"
+  },
+  {
+   "fieldname": "citation_quote",
+   "fieldtype": "Small Text",
+   "label": "Иш татсан текст"
+  },
+  {
+   "fieldname": "citation_url",
+   "fieldtype": "Data",
+   "label": "URL"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Тэмдэглэл"
+  }
+ ],
+ "idx": 0,
+ "index_web_pages_for_search": 0,
+ "istable": 0,
+ "links": [],
+ "modified": "2026-09-08 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Nyabo",
+ "name": "Nyabo Posting Pattern",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "submit": 0,
+   "cancel": 0,
+   "amend": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "report": 1,
+   "share": 1
+  },
+  {
+   "role": "Nyabo Admin",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "submit": 0,
+   "cancel": 0,
+   "amend": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "report": 1,
+   "share": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1,
+ "autoname": "field:pattern_id",
+ "naming_rule": "By fieldname"
+}

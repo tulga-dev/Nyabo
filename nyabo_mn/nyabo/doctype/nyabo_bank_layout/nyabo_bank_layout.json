@@ -1,0 +1,144 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-09-08 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "layout_id",
+  "bank",
+  "verified",
+  "amount_style",
+  "header_row_hint",
+  "date_formats",
+  "header_signature_json",
+  "column_map_json",
+  "sample_file",
+  "notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "layout_id",
+   "fieldtype": "Data",
+   "label": "Загварын код",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "bank",
+   "fieldtype": "Select",
+   "label": "Банк",
+   "options": "Khan Bank\nTDB\nGolomt Bank\nTrans Bank\nXacBank\nOther",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "verified",
+   "fieldtype": "Check",
+   "label": "Баталгаажсан",
+   "default": "0",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "amount_style",
+   "fieldtype": "Select",
+   "label": "Дүнгийн хэлбэр",
+   "options": "separate_debit_credit\nsigned_amount",
+   "default": "separate_debit_credit"
+  },
+  {
+   "fieldname": "header_row_hint",
+   "fieldtype": "Int",
+   "label": "Толгой мөрийн байрлал"
+  },
+  {
+   "fieldname": "date_formats",
+   "fieldtype": "Small Text",
+   "label": "Огнооны форматууд (мөр тус бүр)",
+   "default": "%Y-%m-%d\n%Y.%m.%d\n%d.%m.%Y"
+  },
+  {
+   "fieldname": "header_signature_json",
+   "fieldtype": "JSON",
+   "label": "Толгойн гарын үсэг (JSON)"
+  },
+  {
+   "fieldname": "column_map_json",
+   "fieldtype": "JSON",
+   "label": "Баганын зураглал (JSON)"
+  },
+  {
+   "fieldname": "sample_file",
+   "fieldtype": "Attach",
+   "label": "Жишээ файл"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Тэмдэглэл"
+  }
+ ],
+ "idx": 0,
+ "index_web_pages_for_search": 0,
+ "istable": 0,
+ "links": [],
+ "modified": "2026-09-08 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Nyabo",
+ "name": "Nyabo Bank Layout",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "submit": 0,
+   "cancel": 0,
+   "amend": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "report": 1,
+   "share": 1
+  },
+  {
+   "role": "Nyabo Admin",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "submit": 0,
+   "cancel": 0,
+   "amend": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "report": 1,
+   "share": 1
+  },
+  {
+   "role": "Nyabo Accountant",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 0,
+   "submit": 0,
+   "cancel": 0,
+   "amend": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "report": 1,
+   "share": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1,
+ "autoname": "field:layout_id",
+ "naming_rule": "By fieldname"
+}

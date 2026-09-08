@@ -1,0 +1,180 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-09-08 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "company",
+  "match_type",
+  "match_value",
+  "amount_min",
+  "amount_max",
+  "status",
+  "cb_target",
+  "target_account_code",
+  "vat_treatment",
+  "posting_pattern",
+  "source",
+  "hit_count",
+  "last_hit",
+  "created_from_corrections"
+ ],
+ "fields": [
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Компани",
+   "options": "Company",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "match_type",
+   "fieldtype": "Select",
+   "label": "Тааруулах төрөл",
+   "options": "supplier_register_no\nsupplier_name_pattern\ndescription_pattern\namount_band\nbank_fee",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "match_value",
+   "fieldtype": "Data",
+   "label": "Тааруулах утга",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "amount_min",
+   "fieldtype": "Currency",
+   "label": "Доод дүн"
+  },
+  {
+   "fieldname": "amount_max",
+   "fieldtype": "Currency",
+   "label": "Дээд дүн"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Төлөв",
+   "options": "active\npending_confirmation\ndisabled",
+   "default": "active",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "cb_target",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "target_account_code",
+   "fieldtype": "Data",
+   "label": "Зорилтот дансны код",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "vat_treatment",
+   "fieldtype": "Select",
+   "label": "НӨАТ-ын бүртгэл",
+   "options": "withheld\nin_expense\nexempt\nzero\nnone",
+   "default": "none"
+  },
+  {
+   "fieldname": "posting_pattern",
+   "fieldtype": "Link",
+   "label": "Бичилтийн загвар",
+   "options": "Nyabo Posting Pattern"
+  },
+  {
+   "fieldname": "source",
+   "fieldtype": "Select",
+   "label": "Эх сурвалж",
+   "options": "accountant\nlearned\nseed",
+   "default": "accountant"
+  },
+  {
+   "fieldname": "hit_count",
+   "fieldtype": "Int",
+   "label": "Хэрэглэсэн тоо",
+   "default": "0",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_hit",
+   "fieldtype": "Datetime",
+   "label": "Сүүлд хэрэглэсэн",
+   "read_only": 1
+  },
+  {
+   "fieldname": "created_from_corrections",
+   "fieldtype": "Small Text",
+   "label": "Үүсгэсэн залруулгууд",
+   "read_only": 1
+  }
+ ],
+ "idx": 0,
+ "index_web_pages_for_search": 0,
+ "istable": 0,
+ "links": [],
+ "modified": "2026-09-08 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Nyabo",
+ "name": "Nyabo Rule",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "submit": 0,
+   "cancel": 0,
+   "amend": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "report": 1,
+   "share": 1
+  },
+  {
+   "role": "Nyabo Admin",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "submit": 0,
+   "cancel": 0,
+   "amend": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "report": 1,
+   "share": 1
+  },
+  {
+   "role": "Nyabo Accountant",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 0,
+   "submit": 0,
+   "cancel": 0,
+   "amend": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "report": 1,
+   "share": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1,
+ "autoname": "NYR-.#####",
+ "naming_rule": "Expression (old style)"
+}

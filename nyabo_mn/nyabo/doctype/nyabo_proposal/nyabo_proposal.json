@@ -1,0 +1,367 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-09-08 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "document",
+  "company",
+  "kind",
+  "status",
+  "needs_accountant",
+  "cb_head",
+  "supplier",
+  "supplier_is_new",
+  "posting_date",
+  "total",
+  "vat_amount",
+  "vat_treatment",
+  "sb_entry",
+  "account_code",
+  "account",
+  "posting_pattern",
+  "rule_applied",
+  "explanation",
+  "citation",
+  "entry_json",
+  "extracted_json",
+  "verification_json",
+  "confidence_json",
+  "warnings_json",
+  "sb_llm",
+  "prompt_version",
+  "model",
+  "tokens_in",
+  "tokens_out",
+  "latency_ms",
+  "sb_decision",
+  "approved_by",
+  "approved_telegram_id",
+  "approved_at",
+  "rejection_reason",
+  "posted_doctype",
+  "posted_name",
+  "bank_transaction",
+  "card_chat_id",
+  "card_message_id"
+ ],
+ "fields": [
+  {
+   "fieldname": "document",
+   "fieldtype": "Link",
+   "label": "Эх баримт",
+   "options": "Nyabo Document",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Компани",
+   "options": "Company",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "kind",
+   "fieldtype": "Select",
+   "label": "Төрөл",
+   "options": "receipt\nbank_line\ninventory\ncorrection",
+   "default": "receipt",
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Төлөв",
+   "options": "proposed\napproved\nrejected\nposted\nfailed",
+   "default": "proposed",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "needs_accountant",
+   "fieldtype": "Check",
+   "label": "Зөвхөн нягтлан батлана",
+   "default": "0"
+  },
+  {
+   "fieldname": "cb_head",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "supplier",
+   "fieldtype": "Link",
+   "label": "Харилцагч",
+   "options": "Supplier"
+  },
+  {
+   "fieldname": "supplier_is_new",
+   "fieldtype": "Check",
+   "label": "Шинэ харилцагч",
+   "default": "0"
+  },
+  {
+   "fieldname": "posting_date",
+   "fieldtype": "Date",
+   "label": "Огноо"
+  },
+  {
+   "fieldname": "total",
+   "fieldtype": "Currency",
+   "label": "Нийт дүн"
+  },
+  {
+   "fieldname": "vat_amount",
+   "fieldtype": "Currency",
+   "label": "НӨАТ"
+  },
+  {
+   "fieldname": "vat_treatment",
+   "fieldtype": "Select",
+   "label": "НӨАТ-ын бүртгэл",
+   "options": "withheld\nin_expense\nexempt\nzero\nnone",
+   "default": "none"
+  },
+  {
+   "fieldname": "sb_entry",
+   "fieldtype": "Section Break",
+   "label": "Санал болгосон бичилт"
+  },
+  {
+   "fieldname": "account_code",
+   "fieldtype": "Data",
+   "label": "Дансны код"
+  },
+  {
+   "fieldname": "account",
+   "fieldtype": "Link",
+   "label": "Данс",
+   "options": "Account"
+  },
+  {
+   "fieldname": "posting_pattern",
+   "fieldtype": "Link",
+   "label": "Бичилтийн загвар",
+   "options": "Nyabo Posting Pattern"
+  },
+  {
+   "fieldname": "rule_applied",
+   "fieldtype": "Link",
+   "label": "Хэрэглэсэн дүрэм",
+   "options": "Nyabo Rule"
+  },
+  {
+   "fieldname": "explanation",
+   "fieldtype": "Small Text",
+   "label": "Тайлбар",
+   "length": 300
+  },
+  {
+   "fieldname": "citation",
+   "fieldtype": "Data",
+   "label": "Иш татсан заалт"
+  },
+  {
+   "fieldname": "entry_json",
+   "fieldtype": "JSON",
+   "label": "Бичилт (JSON)"
+  },
+  {
+   "fieldname": "extracted_json",
+   "fieldtype": "JSON",
+   "label": "Танисан өгөгдөл (JSON)"
+  },
+  {
+   "fieldname": "verification_json",
+   "fieldtype": "JSON",
+   "label": "Баталгаажуулалт (JSON)"
+  },
+  {
+   "fieldname": "confidence_json",
+   "fieldtype": "JSON",
+   "label": "Итгэлийн түвшин (JSON)"
+  },
+  {
+   "fieldname": "warnings_json",
+   "fieldtype": "JSON",
+   "label": "Анхааруулга (JSON)"
+  },
+  {
+   "fieldname": "sb_llm",
+   "fieldtype": "Section Break",
+   "label": "Модель"
+  },
+  {
+   "fieldname": "prompt_version",
+   "fieldtype": "Data",
+   "label": "Промптын хувилбар",
+   "read_only": 1
+  },
+  {
+   "fieldname": "model",
+   "fieldtype": "Data",
+   "label": "Модель",
+   "read_only": 1
+  },
+  {
+   "fieldname": "tokens_in",
+   "fieldtype": "Int",
+   "label": "Оролтын токен",
+   "read_only": 1
+  },
+  {
+   "fieldname": "tokens_out",
+   "fieldtype": "Int",
+   "label": "Гаралтын токен",
+   "read_only": 1
+  },
+  {
+   "fieldname": "latency_ms",
+   "fieldtype": "Int",
+   "label": "Хугацаа (мс)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sb_decision",
+   "fieldtype": "Section Break",
+   "label": "Шийдвэр"
+  },
+  {
+   "fieldname": "approved_by",
+   "fieldtype": "Link",
+   "label": "Баталсан",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "approved_telegram_id",
+   "fieldtype": "Data",
+   "label": "Баталсан Telegram ID",
+   "read_only": 1
+  },
+  {
+   "fieldname": "approved_at",
+   "fieldtype": "Datetime",
+   "label": "Баталсан огноо",
+   "read_only": 1
+  },
+  {
+   "fieldname": "rejection_reason",
+   "fieldtype": "Data",
+   "label": "Татгалзсан шалтгаан",
+   "read_only": 1
+  },
+  {
+   "fieldname": "posted_doctype",
+   "fieldtype": "Link",
+   "label": "Бүртгэсэн баримтын төрөл",
+   "options": "DocType",
+   "read_only": 1
+  },
+  {
+   "fieldname": "posted_name",
+   "fieldtype": "Dynamic Link",
+   "label": "Бүртгэсэн баримт",
+   "options": "posted_doctype",
+   "read_only": 1
+  },
+  {
+   "fieldname": "bank_transaction",
+   "fieldtype": "Link",
+   "label": "Банкны гүйлгээ",
+   "options": "Bank Transaction"
+  },
+  {
+   "fieldname": "card_chat_id",
+   "fieldtype": "Data",
+   "label": "Картын chat_id",
+   "read_only": 1
+  },
+  {
+   "fieldname": "card_message_id",
+   "fieldtype": "Data",
+   "label": "Картын message_id",
+   "read_only": 1
+  }
+ ],
+ "idx": 0,
+ "index_web_pages_for_search": 0,
+ "istable": 0,
+ "links": [],
+ "modified": "2026-09-08 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Nyabo",
+ "name": "Nyabo Proposal",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "submit": 0,
+   "cancel": 0,
+   "amend": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "report": 1,
+   "share": 1
+  },
+  {
+   "role": "Nyabo Admin",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "submit": 0,
+   "cancel": 0,
+   "amend": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "report": 1,
+   "share": 1
+  },
+  {
+   "role": "Nyabo Accountant",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 0,
+   "submit": 0,
+   "cancel": 0,
+   "amend": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "report": 1,
+   "share": 1
+  },
+  {
+   "role": "Nyabo Owner",
+   "read": 1,
+   "write": 0,
+   "create": 0,
+   "delete": 0,
+   "submit": 0,
+   "cancel": 0,
+   "amend": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "report": 1,
+   "share": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1,
+ "autoname": "NYP-.#####",
+ "naming_rule": "Expression (old style)"
+}

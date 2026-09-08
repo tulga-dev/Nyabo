@@ -1,0 +1,264 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-09-08 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "company",
+  "chart_scheme",
+  "default_expense_code",
+  "onboarding_completed",
+  "onboarding_state",
+  "cb_people",
+  "owner_telegram_id",
+  "accountant_telegram_id",
+  "accountant_user",
+  "accountant_of_record_name",
+  "accountant_micpa_permit",
+  "sb_regime",
+  "regimes",
+  "expects_under_400m_2027",
+  "sb_approval",
+  "auto_approve_policy",
+  "auto_approve_max_amount",
+  "auto_approve_accounts",
+  "sb_banks",
+  "bank_accounts",
+  "sb_policy",
+  "has_inventory",
+  "inventory_method",
+  "depreciation_method",
+  "fx_policy",
+  "retention_years",
+  "sb_meta",
+  "few_shot_refreshed_at"
+ ],
+ "fields": [
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Компани",
+   "options": "Company",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "chart_scheme",
+   "fieldtype": "Select",
+   "label": "Дансны кодын схем",
+   "options": "v1\nv03\naccountant",
+   "default": "v03"
+  },
+  {
+   "fieldname": "default_expense_code",
+   "fieldtype": "Data",
+   "label": "Үндсэн зардлын данс (код)",
+   "default": "7009"
+  },
+  {
+   "fieldname": "onboarding_completed",
+   "fieldtype": "Check",
+   "label": "Тохиргоо дууссан",
+   "default": "0"
+  },
+  {
+   "fieldname": "onboarding_state",
+   "fieldtype": "Data",
+   "label": "Тохиргооны алхам",
+   "read_only": 1
+  },
+  {
+   "fieldname": "cb_people",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "owner_telegram_id",
+   "fieldtype": "Data",
+   "label": "Эзэмшигчийн Telegram ID"
+  },
+  {
+   "fieldname": "accountant_telegram_id",
+   "fieldtype": "Data",
+   "label": "Нягтлангийн Telegram ID"
+  },
+  {
+   "fieldname": "accountant_user",
+   "fieldtype": "Link",
+   "label": "Нягтлан (хэрэглэгч)",
+   "options": "User"
+  },
+  {
+   "fieldname": "accountant_of_record_name",
+   "fieldtype": "Data",
+   "label": "Нягтлан бодогчийн нэр"
+  },
+  {
+   "fieldname": "accountant_micpa_permit",
+   "fieldtype": "Data",
+   "label": "МНБИ-ийн зөвшөөрлийн дугаар"
+  },
+  {
+   "fieldname": "sb_regime",
+   "fieldtype": "Section Break",
+   "label": "Татварын горим"
+  },
+  {
+   "fieldname": "regimes",
+   "fieldtype": "Table",
+   "label": "Горимын түүх",
+   "options": "Nyabo Tax Regime Period"
+  },
+  {
+   "fieldname": "expects_under_400m_2027",
+   "fieldtype": "Check",
+   "label": "2027 онд 400 сая₮-с доош орлоготой байх",
+   "default": "0"
+  },
+  {
+   "fieldname": "sb_approval",
+   "fieldtype": "Section Break",
+   "label": "Батлах бодлого"
+  },
+  {
+   "fieldname": "auto_approve_policy",
+   "fieldtype": "Select",
+   "label": "Автомат батлах",
+   "options": "none\nowner_simple",
+   "default": "none"
+  },
+  {
+   "fieldname": "auto_approve_max_amount",
+   "fieldtype": "Currency",
+   "label": "Автомат батлах дээд дүн"
+  },
+  {
+   "fieldname": "auto_approve_accounts",
+   "fieldtype": "Small Text",
+   "label": "Зөвшөөрөгдсөн дансны кодууд (таслалаар)"
+  },
+  {
+   "fieldname": "sb_banks",
+   "fieldtype": "Section Break",
+   "label": "Банкны дансууд"
+  },
+  {
+   "fieldname": "bank_accounts",
+   "fieldtype": "Table",
+   "label": "Банкны дансууд",
+   "options": "Nyabo Bank Account Row"
+  },
+  {
+   "fieldname": "sb_policy",
+   "fieldtype": "Section Break",
+   "label": "НББ-ийн бодлого"
+  },
+  {
+   "fieldname": "has_inventory",
+   "fieldtype": "Check",
+   "label": "Бараа материалтай",
+   "default": "0"
+  },
+  {
+   "fieldname": "inventory_method",
+   "fieldtype": "Select",
+   "label": "Бараа материалын үнэлгээ",
+   "options": "FIFO\nWeighted Average",
+   "default": "FIFO"
+  },
+  {
+   "fieldname": "depreciation_method",
+   "fieldtype": "Select",
+   "label": "Элэгдлийн арга",
+   "options": "Straight Line\nDouble Declining Balance",
+   "default": "Straight Line"
+  },
+  {
+   "fieldname": "fx_policy",
+   "fieldtype": "Data",
+   "label": "Валютын бодлого",
+   "default": "Монголбанкны албан ханш, гүйлгээний өдрөөр"
+  },
+  {
+   "fieldname": "retention_years",
+   "fieldtype": "Int",
+   "label": "Баримт хадгалах жил",
+   "default": "10",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sb_meta",
+   "fieldtype": "Section Break",
+   "label": "Систем"
+  },
+  {
+   "fieldname": "few_shot_refreshed_at",
+   "fieldtype": "Datetime",
+   "label": "Жишээ шинэчилсэн",
+   "read_only": 1
+  }
+ ],
+ "idx": 0,
+ "index_web_pages_for_search": 0,
+ "istable": 0,
+ "links": [],
+ "modified": "2026-09-08 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Nyabo",
+ "name": "Nyabo Company Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "submit": 0,
+   "cancel": 0,
+   "amend": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "report": 1,
+   "share": 1
+  },
+  {
+   "role": "Nyabo Admin",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "submit": 0,
+   "cancel": 0,
+   "amend": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "report": 1,
+   "share": 1
+  },
+  {
+   "role": "Nyabo Accountant",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 0,
+   "submit": 0,
+   "cancel": 0,
+   "amend": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "report": 1,
+   "share": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1,
+ "autoname": "field:company",
+ "naming_rule": "By fieldname"
+}

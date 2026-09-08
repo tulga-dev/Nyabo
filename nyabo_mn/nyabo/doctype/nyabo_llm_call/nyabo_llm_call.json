@@ -1,0 +1,146 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-09-08 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "purpose",
+  "provider",
+  "model",
+  "prompt_version",
+  "ok",
+  "error_class",
+  "cb_usage",
+  "tokens_in",
+  "tokens_out",
+  "latency_ms",
+  "cost_usd",
+  "company",
+  "proposal"
+ ],
+ "fields": [
+  {
+   "fieldname": "purpose",
+   "fieldtype": "Select",
+   "label": "Зорилго",
+   "options": "extract\nclassify\nquestion\neval\nother",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "provider",
+   "fieldtype": "Data",
+   "label": "Үйлчилгээ",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "model",
+   "fieldtype": "Data",
+   "label": "Модель",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "prompt_version",
+   "fieldtype": "Data",
+   "label": "Промптын хувилбар"
+  },
+  {
+   "fieldname": "ok",
+   "fieldtype": "Check",
+   "label": "Амжилттай",
+   "default": "1",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "error_class",
+   "fieldtype": "Data",
+   "label": "Алдааны төрөл"
+  },
+  {
+   "fieldname": "cb_usage",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "tokens_in",
+   "fieldtype": "Int",
+   "label": "Оролтын токен"
+  },
+  {
+   "fieldname": "tokens_out",
+   "fieldtype": "Int",
+   "label": "Гаралтын токен"
+  },
+  {
+   "fieldname": "latency_ms",
+   "fieldtype": "Int",
+   "label": "Хугацаа (мс)"
+  },
+  {
+   "fieldname": "cost_usd",
+   "fieldtype": "Float",
+   "label": "Зардал (USD)",
+   "precision": "6"
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Компани",
+   "options": "Company"
+  },
+  {
+   "fieldname": "proposal",
+   "fieldtype": "Link",
+   "label": "Санал",
+   "options": "Nyabo Proposal"
+  }
+ ],
+ "idx": 0,
+ "index_web_pages_for_search": 0,
+ "istable": 0,
+ "links": [],
+ "modified": "2026-09-08 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Nyabo",
+ "name": "Nyabo LLM Call",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "submit": 0,
+   "cancel": 0,
+   "amend": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "report": 1,
+   "share": 1
+  },
+  {
+   "role": "Nyabo Admin",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "submit": 0,
+   "cancel": 0,
+   "amend": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "report": 1,
+   "share": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0,
+ "autoname": "NYL-.######",
+ "naming_rule": "Expression (old style)"
+}

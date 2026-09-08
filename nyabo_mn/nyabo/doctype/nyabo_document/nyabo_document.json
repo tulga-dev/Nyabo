@@ -1,0 +1,230 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-09-08 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "company",
+  "doc_type",
+  "status",
+  "file",
+  "file_hash",
+  "mime_type",
+  "size_bytes",
+  "cb_sender",
+  "sender_telegram_id",
+  "sender_user",
+  "telegram_file_id",
+  "telegram_chat_id",
+  "telegram_message_id",
+  "received_at",
+  "sb_result",
+  "posted_doctype",
+  "posted_name",
+  "retain_until",
+  "error"
+ ],
+ "fields": [
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Компани",
+   "options": "Company",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "doc_type",
+   "fieldtype": "Select",
+   "label": "Баримтын төрөл",
+   "options": "receipt\nsales_ebarimt\nbank_statement\ninventory\nother",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Төлөв",
+   "options": "received\nextracted\nproposed\napproved\nrejected\nposted\nfailed",
+   "default": "received",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "file",
+   "fieldtype": "Attach",
+   "label": "Файл",
+   "reqd": 1
+  },
+  {
+   "fieldname": "file_hash",
+   "fieldtype": "Data",
+   "label": "Файлын хэш (SHA-256)",
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "mime_type",
+   "fieldtype": "Data",
+   "label": "MIME төрөл",
+   "read_only": 1
+  },
+  {
+   "fieldname": "size_bytes",
+   "fieldtype": "Int",
+   "label": "Хэмжээ (байт)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "cb_sender",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "sender_telegram_id",
+   "fieldtype": "Data",
+   "label": "Илгээгчийн Telegram ID"
+  },
+  {
+   "fieldname": "sender_user",
+   "fieldtype": "Link",
+   "label": "Илгээгч (хэрэглэгч)",
+   "options": "User"
+  },
+  {
+   "fieldname": "telegram_file_id",
+   "fieldtype": "Data",
+   "label": "Telegram file_id",
+   "read_only": 1
+  },
+  {
+   "fieldname": "telegram_chat_id",
+   "fieldtype": "Data",
+   "label": "Telegram chat_id",
+   "read_only": 1
+  },
+  {
+   "fieldname": "telegram_message_id",
+   "fieldtype": "Data",
+   "label": "Telegram message_id",
+   "read_only": 1
+  },
+  {
+   "fieldname": "received_at",
+   "fieldtype": "Datetime",
+   "label": "Хүлээн авсан"
+  },
+  {
+   "fieldname": "sb_result",
+   "fieldtype": "Section Break",
+   "label": "Үр дүн"
+  },
+  {
+   "fieldname": "posted_doctype",
+   "fieldtype": "Link",
+   "label": "Бүртгэсэн баримтын төрөл",
+   "options": "DocType",
+   "read_only": 1
+  },
+  {
+   "fieldname": "posted_name",
+   "fieldtype": "Dynamic Link",
+   "label": "Бүртгэсэн баримт",
+   "options": "posted_doctype",
+   "read_only": 1
+  },
+  {
+   "fieldname": "retain_until",
+   "fieldtype": "Date",
+   "label": "Хадгалах хугацаа (хүртэл)",
+   "read_only": 1,
+   "description": "Нягтлан бодох бүртгэлийн тухай хууль 11.1: 10 жил"
+  },
+  {
+   "fieldname": "error",
+   "fieldtype": "Small Text",
+   "label": "Алдаа",
+   "read_only": 1
+  }
+ ],
+ "idx": 0,
+ "index_web_pages_for_search": 0,
+ "istable": 0,
+ "links": [],
+ "modified": "2026-09-08 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Nyabo",
+ "name": "Nyabo Document",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "submit": 0,
+   "cancel": 0,
+   "amend": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "report": 1,
+   "share": 1
+  },
+  {
+   "role": "Nyabo Admin",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "submit": 0,
+   "cancel": 0,
+   "amend": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "report": 1,
+   "share": 1
+  },
+  {
+   "role": "Nyabo Accountant",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 0,
+   "submit": 0,
+   "cancel": 0,
+   "amend": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "report": 1,
+   "share": 1
+  },
+  {
+   "role": "Nyabo Owner",
+   "read": 1,
+   "write": 0,
+   "create": 0,
+   "delete": 0,
+   "submit": 0,
+   "cancel": 0,
+   "amend": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "report": 1,
+   "share": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1,
+ "autoname": "NYD-.#####",
+ "naming_rule": "Expression (old style)"
+}

@@ -1,0 +1,156 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-09-08 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "key",
+  "effective_from",
+  "effective_to",
+  "status",
+  "verified",
+  "cb_value",
+  "value_json",
+  "unit",
+  "sb_source",
+  "source_text",
+  "source_url",
+  "article",
+  "quote_mn",
+  "note"
+ ],
+ "fields": [
+  {
+   "fieldname": "key",
+   "fieldtype": "Data",
+   "label": "Түлхүүр",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "effective_from",
+   "fieldtype": "Date",
+   "label": "Эхлэх огноо",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "effective_to",
+   "fieldtype": "Date",
+   "label": "Дуусах огноо",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Төлөв",
+   "options": "active\npending",
+   "default": "active",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "verified",
+   "fieldtype": "Check",
+   "label": "Баталгаажсан",
+   "default": "0",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "cb_value",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "value_json",
+   "fieldtype": "JSON",
+   "label": "Утга (JSON)"
+  },
+  {
+   "fieldname": "unit",
+   "fieldtype": "Select",
+   "label": "Нэгж",
+   "options": "fraction\nMNT\nyears\nschedule\nrule\ndeadline",
+   "default": "fraction"
+  },
+  {
+   "fieldname": "sb_source",
+   "fieldtype": "Section Break",
+   "label": "Эх сурвалж"
+  },
+  {
+   "fieldname": "source_text",
+   "fieldtype": "Data",
+   "label": "Хууль, заалт"
+  },
+  {
+   "fieldname": "source_url",
+   "fieldtype": "Data",
+   "label": "URL"
+  },
+  {
+   "fieldname": "article",
+   "fieldtype": "Data",
+   "label": "Зүйл, заалт"
+  },
+  {
+   "fieldname": "quote_mn",
+   "fieldtype": "Small Text",
+   "label": "Иш татсан текст"
+  },
+  {
+   "fieldname": "note",
+   "fieldtype": "Small Text",
+   "label": "Тэмдэглэл"
+  }
+ ],
+ "idx": 0,
+ "index_web_pages_for_search": 0,
+ "istable": 0,
+ "links": [],
+ "modified": "2026-09-08 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Nyabo",
+ "name": "Nyabo Tax Parameter",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "submit": 0,
+   "cancel": 0,
+   "amend": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "report": 1,
+   "share": 1
+  },
+  {
+   "role": "Nyabo Admin",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "submit": 0,
+   "cancel": 0,
+   "amend": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "report": 1,
+   "share": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1,
+ "autoname": "format:{key}:{effective_from}",
+ "naming_rule": "Expression"
+}
