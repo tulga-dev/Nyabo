@@ -152,6 +152,17 @@ def statement_document(company: str, filename: str, data: bytes, telegram_id: st
 	return doc.name
 
 
+def ensure_role(role: str) -> str:
+	"""An ERPNext role the site fixture does not create (Payment Entry asks for Accounts User)."""
+	import frappe
+
+	if not frappe.db.exists("Role", role):
+		frappe.get_doc({"doctype": "Role", "role_name": role, "desk_access": 1}).insert(
+			ignore_permissions=True
+		)
+	return role
+
+
 def ensure_supplier(name: str) -> str:
 	import frappe
 
@@ -185,6 +196,69 @@ def paid_purchase_invoice(
 	pi.insert()
 	pi.submit()
 	return pi
+
+
+def unpaid_purchase_invoice(
+	company: str,
+	supplier: str,
+	amount: float,
+	posting_date: str,
+	expense_code: str = "6210",
+	currency: str | None = None,
+	**extra: Any,
+) -> Any:
+	"""A submitted Purchase Invoice that still owes money - the voucher a Payment Entry settles.
+
+	No ``is_paid``: the credit sits on the payable and nothing has touched a bank account,
+	which is what a card / QPay / transfer purchase looks like until its statement line
+	arrives (docs/DECISIONS.md PIPE-03).
+	"""
+	import frappe
+
+	ensure_supplier(supplier)
+	expense = _account_name(company, expense_code)
+	values = {
+		"doctype": "Purchase Invoice",
+		"company": company,
+		"supplier": supplier,
+		"posting_date": posting_date,
+		"bill_no": f"INV-{supplier[:3]}-{int(amount)}",
+		"items": [{"item_name": "Үйлчилгээ", "qty": 1, "rate": amount, "expense_account": expense}],
+	}
+	if currency:
+		values["currency"] = currency
+		values["conversion_rate"] = 3500.0  # the stub does not fetch rates
+	values.update(extra)
+	pi = frappe.get_doc(values)
+	pi.flags.ignore_permissions = True
+	pi.insert()
+	pi.submit()
+	return pi
+
+
+def unpaid_sales_invoice(
+	company: str, customer: str, amount: float, posting_date: str, income_code: str = "4110"
+) -> Any:
+	"""A submitted Sales Invoice with an outstanding balance - what a deposit line collects."""
+	import frappe
+
+	if not frappe.db.exists("Customer", customer):
+		frappe.get_doc({"doctype": "Customer", "customer_name": customer}).insert(ignore_permissions=True)
+	income = _account_name(company, income_code)
+	si = frappe.get_doc(
+		{
+			"doctype": "Sales Invoice",
+			"company": company,
+			"customer": customer,
+			"posting_date": posting_date,
+			"po_no": f"SO-{customer[:3]}-{int(amount)}",
+			"items": [{"item_name": "Үйлчилгээ", "qty": 1, "rate": amount, "income_account": income}],
+		}
+	)
+	si.flags.ignore_permissions = True
+	si.insert()
+	si.submit()
+	return si
 
 
 def fixture_bytes(name: str) -> tuple[str, bytes]:
