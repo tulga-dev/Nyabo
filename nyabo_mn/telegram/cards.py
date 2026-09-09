@@ -547,7 +547,7 @@ def _rule_briefing(rule: Any) -> list[str]:
 		return []
 	lines = ["", mn.CARD_RULE_BRIEFING_TITLE, note]
 	if getattr(rule, "note_truncated", False):
-		lines.append(mn.CARD_RULE_TEXT_CUT)
+		lines.append(mn.CARD_RULE_NOTE_CUT)
 	return lines
 
 
@@ -560,7 +560,12 @@ def _rule_citation(rule: Any) -> list[str]:
 		else mn.CARD_RULE_CITATION_NO_SECTION.format(instrument=rule.instrument)
 	)
 	lines = [head]
-	if rule.quote:
+	if rule.quote and getattr(rule, "quote_truncated", False):
+		# Say it twice, in the punctuation and in words: the reader of a legal quote is deciding
+		# whether it authorises the entry above, and a silent slice answers that question wrongly.
+		lines.append(mn.CARD_RULE_QUOTE_CUT.format(quote=rule.quote))
+		lines.append(mn.CARD_RULE_QUOTE_CUT_NOTE)
+	elif rule.quote:
 		lines.append(mn.CARD_RULE_QUOTE.format(quote=rule.quote))
 	if rule.url:
 		lines.append(mn.CARD_RULE_SOURCE_URL.format(url=rule.url))

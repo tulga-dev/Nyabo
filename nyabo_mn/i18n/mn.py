@@ -1326,13 +1326,20 @@ CARD_RULE_OPEN_ENDED = "хязгааргүй"
 CARD_RULE_CITATION = "📜 Эх сурвалж: {instrument}, {section}"
 CARD_RULE_CITATION_NO_SECTION = "📜 Эх сурвалж: {instrument}"
 CARD_RULE_QUOTE = "«{quote}»"
+# A quote too long for one bubble. The ellipsis sits inside the guillemets so the fragment can
+# never be read as the whole provision, and the line under it says where the rest is.
+CARD_RULE_QUOTE_CUT = "«{quote}…»"
+CARD_RULE_QUOTE_CUT_NOTE = (
+	"✂️ Ишлэл бүтэн багтсангүй. Бүрэн эхийг эх сурвалжийн холбоосоор, "
+	"эсвэл ERPNext дэск дэх дүрмийн бичлэгээс уншина уу."
+)
 CARD_RULE_SOURCE_URL = "🔗 {url}"
 # The seed's own briefing for whoever is at the verify button (DECISIONS CORE-18, CORE-19).
 # Only the heading is translated: the body is the seed note verbatim, and the seed writes its
 # notes in English for the repository's readers. Paraphrasing it here would put a second,
 # unreviewed wording of a legal caveat in front of the person taking responsibility for it.
 CARD_RULE_BRIEFING_TITLE = "📝 Баталгаажуулбал юуг хүлээн зөвшөөрөх вэ:"
-CARD_RULE_TEXT_CUT = "… (тасарсан — бүрэн эхийг ERPNext дэсктээс, эсвэл дээрх холбоосоос үзнэ үү)"
+CARD_RULE_NOTE_CUT = "✂️ Тайлбар бүтэн багтсангүй; бүрэн эхийг ERPNext дэск дэх дүрмийн бичлэгээс уншина уу."
 CARD_RULE_NO_CITATION = (
 	"⚠️ Хуулийн тодорхой заалт, ишлэл энэ дүрэмд алга. Баталгаажуулна гэдэг нь дээрх агуулгыг "
 	"эх сурвалжтай нь өөрөө тулгаж, хариуцлагыг нь хүлээж байгаа хэрэг."

@@ -185,7 +185,7 @@ def test_the_card_shows_the_briefing_the_seed_wrote_for_whoever_taps_the_button(
 	assert "IFRS for SMEs s.23" in text  # the other authority the tick would rest on
 	# The reader provenance above that sentence stays in the repository; it is not evidence.
 	assert "re-checked 2026-09-09" not in text
-	assert mn.CARD_RULE_TEXT_CUT not in text, "this briefing fits whole"
+	assert mn.CARD_RULE_NOTE_CUT not in text, "this briefing fits whole"
 
 
 def test_a_pending_tax_parameter_card_says_what_would_unblock_it(rules_site: str):
@@ -215,6 +215,50 @@ def test_a_verified_citation_is_quoted_instead(rules_site: str):
 	text = bot.last_text
 	assert mn.CARD_RULE_NO_CITATION not in text
 	assert "11.2.1" in text and "«" in text
+
+
+def test_a_quote_too_long_for_the_card_is_marked_cut_and_points_at_the_full_text(rules_site: str):
+	"""A sliced quote must not read as the whole provision on the screen where the tick happens.
+
+	`purchase_expense_non_vat` carries the longest quote in the seed (431 characters against a
+	400-character card limit), and it is the row an admin is most likely to be looking at. Shown
+	inside guillemets with nothing else, the fragment ends mid-sentence and reads as the complete
+	printed rule — which is the one thing an accountant must not be misled about.
+	"""
+	cited = "purchase_expense_non_vat"
+	quote = next(
+		row["citation"]["quote"]
+		for row in load_seed("posting_patterns")["rows"]
+		if row["pattern_id"] == cited
+	)
+	assert len(quote) > verify.QUOTE_MAX_CHARS, "pick another row: this one now fits"
+	frappe.db.set_value(verify.PATTERN, cited, "verified", 0)
+	bot = FakeBotApi()
+	run(
+		bot, callback_update(ADMIN_ID, keyboards.rule_data(keyboards.VERIFY_OPEN, verify.KIND_PATTERN, cited))
+	)
+
+	text = bot.last_text
+	shown = quote[: verify.QUOTE_MAX_CHARS].rstrip()
+	assert shown in text and quote not in text
+	# Cut in the punctuation and cut in words, and the page carrying the rest is on the card.
+	assert mn.CARD_RULE_QUOTE.format(quote=shown) not in text
+	assert mn.CARD_RULE_QUOTE_CUT.format(quote=shown) in text
+	assert mn.CARD_RULE_QUOTE_CUT_NOTE in text
+	assert "https://legalinfo.mn/mn/detail?lawId=205201" in text
+
+
+def test_a_quote_that_fits_is_not_marked_cut(rules_site: str):
+	"""The other half of the contract: a complete quote must not be dressed up as a fragment."""
+	whole = "sale_cash_vat_payer"
+	frappe.db.set_value(verify.PATTERN, whole, "verified", 0)
+	bot = FakeBotApi()
+	run(
+		bot, callback_update(ADMIN_ID, keyboards.rule_data(keyboards.VERIFY_OPEN, verify.KIND_PATTERN, whole))
+	)
+
+	text = bot.last_text
+	assert mn.CARD_RULE_QUOTE_CUT_NOTE not in text and "…»" not in text
 
 
 def test_a_tax_parameter_shows_its_value_and_the_article(rules_site: str):

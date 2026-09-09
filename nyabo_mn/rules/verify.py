@@ -117,6 +117,10 @@ class RuleEvidence:
 	instrument: str = ""
 	section: str = ""
 	quote: str = ""
+	#: True when ``quote`` is a fragment of the sentence in the row. The card MUST say so: an
+	#: admin decides on what is on their screen, and «…» around half a provision reads as a
+	#: whole one.
+	quote_truncated: bool = False
 	url: str = ""
 	#: What the seed says an admin would be taking responsibility for; see `_briefing`.
 	note: str = ""
@@ -272,6 +276,7 @@ def evidence(kind: str, name: str) -> RuleEvidence | None:
 def _pattern_evidence(doc: Any) -> RuleEvidence:
 	citation_section = str(doc.get("citation_section") or "").strip()
 	note, note_cut = _briefing(doc.get("notes"))
+	quote, quote_cut = _cut(doc.get("citation_quote"), QUOTE_MAX_CHARS)
 	return RuleEvidence(
 		kind=KIND_PATTERN,
 		doctype=PATTERN,
@@ -297,7 +302,8 @@ def _pattern_evidence(doc: Any) -> RuleEvidence:
 		),
 		instrument=str(doc.get("citation_instrument") or ""),
 		section=citation_section,
-		quote=str(doc.get("citation_quote") or "")[:QUOTE_MAX_CHARS],
+		quote=quote,
+		quote_truncated=quote_cut,
 		url=str(doc.get("citation_url") or ""),
 		note=note,
 		note_truncated=note_cut,
@@ -314,6 +320,7 @@ def _account_label(line: Any) -> str:
 
 def _parameter_evidence(doc: Any) -> RuleEvidence:
 	note, note_cut = _briefing(doc.get("note"))
+	quote, quote_cut = _cut(doc.get("quote_mn"), QUOTE_MAX_CHARS)
 	return RuleEvidence(
 		kind=KIND_PARAMETER,
 		doctype=PARAMETER,
@@ -333,7 +340,8 @@ def _parameter_evidence(doc: Any) -> RuleEvidence:
 		effective_to=str(doc.get("effective_to") or ""),
 		instrument=str(doc.get("source_text") or ""),
 		section=str(doc.get("article") or ""),
-		quote=str(doc.get("quote_mn") or "")[:QUOTE_MAX_CHARS],
+		quote=quote,
+		quote_truncated=quote_cut,
 		url=str(doc.get("source_url") or ""),
 		note=note,
 		note_truncated=note_cut,
