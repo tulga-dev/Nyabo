@@ -917,6 +917,12 @@ def account_label(account: str | None, abbr: str | None = None) -> str:
 
 
 LAST_ENTRY_LINE = "{date} · {doctype} {name} · {amount}₮"
+# A debit note is this app's own correction (§1.5) and it DEBITS the payable, exactly as a
+# payment does, so the larger side of its GL row is the amount of the purchase it reverses. Read
+# as a bare magnitude the correction printed a second, identical purchase beside the one it
+# cancelled — while the supplier total card next to it said «худалдан авалт 0₮». The row is named
+# for what it is and shown negative, the way ``_supplier_total`` nets it out.
+LAST_ENTRY_LINE_RETURN = "{date} · {doctype} {name} · {amount}₮ (буцаалт/залруулга)"
 # Two different answers that both used to end «олдсонгүй»: this one is "the supplier is in the
 # register and has nothing posted", the one below is "there is no supplier by that name". An
 # accountant chasing a missing document has to be able to tell a typo in the name from a

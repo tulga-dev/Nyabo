@@ -1201,17 +1201,27 @@ def books_handlers(
 				"entries": [],
 				"text": mn.SUPPLIER_NOT_FOUND_ANSWER.format(supplier=wanted),
 			}
+		rows = _gl(party_type="Supplier", party=supplier)
+		returned = _return_vouchers(rows)
 		seen: dict[str, dict[str, Any]] = {}
-		for row in _gl(party_type="Supplier", party=supplier):
+		for row in rows:
 			key = f"{row.voucher_type}:{row.voucher_no}"
 			if key in seen:
 				continue
+			# The larger side of the row is the voucher's amount — except on a debit note, which
+			# DEBITS the payable exactly as a payment does, so its magnitude is the purchase it
+			# reverses. Printed bare, a correction read as a second identical purchase on the card
+			# beside a supplier total already saying «худалдан авалт 0₮»: two cards about one
+			# supplier contradicting each other, and this the one that looks like evidence. The
+			# reversal is signed the way ``_supplier_total`` nets it out and named by its own line.
+			is_return = row.voucher_type == "Purchase Invoice" and row.voucher_no in returned
 			amount = max(Decimal(str(row.debit or 0)), Decimal(str(row.credit or 0)))
 			seen[key] = {
 				"doctype": row.voucher_type,
 				"name": row.voucher_no,
 				"date": str(row.posting_date),
-				"amount": fmt_mnt(amount),
+				"amount": fmt_mnt(-amount if is_return else amount),
+				"is_return": is_return,
 			}
 		# Every voucher is counted and only then is the list cut: «сүүлийн бүртгэлүүд» over five
 		# of forty, with nothing saying so, is a false picture of what this supplier did.
@@ -1230,7 +1240,7 @@ def books_handlers(
 		# line as data, which is how English got onto a Mongolian card (mn.doctype_label). The
 		# entries themselves keep the raw doctype — that is a machine field, not a sentence.
 		lines = "\n".join(
-			mn.LAST_ENTRY_LINE.format(
+			(mn.LAST_ENTRY_LINE_RETURN if e["is_return"] else mn.LAST_ENTRY_LINE).format(
 				date=e["date"],
 				doctype=mn.doctype_label(e["doctype"]),
 				name=e["name"],
@@ -1263,6 +1273,10 @@ def books_handlers(
 		path is a reversal (§1.5) and a Purchase Invoice reversal is a debit note, so without
 		this the first correction turns into a payment the bot then states, about a real
 		supplier, to an accountant.
+
+		Both supplier reads ask it, and they have to agree: ``_supplier_total`` nets the debit
+		note out of the purchases, and ``_last_entries_for_supplier`` marks the same voucher as
+		the correction it is rather than printing it as a purchase of its own.
 		"""
 		names = sorted({r.voucher_no for r in rows if r.voucher_type == "Purchase Invoice" and r.voucher_no})
 		if not names:

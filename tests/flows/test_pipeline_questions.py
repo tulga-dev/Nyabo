@@ -4,6 +4,7 @@ and the injection refusal. The model is the fixture-driven MockLlmClient; every 
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from decimal import Decimal
 
 import frappe
 
@@ -11,7 +12,7 @@ from nyabo_mn.agent import pipeline, post, questions
 from nyabo_mn.agent.llm_client import ToolCall
 from nyabo_mn.agent.mock_client import MockLlmClient
 from nyabo_mn.compliance import reversal
-from nyabo_mn.core.money import fmt_mnt
+from nyabo_mn.core.money import fmt_mnt, parse_mnt
 from nyabo_mn.i18n import mn
 from nyabo_mn.telegram import api
 from tests.fixtures.telegram.fake_bot import FakeBotApi
@@ -820,6 +821,42 @@ def test_the_correction_line_closes_against_the_gross(run_receipt, books):
 		)
 		== ()
 	)
+
+
+def test_the_entry_card_and_the_total_card_agree_after_a_correction(run_receipt, books):
+	"""MAJOR: a debit note DEBITS the payable, so read as a magnitude it printed as a purchase.
+
+	After one correction the supplier's entry card showed two identical purchases while the
+	supplier total card beside it said «худалдан авалт 0₮» — two cards about one supplier
+	contradicting each other, and the entry list is the one that looks like evidence. The
+	reversal is marked and signed, so the rows add up to the figure the other card prints.
+	"""
+	proposal = run_receipt("petrovis_fuel")
+	posted = post.post_proposal(proposal.name, ACCOUNTANT)
+	reversal.reverse("Purchase Invoice", posted["posted_name"], "dup", "давхар илгээсэн", "Administrator")
+	run = pipeline.books_handlers(books, today=NOW.date())["answer_from_books"]
+
+	last = run({"query_kind": "last_entries_for_supplier", "args": {"supplier": "Петровис"}})
+	total = run({"query_kind": "supplier_total", "args": {"supplier": "Петровис", "period": "2026-09"}})
+
+	amounts = [parse_mnt(entry["amount"]) for entry in last["entries"]]
+	assert len(amounts) == 2, "the invoice and the debit note that reverses it"
+	assert sorted(amounts) == [Decimal("-85000"), Decimal("85000")], "not two purchases of 85 000₮"
+	# the two cards close against each other: the rows sum to the purchases figure beside them
+	assert sum(amounts) == parse_mnt(total["purchases"]) == Decimal(0)
+
+	returns = [entry for entry in last["entries"] if entry["is_return"]]
+	assert len(returns) == 1 and returns[0]["name"] != posted["posted_name"]
+	assert (
+		mn.LAST_ENTRY_LINE_RETURN.format(
+			date=returns[0]["date"],
+			doctype=mn.doctype_label(returns[0]["doctype"]),
+			name=returns[0]["name"],
+			amount=returns[0]["amount"],
+		)
+		in last["text"]
+	)
+	assert last["text"].count(f"· {fmt_mnt(85000)}₮") == 1, "one purchase, and the correction of it"
 
 
 def test_a_month_figure_is_given_a_noun(run_receipt, books):
