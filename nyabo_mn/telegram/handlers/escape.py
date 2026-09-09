@@ -178,7 +178,7 @@ def handle_callback(ctx: Ctx, parts: list[str]) -> Any:
 	state, payload = ctx.get_state()
 	if verb == MENU and scope == keyboards.SCOPE_ERROR:
 		_retire_prompt(ctx)
-		return _go_home(ctx, state)
+		return _go_home(ctx, state, payload)
 	if not drawn_for_open_step(scope, step, state):
 		# The question this button belonged to is answered; acting now would move — or take
 		# down — whatever the accountant has open instead. Say so, and leave that alone. This
@@ -194,7 +194,7 @@ def handle_callback(ctx: Ctx, parts: list[str]) -> Any:
 		return {"stale": True}
 	if verb == MENU:
 		_retire_prompt(ctx)
-		return _go_home(ctx, state)
+		return _go_home(ctx, state, payload)
 	if verb == CANCEL:
 		# The prompt is retired inside ``_apply``, not here: the flow gets to speak first, and
 		# the generic goodbye must not be written over a farewell it has already given.
@@ -280,7 +280,7 @@ def _apply(ctx: Ctx, state: str | None, payload: dict[str, Any], verb: str, tapp
 	its own.
 	"""
 	if verb == MENU:
-		return _go_home(ctx, state)
+		return _go_home(ctx, state, payload)
 	if not state:
 		return _nothing_open(ctx, verb)
 	handler = _flow_handlers().get(state_scope(state))
@@ -299,6 +299,35 @@ def _apply(ctx: Ctx, state: str | None, payload: dict[str, Any], verb: str, tapp
 	return {"escape": verb, "refused": True, "state": state}
 
 
+def leave_open_flow(ctx: Ctx, state: str | None, payload: dict[str, Any]) -> bool:
+	"""Let the open flow put its own house in order before the state is thrown away.
+
+	Leaving is leaving, whichever door is used, but only Алгасах, Цуцлах and Буцах went through
+	``_apply`` and got to ask the flow. [Цэс] and every slash command cleared the conversation
+	directly, so a draft Nyabo Inventory Intake stayed on the desk with nothing to explain it and
+	a receipt card was left wearing the account chooser. They ask the same question now.
+
+	True when the flow said its own goodbye (``CANCEL_ANNOUNCED``): the caller's own line would
+	then be the second answer to one action. A clean-up that throws must never cost the user
+	their way out, so the failure is logged and the state is cleared regardless.
+	"""
+	if not state:
+		return False
+	handler = _flow_handlers().get(state_scope(state))
+	if handler is None:
+		return False
+	try:
+		return handler(ctx, state, payload, CANCEL) == CANCEL_ANNOUNCED
+	except Exception as exc:
+		log_event(
+			"telegram.escape.leave_behind_failed",
+			level="error",
+			state=state,
+			error=type(exc).__name__,
+		)
+		return False
+
+
 def _cancel(ctx: Ctx, announced: bool = False) -> Any:
 	ctx.clear_state()
 	if not announced:
@@ -314,14 +343,16 @@ def _nothing_open(ctx: Ctx, verb: str) -> Any:
 	return {"escape": verb, "state": None}
 
 
-def _go_home(ctx: Ctx, state: str | None) -> Any:
-	"""[Цэс] / «цэс»: close whatever is open, name it, and show the menu."""
+def _go_home(ctx: Ctx, state: str | None, payload: dict[str, Any] | None = None) -> Any:
+	"""[Цэс] / «цэс»: close whatever is open — properly — name it, and show the menu."""
 	from nyabo_mn.telegram.handlers import menu
 
 	if state:
+		announced = leave_open_flow(ctx, state, dict(payload or {}))
 		ctx.clear_state()
 		flow = mn.FLOW_NAMES.get(state_scope(state))
-		ctx.reply(mn.MSG_FLOW_LEFT_NAMED.format(flow=flow) if flow else mn.MSG_FLOW_LEFT_FOR_COMMAND)
+		if not announced:
+			ctx.reply(mn.MSG_FLOW_LEFT_NAMED.format(flow=flow) if flow else mn.MSG_FLOW_LEFT_FOR_COMMAND)
 	ctx.answer()
 	return menu.handle_menu(ctx)
 
@@ -336,6 +367,7 @@ __all__ = [
 	"handle_callback",
 	"handle_typed",
 	"intent",
+	"leave_open_flow",
 	"refuse",
 	"state_scope",
 	"state_step",

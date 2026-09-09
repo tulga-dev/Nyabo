@@ -229,10 +229,13 @@ def _dispatch(ctx: Ctx) -> Any:
 			return None
 		# A command always leaves the previous conversation; otherwise /меню mid-onboarding
 		# would be swallowed as an answer to the current question. Leaving it silently is what
-		# made the bot feel like it lost the founder's place, so the change is announced.
-		state_name, _payload = ctx.get_state()
+		# made the bot feel like it lost the founder's place, so the change is announced — and
+		# the flow gets to clean up what it filed first, the way every other way out does
+		# (``escape.leave_open_flow``): a command used to abandon a draft inventory intake.
+		state_name, state_payload = ctx.get_state()
+		announced = escape.leave_open_flow(ctx, state_name, state_payload)
 		ctx.clear_state()
-		if state_name:
+		if state_name and not announced:
 			ctx.reply(mn.MSG_FLOW_LEFT_FOR_COMMAND)
 		return handler(ctx)
 

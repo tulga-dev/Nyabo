@@ -175,6 +175,24 @@ def test_leaving_the_wizard_after_the_post_cancels_nothing(company_v03, caplog):
 	assert "intake_cancel_failed" not in caplog.text, "a filed list has no draft to cancel"
 
 
+@pytest.mark.parametrize("way_home", ["цэс", "/меню"])
+def test_going_home_cancels_the_draft_the_step_leaves_behind(company_v03, way_home):
+	"""MINOR: [Цэс] and every slash command threw the conversation away without asking the flow.
+
+	Алгасах, Цуцлах, Буцах and the card's own [Цуцлах] all run the flow's clean-up. ``_go_home``
+	(the [Цэс] button and the typed «цэс»/«меню») called ``clear_state`` straight, and the router
+	cleared the state for any slash command before handing off — so both left the draft Nyabo
+	Inventory Intake behind the confirmation card sitting on the desk with nothing to explain it.
+	"""
+	uid = 9340 + len(way_home)
+	bot, name = _at_the_confirmation_card(uid, company_v03)
+
+	run(bot, message_update(uid, way_home))
+
+	assert _state(uid) in (None, "")
+	assert frappe.db.get_value(intake.DOCTYPE, name, "status") == "cancelled"
+
+
 def test_a_posted_intake_is_never_cancelled(company_v03):
 	"""The opening stock is in the ledger; only a reversal takes it out (principle 5)."""
 	items = _deps.inventory_parse_text(TEXT_LIST)
