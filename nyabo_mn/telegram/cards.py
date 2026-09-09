@@ -336,7 +336,12 @@ def onboarding_summary(payload: dict[str, Any], company: str) -> str:
 		if banks
 		else mn.ONB_SUMMARY_BANKS_NONE
 	)
-	if payload.get("has_inventory"):
+	if payload.get("inventory_skipped"):
+		# Asked before ``has_inventory``: a skipped list keeps the Тийм answer (the company does
+		# hold stock, so provisioning still opens the inventory accounts), and a count printed
+		# from a payload with no list in it would report a stock count that never happened.
+		inventory = mn.ONB_SUMMARY_INVENTORY_SKIPPED
+	elif payload.get("has_inventory"):
 		inventory = mn.ONB_SUMMARY_INVENTORY_COUNT.format(count=payload.get("inventory_count", 0))
 	else:
 		inventory = mn.ONB_SUMMARY_INVENTORY_NONE

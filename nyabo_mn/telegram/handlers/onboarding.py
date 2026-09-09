@@ -268,6 +268,17 @@ def _on_inventory(ctx: Ctx, payload: dict[str, Any], value: str) -> Any:
 	return _ask_accountant(ctx, payload)
 
 
+def _forget_inventory_list(payload: dict[str, Any]) -> None:
+	"""Drop every trace of a list that was read but never filed (the draft intake included).
+
+	``cards.onboarding_summary`` and ``finish`` read whatever the payload still holds, so a
+	count left behind by a preview the accountant walked away from would be reported as
+	opening stock that exists.
+	"""
+	for key in ("intake", "inventory_count", "inventory_total"):
+		payload.pop(key, None)
+
+
 def _ask_inventory_list(ctx: Ctx, payload: dict[str, Any]) -> Any:
 	"""The step the founder was trapped in: optional, so it is drawn with Алгасах and Буцах."""
 	_advance(ctx, payload, "inv_wait")
@@ -372,6 +383,8 @@ def _on_inventory_input(ctx: Ctx, payload: dict[str, Any]) -> Any:
 	payload["intake"] = intake
 	payload["inventory_count"] = len(items)
 	payload["inventory_total"] = str(cards.inventory_total(items))
+	# A list given after Алгасах (Буцах brings the step back) undoes the skip.
+	payload.pop("inventory_skipped", None)
 	_advance(ctx, payload, "inv_confirm")
 	ctx.reply(cards.inventory_preview(items), keyboards.intake_confirm(intake))
 	return {"intake": intake, "items": len(items)}
@@ -566,8 +579,10 @@ def _skip_step(ctx: Ctx, payload: dict[str, Any], step: str) -> bool:
 		# The founder's case: «алгасах» here leaves the opening stock for later and the wizard
 		# goes on. ``has_inventory`` keeps the answer they gave — the company does hold stock,
 		# it is the list that is missing — so provisioning still sets the inventory accounts up.
+		# The numbers of a list that was parsed but never filed go with it: a summary that
+		# still read them would report an opening stock the company does not have.
 		payload["inventory_skipped"] = True
-		payload.pop("intake", None)
+		_forget_inventory_list(payload)
 		ctx.reply(mn.ONB_INVENTORY_SKIPPED)
 		_ask_accountant(ctx, payload)
 		return True

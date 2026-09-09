@@ -68,6 +68,42 @@ def test_tapping_skip_in_the_inventory_step_does_the_same(company, monkeypatch):
 	assert mn.ONB_INVENTORY_SKIPPED in bot.texts()
 
 
+def _walk_to_the_summary(bot: FakeBotApi, uid: int) -> None:
+	"""From onb:acc_name to the summary card: a name, then Алгасах on the MICPA permit."""
+	run(bot, message_update(uid, "Дорж"))
+	run(bot, message_update(uid, "алгасах"))
+	assert _state(uid) == "onb:summary"
+
+
+def test_skipping_the_stock_list_is_what_the_summary_says(company, monkeypatch):
+	"""BLOCKER: the card used to report «0 бараа», i.e. a stock count that came out empty."""
+	bot = _at_inventory_list(9205, company, monkeypatch)
+
+	run(bot, callback_update(9205, "e:onb:skip"))
+	_walk_to_the_summary(bot, 9205)
+
+	assert mn.ONB_SUMMARY_INVENTORY_SKIPPED in bot.last_text
+	assert mn.ONB_SUMMARY_INVENTORY_COUNT.format(count=0) not in bot.last_text
+	assert mn.ONB_SUMMARY_INVENTORY_NONE not in bot.last_text, "the company did answer Тийм"
+
+
+def test_skipping_after_a_list_was_read_does_not_report_it_as_filed(company, monkeypatch):
+	"""The list was parsed and previewed, never confirmed: nothing was filed, so nothing is counted."""
+	bot = _at_inventory_list(9206, company, monkeypatch)
+	monkeypatch.setattr(
+		_deps, "inventory_parse_text", lambda text: [{"item_name": "Цаас", "qty": 2, "rate": 1000}]
+	)
+	monkeypatch.setattr(_deps, "inventory_create_intake", lambda *a, **kw: "NYI-00011")
+	run(bot, message_update(9206, "Цаас, 2, 1000"))
+	assert _state(9206) == "onb:inv_confirm"
+
+	run(bot, callback_update(9206, "e:onb:skip"))
+	_walk_to_the_summary(bot, 9206)
+
+	assert mn.ONB_SUMMARY_INVENTORY_SKIPPED in bot.last_text
+	assert mn.ONB_SUMMARY_INVENTORY_COUNT.format(count=1) not in bot.last_text
+
+
 def test_the_inventory_answer_still_reaches_the_parser(company, monkeypatch):
 	"""The escape check must not swallow the step's real input."""
 	bot = _at_inventory_list(9203, company, monkeypatch)

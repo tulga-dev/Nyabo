@@ -1029,6 +1029,9 @@ MSG_ONBOARDING_ALREADY_DONE = "Тохиргоо аль хэдийн хийгдс
 MSG_ONBOARDING_INVENTORY_NEED_FILE = "Excel/CSV файл эсвэл мөр бүрт `нэр, тоо, үнэ` гэсэн текст илгээнэ үү."
 ONB_SUMMARY_INVENTORY_NONE = "байхгүй"
 ONB_SUMMARY_INVENTORY_COUNT = "{count} бараа"
+# The company holds stock but gave no list. Saying "0 бараа" here told the accountant the
+# count came out empty, which is a different (and false) statement about the books.
+ONB_SUMMARY_INVENTORY_SKIPPED = "байгаа, жагсаалт оруулаагүй — дараа бүртгэнэ"
 ONB_SUMMARY_BANKS_NONE = "сонгоогүй"
 ONB_SUMMARY_ACCOUNTANT_NONE = "тохируулаагүй"
 ONB_BANK_TOGGLE_ON = "✅ {bank}"
