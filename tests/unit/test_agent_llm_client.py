@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from types import SimpleNamespace
 
 import pytest
 
@@ -258,6 +259,147 @@ def test_get_client_names_the_missing_key():
 		get_client(Settings.from_mapping({"OPENAI_API_KEY": "sk"}), provider="anthropic")
 	with pytest.raises(ValueError):
 		get_client(Settings.from_mapping({"OPENAI_API_KEY": "sk"}), provider="gemini")
+
+
+#: The founder's routing (docs/DECISIONS.md LLM-02): reading the photograph is Terra's job,
+#: reasoning about it - the account and the VAT treatment - and answering a question is
+#: Astra's. Pinned here so a change to the table is a change to this test.
+FOUNDERS_ROUTING = {
+	"extract": "gpt-5.6-terra",
+	"classify": "gpt-6-astra",
+	"question": "gpt-6-astra",
+	"eval": llm_client.DEFAULT_OPENAI_MODEL,
+	"other": llm_client.DEFAULT_OPENAI_MODEL,
+}
+
+STRUCTURED_SCHEMA = {
+	"type": "object",
+	"properties": {"a": {"type": "integer"}},
+	"required": ["a"],
+	"additionalProperties": False,
+}
+
+
+class EchoTransport:
+	"""Stands in for ``openai.OpenAI`` and answers with the model it was asked for."""
+
+	def __init__(self):
+		self.models: list[str] = []
+
+	@property
+	def responses(self):  # noqa: D401 - named after the SDK attribute
+		return self
+
+	def create(self, **kwargs):
+		self.models.append(kwargs["model"])
+		return SimpleNamespace(
+			id="resp_1",
+			model=kwargs["model"],
+			status="completed",
+			incomplete_details=None,
+			output=[{"type": "message", "content": [{"type": "output_text", "text": '{"a": 1}'}]}],
+			usage=SimpleNamespace(input_tokens=7, output_tokens=3),
+		)
+
+
+def test_every_purpose_resolves_to_the_model_the_founder_chose():
+	"""No config at all: the routing lives in code, so an unconfigured site is already right."""
+	choices = llm_client.resolve_models(Settings.from_mapping({"OPENAI_API_KEY": "sk"}))
+	assert set(choices) == set(llm_client.PURPOSES)  # a new purpose must decide its model
+	assert {purpose: choice.model for purpose, choice in choices.items()} == FOUNDERS_ROUTING
+	assert all(choice.model in llm_client.MODEL_ALLOWLIST["openai"] for choice in choices.values())
+	assert choices["classify"].source == "purpose default"
+
+
+def test_a_per_purpose_key_overrides_and_an_unset_one_falls_back():
+	conf = {
+		"OPENAI_API_KEY": "sk",
+		"OPENAI_MODEL": "gpt-5.6-luna",
+		"OPENAI_MODEL_QUESTION": "gpt-5.6-sol",
+		"OPENAI_MODEL_EXTRACT": "",  # a key added and then emptied is an unset key
+	}
+	choices = llm_client.resolve_models(conf)
+	assert (choices["question"].model, choices["question"].source) == (
+		"gpt-5.6-sol",
+		"OPENAI_MODEL_QUESTION",
+	)
+	# Unset: the purpose keeps the model chosen for it in code, which outranks OPENAI_MODEL,
+	# so pinning OPENAI_MODEL cannot silently move extraction off Terra (LLM-01) ...
+	assert (choices["extract"].model, choices["extract"].source) == ("gpt-5.6-terra", "purpose default")
+	# ... while a purpose with no model of its own is exactly what OPENAI_MODEL says.
+	assert (choices["other"].model, choices["other"].source) == ("gpt-5.6-luna", "OPENAI_MODEL")
+	assert llm_client.resolve_model({}, "other").source == "built-in default"
+	assert llm_client.resolve_model(conf, "no-such-purpose").purpose == "other"
+
+
+def test_get_client_routes_each_purpose_to_its_own_model():
+	client = get_client({"OPENAI_API_KEY": "sk"})
+	assert isinstance(client, llm_client.PurposeRouter) and isinstance(client, llm_client.LlmClient)
+	assert client.models() == FOUNDERS_ROUTING
+	assert client.model == llm_client.DEFAULT_OPENAI_MODEL  # the fallback purpose's model
+	# One adapter per distinct model id, not one per purpose.
+	assert client.client_for("classify") is client.client_for("question")
+	assert len({id(client.client_for(p)) for p in llm_client.PURPOSES}) == 2
+	assert client.client_for("no-such-purpose") is client.client_for("other")
+	# A caller that only ever makes one kind of call can hold the pinned adapter instead.
+	pinned = get_client({"OPENAI_API_KEY": "sk"}, purpose="question")
+	assert pinned.model == "gpt-6-astra" and not isinstance(pinned, llm_client.PurposeRouter)
+
+
+def test_the_router_hands_a_late_recorder_to_every_adapter():
+	"""The pipeline attaches the recorder after construction; every call still writes (§6)."""
+
+	def recorder(record: CallRecord) -> None: ...
+
+	client = get_client({"OPENAI_API_KEY": "sk"})
+	assert client.record_call is None
+	client.record_call = recorder
+	assert all(client.client_for(p).record_call is recorder for p in llm_client.PURPOSES)
+	assert client.record_call is recorder
+
+
+def test_the_recorded_call_carries_the_model_that_answered():
+	records: list[CallRecord] = []
+	client = get_client({"OPENAI_API_KEY": "sk"}, record_call=records.append)
+	transports: dict[str, EchoTransport] = {}
+	for purpose in ("extract", "classify"):
+		adapter = client.client_for(purpose)
+		adapter._transport = transports.setdefault(adapter.model, EchoTransport())
+	for purpose in ("extract", "classify"):
+		client.structured(
+			purpose=purpose,
+			system="s",
+			user=[TextPart("u")],
+			schema=STRUCTURED_SCHEMA,
+			schema_name="n",
+		)
+	assert [(r.purpose, r.model) for r in records] == [
+		("extract", "gpt-5.6-terra"),
+		("classify", "gpt-6-astra"),
+	]
+	assert transports["gpt-6-astra"].models == ["gpt-6-astra"]  # the id that was requested
+
+
+def test_an_unknown_model_id_still_builds_a_client_and_warns(caplog):
+	"""A typo in a per-purpose key must not take the site down; it must be noisy (§6)."""
+	with caplog.at_level(logging.WARNING, logger="nyabo.agent"):
+		client = get_client({"OPENAI_API_KEY": "sk", "OPENAI_MODEL_CLASSIFY": "gpt-6-astro"})
+	assert client.client_for("classify").model == "gpt-6-astro"
+	assert client.client_for("extract").model == "gpt-5.6-terra"
+	assert "not in the allowlist" in caplog.text
+	typo = llm_client.resolve_model({"OPENAI_MODEL_CLASSIFY": "gpt-6-astro"}, "classify")
+	assert "not in the allowlist" in (typo.warning or "")  # config_check shows it too
+	assert llm_client.resolve_model({}, "classify").warning is None  # the routed id is known
+
+
+def test_pin_models_beats_the_routing_for_a_sweep():
+	"""The eval sweep names one model, so every purpose must actually run it."""
+	pinned = llm_client.pin_models({"OPENAI_API_KEY": "sk"}, "openai", "gpt-5.6-luna")
+	assert {p: c.model for p, c in llm_client.resolve_models(pinned).items()} == dict.fromkeys(
+		llm_client.PURPOSES, "gpt-5.6-luna"
+	)
+	anthropic = llm_client.pin_models({}, "anthropic", "claude-haiku-4-5")
+	assert llm_client.resolve_model(anthropic, "extract", "anthropic").model == "claude-haiku-4-5"
 
 
 def test_tool_spec_is_frozen():
