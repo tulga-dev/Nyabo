@@ -1104,8 +1104,12 @@ def books_handlers(
 		wanted = str(inner.get("supplier") or "").strip()
 		supplier = _find_supplier(wanted) if wanted else None
 		if not supplier:
+			# ``found: False`` and no figures: this sentence quotes the name the *model* asked
+			# for, so it resolves nothing, vouches for no number and is not an answer to build
+			# follow-up buttons or a memory on (agent.questions.resolved).
 			return {
 				"supplier": wanted,
+				"found": False,
 				"entries": [],
 				"text": mn.SUPPLIER_NOT_FOUND_ANSWER.format(supplier=wanted),
 			}
@@ -1127,6 +1131,7 @@ def books_handlers(
 		if not entries:
 			return {
 				"supplier": supplier,
+				"found": True,
 				"entries": [],
 				"text": mn.LAST_ENTRIES_NONE.format(supplier=supplier),
 			}
@@ -1144,6 +1149,7 @@ def books_handlers(
 		)
 		return {
 			"supplier": supplier,
+			"found": True,
 			"entries": entries,
 			"text": mn.MSG_LAST_ENTRIES_ANSWER.format(supplier=supplier, entries=lines),
 		}
@@ -1185,6 +1191,7 @@ def books_handlers(
 		if not supplier:
 			return {
 				"supplier": wanted,
+				"found": False,
 				"period": period,
 				"text": mn.SUPPLIER_NOT_FOUND_ANSWER.format(supplier=wanted),
 			}
@@ -1220,6 +1227,7 @@ def books_handlers(
 			text = mn.SUPPLIER_TOTAL_NONE.format(period=label, supplier=supplier)
 		return {
 			"supplier": supplier,
+			"found": True,
 			"period": period,
 			"purchases": fmt_mnt(purchases),
 			"payments": fmt_mnt(payments),

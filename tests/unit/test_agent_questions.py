@@ -512,6 +512,32 @@ def test_a_derived_figure_is_logged_as_derived_not_as_a_fabrication(tmp_path):
 
 
 
+def test_a_lookup_that_found_nothing_resolves_no_subject_and_is_not_remembered():
+	"""MINOR: the not-found sentence counted as an answer once the empty-text fallback landed.
+
+	The card then offered more reads about a supplier it had just said does not exist, printed
+	the unresolved name as the subject, and carried it into the next question as context.
+	"""
+	trace = (
+		_books_call(
+			"supplier_total",
+			{"supplier": "Хэн ч биш", "found": False, "text": "Хэн ч биш нэртэй харилцагч олдсонгүй."},
+			supplier="Хэн ч биш",
+			period="2026-09",
+		),
+	)
+	assert questions.resolved(trace[0].result) is False
+	assert questions.remember("Хэн ч бишээс юу авсан бэ?", trace, company="Тест ХХК", now=NOW) is None
+	assert [f.verb for f in questions.follow_ups(trace, now=NOW, answered=False)] == [
+		questions.VERB_ESCALATE,
+		questions.VERB_MENU,
+	]
+	# a read that did resolve is unaffected
+	found = _books_call("supplier_total", {"supplier": "Петровис ХХК"}, supplier="Петровис", period="2026-09")
+	assert questions.resolved(found.result) is True
+	assert questions.remember("Петровисоос?", (found,), company="Тест ХХК", now=NOW) is not None
+
+
 def test_the_button_under_a_balance_names_the_month_it_will_show():
 	"""MAJOR: «Юунаас бүрдэв?» offered the composition of a cumulative figure and ran a month.
 

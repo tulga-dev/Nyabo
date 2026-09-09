@@ -196,6 +196,34 @@ def test_a_tap_moves_the_memory_to_what_is_now_on_screen(run_receipt, books):
 	assert memory["company"] == books
 
 
+def test_a_button_for_a_supplier_the_books_do_not_have_offers_a_person(books, monkeypatch):
+	"""MINOR: a not-found read counted as an answer, on the tap as well as on the typed question.
+
+	The card then drew more buttons about a supplier it had just said does not exist, printed
+	the unresolved name as the subject line, and stored it as the context for the next question.
+	"""
+	monkeypatch.setattr(
+		_deps,
+		"books_answer",
+		lambda company, kind, args=None: {
+			"supplier": (args or {}).get("supplier", ""),
+			"found": False,
+			"entries": [],
+			"text": mn.SUPPLIER_NOT_FOUND_ANSWER.format(supplier=(args or {}).get("supplier", "")),
+		},
+	)
+	link_user(9017, "Accountant", books)
+	bot = FakeBotApi()
+	ENT = questions.QUERY_SHORT["last_entries_for_supplier"]
+	outcome = run(bot, callback_update(9017, f"q:{ENT}:Хэн ч биш ХХК", message_id=777))
+
+	assert outcome["result"]["buttons"] == [questions.VERB_ESCALATE, questions.VERB_MENU]
+	text = bot.sent("edit_message_text")[-1]["text"]
+	assert text.startswith(mn.SUPPLIER_NOT_FOUND_ANSWER.format(supplier="Хэн ч биш ХХК"))
+	assert mn.MSG_QUESTION_SUBJECT.format(subject="Хэн ч биш ХХК") not in text
+	assert chat_state.get_question_memory(9017) == {}
+
+
 def test_a_datum_this_build_does_not_understand_says_so(company):
 	link_user(9007, "Accountant", company)
 	bot = FakeBotApi()

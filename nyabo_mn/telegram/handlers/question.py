@@ -157,11 +157,16 @@ def handle_callback(ctx: Ctx, parts: list[str]) -> Any:
 		return {"error": result["error"]}
 
 	trace = (_as_tool_call(query_kind, args, result),)
-	subject = {key: value for key, value in args.items() if value}
-	subject.update({k: str(v) for k, v in result.items() if k in questions.SUBJECT_KEYS and v})
+	# A read that found nothing — the supplier is gone, the document was never this company's —
+	# is not an answer: its sentence quotes the name the datum carried, so the card must offer
+	# a person rather than more buttons about a subject the books do not have.
+	answered = bool(result.get("text")) and questions.resolved(result)
+	subject = {key: value for key, value in args.items() if value} if answered else {}
+	if answered:
+		subject.update({k: str(v) for k, v in result.items() if k in questions.SUBJECT_KEYS and v})
 	reply = questions.Reply(
 		text=str(result.get("text") or mn.MSG_QUESTION_CANNOT),
-		follow_ups=questions.follow_ups(trace, now=now, answered=bool(result.get("text"))),
+		follow_ups=questions.follow_ups(trace, now=now, answered=answered),
 		memory=questions.remember(_question_of(ctx, company), trace, company=company, now=now),
 		subject=questions.subject_label(subject),
 	)

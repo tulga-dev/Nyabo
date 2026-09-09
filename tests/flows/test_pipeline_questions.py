@@ -545,3 +545,21 @@ def test_every_error_the_books_can_return_is_the_question_being_wrong(books):
 	assert reply.text == mn.MSG_QUESTION_CANNOT
 	assert mn.AGENT_ANSWER_TOOL_ERROR not in reply.text
 	assert [f.verb for f in reply.follow_ups] == [questions.VERB_ESCALATE, questions.VERB_MENU]
+
+
+def test_a_supplier_that_does_not_exist_is_not_an_answer(books):
+	"""MINOR: the not-found sentence counted as an answer, so the card offered follow-ups.
+
+	Buttons for a supplier the card has just said does not exist, and a subject line printing
+	the unresolved name as though it had been resolved. The way forward is a person.
+	"""
+	client = _client(
+		"Тийм харилцагч бүртгэлд алга.", _books_call("supplier_total", supplier="Хэн ч биш", period="2026-09")
+	)
+	reply = pipeline.answer_question(
+		ACCOUNTANT, books, "Хэн ч биш ХХК-аас юу авсан бэ?", client=client, now=NOW
+	)
+	assert reply.text == mn.SUPPLIER_NOT_FOUND_ANSWER.format(supplier="Хэн ч биш")
+	assert [f.verb for f in reply.follow_ups] == [questions.VERB_ESCALATE, questions.VERB_MENU]
+	assert reply.subject == "", "nothing was resolved, so nothing is named as the subject"
+	assert reply.memory is None, "a name the books do not have is not context for the next question"

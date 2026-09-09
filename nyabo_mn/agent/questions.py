@@ -250,13 +250,28 @@ def shift_period(period: str, months: int) -> str:
 	return f"{index // 12:04d}-{index % 12 + 1:02d}"
 
 
+def resolved(result: Mapping[str, Any] | None) -> bool:
+	"""False when a handler answered that the thing asked about is not in these books.
+
+	A handler says so with ``found: False``, and its sentence — «X нэртэй харилцагч
+	олдсонгүй.» — is still the right thing to show. What must not follow it is the furniture
+	of an answer: buttons offering more reads about a supplier the card just said does not
+	exist, a subject line printing the unresolved name as though it had been resolved, and a
+	memory carrying it into the next question.
+	"""
+	return not (isinstance(result, Mapping) and result.get("found") is False)
+
+
 def _subject_of(call: ToolCall) -> dict[str, str]:
 	"""What the handler resolved, falling back to what the model asked for.
 
 	The handler's answer wins because it is the resolved form: the model writes «Петровис»
 	and the handler comes back with «Петровис ХХК», which is the name a follow-up button
-	has to carry.
+	has to carry. A lookup that found nothing resolved nothing, so it has no subject at all —
+	the name in that result is the model's own wording, echoed back.
 	"""
+	if not resolved(call.result):
+		return {}
 	asked = dict((call.arguments or {}).get("args") or {})
 	got = dict(call.result or {})
 	subject: dict[str, str] = {}
@@ -599,8 +614,8 @@ def follow_ups(calls: Sequence[ToolCall], *, now: datetime, answered: bool = Tru
 	# A query with no period of its own (a balance, a supplier's entries) still has a month
 	# its follow-up can be about; ``_default_period`` says which, and it is not always the
 	# month the clock is in.
-	resolved = _subject_of(call)
-	subject = {"period": _default_period(kind, resolved, now), **resolved}
+	answered_subject = _subject_of(call)
+	subject = {"period": _default_period(kind, answered_subject, now), **answered_subject}
 	out: list[FollowUp] = []
 
 	if kind in ("spend_by_account", "account_entries", "vat_position", "top_spend_accounts"):
@@ -818,6 +833,13 @@ def answer(
 		last_ok = last_ok if fallback else None
 
 	books_call = _last_books_call(llm.tool_calls)
+	if not escalated and books_call is not None and not resolved(books_call.result):
+		# The books say there is no such supplier or document. Whatever the model wrote about it
+		# is worth nothing, so the handler's own «олдсонгүй» sentence is what the user reads —
+		# and this is not an answer: the card offers a person, not four more reads about a
+		# supplier that does not exist. (``escalate_to_admin`` already has its own card.)
+		answer_text = _handler_text(llm.tool_calls) or mn.MSG_QUESTION_CANNOT
+		answered = False
 	subject = _subject_of(books_call) if books_call is not None else {}
 	# An escalated question is already with a person: offering [Админаас асуух] under it would
 	# invite sending the same thing twice, so that card gets only the way back.
@@ -890,6 +912,7 @@ __all__ = [
 	"recall",
 	"remember",
 	"reply_of",
+	"resolved",
 	"shift_period",
 	"subject_label",
 	"unverified_numbers",
