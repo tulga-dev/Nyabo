@@ -864,6 +864,24 @@ MSG_RULE_LEARNED = "Хоёр ижил залруулгаас шинэ дүрэм
 EXPL_RULE_APPLIED = "«{rule}» дүрмээр {code} данс сонгов."
 EXPL_CORRECTION_PREFIX = "Залруулга ({reason}): "
 FAQ_NOT_FOUND = "Энэ асуултад тохирох тайлбар олдсонгүй."
+# The ERPNext doctypes an answer names out loud. Their names are English and they arrive as
+# *data* — a ``voucher_type`` off a GL row, a proposal's ``posted_doctype`` — so the i18n walk
+# cannot see them, and «Purchase Invoice ACC-PINV-2026-00001» reached a Mongolian card that
+# way. Anything unlisted keeps its raw name: an English label the reader can look the document
+# up by beats a Mongolian one Nyabo guessed.
+DOCTYPE_LABELS: dict[str, str] = {
+	"Purchase Invoice": "Худалдан авалтын нэхэмжлэх",
+	"Journal Entry": "Журналын бичилт",
+	"Payment Entry": "Төлбөрийн баримт",
+}
+
+
+def doctype_label(doctype: str | None) -> str:
+	"""The Mongolian name of an ERPNext doctype, or the raw name when there is none."""
+	name = str(doctype or "").strip()
+	return DOCTYPE_LABELS.get(name, name)
+
+
 LAST_ENTRY_LINE = "{date} · {doctype} {name} · {amount}₮"
 LAST_ENTRIES_NONE = "{supplier} харилцагчийн бүртгэл олдсонгүй."
 UNMATCHED_ANSWER = "Тулгагдаагүй банкны гүйлгээ: {count}"

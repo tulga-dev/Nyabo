@@ -1130,7 +1130,18 @@ def books_handlers(
 				"entries": [],
 				"text": mn.LAST_ENTRIES_NONE.format(supplier=supplier),
 			}
-		lines = "\n".join(mn.LAST_ENTRY_LINE.format(**e) for e in entries)
+		# The doctype is looked up rather than printed: it is an ERPNext name and it reaches this
+		# line as data, which is how English got onto a Mongolian card (mn.doctype_label). The
+		# entries themselves keep the raw doctype — that is a machine field, not a sentence.
+		lines = "\n".join(
+			mn.LAST_ENTRY_LINE.format(
+				date=e["date"],
+				doctype=mn.doctype_label(e["doctype"]),
+				name=e["name"],
+				amount=e["amount"],
+			)
+			for e in entries
+		)
 		return {
 			"supplier": supplier,
 			"entries": entries,
@@ -1347,7 +1358,7 @@ def books_handlers(
 				"entry_ref": ref,
 				"found": True,
 				"text": mn.MSG_ENTRY_EXPLAIN_ANSWER.format(
-					doctype=doctype,
+					doctype=mn.doctype_label(doctype),
 					name=ref,
 					date=facts["date"],
 					amount=fmt_mnt(Decimal(str(facts["amount"] or 0))),
@@ -1357,7 +1368,7 @@ def books_handlers(
 		proposal = frappe.get_doc("Nyabo Proposal", name)
 		parts = [
 			mn.MSG_ENTRY_EXPLAIN_ANSWER.format(
-				doctype=proposal.posted_doctype or proposal.doctype,
+				doctype=mn.doctype_label(proposal.posted_doctype or proposal.doctype),
 				name=proposal.posted_name or proposal.name,
 				date=str(proposal.posting_date or ""),
 				amount=fmt_mnt(Decimal(str(proposal.total or 0))),

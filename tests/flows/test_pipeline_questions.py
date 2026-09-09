@@ -159,6 +159,31 @@ def test_a_corrected_invoice_is_not_reported_to_the_accountant_as_a_payment(run_
 	)
 
 
+def test_a_mongolian_card_names_the_doctype_in_mongolian(run_receipt, books):
+	"""MINOR: the raw ERPNext doctype was printed, so the answer led with «Purchase Invoice».
+
+	The i18n walk cannot catch it — the English arrives as data, off a GL row's voucher_type
+	and off a proposal's posted_doctype — so it is looked up through DOCTYPE_LABELS instead.
+	"""
+	proposal = run_receipt("petrovis_fuel")
+	posted = post.post_proposal(proposal.name, ACCOUNTANT)
+	run = pipeline.books_handlers(books, today=NOW.date())["answer_from_books"]
+
+	explained = run({"query_kind": "explain_entry", "args": {"entry_ref": posted["posted_name"]}})
+	assert explained["text"].startswith(mn.DOCTYPE_LABELS["Purchase Invoice"])
+	assert "Purchase Invoice" not in explained["text"]
+
+	last = run({"query_kind": "last_entries_for_supplier", "args": {"supplier": "Петровис"}})
+	assert mn.DOCTYPE_LABELS["Purchase Invoice"] in last["text"]
+	assert "Purchase Invoice" not in last["text"]
+	# the structured field stays the machine name a follow-up and a log need
+	assert last["entries"][0]["doctype"] == "Purchase Invoice"
+
+	# an unmapped doctype keeps its raw name rather than being guessed at
+	assert mn.doctype_label("Stock Entry") == "Stock Entry"
+	assert mn.doctype_label(None) == ""
+
+
 def test_a_simplified_regime_company_is_told_vat_does_not_apply(books):
 	run = pipeline.books_handlers(books, today=NOW.date())["answer_from_books"]
 	# The `books` fixture is a VAT payer in 2026 and simplified from 2027 (conftest).
