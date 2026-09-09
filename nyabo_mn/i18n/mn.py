@@ -1003,7 +1003,8 @@ MSG_ADMIN_LINK_GUESSING = "🔒 Холбох кодыг олон удаа бур
 # Same reading risk as MSG_ERROR_ADMIN_NOTIFIED (UX-13): nobody is approving anything. And
 # the same pair, for the same reason — only the router draws the button and notifies.
 MSG_FEATURE_UNAVAILABLE = (
-	"Энэ боломж одоогоор бэлэн болоогүй байна. Нябо-г хөгжүүлэгч рүү мэдэгдэл очлоо. "
+	"Энэ боломж одоогоор бэлэн болоогүй байна. Энэ нь таны бичилтийг хэн нэгэн зөвшөөрөх гэж "
+	"хүлээж байна гэсэн үг биш — Нябо-г хөгжүүлэгч рүү мэдэгдэл очлоо, шалгаж засна. "
 	"Та өөр үйлдэл хийж болно — доорх «Цэс» товч (/меню)."
 )
 MSG_FEATURE_UNAVAILABLE_NO_BUTTON = (

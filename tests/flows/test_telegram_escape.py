@@ -532,10 +532,13 @@ def test_only_the_caller_that_draws_the_button_and_notifies_says_so(company):
 	assert "доорх" in mn.MSG_ERROR_ADMIN_NOTIFIED and "доорх" in mn.MSG_FEATURE_UNAVAILABLE
 	for text in (mn.MSG_ERROR_NO_BUTTON, mn.MSG_FEATURE_UNAVAILABLE_NO_BUTTON):
 		assert "доорх" not in text and "/меню" in text
-	# The sentence the founder needed is in every one of them.
+	# The sentence the founder needed is in every one of the four — MSG_FEATURE_UNAVAILABLE
+	# included, which is the apology a bench missing a module hands out most often, and which
+	# was the one string left without it.
 	for text in (
 		mn.MSG_ERROR_ADMIN_NOTIFIED,
 		mn.MSG_ERROR_NO_BUTTON,
+		mn.MSG_FEATURE_UNAVAILABLE,
 		mn.MSG_FEATURE_UNAVAILABLE_NO_BUTTON,
 	):
 		assert "зөвшөөрөх" in text and "гэсэн үг биш" in text
