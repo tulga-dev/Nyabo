@@ -429,6 +429,11 @@ EVENT_FX_RATES_IMPORTED = "fx_rates_imported"
 # somebody who may not verify hits the refusal, so «the request has been recorded» is true.
 EVENT_RULE_VERIFIED = "rule_verified"
 EVENT_RULE_VERIFY_REQUESTED = "rule_verification_requested"
+# A deploy added the repository's citation to a row a *person* had already ticked (VER-06). The
+# row then reads «verified by Ганбат» next to a quote Ганбат never saw, and only this event says
+# so: it is the difference between what the human took responsibility for and what is on the row
+# now. A seeded flag needs no such row — the repository's own history is git.
+EVENT_RULE_CITATION_FILLED = "rule_citation_filled"
 MSG_FX_RATES_IMPORTED = "Монголбанкны ханш: {count} мөр импортлолоо ({skipped} давхардсан)."
 MSG_FX_FETCH_DISABLED = "Монголбанкны ханш татах тохиргоо идэвхгүй (MONGOLBANK_FETCH_ENABLED)."
 

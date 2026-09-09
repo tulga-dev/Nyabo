@@ -1033,6 +1033,16 @@ somebody typed in the desk survives a deploy that has none; it does correct a st
 a row whose remarks contradict its citation is worse than one with no remarks. Reverse by
 deleting `_fill_evidence` — and accept that the evidence never reaches a site again.
 
+One thing that write does have to say out loud. Afterwards the founder's row reads «verified by
+<him>, 1 Sep» beside a quote that arrived on a later deploy, and read plainly that says he
+checked the entry against Order 116 12.2.2 А — which he did not; he ticked the box to unblock
+his receipts. So when the row carries a *named* verifier, `_record_citation_filled` writes a
+`rule_citation_filled` Nyabo Event naming the fields, the person and their date: the honest
+sequence is on the record, and an auditor can see which half came from whom. A row the seed
+itself verified gets no such event — nobody's name is on it, its citation's history is git and
+`docs/legal`, and an event per corrected quote per migrate would bury the rows that do name a
+person.
+
 ### VER-07 The seed's `verified` flag means "cited in the repository", and never wears a person's name
 After the citation pass 35 of 44 posting patterns and 46 of 59 tax parameters carry
 `verified = 1` with `verified_by` empty and no `rule_verified` Nyabo Event, while VER-01 says

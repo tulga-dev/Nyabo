@@ -7,6 +7,7 @@ import json
 import frappe
 import pytest
 
+from nyabo_mn.i18n import mn
 from nyabo_mn.nyabo.seed import load_seed, tax_parameter_quote
 from nyabo_mn.rules import seed
 
@@ -110,6 +111,31 @@ def test_a_hand_verified_row_gains_the_citation_and_keeps_its_verifier(site):
 	# The human's verification is untouched: a deploy neither grants nor re-attributes one.
 	assert row.verified == 1 and row.verified_by == "Administrator"
 	assert str(row.verified_at).startswith("2026-09-01 09:00")
+	# ...and the audit trail says which came first. The row now reads «verified by Administrator»
+	# beside a quote that arrived on a later deploy, and only this event tells them apart.
+	events = frappe.get_all(
+		"Nyabo Event",
+		filters={"event_type": mn.EVENT_RULE_CITATION_FILLED},
+		fields=["ref_name", "payload_json"],
+	)
+	assert [row["ref_name"] for row in events] == ["purchase_expense_non_vat"]
+	payload = json.loads(events[0]["payload_json"])
+	assert payload["verified_by"] == "Administrator"
+	assert "citation_quote" in payload["fields"]
+
+
+def test_a_seeded_flag_gaining_its_own_citation_writes_no_event(site):
+	"""The other provenance (VER-07): nobody's name is on the row, so nothing is being explained.
+
+	Where a seed-verified row's citation came from is the repository's history — git, and
+	`docs/legal` — not this site's audit log, and one event per corrected quote per migrate would
+	bury the rows that do say something about a person.
+	"""
+	seed.sync()
+	frappe.db.set_value("Nyabo Posting Pattern", "purchase_expense_non_vat", "citation_quote", "хуучин")
+
+	assert seed.sync()["Nyabo Posting Pattern"]["citation_filled"] == 1
+	assert frappe.db.count("Nyabo Event", {"event_type": mn.EVENT_RULE_CITATION_FILLED}) == 0
 
 
 def test_an_unverified_row_is_still_updated_whole(site):

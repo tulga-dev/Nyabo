@@ -7,7 +7,9 @@ legal text, and a code push must not silently undo it. `force=True` is the expli
 to reseed.
 
 On such a row the seed still writes the *evidence* (`EVIDENCE_FIELDS`), reporting it as
-`citation_filled`. WHY the two are separated: a rule may be ticked by hand in the desk to
+`citation_filled` and — when a named human is on the row — writing the Nyabo Event that says
+the citation arrived after their tick, so an auditor is never shown a quote as if that person
+had read it. WHY the two are separated: a rule may be ticked by hand in the desk to
 unblock work long before anyone finds the printed sentence behind it — that is exactly how
 `purchase_expense_non_vat` came to be verified on the founder's site. Withholding the
 citation from those rows would leave them verified with no evidence for ever, and the
@@ -233,7 +235,51 @@ def _fill_evidence(doc: Any, values: Mapping[str, Any]) -> str:
 	doc.flags.ignore_permissions = True
 	doc.save()
 	log_event("rules.seed.citation_filled", doctype=doc.doctype, rule=doc.name, fields=sorted(changed))
+	_record_citation_filled(doc, sorted(changed))
 	return "citation_filled"
+
+
+def _record_citation_filled(doc: Any, fields: list[str]) -> None:
+	"""Write a Nyabo Event when a deploy adds evidence to a row a *named person* verified.
+
+	Without it the row reads «verified by Ганбат, 1 Sep» beside a quote that arrived in October,
+	and an auditor has no way to tell that Ганбат never saw it — the founder's own
+	`purchase_expense_non_vat` is exactly that row. The event is the honest sequence: he vouched
+	for the entry, and the repository put its citation on the row afterwards.
+
+	A row the *seed* verified gets none: nobody's name is on it, and where its citation came from
+	is the repository's history, not this site's. A failure here is logged and swallowed, because
+	a migrate that has already written the evidence must not be left half-done.
+	"""
+	if not str(doc.get("verified_by") or "").strip():
+		return
+	from nyabo_mn.compliance import events
+	from nyabo_mn.i18n import mn
+
+	if not frappe.db.exists("DocType", events.EVENT_DOCTYPE):
+		return
+	try:
+		events.log(
+			mn.EVENT_RULE_CITATION_FILLED,
+			ref_doctype=doc.doctype,
+			ref_name=doc.name,
+			reason=doc.name,
+			payload={
+				"doctype": doc.doctype,
+				"rule": doc.name,
+				"fields": fields,
+				"verified_by": str(doc.get("verified_by") or ""),
+				"verified_at": str(doc.get("verified_at") or ""),
+			},
+		)
+	except Exception as exc:  # noqa: BLE001 - the evidence is written; the note about it may fail
+		log_event(
+			"rules.seed.citation_event_failed",
+			level="error",
+			doctype=doc.doctype,
+			rule=doc.name,
+			error=type(exc).__name__,
+		)
 
 
 def sync(force: bool = False) -> dict[str, dict[str, int]]:
