@@ -165,7 +165,7 @@ def account_chosen(ctx: Ctx, proposal: Any, code: str) -> Any:
 		return None
 	if code == "more":
 		ctx.set_state("acc_search", {"proposal": proposal.name, "message_id": ctx.callback_message_id})
-		ctx.reply(mn.MSG_SEARCH_ACCOUNT)
+		ctx.reply(mn.MSG_SEARCH_ACCOUNT, keyboards.account_search_prompt())
 		return None
 	if not ctx.is_accountant and not ctx.is_owner:
 		ctx.answer(mn.MSG_NO_PERMISSION, show_alert=True)
@@ -199,7 +199,7 @@ def reject(
 		return None
 	if reason_code == "other" and not reason_text:
 		ctx.set_state("reject_text", {"proposal": proposal.name, "message_id": ctx.callback_message_id})
-		ctx.reply(mn.MSG_REJECT_TEXT_ASK)
+		ctx.reply(mn.MSG_REJECT_TEXT_ASK, keyboards.reject_text_prompt())
 		return None
 	reason = reason_text or mn.REJECT_REASONS.get(reason_code, mn.REJECT_OTHER)
 	# The code is what the corrections job reads; the free text of the "other" code rides along.
@@ -248,3 +248,30 @@ def handle_state(ctx: Ctx, state: str, payload: dict[str, Any]) -> Any:
 		)
 	ctx.clear_state()
 	return None
+
+
+# --- escapes (UX-13) ---------------------------------------------------------------------------------
+
+
+def handle_escape(ctx: Ctx, state: str, payload: dict[str, Any], verb: str) -> bool | str:
+	"""Leaving the account search or the rejection text puts the card's own buttons back.
+
+	Without that the card the search was opened from is left wearing the account chooser, and
+	the accountant has typed themselves out of a card they can no longer approve. Буцах means
+	the same thing here as Цуцлах — the step behind this one *is* the card.
+	"""
+	if verb == keyboards.ESCAPE_SKIP:
+		return False  # neither an account nor a rejection reason has a default worth guessing
+	message_id = payload.get("message_id")
+	if payload.get("bank_transaction"):
+		markup = keyboards.bank_line_keyboard(payload["bank_transaction"])
+	elif payload.get("proposal"):
+		markup = keyboards.receipt_keyboard(payload["proposal"])
+	else:
+		markup = None
+	if message_id and markup is not None:
+		try:
+			ctx.bot.edit_message_reply_markup(ctx.chat_id, message_id, markup)
+		except Exception as exc:  # the card may be gone; the state is cleared either way
+			log_event("telegram.escape.card_restore_failed", level="warning", error=type(exc).__name__)
+	return keyboards.ESCAPE_CANCEL

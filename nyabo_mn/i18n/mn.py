@@ -89,7 +89,14 @@ MSG_RECEIVED_PROCESSING = "🧾 Хүлээн авлаа, шалгаж байна
 MSG_POSTED = "✅ Бүртгэлээ: {doc_name}"
 MSG_REJECTED = "❌ Татгалзлаа: {reason}"
 MSG_ERROR_GENERIC = "Уучлаарай, алдаа гарлаа. Дахин оролдоно уу."
-MSG_ERROR_ADMIN_NOTIFIED = "Уучлаарай, алдаа гарлаа. Админд мэдэгдлээ."
+# UX-13: the old wording was «Уучлаарай, алдаа гарлаа. Админд мэдэгдлээ.», and the founder
+# read «Админд мэдэгдлээ» as "an administrator has to approve your entry". It must say a
+# technical fault happened, promise no approval step, and name the way out.
+MSG_ERROR_ADMIN_NOTIFIED = (
+	"Уучлаарай, техникийн алдаа гарлаа. Энэ нь таны бичилтийг хэн нэгэн зөвшөөрөх гэж "
+	"хүлээж байна гэсэн үг биш — алдааг Нябо-г хөгжүүлэгч рүү илгээлээ, шалгаж засна. "
+	"Та дахин оролдож болно, эсвэл доорх «Цэс» товч (/меню) дээр дарж эхнээс нь эхэлнэ үү."
+)
 MSG_ACCOUNTANT_ONLY = "Энэ саналыг зөвхөн нягтлан батлах боломжтой (⚠️ тэмдэглэгээтэй)."
 MSG_NO_PERMISSION = "Танд энэ үйлдлийг хийх эрх байхгүй."
 MSG_UNKNOWN_COMMAND = "Ойлгосонгүй. /тусламж гэж бичнэ үү."
@@ -114,7 +121,8 @@ MSG_MENU = (
 	"/бодлого — НББ-ийн бодлогын баримт бичиг\n"
 	"/компани — идэвхтэй компани солих\n"
 	"/эхлэх — компанийн тохиргоо\n"
-	"/меню — энэ цэс\n"
+	"/меню (эсвэл /цэс) — энэ цэс\n"
+	"/цуцлах — эхлүүлсэн ажлыг болих\n"
 	"/тусламж — тусламж\n"
 	"Telegram-ын команд цэс (☰) кирилл нэр дэмждэггүй тул тэнд латинаар харагдана."
 )
@@ -131,6 +139,7 @@ BOT_COMMAND_DESCRIPTIONS = {
 	"policy": "НББ-ийн бодлогын баримт бичиг (/бодлого)",
 	"company": "Идэвхтэй компани солих (/компани)",
 	"setup": "Компанийн тохиргоо (/эхлэх)",
+	"cancel": "Эхлүүлсэн ажлыг цуцлах (/цуцлах)",
 }
 MSG_HELP = (
 	"Нябо хэрхэн ажилладаг вэ?\n"
@@ -980,8 +989,31 @@ MSG_LINK_COMPANY_NOT_FOUND = "Компани олдсонгүй: {company}"
 MSG_ADMIN_ONLY = "Энэ команд зөвхөн админд зориулагдсан."
 MSG_ADMIN_ERROR_NOTICE = "⚠️ Нябо алдаа: {event} · chat {chat_id} · {error}"
 MSG_ADMIN_LINK_GUESSING = "🔒 Холбох кодыг олон удаа буруу оруулсан тул chat {chat_id}-ыг түр хаалаа."
-MSG_FEATURE_UNAVAILABLE = "Энэ боломж одоогоор бэлэн болоогүй байна. Админд мэдэгдлээ."
+# Same reading risk as MSG_ERROR_ADMIN_NOTIFIED (UX-13): nobody is approving anything.
+MSG_FEATURE_UNAVAILABLE = (
+	"Энэ боломж одоогоор бэлэн болоогүй байна. Нябо-г хөгжүүлэгч рүү мэдэгдэл очлоо. "
+	"Та өөр үйлдэл хийж болно — доорх «Цэс» товч (/меню)."
+)
 MSG_CANCELLED = "Цуцаллаа."
+
+# --- escape hatches: no waiting step may be a dead end (UX-13) --------------------------------
+# Every state that waits for the user carries Цуцлах, plus Буцах where a previous step exists
+# and Алгасах where the step is genuinely optional; the same words typed by hand mean the same
+# thing (nyabo_mn.telegram.handlers.escape).
+MSG_FLOW_CANCELLED = "Болилоо. Эхлүүлсэн ажлыг хаалаа. Хүссэн үедээ дахин эхлүүлж болно (/меню)."
+MSG_FLOW_NOTHING_TO_CANCEL = "Одоогоор үргэлжилж байгаа ажил алга. /меню — үндсэн цэс."
+MSG_FLOW_LEFT_FOR_COMMAND = "Эхлүүлсэн ажлыг хаалаа."
+MSG_STEP_CANNOT_SKIP = (
+	"Энэ алхмыг алгасах боломжгүй. Доорх товчнуудаас сонгоно уу, эсвэл «Цуцлах» дарж гарна уу."
+)
+MSG_STEP_NO_BACK = "Энэ бол эхний алхам тул буцах алхам алга. «Цуцлах» дарвал энэ ажлаас бүрмөсөн гарна."
+MSG_ESCAPE_STALE = "Энэ асуулт аль хэдийн хаагдсан байна. /меню — үндсэн цэс."
+MSG_STATEMENT_LAYOUT_CANCELLED = (
+	"Баганын тохиргоог зогсоолоо. Хуулга бүртгэгдээгүй тул шаардлагатай бол дахин илгээнэ үү."
+)
+ONB_INVENTORY_SKIPPED = (
+	"Бараа материалын жагсаалтыг алгаслаа. Дараа нь «/эхлэх дахин» гэж бичээд бүртгэж болно."
+)
 MSG_STATUS = (
 	"🛠 Нябо төлөв\n"
 	"Компани: {companies} · Холбогдсон хэрэглэгч: {users}\n"

@@ -47,7 +47,8 @@ def test_full_onboarding_stores_settings(company, monkeypatch):
 	run(bot, message_update(uid, "/эхлэх"))
 	assert _state(uid) == "onb:vat"
 	assert mn.ONB_ASK_VAT in bot.texts()
-	assert bot.callback_datas() == ["o:vat:yes", "o:vat:no"]
+	# The first question has no step behind it, so Буцах is absent and Цуцлах is not (UX-13).
+	assert bot.callback_datas() == ["o:vat:yes", "o:vat:no", "e:onb:cancel"]
 
 	run(bot, callback_update(uid, "o:vat:no"))
 	assert mn.ONB_VAT_NO_NOTE in bot.texts()
@@ -82,7 +83,12 @@ def test_full_onboarding_stores_settings(company, monkeypatch):
 	run(bot, message_update(uid, "Принтерийн хор, 5, 45000\nЦаас, 10, 12000"))
 	assert intakes and intakes[0][0] == company and intakes[0][2] == "text"
 	assert bot.last_text == mn.ONB_INVENTORY_PARSED.format(count=2, total=fmt_mnt(345000))
-	assert bot.callback_datas() == ["i:NYI-00001:confirm", "i:NYI-00001:cancel"]
+	assert bot.callback_datas() == [
+		"i:NYI-00001:confirm",
+		"i:NYI-00001:cancel",
+		"e:onb:back",
+		"e:onb:skip",
+	]
 	run(bot, callback_update(uid, "i:NYI-00001:confirm"))
 	assert posted == [("NYI-00001", "tg-9001@nyabo.local")]
 	assert mn.ONB_INVENTORY_POSTED.format(docs="MAT-STE-2026-00001") in bot.texts()
@@ -169,7 +175,8 @@ def test_text_during_button_step_repeats_question(company):
 	run(bot, message_update(9003, "/эхлэх"))
 	bot.clear()
 	run(bot, message_update(9003, "тийм"))
-	assert bot.last_text == mn.ONB_ASK_VAT and bot.callback_datas() == ["o:vat:yes", "o:vat:no"]
+	assert bot.last_text == mn.ONB_ASK_VAT
+	assert bot.callback_datas() == ["o:vat:yes", "o:vat:no", "e:onb:cancel"]
 
 
 def test_custom_currency_is_shown_and_can_be_removed(company):

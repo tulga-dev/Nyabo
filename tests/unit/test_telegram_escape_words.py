@@ -1,0 +1,119 @@
+"""UX-13: the words a user types to get out, and the rows they tap instead.
+
+The founder typed «алгасах» into the inventory step and the step's parser answered
+«1-р мөрийг уншиж чадсангүй». Whatever a step does with its input, these words have to be
+recognised before it ever sees them, and they have to survive the punctuation a phone
+keyboard adds by itself.
+"""
+
+from __future__ import annotations
+
+import pytest
+
+from nyabo_mn.i18n import mn
+from nyabo_mn.telegram import keyboards
+from nyabo_mn.telegram.handlers import escape
+
+
+@pytest.mark.parametrize(
+	("typed", "verb"),
+	[
+		("алгасах", escape.SKIP),
+		("Алгасах", escape.SKIP),
+		("  алгасах  ", escape.SKIP),
+		("/skip", escape.SKIP),
+		("/алгасах", escape.SKIP),
+		("цуцлах", escape.CANCEL),
+		("болих", escape.CANCEL),
+		("болих уу", escape.CANCEL),
+		("Болих уу?", escape.CANCEL),
+		("«болих уу»", escape.CANCEL),
+		("гарах", escape.CANCEL),
+		("/cancel", escape.CANCEL),
+		("/cancel@nyabo_bot", escape.CANCEL),
+		("/цуцлах", escape.CANCEL),
+		("буцах", escape.BACK),
+		("/back", escape.BACK),
+		("цэс", escape.MENU),
+		("меню", escape.MENU),
+	],
+)
+def test_the_escape_words_are_understood(typed: str, verb: str):
+	assert escape.intent(typed) == verb
+
+
+@pytest.mark.parametrize(
+	"typed",
+	[
+		"",
+		"   ",
+		"Принтерийн хор, 5, 45000",
+		"гарах зардал",  # an account search, not a way out
+		"цуцлахыг хүсэхгүй байна",
+		"5001234567",
+		"/эхлэх",
+		"/меню",
+		"/start",
+	],
+)
+def test_ordinary_input_is_not_an_escape(typed: str):
+	"""Matching is on the whole message: a step's own answer must reach the step."""
+	assert escape.intent(typed) is None
+
+
+def test_reverse_is_not_read_as_back():
+	"""«Буцаах» is BTN_REVERSE — reversing a posted entry — and must never mean "go back"."""
+	assert mn.BTN_REVERSE == "Буцаах"
+	assert escape.intent(mn.BTN_REVERSE.lower()) is None
+	assert escape.intent(mn.BTN_BACK.lower()) == escape.BACK
+
+
+def test_every_button_label_that_is_an_escape_is_also_understood_typed():
+	"""A user who types what the button says gets what the button does."""
+	assert escape.intent(mn.BTN_CANCEL.lower()) == escape.CANCEL
+	assert escape.intent(mn.BTN_SKIP.lower()) == escape.SKIP
+	assert escape.intent(mn.BTN_MENU.lower()) == escape.MENU
+
+
+# --- the rows themselves -------------------------------------------------------------------------
+
+
+def test_escape_row_is_ordered_and_fits_the_callback_budget():
+	row = keyboards.escape_row(keyboards.SCOPE_ONBOARDING, back=True, skip=True)
+	assert [b["text"] for b in row] == [mn.BTN_BACK, mn.BTN_SKIP, mn.BTN_CANCEL]
+	assert [b["callback_data"] for b in row] == ["e:onb:back", "e:onb:skip", "e:onb:cancel"]
+	assert row[-1]["style"] == keyboards.STYLE_DANGER
+	for scope in (
+		keyboards.SCOPE_ONBOARDING,
+		keyboards.SCOPE_ACCOUNT_SEARCH,
+		keyboards.SCOPE_REJECT_TEXT,
+		keyboards.SCOPE_CORRECTION,
+		keyboards.SCOPE_LAYOUT,
+		keyboards.SCOPE_BANK_FIND,
+		keyboards.SCOPE_ERROR,
+	):
+		for verb in (keyboards.ESCAPE_CANCEL, keyboards.ESCAPE_BACK, keyboards.ESCAPE_SKIP):
+			data = keyboards.encode(keyboards.PREFIX_ESCAPE, scope, verb)
+			assert len(data.encode("utf-8")) <= keyboards.MAX_CALLBACK_DATA_BYTES
+
+
+def test_a_scope_is_the_state_prefix_it_was_drawn_for():
+	"""``escape.state_scope`` is what tells a live step from a card scrolled back to."""
+	assert escape.state_scope("onb:inv_wait") == keyboards.SCOPE_ONBOARDING
+	assert escape.state_scope("layout:3") == keyboards.SCOPE_LAYOUT
+	assert escape.state_scope("acc_search") == keyboards.SCOPE_ACCOUNT_SEARCH
+	assert escape.state_scope(None) == ""
+
+
+def test_spent_disables_every_button_and_drops_its_data():
+	"""A DisabledButton is a button *type*: "Exactly one of the fields other than text,
+	icon_custom_emoji_id, and style must be used to specify the type of the button"."""
+	original = keyboards.onboarding_confirm("summary")
+	spent = keyboards.spent(original)
+	buttons = [b for row in spent["inline_keyboard"] for b in row]
+	assert buttons and all(b["disabled"] == {} for b in buttons)
+	assert all("callback_data" not in b for b in buttons)
+	assert [b["text"] for b in buttons] == [b["text"] for row in original["inline_keyboard"] for b in row]
+	# The styles survive, so the cancelled card still reads the way it did.
+	assert keyboards.STYLE_SUCCESS in [b.get("style") for b in buttons]
+	assert keyboards.spent(None) == keyboards.empty_markup()
