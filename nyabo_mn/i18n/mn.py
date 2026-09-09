@@ -1054,6 +1054,15 @@ MSG_ESCAPE_STALE = "Энэ асуулт аль хэдийн хаагдсан б�
 # A mapping with no date column, or none of the money columns, reads zero lines out of every
 # statement in that bank's format for ever after (the row is keyed on the header signature),
 # so it is refused before it is written and the accountant is told what is still missing.
+# …and a file that has fewer than two columns to give roles to can never satisfy that: a column
+# carries one role, and an import needs a date column *and* a money column. The mapping
+# conversation is not started for it at all — every answer would come back to the same refusal,
+# on a first column that is not even drawn with Буцах.
+MSG_STATEMENT_LAYOUT_TOO_FEW_COLUMNS = (
+	"Энэ файлд хуулга оруулахад шаардлагатай багана алга: огнооны багана, мөн «Дүн» эсвэл "
+	"«Зарлага/Орлого» багана хэрэгтэй. Банкнаасаа бүтэн хуулгыг (Excel/CSV) татаж дахин "
+	"илгээнэ үү."
+)
 MSG_STATEMENT_LAYOUT_NEEDS_DATE = "«Огноо» багана"
 MSG_STATEMENT_LAYOUT_NEEDS_AMOUNT = "«Дүн», «Зарлага (дебит)» эсвэл «Орлого (кредит)» багана"
 # The refusal fires on the *last* column, so the role that is missing is almost always an

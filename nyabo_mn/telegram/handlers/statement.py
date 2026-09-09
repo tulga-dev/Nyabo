@@ -183,8 +183,28 @@ def start_layout_mapping(bot: Any, chat_id: int | str, document_name: str, summa
 			preview = [list(row) for row in rows[index + 1 :]]
 	while headers and not headers[-1].strip():
 		headers.pop()
-	if not headers:
-		bot.send_message(chat_id, mn.MSG_UNSUPPORTED_FILE)
+	if len(headers) < 2:
+		# Refused here, where the file is read, rather than after every column is answered.
+		# ``missing_for_import`` wants a date column *and* one of amount/debit/credit, and a
+		# column carries exactly one role, so a file with fewer than two columns has no answer
+		# that would ever be accepted: each role the accountant picked would come back to the
+		# same refusal — one that names Буцах, which is not drawn on the first column. A loop
+		# with no exit but Цуцлах is not a question, so the question is not asked.
+		#
+		# «The file cannot be read at all» is a different sentence from «the file does not carry
+		# the columns an import needs», and the preview rows are what tells them apart.
+		bot.send_message(
+			chat_id,
+			mn.MSG_STATEMENT_LAYOUT_TOO_FEW_COLUMNS
+			if summary.get("preview_rows")
+			else mn.MSG_UNSUPPORTED_FILE,
+		)
+		log_event(
+			"telegram.layout.too_few_columns",
+			level="warning",
+			document=document_name,
+			headers=len(headers),
+		)
 		return
 	from nyabo_mn.telegram import state as chat_state
 
