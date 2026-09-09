@@ -234,8 +234,10 @@ def rule_blocked(ctx: Ctx, rule: str, company: str | None = None) -> dict[str, A
 	«The admins have been told» is only said when somebody was actually told, which is why the
 	notice goes out *before* the reply and its count decides the wording. The recipients are the
 	site's ``ADMIN_TELEGRAM_IDS`` **and** the Admins linked to this company, who are admins of
-	these books and are in no site config file. If there is no one at all, the accountant is told
-	that plainly, with the step that still works — the request is on record either way.
+	these books and are in no site config file — and the two groups are told different things,
+	because only one of them can clear the row from the chat (``_tell_the_admins``). If there is
+	no one at all, the accountant is told that plainly, with the step that still works — the
+	request is on record either way.
 	"""
 	company = company or ctx.company
 	# Only a site admin is offered the tap here: the row applies to every company on the site
@@ -274,14 +276,7 @@ def rule_blocked(ctx: Ctx, rule: str, company: str | None = None) -> dict[str, A
 			"admins_notified": reached,
 			"deduped": True,
 		}
-	from nyabo_mn.telegram.router import notify_admins
-
-	reached = notify_admins(
-		ctx.bot,
-		ctx.settings,
-		mn.MSG_ADMIN_RULE_VERIFY_REQUEST.format(company=company or mn.VALUE_UNKNOWN, rule=rule),
-		company=company,
-	)
+	reached = _tell_the_admins(ctx, rule, company)
 	# Recorded after the notice so the row carries what really happened, which is what a repeat
 	# within REQUEST_DEDUPE_MINUTES is answered from.
 	_deps.request_rule_verification(
@@ -303,6 +298,32 @@ def rule_blocked(ctx: Ctx, rule: str, company: str | None = None) -> dict[str, A
 		"admins_notified": reached,
 		"deduped": False,
 	}
+
+
+def _tell_the_admins(ctx: Ctx, rule: str, company: str | None) -> int:
+	"""Notify both kinds of admin, each with something they can actually do; returns how many heard.
+
+	A rule row is global, so only a site admin can clear it from the chat (VER-08). Sending every
+	admin «/дүрэм командаар баталгаажуулна уу» told the admin of one company to press a button
+	that would then refuse them — the same empty promise as telling the accountant the admins were
+	notified when nobody was, one seat further along. A company admin is still told, because the
+	rule is blocking their books and the ERPNext desk is open to them; they are told that.
+	"""
+	from nyabo_mn.telegram.router import company_admin_ids, notify_chats, site_admin_ids
+
+	label = company or mn.VALUE_UNKNOWN
+	site_ids = site_admin_ids(ctx.settings)
+	# A site admin who is also linked to this company hears once, in the wording that lets them act.
+	company_ids = (company_admin_ids(company) - site_ids) if company else set()
+	reached = notify_chats(
+		ctx.bot, sorted(site_ids), mn.MSG_ADMIN_RULE_VERIFY_REQUEST.format(company=label, rule=rule)
+	)
+	reached += notify_chats(
+		ctx.bot,
+		sorted(company_ids),
+		mn.MSG_ADMIN_RULE_VERIFY_REQUEST_COMPANY.format(company=label, rule=rule),
+	)
+	return reached
 
 
 def _request_reply(rule: str, admins_notified: int) -> str:

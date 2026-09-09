@@ -16,7 +16,7 @@ to leave the inventory step and got «1-р мөрийг уншиж чадсан�
 from __future__ import annotations
 
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from typing import Any
 
 import frappe
@@ -286,17 +286,26 @@ def admin_chat_ids(settings: Any, company: str | None = None) -> list[int]:
 	the site config. A notice about one company's blocked work has to reach them too, or the
 	sentence the accountant was shown («a notification has gone to the admins») is false.
 	"""
-	try:
-		ids = set(settings.admin_telegram_ids)
-	except ValueError as exc:
-		log_event("telegram.admin_ids_invalid", level="warning", error=str(exc))
-		ids = set()
+	ids = site_admin_ids(settings)
 	if company:
-		ids |= _company_admin_ids(company)
+		ids |= company_admin_ids(company)
 	return sorted(ids)
 
 
-def _company_admin_ids(company: str) -> set[int]:
+def site_admin_ids(settings: Any) -> set[int]:
+	"""``ADMIN_TELEGRAM_IDS``: the admins of the *site*, who may decide a row every company shares.
+
+	Separated from the company list because the two groups cannot be told the same thing about a
+	global rule (VER-08): one of them can clear it from the chat and the other cannot.
+	"""
+	try:
+		return set(settings.admin_telegram_ids)
+	except ValueError as exc:
+		log_event("telegram.admin_ids_invalid", level="warning", error=str(exc))
+		return set()
+
+
+def company_admin_ids(company: str) -> set[int]:
 	"""Telegram ids of the active links whose role *on this company* is Admin (access.role_for)."""
 	rows = frappe.get_all(
 		access.LINK_COMPANY_DOCTYPE,
@@ -332,8 +341,18 @@ def notify_admins(bot: Any, settings: Any, text: str, company: str | None = None
 	so when somebody was. Failures are logged and do not count, and never raise — a notification
 	must not take down the handler that was doing the user's real work.
 	"""
+	return notify_chats(bot, admin_chat_ids(settings, company), text)
+
+
+def notify_chats(bot: Any, chat_ids: Iterable[int], text: str) -> int:
+	"""Send one notice to an explicit list of chats; returns how many were actually reached.
+
+	The explicit list is what lets a caller say something different to two groups of admins and
+	still count both honestly — see ``handlers.admin.rule_blocked``, where a site admin is told
+	to clear the rule and a company admin is told who can.
+	"""
 	reached = 0
-	for admin_id in admin_chat_ids(settings, company):
+	for admin_id in chat_ids:
 		try:
 			bot.send_message(admin_id, text)
 			reached += 1

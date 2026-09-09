@@ -1419,6 +1419,15 @@ MSG_UNVERIFIED_RULE_NO_ADMIN = (
 MSG_ADMIN_RULE_VERIFY_REQUEST = (
 	"🔒 {company}: «{rule}» дүрэм баталгаажаагүй тул бичилт зогслоо. /дүрэм командаар баталгаажуулна уу."
 )
+# The same news for the other kind of admin. A rule row belongs to the whole site, so an admin
+# linked to one company may read the evidence but not tick it (VER-08) — telling them to verify
+# it with /дүрэм would send them to a card that refuses them. They are still worth telling: they
+# are admins of these books and can clear the row in the ERPNext desk.
+MSG_ADMIN_RULE_VERIFY_REQUEST_COMPANY = (
+	"🔒 {company}: «{rule}» дүрэм баталгаажаагүй тул бичилт зогслоо. Энэ дүрэм сайт дээрх бүх "
+	"компанид хамаарах тул чатнаас сайтын админ баталгаажуулна; та /дүрэм командаар нотлох "
+	"баримтыг нь харах, эсвэл ERPNext дэсктээс өөрөө баталгаажуулах боломжтой."
+)
 
 # --- evals + simulator (nyabo_mn.evals, nyabo_mn.simulator) -----------------------------------------
 SIM_TITLE = "🧪 Симуляци · {case}"

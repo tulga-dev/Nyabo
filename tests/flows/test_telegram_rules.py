@@ -681,8 +681,41 @@ def test_the_request_reaches_the_admin_linked_to_the_company_not_only_the_site_c
 	assert outcome["result"]["notified"] is True and outcome["result"]["admins_notified"] == 2
 	notice = mn.MSG_ADMIN_RULE_VERIFY_REQUEST.format(company=rules_site, rule=BLOCKING)
 	told = [call["chat_id"] for call in bot.sent("send_message") if call["text"] == notice]
-	assert sorted(told) == [ADMIN_ID, COMPANY_ADMIN_ID]
+	assert told == [ADMIN_ID]
+	# The company's own admin hears about it too, in the wording that is true for them: the row
+	# is global, so the chat's verify button is not theirs (VER-08) and the desk is.
+	company_notice = mn.MSG_ADMIN_RULE_VERIFY_REQUEST_COMPANY.format(company=rules_site, rule=BLOCKING)
+	told_company = [call["chat_id"] for call in bot.sent("send_message") if call["text"] == company_notice]
+	assert told_company == [COMPANY_ADMIN_ID]
 	assert mn.MSG_UNVERIFIED_RULE_ADMIN_ASKED in bot.texts()
+
+
+def test_a_company_admin_is_never_told_to_use_a_button_that_will_refuse_them(
+	rules_site: str, monkeypatch: pytest.MonkeyPatch
+):
+	"""The notice must not send its reader to a card that answers «you may not» (VER-08).
+
+	A posting pattern is one row for every company on the site, so `/дүрэм` draws the verify
+	button only for a site admin. Telling a per-company admin «/дүрэм командаар баталгаажуулна
+	уу» is the same empty promise as telling the accountant the admins were notified when nobody
+	was — one seat further along the same flow.
+	"""
+	link_user(COMPANY_ADMIN_ID, "Admin", rules_site)
+	_refuse_posting(monkeypatch)
+	proposal = make_proposal(rules_site, posting_pattern=BLOCKING)
+	bot = FakeBotApi()
+	run(bot, callback_update(ACCOUNTANT_ID, f"p:{proposal.name}:ap"))
+
+	to_company_admin = [
+		call["text"] for call in bot.sent("send_message") if call["chat_id"] == COMPANY_ADMIN_ID
+	]
+	assert to_company_admin == [
+		mn.MSG_ADMIN_RULE_VERIFY_REQUEST_COMPANY.format(company=rules_site, rule=BLOCKING)
+	]
+	# ...and the flow it points at is the one they really get: the evidence, and who may clear it.
+	tap = FakeBotApi()
+	run(tap, callback_update(COMPANY_ADMIN_ID, keyboards.rule_data(keyboards.VERIFY_OPEN, "p", BLOCKING)))
+	assert tap.last_text == mn.MSG_RULES_SITE_ADMIN_ONLY
 
 
 def test_an_admin_of_another_company_is_not_told_about_this_one(
