@@ -1039,10 +1039,17 @@ FLOW_NAMES = {
 	"correct": "Залруулга",
 	"bank_find": "Банкны гүйлгээнд баримт хайх",
 }
+# ``escape.refuse`` sends both of these with ``ctx.reply(text)`` and no markup — the buttons
+# they mean are the open prompt's own, which sits *above* (a typed escape never touched it; a
+# tapped one has its keyboard put back by ``_revive_prompt``). So neither may say «доорх»:
+# the first said «Доорх товчнуудаас сонгоно уу» and pointed at an empty space under itself.
 MSG_STEP_CANNOT_SKIP = (
-	"Энэ алхмыг алгасах боломжгүй. Доорх товчнуудаас сонгоно уу, эсвэл «Цуцлах» дарж гарна уу."
+	"Энэ алхмыг алгасах боломжгүй. Дээрх асуултад хариулна уу, эсвэл «Цуцлах» дарж энэ ажлаас гарна уу."
 )
-MSG_STEP_NO_BACK = "Энэ бол эхний алхам тул буцах алхам алга. «Цуцлах» дарвал энэ ажлаас бүрмөсөн гарна."
+MSG_STEP_NO_BACK = (
+	"Энэ бол эхний алхам тул буцах алхам алга. Дээрх асуултад хариулна уу, эсвэл «Цуцлах» "
+	"дарж энэ ажлаас гарна уу."
+)
 MSG_ESCAPE_STALE = "Энэ асуулт аль хэдийн хаагдсан байна. /меню — үндсэн цэс."
 # A mapping with no date column, or none of the money columns, reads zero lines out of every
 # statement in that bank's format for ever after (the row is keyed on the header signature),

@@ -103,6 +103,44 @@ def test_the_genitive_of_bagana_is_spelled_one_way(site):
 	assert "Баганы" in mn.MSG_STATEMENT_LAYOUT_CANCELLED
 
 
+# Every constant that says «доорх» ("below"), and where the keyboard it points at really is.
+# ``ctx.reply(text, markup)`` puts the buttons on the message itself; a line whose keyboard is
+# on the *next* message is still true, because that message is below it in the chat. A line
+# sent with no keyboard at all anywhere below is not, and that is what this list pins.
+BELOW_POINTS_AT: dict[str, str] = {
+	"MSG_ERROR_ADMIN_NOTIFIED": "telegram/router.py sends it with keyboards.menu_markup()",
+	"MSG_FEATURE_UNAVAILABLE": "telegram/router.py sends it with keyboards.menu_markup()",
+	"MSG_STATEMENT_LAYOUT_INCOMPLETE": (
+		"statement._answer_column re-asks the column straight after it, roles keyboard and all"
+	),
+	"ONB_CURRENCY_ADDED": "onboarding._on_currency sends it with keyboards.onboarding_currencies()",
+}
+
+
+def test_every_below_points_at_a_keyboard_that_is_drawn(site):
+	"""MINOR: MSG_STEP_CANNOT_SKIP said «Доорх товчнуудаас сонгоно уу» with nothing below it.
+
+	``escape.refuse`` sends the refusal with ``ctx.reply(text)`` and no markup, so the buttons
+	it meant were the open prompt's, above. A user reading «choose from the buttons below» and
+	finding none is exactly the dead end UX-13 exists to remove, so the wording moved to the
+	question above — and every other «доорх» in the file is pinned here with the keyboard that
+	makes it true. A new one has to be added deliberately; a stale entry fails too.
+	"""
+	from nyabo_mn.i18n import mn
+
+	saying_below = {
+		name
+		for name, value in vars(mn).items()
+		if not name.startswith("_") and isinstance(value, str) and "доорх" in value.lower()
+	}
+	assert saying_below == set(BELOW_POINTS_AT), (
+		"a string says «доорх»: send it with a keyboard (or one on the very next message) and "
+		"name it here, or reword it — the refusals say «Дээрх асуултад хариулна уу» instead"
+	)
+	assert "доорх" not in mn.MSG_STEP_CANNOT_SKIP.lower()
+	assert "доорх" not in mn.MSG_STEP_NO_BACK.lower()
+
+
 @pytest.mark.parametrize("rel", sorted(ALLOWED))
 def test_allow_list_has_no_stale_entry(rel: str):
 	"""An exemption that no longer applies must be deleted, not left to hide a new literal."""

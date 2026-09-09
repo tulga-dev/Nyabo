@@ -703,6 +703,11 @@ def test_a_step_that_cannot_be_skipped_says_so_and_stays(company, monkeypatch):
 	run(bot, message_update(9272, "алгасах"))
 	assert bot.last_text == mn.MSG_STEP_CANNOT_SKIP
 	assert _state(9272) == "onb:vat", "the VAT regime has no default worth guessing"
+	# MINOR: the refusal rides alone — escape.refuse sends it with no markup — so it may not
+	# say «доорх товчнуудаас». The buttons it means are the question's own, above.
+	refusal = [kw for kw in bot.sent("send_message") if kw["text"] == mn.MSG_STEP_CANNOT_SKIP]
+	assert refusal and not any(kw.get("reply_markup") for kw in refusal)
+	assert "доорх" not in bot.last_text.lower()
 
 
 # --- 7. every waiting prompt carries a way out ----------------------------------------------------
