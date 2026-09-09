@@ -989,6 +989,20 @@ def test_ignoring_every_statement_column_by_button_is_refused_too(company):
 	assert _state(9294) == "layout:1"
 
 
+def test_the_incomplete_mapping_names_the_action_that_can_actually_fix_it(site):
+	"""MINOR: it named the two actions that cannot help, and neither of them was Буцах.
+
+	The refusal only fires on the *last* column, so the role that is missing is almost always an
+	earlier one and answering this column cannot supply it. «Цуцлах» throws the whole statement
+	away and asks for it again. Буцах is the one that walks back to the column that holds the
+	date, so it is named first and Цуцлах is kept as the last resort it is.
+	"""
+	text = mn.MSG_STATEMENT_LAYOUT_INCOMPLETE
+	assert mn.BTN_BACK in text and mn.BTN_CANCEL in text
+	assert text.index(mn.BTN_BACK) < text.index(mn.BTN_CANCEL)
+	assert "{missing}" in text, "it still says which role is missing"
+
+
 def test_a_mapping_says_what_it_still_needs(site):
 	"""The check itself: a date and one money column are what parse_rows reads."""
 	from nyabo_mn.telegram.handlers import statement

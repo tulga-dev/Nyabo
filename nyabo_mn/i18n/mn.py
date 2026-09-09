@@ -1042,9 +1042,14 @@ MSG_ESCAPE_STALE = "Энэ асуулт аль хэдийн хаагдсан б�
 # so it is refused before it is written and the accountant is told what is still missing.
 MSG_STATEMENT_LAYOUT_NEEDS_DATE = "«Огноо» багана"
 MSG_STATEMENT_LAYOUT_NEEDS_AMOUNT = "«Дүн», «Зарлага (дебит)» эсвэл «Орлого (кредит)» багана"
+# The refusal fires on the *last* column, so the role that is missing is almost always an
+# earlier one: «Буцах» is the action that reaches it, and it is named first. «Цуцлах» throws the
+# whole statement away and is what is left when nothing else fits.
 MSG_STATEMENT_LAYOUT_INCOMPLETE = (
 	"Ийм тохиргоогоор хуулгын мөрүүд уншигдахгүй: {missing} дутуу байна. "
-	"Энэ баганад тохирох үүргийг сонгоно уу, эсвэл «Цуцлах» дарж хуулгыг дахин илгээнэ үү."
+	"«Буцах» дарж тухайн утга байгаа багана руу очиж үүргийг нь зааж өгнө үү. "
+	"Энэ багана тохирох бол доорх үүргээс сонгож болно. "
+	"Өөр арга байхгүй бол «Цуцлах» дарж хуулгыг дахин илгээнэ үү."
 )
 MSG_STATEMENT_LAYOUT_CANCELLED = (
 	"Баганын тохиргоог зогсоолоо. Хуулга бүртгэгдээгүй тул шаардлагатай бол дахин илгээнэ үү."
