@@ -492,6 +492,36 @@ def test_a_month_that_has_not_begun_is_never_offered():
 	assert periods == ["2026-08"]  # NOW is in 2026-09; October has not started
 
 
+def test_a_balance_follow_up_carries_the_month_of_the_date_it_answered():
+	"""MAJOR: a button under a balance as of March silently offered September's entries.
+
+	``balance_on_date`` resolves ``on_date`` and never ``period``, so the seeded "this month"
+	was the clock's — and «Юунаас бүрдэв?» then read a month the accountant never asked about,
+	under a button that named the balance they did.
+	"""
+	trace = (
+		_books_call(
+			"balance_on_date",
+			{"account_code": "6210", "on_date": "2026-03-31", "date": "2026-03-31"},
+			account_code="6210",
+			on_date="2026-03-31",
+		),
+	)
+	offered = questions.follow_ups(trace, now=NOW)  # NOW is in 2026-09
+	assert [(f.verb, f.args) for f in offered] == [
+		("led", ("6210", "2026-03")),
+		("spd", ("6210", "2026-03")),
+	]
+
+
+def test_a_balance_with_no_resolved_date_still_falls_back_to_the_clock():
+	trace = (_books_call("balance_on_date", {"account_code": "6210"}, account_code="6210"),)
+	assert [f.args for f in questions.follow_ups(trace, now=NOW)] == [
+		("6210", "2026-09"),
+		("6210", "2026-09"),
+	]
+
+
 def test_a_supplier_answer_offers_the_supplier_the_handler_resolved():
 	trace = (_books_call("last_entries_for_supplier", {"supplier": "Петровис ХХК"}, supplier="Петровис"),)
 	offered = questions.follow_ups(trace, now=NOW)

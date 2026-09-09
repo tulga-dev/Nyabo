@@ -36,7 +36,7 @@ from __future__ import annotations
 import re
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any, Literal
 
 from pydantic import Field, ValidationError
@@ -493,6 +493,22 @@ def _period_follow_ups(kind: str, subject: Mapping[str, str], now: datetime) -> 
 	return out
 
 
+def _default_period(kind: str, subject: Mapping[str, str], now: datetime) -> str:
+	"""The month a follow-up assumes when the answered query carried no period of its own.
+
+	``balance_on_date`` resolves ``on_date`` and never ``period``, so the month of the date
+	that was actually answered is the only honest one: «Юунаас бүрдэв?» under a balance as of
+	March must show March's entries. Seeding the clock's month there sent the accountant
+	entries from a month nobody had asked about, under a button that said otherwise.
+	"""
+	if kind == "balance_on_date" and subject.get("on_date"):
+		try:
+			return dates.period_of(date.fromisoformat(subject["on_date"]))
+		except ValueError:
+			pass  # a handler that returned something else than an ISO date: fall back to the clock
+	return dates.period_of(now.date())
+
+
 def follow_ups(calls: Sequence[ToolCall], *, now: datetime, answered: bool = True) -> tuple[FollowUp, ...]:
 	"""What the accountant would do next, read off the tool trace — never off the sentence.
 
@@ -507,9 +523,11 @@ def follow_ups(calls: Sequence[ToolCall], *, now: datetime, answered: bool = Tru
 			FollowUp(VERB_MENU, mn.BTN_MENU),
 		)
 	kind = str((call.arguments or {}).get("query_kind") or "")
-	# A query with no period of its own (a balance, a supplier's entries) still has a "this
-	# month" its follow-up can be about, and that is the month the clock is in.
-	subject = {"period": dates.period_of(now.date()), **_subject_of(call)}
+	# A query with no period of its own (a balance, a supplier's entries) still has a month
+	# its follow-up can be about; ``_default_period`` says which, and it is not always the
+	# month the clock is in.
+	resolved = _subject_of(call)
+	subject = {"period": _default_period(kind, resolved, now), **resolved}
 	out: list[FollowUp] = []
 
 	if kind in ("spend_by_account", "account_entries", "vat_position", "top_spend_accounts"):
