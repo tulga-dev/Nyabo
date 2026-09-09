@@ -344,7 +344,18 @@ MSG_PERIOD_UNVERIFIED_RULES = (
 )
 MSG_PERIOD_REOPENED = "🔓 {period} үеийг дахин нээлээ. Шалтгаан: {reason}"
 MSG_PERIOD_DELETE_BLOCKED = "Нябо-гоор хаасан тайлант үеийг ({name}) устгахгүй; шаардлагатай бол дахин нээнэ."
-MSG_POSTING_IN_CLOSED_PERIOD = "{date} огноо хаагдсан {period}-д багтаж байна. Бичилт хийх боломжгүй."
+# WHY no template ever writes «{placeholder}-<суффикс>»: the correct case ending depends on the
+# last sound of the word the placeholder renders, and a placeholder renders a *formatted* value —
+# a month label («2027 оны 1-р сар» wants «сард», not «сар-д»), a numeral («5» wants «-аас», «2»
+# wants «-оос»), an ISO date («…-05» wants «-нд», «…-08» wants «-д»). One spelling in the source
+# can only ever be right for some of the values, so the suffix attaches to a fixed noun the
+# sentence supplies instead («тайлант үед ({period})», «{date} өдрийн»), or the label is set off
+# with a colon or brackets. The one exception is a proper name or an abbreviation — «ХХК-ийн» IS
+# the written form — which is why «{company}-ийн» stays. tests/unit/test_i18n_no_hardcoded_mongolian.py
+# sweeps this module for the shape.
+MSG_POSTING_IN_CLOSED_PERIOD = (
+	"{date} огноо хаагдсан тайлант үед ({period}) багтаж байна. Бичилт хийх боломжгүй."
+)
 MSG_CLOSE_SIMPLIFIED_MONTH_LINE = "• {month}: орлого {revenue}₮"
 MSG_SIMPLIFIED_NOT_ELIGIBLE_VAT = (
 	"Хялбаршуулсан 1%-ийн горим НӨАТ-ын суутган төлөгчид хамаарахгүй (ААНОАТ-ын тухай хууль 29.3.1); "
@@ -521,7 +532,7 @@ POLICY_SECTIONS = [
 		"key": "fx",
 		"title": "6. Гадаад валют",
 		"paragraphs": [
-			"Гадаад валютын гүйлгээг гүйлгээний өдрийн {fx_policy}-аар төгрөгт хөрвүүлж бүртгэнэ. Валютын үлдэгдлийг "
+			"Гадаад валютын гүйлгээг гүйлгээний өдрийн ханшаар ({fx_policy}) төгрөгт хөрвүүлж бүртгэнэ. Валютын үлдэгдлийг "
 			"тайлант үеийн эцэст дахин үнэлж, ханшийн зөрүүг олз, гарзаар хүлээн зөвшөөрнө.",
 		],
 	},
@@ -551,7 +562,7 @@ POLICY_SECTIONS = [
 			"Анхан шатны баримтгүйгээр ажил гүйлгээг бүртгэхийг хориглоно (Хууль 13.7). Баримтын маягтыг Сангийн сайдын "
 			"2017 оны 347 дугаар тушаалын дагуу хэрэглэнэ; баримт нь гарын үсэг, тамгаар эсхүл цахим гарын үсгээр "
 			"баталгаажна (Хууль 13.5).",
-			"Нягтлан бодох бүртгэлийн баримт, тайланг {retention_years}-аас доошгүй жил хадгална (Хууль 11.1). Нябо-д "
+			"Нягтлан бодох бүртгэлийн баримт, тайланг хамгийн багадаа {retention_years} жил хадгална (Хууль 11.1). Нябо-д "
 			"илгээсэн баримтын зураг, файл болон бүртгэлийн бичилтийг устгахыг систем хориглоно.",
 		],
 	},
@@ -952,7 +963,7 @@ MSG_VAT_POSITION_ANSWER = (
 MSG_VAT_POSITION_CREDIT_ANSWER = (
 	"{period}: борлуулалтын НӨАТ {output}₮, худалдан авалтын НӨАТ {input}₮, буцаан авах НӨАТ {credit}₮"
 )
-MSG_VAT_NOT_PAYER_ANSWER = "Компани {period}-д НӨАТ төлөгч бус тул НӨАТ-ын мэдээлэл байхгүй."
+MSG_VAT_NOT_PAYER_ANSWER = "{period}: компани НӨАТ төлөгч бус тул НӨАТ-ын мэдээлэл байхгүй."
 # ``{account}`` is rendered by ``account_label``, which already begins with the account code,
 # so the code is not printed beside it: «6610 6610 - Зар сурталчилгаа - TST» was one row
 # naming one account three times.
@@ -966,7 +977,7 @@ MSG_ENTRY_EXPLAIN_ANSWER = "{doctype} {name} · {date} · {amount}₮\n{explanat
 ENTRY_EXPLAIN_NO_PROPOSAL = "Энэ бичилтийг Нябо санал болгоогүй тул тайлбар алга."
 # The day the photograph arrived, not the Nyabo Document's own name: «Эх баримт: NYD-00002» is
 # an internal id an accountant has never seen, while the date is how they find that receipt.
-ENTRY_EXPLAIN_SOURCE = "🧾 Эх баримт: {date}-нд хүлээн авсан"
+ENTRY_EXPLAIN_SOURCE = "🧾 Эх баримт: {date} өдөр хүлээн авсан"
 ENTRY_NOT_FOUND_ANSWER = "«{name}» нэртэй бүртгэл энэ компанид олдсонгүй."
 # Every list answer shows at most a handful of rows. Saying so is not a nicety: an accountant
 # reading five of forty unmatched lines with no sign of the cut acts on a false picture of the
@@ -1133,7 +1144,7 @@ WARN_BANK_LINE_INCOME_UNCLASSIFIED = "Орлогын гүйлгээ тул ня�
 CARD_BANK_UNMATCHED = "❔ Тулгаагүй"
 CARD_BANK_TRANSFER = "🔁 Шилжүүлэг: {from_account} → {to_account}"
 CARD_BANK_REASON = "Шалтгаан: {reason}"
-MSG_RECON_AS_OF = "{date}-ны байдлаар"
+MSG_RECON_AS_OF = "{date} өдрийн байдлаар"
 
 # --- telegram (router, handlers, cards) ---------------------------------------------------------
 ROLE_LABELS = {"Owner": "Эзэмшигч", "Accountant": "Нягтлан", "Admin": "Админ"}
@@ -1142,7 +1153,7 @@ MSG_LINK_ROLE_UNKNOWN = "Үүрэг буруу байна: «нягтлан» э
 MSG_LINK_COMPANY_NOT_FOUND = "Компани олдсонгүй: {company}"
 MSG_ADMIN_ONLY = "Энэ команд зөвхөн админд зориулагдсан."
 MSG_ADMIN_ERROR_NOTICE = "⚠️ Нябо алдаа: {event} · chat {chat_id} · {error}"
-MSG_ADMIN_LINK_GUESSING = "🔒 Холбох кодыг олон удаа буруу оруулсан тул chat {chat_id}-ыг түр хаалаа."
+MSG_ADMIN_LINK_GUESSING = "🔒 Холбох кодыг олон удаа буруу оруулсан тул {chat_id} дугаартай чатыг түр хаалаа."
 # What an admin actually receives when a question is handed to a human. The user has already
 # been told «Асуултыг админд дамжууллаа», so this message is the promise being kept: without
 # it the escalation is only a Nyabo Event nobody reads.
