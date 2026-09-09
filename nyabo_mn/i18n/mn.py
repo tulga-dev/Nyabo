@@ -183,6 +183,13 @@ ONB_INVENTORY_HOW = (
 )
 ONB_INVENTORY_PARSED = "📦 {count} бараа · нийт {total}₮. Зөв үү?"
 ONB_INVENTORY_POSTED = "✅ Бараа материалын үлдэгдлийг бүртгэлээ: {docs}"
+# Принцип 5: once the opening stock is in the ledger the Тийм/Үгүй question can no longer be
+# re-answered — «Үгүй» would tell the summary the company holds no stock while the opening
+# entry stands. Only a reversal takes it back, and that is a separate, deliberate job.
+ONB_INVENTORY_ALREADY_POSTED = (
+	"Бараа материалын эхний үлдэгдэл аль хэдийн бүртгэгдсэн тул энэ хариултыг өөрчлөх "
+	"боломжгүй. Буруу бол зөвхөн буцаалт (сторно) хийж залруулна. Тохиргоог үргэлжлүүлье."
+)
 # SEC-09: the reader never sees a raw exception. {error} takes a Mongolian sentence Nyabo
 # itself wrote; a parser or library message goes to the log instead (ONB_INVENTORY_PARSE_FAILED).
 ONB_INVENTORY_PARSE_ERROR = "Жагсаалтыг уншиж чадсангүй: {error}"

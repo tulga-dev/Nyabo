@@ -257,6 +257,32 @@ def _ask_inventory(ctx: Ctx, payload: dict[str, Any]) -> Any:
 
 
 def _on_inventory(ctx: Ctx, payload: dict[str, Any], value: str) -> Any:
+	"""Тийм/Үгүй on the stock question; «Үгүй» is refused once the opening stock is filed.
+
+	``_back_target`` sends Буцах from ``acc_name`` back here — not to the list — precisely
+	because a posted intake may not be re-taken (principle 5). This step has to hold the same
+	line: «Үгүй» used to write ``has_inventory = False`` and the summary then reported a company
+	with no stock while its opening entry stood in the ledger, an answer about the books that
+	contradicts the books. So it is refused in Mongolian and the question is re-offered rather
+	than the wizard moving on with it (UX-13: the step keeps something to answer).
+
+	«Тийм» is honoured as it always was: it agrees with the ledger, and a company that has more
+	opening stock to file may still send another list. Adding is not undoing.
+	"""
+	if payload.get("inventory_posted") and value != "yes":
+		ctx.bot.edit_message_reply_markup(ctx.chat_id, ctx.callback_message_id, keyboards.empty_markup())
+		ctx.reply(mn.ONB_INVENTORY_ALREADY_POSTED)
+		# The answer stands as the ledger has it.
+		payload["has_inventory"] = True
+		log_event(
+			"telegram.onboarding.inventory_reanswer_refused",
+			level="warning",
+			company=ctx.company,
+			intake=payload.get("posted_intake") or payload.get("intake") or "",
+			answer=value,
+		)
+		_ask_inventory(ctx, payload)
+		return {"refused": "inventory_posted", "has_inventory": True}
 	# Both answers clear the note that the list was skipped, because both re-answer the question
 	# the note hangs off. Only ``_on_inventory_input`` used to pop it, so a walk that came back
 	# here through Буцах and answered Үгүй left it standing and the summary reported a list left
@@ -290,6 +316,7 @@ def _forget_inventory_list(ctx: Ctx, payload: dict[str, Any]) -> None:
 	leave the wizard» used to hand a posted intake to ``cancel_intake``, which rightly refuses
 	it — an error line in the log on the happy path. The opening entry is in the ledger and only
 	a reversal takes it back, and the count and total the summary prints are true once posted.
+
 	"""
 	if payload.get("inventory_posted"):
 		return

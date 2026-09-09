@@ -309,3 +309,78 @@ def test_apply_onboarding_is_idempotent(company):
 	settings = frappe.get_doc("Nyabo Company Settings", second["settings"])
 	assert len(settings.bank_accounts) == 1
 	assert settings.accountant_micpa_permit == "MICPA-1"
+
+
+def _posted_intake_deps(monkeypatch, name: str = "NYI-0001") -> dict[str, list]:
+	"""The inventory dependencies stubbed, with a record of what each one was asked to do."""
+	calls: dict[str, list] = {"created": [], "posted": [], "cancelled": []}
+	monkeypatch.setattr(
+		_deps,
+		"inventory_parse_text",
+		lambda text: [{"item_name": text.split(",")[0], "qty": 1, "rate": 10}],
+	)
+	monkeypatch.setattr(
+		_deps,
+		"inventory_create_intake",
+		lambda company, items, source, user, file_url=None: (
+			calls["created"].append(items) or f"{name}-{len(calls['created'])}"
+		),
+	)
+	monkeypatch.setattr(
+		_deps,
+		"inventory_post_intake",
+		lambda intake, user: calls["posted"].append(intake) or {"created": ["MAT-STE-2026-00001"]},
+	)
+	monkeypatch.setattr(
+		_deps, "inventory_cancel_intake", lambda intake, user: calls["cancelled"].append(intake)
+	)
+	return calls
+
+
+def test_posted_opening_stock_cannot_be_answered_away(company, monkeypatch):
+	"""MAJOR: Буцах to the stock question let «Үгүй» contradict a posted opening entry.
+
+	``_back_target`` sends Буцах from the accountant's name back to the Тийм/Үгүй question once
+	the intake is filed, because the list itself may not be re-taken. But the question re-answered
+	itself blind: «Үгүй» wrote ``has_inventory = False`` and the summary reported no stock for a
+	company whose opening entry is in the ledger. Only a reversal takes that back (principle 5).
+	"""
+	calls = _posted_intake_deps(monkeypatch)
+	link_user(9007, "Accountant", company)
+	uid = 9007
+	bot = FakeBotApi()
+	run(bot, message_update(uid, "/эхлэх"))
+	run(bot, callback_update(uid, "o:vat:no"))
+	run(bot, callback_update(uid, "o:400m:yes"))
+	run(bot, callback_update(uid, "o:banks:done"))
+	run(bot, callback_update(uid, "o:inv:yes"))
+	run(bot, message_update(uid, "Принтерийн хор, 1, 10"))
+	run(bot, callback_update(uid, "i:NYI-0001-1:confirm"))
+	assert calls["posted"] == ["NYI-0001-1"]
+	assert _state(uid) == "onb:acc_name"
+
+	# Буцах from the accountant's name lands on the question, not on the list (posted stock).
+	run(bot, callback_update(uid, "e:onb:back:acc_name"))
+	assert _state(uid) == "onb:inv"
+	bot.clear()
+
+	run(bot, callback_update(uid, "o:inv:no"))
+	assert mn.ONB_INVENTORY_ALREADY_POSTED in bot.texts()
+	# The step is re-offered, not walked past: there is still something on screen to answer.
+	assert bot.last_text == mn.ONB_ASK_INVENTORY
+	assert bot.callback_datas() == ["o:inv:yes", "o:inv:no", "e:onb:back:inv", "e:onb:cancel:inv"]
+	assert _state(uid) == "onb:inv"
+	assert calls["cancelled"] == []  # the filed intake is not touched by a refused answer
+
+	# …and the answer the books already carry is what reaches the summary and the settings.
+	run(bot, callback_update(uid, "o:inv:yes"))
+	run(bot, message_update(uid, "Цаас, 1, 10"))
+	run(bot, callback_update(uid, "i:NYI-0001-2:confirm"))
+	run(bot, message_update(uid, "Дорж"))
+	run(bot, callback_update(uid, "o:micpa:skip"))
+	assert mn.ONB_SUMMARY_INVENTORY_NONE not in bot.last_text
+	run(bot, callback_update(uid, "o:summary:confirm"))
+	settings = frappe.get_doc(
+		"Nyabo Company Settings", frappe.db.exists("Nyabo Company Settings", {"company": company})
+	)
+	assert settings.has_inventory == 1
