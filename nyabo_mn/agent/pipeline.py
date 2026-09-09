@@ -976,6 +976,18 @@ def _find_supplier(name: str) -> str | None:
 
 BOOKS_LIST_LIMIT = 5
 BOOKS_ENTRY_LIMIT = 8
+
+
+def _truncation_note(total: int, shown: int) -> str:
+	"""«… нийт N мөрөөс эхний M-г харууллаа.», or nothing when the whole list is on the card.
+
+	A list answer that was cut and does not say so is worse than a short one: the accountant
+	reads five of forty unmatched lines under a heading that claims to be the unmatched lines
+	and plans the day around a picture of the books that is not true.
+	"""
+	return mn.ANSWER_TRUNCATED.format(total=total, shown=shown) if total > shown else ""
+
+
 TOP_ACCOUNTS_LIMIT = 5
 UNMATCHED_STATUSES = ("Unreconciled", "Pending")
 # What ``explain_entry`` will open, and the field on each that carries the amount a reader
@@ -1036,6 +1048,10 @@ def books_handlers(
 			limit=limit,
 		)
 
+	def _gl_count(**filters: Any) -> int:
+		"""How many rows the read matched, before any limit — the count a cut answer must name."""
+		return frappe.db.count("GL Entry", {"company": company, "is_cancelled": 0, **filters})
+
 	def _net_debit(rows: Iterable[Any]) -> Decimal:
 		return quantize(sum((Decimal(str(r.debit or 0)) - Decimal(str(r.credit or 0)) for r in rows), ZERO))
 
@@ -1074,11 +1090,18 @@ def books_handlers(
 		}
 
 	def _account_entries(inner: dict[str, Any]) -> dict[str, Any]:
-		"""The entries behind a figure — what «Юунаас бүрдэв?» under a spend answer asks for."""
+		"""The entries behind a figure — what «Юунаас бүрдэв?» under a spend answer asks for.
+
+		The heading reads as "that account's entries for that month", so a silent cut at
+		``BOOKS_ENTRY_LIMIT`` states something untrue about the books. The full count is read
+		and, when it is more than the rows shown, the answer says so.
+		"""
 		account = _account(inner.get("account_code"))
 		period = _period(inner.get("period"))
 		start, end = dates.period_bounds(period)
-		rows = _gl(account=account, posting_date=["between", [start, end]], limit=BOOKS_ENTRY_LIMIT)
+		window = {"account": account, "posting_date": ["between", [start, end]]}
+		rows = _gl(**window, limit=BOOKS_ENTRY_LIMIT)
+		total = _gl_count(**window)
 		label = dates.period_label(period)
 		entries = [
 			{"date": str(row.posting_date), "voucher": row.voucher_no, "amount": fmt_mnt(_net_debit([row]))}
@@ -1089,7 +1112,7 @@ def books_handlers(
 				period=label,
 				account=account,
 				entries="\n".join(mn.ACCOUNT_ENTRY_LINE.format(**e) for e in entries),
-			)
+			) + _truncation_note(total, len(entries))
 		else:
 			text = mn.ACCOUNT_ENTRIES_NONE.format(period=label, account=account)
 		return {
@@ -1097,6 +1120,7 @@ def books_handlers(
 			"account_code": _code(inner.get("account_code")),
 			"period": period,
 			"entries": entries,
+			"count": total,
 			"text": text,
 		}
 
@@ -1125,14 +1149,16 @@ def books_handlers(
 				"date": str(row.posting_date),
 				"amount": fmt_mnt(amount),
 			}
-			if len(seen) >= BOOKS_LIST_LIMIT:
-				break
-		entries = list(seen.values())
+		# Every voucher is counted and only then is the list cut: «сүүлийн бүртгэлүүд» over five
+		# of forty, with nothing saying so, is a false picture of what this supplier did.
+		total = len(seen)
+		entries = list(seen.values())[:BOOKS_LIST_LIMIT]
 		if not entries:
 			return {
 				"supplier": supplier,
 				"found": True,
 				"entries": [],
+				"count": 0,
 				"text": mn.LAST_ENTRIES_NONE.format(supplier=supplier),
 			}
 		# The doctype is looked up rather than printed: it is an ERPNext name and it reaches this
@@ -1151,7 +1177,9 @@ def books_handlers(
 			"supplier": supplier,
 			"found": True,
 			"entries": entries,
-			"text": mn.MSG_LAST_ENTRIES_ANSWER.format(supplier=supplier, entries=lines),
+			"count": total,
+			"text": mn.MSG_LAST_ENTRIES_ANSWER.format(supplier=supplier, entries=lines)
+			+ _truncation_note(total, len(entries)),
 		}
 
 	def _return_vouchers(rows: Iterable[Any]) -> set[str]:
@@ -1305,14 +1333,22 @@ def books_handlers(
 			text = mn.TOP_ACCOUNTS_NONE.format(period=label)
 		return {"period": period, "accounts": accounts_out, "text": text}
 
-	def _unmatched_count(inner: dict[str, Any]) -> dict[str, Any]:
-		count = frappe.db.count(
+	def _unmatched_total() -> int:
+		return frappe.db.count(
 			"Bank Transaction",
 			{"company": company, "docstatus": 1, "status": ["in", list(UNMATCHED_STATUSES)]},
 		)
+
+	def _unmatched_count(inner: dict[str, Any]) -> dict[str, Any]:
+		count = _unmatched_total()
 		return {"count": count, "text": mn.UNMATCHED_ANSWER.format(count=count)}
 
 	def _unmatched_lines(inner: dict[str, Any]) -> dict[str, Any]:
+		"""The unmatched statement lines themselves, and how many there are in all.
+
+		«Тулгагдаагүй банкны гүйлгээ:» over five rows of forty, with no sign of the cut, is the
+		answer an accountant would act on believing the work was nearly done.
+		"""
 		rows = frappe.get_all(
 			"Bank Transaction",
 			filters={"company": company, "docstatus": 1, "status": ["in", list(UNMATCHED_STATUSES)]},
@@ -1320,6 +1356,7 @@ def books_handlers(
 			order_by="date desc, name desc",
 			limit=BOOKS_LIST_LIMIT,
 		)
+		total = _unmatched_total()
 		lines = [
 			{
 				"date": str(row.date),
@@ -1329,12 +1366,14 @@ def books_handlers(
 			for row in rows
 		]
 		if not lines:
-			return {"lines": [], "text": mn.UNMATCHED_LINES_NONE}
+			return {"lines": [], "count": total, "text": mn.UNMATCHED_LINES_NONE}
+		text = mn.MSG_UNMATCHED_LINES_ANSWER.format(
+			lines="\n".join(mn.UNMATCHED_LINE.format(**line) for line in lines)
+		) + _truncation_note(total, len(lines))
 		return {
 			"lines": lines,
-			"text": mn.MSG_UNMATCHED_LINES_ANSWER.format(
-				lines="\n".join(mn.UNMATCHED_LINE.format(**line) for line in lines)
-			),
+			"count": total,
+			"text": text,
 		}
 
 	def _posted_document(ref: str) -> tuple[str, dict[str, Any]] | None:

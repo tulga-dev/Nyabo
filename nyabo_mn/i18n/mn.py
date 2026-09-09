@@ -926,6 +926,10 @@ ENTRY_EXPLAIN_NO_PROPOSAL = "Энэ бичилтийг Нябо санал бо�
 # an internal id an accountant has never seen, while the date is how they find that receipt.
 ENTRY_EXPLAIN_SOURCE = "🧾 Эх баримт: {date}-нд хүлээн авсан"
 ENTRY_NOT_FOUND_ANSWER = "«{name}» нэртэй бүртгэл энэ компанид олдсонгүй."
+# Every list answer shows at most a handful of rows. Saying so is not a nicety: an accountant
+# reading five of forty unmatched lines with no sign of the cut acts on a false picture of the
+# books, so the full count is computed and the cut is named beside the rows.
+ANSWER_TRUNCATED = "\n… нийт {total} мөрөөс эхний {shown}-г харууллаа."
 
 # --- explanation templates (LLM fills only the bracketed part) -----------------------------------
 EXPL_EXPENSE = "{what} тул {debit_code} дебетлэж, {credit_name} кредитлэв."
