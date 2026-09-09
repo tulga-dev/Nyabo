@@ -268,6 +268,40 @@ def test_bank_line_patterns_exist_and_stop_at_the_unverified_gate(books, banks):
 	assert post.post_proposal(expense, "Administrator")["posted_doctype"] == "Journal Entry"
 
 
+def test_the_bank_fee_rule_is_decided_even_when_two_rules_share_a_timestamp(books):
+	"""The flake behind test_bank_fee_rule_prefers_the_company_rule_row, pinned as a rule.
+
+	Provisioning writes a `bank_fee` rule from `rules_default.json`, so the accountant's own
+	rule is the second row on the company and `order_by="modified desc"` is what prefers it.
+	Two writes inside one clock tick — ordinary on the Windows test clock, possible anywhere
+	after a bulk update — left that comparison undecided, and which rule won then depended on
+	the order rows had been inserted in. In the books that is one statement line booked to a
+	different account than the next.
+	"""
+	import frappe
+
+	seeded = frappe.get_all(
+		"Nyabo Rule", filters={"company": books, "match_type": "bank_fee"}, fields=["name"]
+	)
+	assert len(seeded) == 1, "provisioning seeds one bank_fee rule; the test's own makes two"
+	rule = frappe.get_doc(
+		{
+			"doctype": "Nyabo Rule",
+			"company": books,
+			"match_type": "bank_fee",
+			"match_value": "хураамж|шимтгэл",
+			"target_account_code": "6810",
+			"vat_treatment": "none",
+			"source": "accountant",
+			"status": "active",
+		}
+	).insert()
+	stamp = frappe.db.get_value("Nyabo Rule", rule.name, "modified")
+	frappe.db.set_value("Nyabo Rule", seeded[0]["name"], "match_value", "шимтгэл", modified=stamp)
+
+	assert rules.bank_fee_rule(books)["name"] == rule.name
+
+
 def test_bank_fee_rule_prefers_the_company_rule_row(books, banks):
 	import frappe
 
