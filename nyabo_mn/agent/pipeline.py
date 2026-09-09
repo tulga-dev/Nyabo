@@ -1582,15 +1582,21 @@ def answer_question(
 			payload={"source": "question"},
 		)
 	if outcome.unverified_numbers:
-		# The model wrote a figure no handler returned; ``questions.answer`` already replaced
-		# the sentence. The event is what makes a model or prompt regression visible instead
-		# of it quietly degrading into round numbers nobody checks.
+		# The sentence carried a figure no handler returned; ``questions.answer`` already
+		# replaced it. The event is what makes a model or prompt regression visible instead of
+		# it quietly degrading into round numbers nobody checks — so it has to say which of the
+		# two happened. «invented» is a figure nothing in the trace accounts for; «derived» is
+		# one the model worked out from figures the handlers did return (an average, a
+		# difference). Both cost the sentence; only one is an alarm.
+		kinds = outcome.number_kinds
 		write_event(
 			"question_number_unverified",
 			company=company,
 			actor_user=user,
-			reason=", ".join(outcome.unverified_numbers)[:200],
-			payload={"tools": list(outcome.tools_used)},
+			reason=", ".join(
+				f"{n} ({kinds.get(n, questions.UNVERIFIED_INVENTED)})" for n in outcome.unverified_numbers
+			)[:200],
+			payload={"tools": list(outcome.tools_used), "numbers": dict(kinds)},
 		)
 	return questions.reply_of(outcome)
 

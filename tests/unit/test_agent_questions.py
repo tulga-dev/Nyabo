@@ -450,6 +450,51 @@ def test_no_sentence_and_no_handler_text_still_says_it_could_not_answer(tmp_path
 	assert [f.verb for f in outcome.follow_ups] == [questions.VERB_ESCALATE, questions.VERB_MENU]
 
 
+def test_a_derived_figure_is_logged_as_derived_not_as_a_fabrication(tmp_path):
+	"""MINOR: an average or a difference failed the check and was logged as an invention.
+
+	The sentence is still replaced — the ledger rule stands — but an event that reads as
+	though the model fabricated a supplier's balance, when it subtracted two figures it was
+	given, is the noise that gets the real alarms ignored.
+	"""
+	trace = (
+		_books_call("spend_by_account", {"amount": "100 000", "text": "2026 оны 8-р сар: 6210 100 000₮"}),
+		_books_call("spend_by_account", {"amount": "60 000", "text": "2026 оны 7-р сар: 6210 60 000₮"}),
+	)
+	assert questions.classify_unverified(("40000",), trace) == {"40000": questions.UNVERIFIED_DERIVED}
+	assert questions.classify_unverified(("160000",), trace) == {"160000": questions.UNVERIFIED_DERIVED}
+	assert questions.classify_unverified(("80000",), trace) == {"80000": questions.UNVERIFIED_DERIVED}
+	assert questions.classify_unverified(("1250000",), trace) == {"1250000": questions.UNVERIFIED_INVENTED}
+
+	# the whole loop: the sentence goes, and the outcome says which kind it was
+	client = MockLlmClient(fixtures_dir=tmp_path)
+	client.add(
+		"question",
+		{
+			"text": "Наймдугаар сар долдугаар сараас 40 000₮-өөр их байна.",
+			"tool_calls": [
+				{
+					"name": "answer_from_books",
+					"arguments": {
+						"query_kind": "spend_by_account",
+						"args": {**dict.fromkeys(questions.SUBJECT_KEYS), "account_code": "6210"},
+					},
+				}
+			],
+		},
+	)
+	handlers = {
+		"answer_from_books": lambda args: {
+			"amount": "100 000",
+			"text": "2026 оны 8-р сар: 6210 100 000₮, өмнөх сард 60 000₮",
+		}
+	}
+	outcome = questions.answer(client, "Ялгаа нь хэд вэ?", handlers, now=NOW)
+	assert outcome.unverified_numbers == ("40000",)
+	assert outcome.number_kinds == {"40000": questions.UNVERIFIED_DERIVED}
+	assert "40 000" not in outcome.answer.answer_mn, "the ledger rule still costs the sentence"
+
+
 # --- follow-up buttons -----------------------------------------------------------------------------
 
 

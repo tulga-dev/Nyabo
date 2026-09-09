@@ -37,6 +37,8 @@ import re
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
+from decimal import Decimal, InvalidOperation
+from itertools import combinations
 from typing import Any, Literal
 
 from pydantic import Field, ValidationError
@@ -207,6 +209,8 @@ class AnswerOutcome:
 	follow_ups: tuple[FollowUp, ...] = ()
 	memory: dict[str, Any] | None = None
 	unverified_numbers: tuple[str, ...] = ()
+	# {number: "invented" | "derived"} — what the event log says about each of the above.
+	number_kinds: Mapping[str, str] = field(default_factory=dict)
 	subject: Mapping[str, str] = field(default_factory=dict)
 
 
@@ -443,13 +447,78 @@ def unverified_numbers(
 ) -> tuple[str, ...]:
 	"""Numbers in the model's sentence that no handler, the question or the clock produced.
 
-	Returned rather than raised so the caller can log the fragment: a model that starts
-	inventing figures is a prompt or a model-choice regression, and it must be visible.
+	The threshold is deliberately strict: it accepts a figure only where it can point at the
+	handler that produced it, so *any* arithmetic of the model's own — an average, a
+	difference, a percentage — fails it and costs the sentence. That is the trade the ledger
+	rule asks for. A figure Nyabo cannot trace to a read is a figure Nyabo does not send,
+	and a check that admitted "close enough to something a handler returned" would be no
+	check at all. What arithmetic costs is the model's phrasing, never the number.
+
+	Returned rather than raised so the caller can log it — see ``classify_unverified``, which
+	keeps the log honest about which of the two happened.
 	"""
 	known = _known_numbers(calls, question, now)
 	cleaned = _GROUP_SEPARATOR.sub("", answer_text or "")
 	unknown = [raw for raw in _NUMBER.findall(cleaned) if not (_variants(raw) & known)]
 	return tuple(dict.fromkeys(unknown))
+
+
+# Two very different things fail the check above, and only the log tells them apart: a figure
+# nothing in the trace can account for, and one the model worked out from figures the handlers
+# did return. Both replace the sentence. Logging both as the first trains whoever reads the
+# events to ignore them, which costs exactly the alarm that matters.
+UNVERIFIED_INVENTED = "invented"
+UNVERIFIED_DERIVED = "derived"
+# Absolute plus relative, because a model that derives a figure also rounds it.
+_DERIVED_ABSOLUTE = Decimal("0.5")
+_DERIVED_RELATIVE = Decimal("0.005")
+
+
+def _decimals(sources: Sequence[str]) -> list[Decimal]:
+	"""Every number in ``sources`` as a value, for the derivation check."""
+	values: list[Decimal] = []
+	for source in sources:
+		cleaned = _GROUP_SEPARATOR.sub("", source or "")
+		for raw in _NUMBER.findall(cleaned):
+			try:
+				values.append(Decimal(raw))
+			except InvalidOperation:  # pragma: no cover - _NUMBER only matches decimal literals
+				continue
+	return values
+
+
+def _is_derived(value: Decimal, knowns: Sequence[Decimal]) -> bool:
+	"""One step of arithmetic over two figures a handler returned: sum, difference, average.
+
+	Deliberately shallow, and deliberately blind to the question and the clock: a month
+	number minus an hour is a coincidence, not a derivation, and calling it one would let
+	every invention look like reasoning. This decides nothing the user sees.
+	"""
+	for a, b in combinations(knowns, 2):
+		for candidate in (a + b, abs(a - b), (a + b) / 2):
+			if abs(value - candidate) <= _DERIVED_ABSOLUTE + abs(candidate) * _DERIVED_RELATIVE:
+				return True
+	return False
+
+
+def classify_unverified(unknown: Sequence[str], calls: Sequence[ToolCall]) -> dict[str, str]:
+	"""Label each unverified number ``invented`` or ``derived``, for the event log only.
+
+	The sentence is replaced either way. This exists so the log stays honest: a model that
+	worked out the difference between two figures it was given has not fabricated a
+	supplier's balance, and an event that reads as though it had is the kind of noise that
+	gets real ones ignored.
+	"""
+	knowns = _decimals(_handler_output(calls))
+	kinds: dict[str, str] = {}
+	for raw in unknown:
+		try:
+			value = Decimal(raw)
+		except InvalidOperation:  # pragma: no cover - these come from _NUMBER too
+			kinds[raw] = UNVERIFIED_INVENTED
+			continue
+		kinds[raw] = UNVERIFIED_DERIVED if _is_derived(value, knowns) else UNVERIFIED_INVENTED
+	return kinds
 
 
 # --- follow-up buttons -----------------------------------------------------------------------------
@@ -725,6 +794,7 @@ def answer(
 		follow_ups=offered,
 		memory=remember(text, llm.tool_calls, company=company, now=now),
 		unverified_numbers=invented,
+		number_kinds=classify_unverified(invented, llm.tool_calls),
 		subject=subject,
 	)
 
@@ -756,6 +826,8 @@ __all__ = [
 	"TOOL_ARG_MODELS",
 	"TOOL_NAMES",
 	"TOOL_SPECS",
+	"UNVERIFIED_DERIVED",
+	"UNVERIFIED_INVENTED",
 	"VERB_ESCALATE",
 	"VERB_MENU",
 	"AnswerFaqArgs",
@@ -768,6 +840,7 @@ __all__ = [
 	"Reply",
 	"answer",
 	"build_user_text",
+	"classify_unverified",
 	"follow_ups",
 	"make_dispatcher",
 	"memory_injection",

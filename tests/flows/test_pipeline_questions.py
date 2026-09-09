@@ -334,7 +334,8 @@ def test_an_invented_number_is_replaced_and_recorded(run_receipt, books):
 	events = frappe.get_all(
 		"Nyabo Event", filters={"event_type": "question_number_unverified"}, fields=["reason"]
 	)
-	assert len(events) == 1 and events[0].reason == "1200000"
+	# The event names which kind it was: nothing in the trace accounts for 1 200 000₮.
+	assert len(events) == 1 and events[0].reason == f"1200000 ({questions.UNVERIFIED_INVENTED})"
 
 
 def test_faq_handler_without_a_file_says_not_found(books):
