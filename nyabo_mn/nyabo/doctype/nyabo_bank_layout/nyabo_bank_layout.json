@@ -79,7 +79,7 @@
   {
    "fieldname": "column_map_json",
    "fieldtype": "JSON",
-   "label": "Баганы зураглал (JSON)"
+   "label": "Баганын зураглал (JSON)"
   },
   {
    "fieldname": "sample_file",

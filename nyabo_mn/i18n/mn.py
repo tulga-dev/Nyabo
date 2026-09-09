@@ -269,7 +269,7 @@ MSG_EXTRACTION_FAILED = "Баримтыг уншиж чадсангүй. Илү�
 MSG_STATEMENT_RECEIVED = "🏦 Хуулга хүлээн авлаа, уншиж байна…"
 MSG_STATEMENT_IMPORTED = "🏦 {bank} · {count} гүйлгээ импортлолоо ({new} шинэ, {dup} давхардсан)\nАвтомат тулгасан: {matched} · Тулгаагүй: {unmatched}"
 MSG_STATEMENT_LAYOUT_UNKNOWN = (
-	"Энэ хуулгын форматыг танихгүй байна. Эхний мөрүүд:\n{preview}\nБаганы утгыг зааж өгнө үү."
+	"Энэ хуулгын форматыг танихгүй байна. Эхний мөрүүд:\n{preview}\nБаганын утгыг зааж өгнө үү."
 )
 MSG_STATEMENT_LAYOUT_ASK_COLUMN = "«{header}» багана юу вэ?"
 MSG_STATEMENT_LAYOUT_SAVED = "Форматыг хадгаллаа ({layout}). Админ баталгаажуулсны дараа автоматаар ашиглана."
@@ -936,11 +936,11 @@ MSG_STATEMENT_NOT_A_STATEMENT = "Энэ баримт банкны хуулга �
 MSG_STATEMENT_NO_LINES = "Хуулгаас гүйлгээ олдсонгүй."
 MSG_STATEMENT_BANK_UNKNOWN = "Хуулгын банк тодорхойгүй байна; форматыг зааж өгнө үү."
 MSG_LAYOUT_BAD_JSON = "«{field}» талбар зөв JSON биш байна."
-MSG_LAYOUT_ROLE_UNKNOWN = "«{role}» баганы үүрэг танигдахгүй байна. Зөвшөөрөгдөх: {roles}"
-MSG_LAYOUT_NEEDS_DATE_DESCRIPTION = "Баганы зураглалд огноо болон гүйлгээний утгын багана заавал байна."
-MSG_LAYOUT_AMOUNT_STYLE_MISMATCH = "Дүнгийн хэлбэр «{style}» баганы зураглалтай тохирохгүй байна."
+MSG_LAYOUT_ROLE_UNKNOWN = "«{role}» баганын үүрэг танигдахгүй байна. Зөвшөөрөгдөх: {roles}"
+MSG_LAYOUT_NEEDS_DATE_DESCRIPTION = "Баганын зураглалд огноо болон гүйлгээний утгын багана заавал байна."
+MSG_LAYOUT_AMOUNT_STYLE_MISMATCH = "Дүнгийн хэлбэр «{style}» баганын зураглалтай тохирохгүй байна."
 MSG_LAYOUT_VERIFY_NEEDS_COLUMNS = (
-	"Толгойн гарын үсэг болон баганы зураглалгүй загварыг баталгаажуулж болохгүй."
+	"Толгойн гарын үсэг болон баганын зураглалгүй загварыг баталгаажуулж болохгүй."
 )
 MSG_LAYOUT_BAD_DATE_FORMAT = "Огнооны формат «{fmt}» буруу байна."
 MSG_LAYOUT_LEARNED_NOTE = "{company} компанийн {document} хуулгаас нягтлангийн зааснаар сурсан формат."
@@ -1075,7 +1075,7 @@ MSG_STATEMENT_LAYOUT_INCOMPLETE = (
 	"Өөр арга байхгүй бол «Цуцлах» дарж хуулгыг дахин илгээнэ үү."
 )
 MSG_STATEMENT_LAYOUT_CANCELLED = (
-	"Баганы тохиргоог зогсоолоо. Хуулга бүртгэгдээгүй тул шаардлагатай бол дахин илгээнэ үү."
+	"Баганын тохиргоог зогсоолоо. Хуулга бүртгэгдээгүй тул шаардлагатай бол дахин илгээнэ үү."
 )
 ONB_INVENTORY_SKIPPED = (
 	"Бараа материалын жагсаалтыг алгаслаа. Дараа нь «/эхлэх дахин» гэж бичээд бүртгэж болно."
@@ -1110,7 +1110,7 @@ ONB_CONFIRM_SUMMARY = "Дээрх мэдээлэл зөв үү?"
 CARD_BANK_CANDIDATE = "{index}. {voucher} · {date} · {amount}₮ · {party}"
 MSG_BANK_EXPENSE_CHOOSE_ACCOUNT = "Энэ гүйлгээг аль дансанд бүртгэх вэ?"
 MSG_BANK_TRANSACTION_NOT_FOUND = "Банкны гүйлгээ олдсонгүй: {name}"
-MSG_STATEMENT_LAYOUT_DONE = "Баганы тохиргоо: {mapping}"
+MSG_STATEMENT_LAYOUT_DONE = "Баганын тохиргоо: {mapping}"
 MSG_STATEMENT_ADMIN_VERIFY = "🆕 Шинэ банкны формат хадгалагдлаа: {layout}. Баталгаажуулна уу."
 MSG_CLOSE_PDF_CAPTION = "{title} · {period}"
 MSG_CLOSE_CANCELLED = "Сарын хаалтыг цуцаллаа."
@@ -1136,7 +1136,7 @@ SIM_EXPLANATION = "Тайлбар: {explanation}"
 SIM_CITATION = "📜 {citation}"
 SIM_STATEMENT_TITLE = "🏦 Хуулгын симуляци · {path}"
 SIM_STATEMENT_LINE = "{date} · {amount}₮ · «{description}» → {result}"
-SIM_STATEMENT_NO_LAYOUT = "Хуулгын форматыг танисангүй; баганы утгыг нягтлан зааж өгнө."
+SIM_STATEMENT_NO_LAYOUT = "Хуулгын форматыг танисангүй; баганын утгыг нягтлан зааж өгнө."
 SIM_COMPANY_CLEANUP_FAILED = "Түр компанийг ({company}) устгаж чадсангүй: {error}"
 EVAL_FLAG_LABELS = {
 	"low_confidence": "танилт тодорхойгүй",
