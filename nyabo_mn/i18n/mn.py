@@ -37,6 +37,20 @@ BTN_SHOW_ENTRY = "Бичилт харах"
 BTN_REVERSE = "Буцаах"
 BTN_NEW_ENTRY = "Шинэ бичилт"
 
+# --- question follow-ups (the next read the accountant would ask for; §5.7) -------------
+# The arrows carry the direction so the month name alone can be the label; a Telegram
+# button is one short line and «Өмнөх сарын дүнг харах» wraps on a narrow phone.
+BTN_Q_PREV_PERIOD = "← {period}"
+BTN_Q_NEXT_PERIOD = "{period} →"
+BTN_Q_EXPLAIN = "Юунаас бүрдэв?"
+BTN_Q_ACCOUNT_TOTAL = "Сарын нийт дүн"
+BTN_Q_SUPPLIER_ENTRIES = "Сүүлийн бичилтүүд"
+BTN_Q_SUPPLIER_TOTAL = "Харилцагчийн нийт дүн"
+BTN_Q_TOP_ACCOUNTS = "Хамгийн их зардал"
+BTN_Q_UNMATCHED_LINES = "Аль гүйлгээ вэ?"
+BTN_Q_UNMATCHED_COUNT = "Хэд байна?"
+BTN_Q_ASK_ADMIN = "Админаас асуух"
+
 # --- rejection reasons (one tap) -------------------------------------------------------
 REJECT_PERSONAL = "Хувийн зардал"
 REJECT_DUPLICATE = "Давхардсан"
@@ -577,6 +591,12 @@ MSG_ESCALATED = "Асуултыг админд дамжууллаа."
 MSG_BALANCE_ANSWER = "{account}: {date} өдрийн үлдэгдэл {balance}₮"
 MSG_SPEND_ANSWER = "{period}: {account} {amount}₮"
 MSG_LAST_ENTRIES_ANSWER = "{supplier} сүүлийн бүртгэлүүд:\n{entries}"
+# The line under an answer that names what was actually read, so a follow-up that carried the
+# wrong month forward is visible instead of silent.
+MSG_QUESTION_SUBJECT = "📒 {subject}"
+MSG_QUESTION_TRY_REPHRASE = "Асуултаа өөрөөр бичиж үзнэ үү, эсвэл админаас асууна уу."
+MSG_QUESTION_CONTEXT_GONE = "Энэ хариулт хуучирсан байна. Асуултаа дахин бичнэ үү."
+MSG_QUESTION_ESCALATE_SUMMARY = "Хэрэглэгч хариултын дор «{button}» товч дарлаа: {question}"
 
 # --- reports (labels; report names stay ASCII) --------------------------------------------
 REPORT_GENERAL_JOURNAL = "Ерөнхий журнал"
@@ -848,6 +868,26 @@ LAST_ENTRY_LINE = "{date} · {doctype} {name} · {amount}₮"
 LAST_ENTRIES_NONE = "{supplier} харилцагчийн бүртгэл олдсонгүй."
 UNMATCHED_ANSWER = "Тулгагдаагүй банкны гүйлгээ: {count}"
 SUPPLIER_NOT_FOUND_ANSWER = "{supplier} нэртэй харилцагч олдсонгүй."
+# The wider read-only answers (§5.7). Every figure in them is computed by the handler.
+ACCOUNT_ENTRY_LINE = "{date} · {voucher} · {amount}₮"
+MSG_ACCOUNT_ENTRIES_ANSWER = "{period}: {account} дансны бичилтүүд:\n{entries}"
+ACCOUNT_ENTRIES_NONE = "{period}: {account} дансанд бичилт алга."
+MSG_SUPPLIER_TOTAL_ANSWER = "{period}: {supplier} — худалдан авалт {purchases}₮, төлсөн {payments}₮"
+SUPPLIER_TOTAL_NONE = "{period}: {supplier} харилцагчтай холбоотой гүйлгээ алга."
+MSG_VAT_POSITION_ANSWER = (
+	"{period}: борлуулалтын НӨАТ {output}₮, худалдан авалтын НӨАТ {input}₮, төлөх НӨАТ {net}₮"
+)
+MSG_VAT_NOT_PAYER_ANSWER = "Компани {period}-д НӨАТ төлөгч бус тул НӨАТ-ын мэдээлэл байхгүй."
+TOP_ACCOUNT_LINE = "{code} {account} · {amount}₮"
+MSG_TOP_ACCOUNTS_ANSWER = "{period}: хамгийн их зардалтай данснууд:\n{accounts}"
+TOP_ACCOUNTS_NONE = "{period}: бүртгэсэн зардал алга."
+UNMATCHED_LINE = "{date} · {amount}₮ · {description}"
+MSG_UNMATCHED_LINES_ANSWER = "Тулгагдаагүй банкны гүйлгээ:\n{lines}"
+UNMATCHED_LINES_NONE = "Тулгагдаагүй банкны гүйлгээ алга."
+MSG_ENTRY_EXPLAIN_ANSWER = "{doctype} {name} · {date} · {amount}₮\n{explanation}"
+ENTRY_EXPLAIN_NO_PROPOSAL = "Энэ бичилтийг Нябо санал болгоогүй тул тайлбар алга."
+ENTRY_EXPLAIN_SOURCE = "🧾 Эх баримт: {document}"
+ENTRY_NOT_FOUND_ANSWER = "«{name}» нэртэй бүртгэл энэ компанид олдсонгүй."
 
 # --- explanation templates (LLM fills only the bracketed part) -----------------------------------
 EXPL_EXPENSE = "{what} тул {debit_code} дебетлэж, {credit_name} кредитлэв."
