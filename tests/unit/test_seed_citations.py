@@ -225,6 +225,35 @@ def test_patterns_the_instrument_does_not_prescribe_stay_unverified(pattern_rows
 		assert by_id[pid]["verified"] is False, pid
 
 
+# The day the reading bar was widened, and the marker each row it settled carries. Both are
+# facts about how the citations were produced, so the document and the seed must agree on them.
+SECOND_READING_DATE = "2026-09-09"
+SECOND_READER_MARKER = f"SECOND READER {SECOND_READING_DATE}"
+
+
+def test_the_method_section_states_the_bar_that_was_actually_applied(pattern_rows):
+	"""docs/legal/README.md is evidence about how these citations were made, for a ministry reviewer.
+
+	The bar on 2026-09-08 was *both* independent readers (or the reconciler) rating a section
+	exact. On 2026-09-09 a second reading acted as the second reader for the rows only one
+	person had reached, and seven patterns were verified that way. A README saying only "a
+	reader pair" describes neither process and lets the weaker one pass for the stronger, so
+	require both sentences — and require the rows it names to be exactly the rows whose own
+	notes say a second reader settled them.
+	"""
+	readme = (LEGAL_DIR / "README.md").read_text(encoding="utf-8")
+	assert "both readers" in readme, "the original bar must still be stated, not softened away"
+	assert SECOND_READING_DATE in readme, "a changed bar must say when it changed"
+	settled = {
+		row["pattern_id"]
+		for row in pattern_rows
+		if row["verified"] and SECOND_READER_MARKER in (row["notes"] or "")
+	}
+	assert settled, "no row claims the second reading any more; the README paragraph is stale"
+	for pattern_id in sorted(settled):
+		assert pattern_id in readme, f"{pattern_id} rests on the second reading and is not named"
+
+
 def test_unverifiable_patterns_say_what_an_admin_would_be_vouching_for(pattern_rows):
 	"""The desk's verify button is the only door; an unverifiable row must brief the person at it.
 

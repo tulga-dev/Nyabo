@@ -35,15 +35,34 @@ written so the founder can hand it to the accountant and to the ministry reviewe
 
 1. Each text was fetched with curl from legalinfo.mn / parliament.mn (the pages are
    server-rendered; WebFetch summaries were not used for quotes) and saved as plain text.
-2. Order 116 was mapped to the posting patterns by two independent readers; a third
-   reconciled the disagreements. A pattern is verified only where a reader pair (or the
-   reconciler) rated the section *exact* and the integrator found the sentence verbatim in
-   the saved text; *probable* readings and disagreements keep `verified: false` with the
-   candidate sections in `notes`. A second reading on **2026-09-09** re-fetched the
-   instrument (body byte-identical to the 2026-09-08 copy), acted as the second reader the
-   single-reader candidates were waiting for, and settled the rest: 35 of 44 patterns are
-   now verified and the nine that are not say in their notes what an admin would be
-   vouching for if they ticked the box. Details in [order116.md](order116.md) §3.
+2. Order 116 was mapped to the posting patterns by two independent readers (A and B) on
+   **2026-09-08**; a third (R) reconciled their disagreements. The bar that day was: a
+   pattern is verified only where **both readers, or R, rated the section *exact*** and the
+   integrator found the sentence verbatim in the saved text. *Probable* readings,
+   disagreements and rows only one reader had reached kept `verified: false` with the
+   candidate sections in `notes`.
+
+   **That bar was widened on 2026-09-09, and this is exactly how.** A second reading (S)
+   re-fetched the instrument (body byte-identical to the 2026-09-08 copy) and read the
+   outstanding candidates itself. For those rows S *is* the second reader: the pair is "the
+   2026-09-08 reader plus S", not two people who read independently and were then compared.
+   Seven patterns were verified on that basis — `purchase_expense_non_vat`,
+   `receivable_collect`, `payable_pay`, `bank_line_expense`, `bank_fee_expense`,
+   `income_tax_pay`, `sale_credit_vat_payer` — and each of their `notes` says
+   `SECOND READER 2026-09-09`, so which rows rest on which bar is readable row by row.
+
+   *Why it was widened rather than the rows left unverified:* `rules.guard.require_verified`
+   refuses an unverified pattern for a real posting, and four of those seven are the whole
+   everyday path of a non-VAT company — an expense receipt, collecting a receivable, paying a
+   supplier, a bank outflow. While they were unverified the product refused every receipt its
+   first user sent. The alternative was not "a stricter citation"; it was a live site where a
+   human ticked the boxes with no reading behind them at all.
+
+   So, precisely: a pattern in this repository is verified where the section was rated
+   *exact* by both 2026-09-08 readers, or by R, or by the 2026-09-08 reader together with S,
+   **and** the integrator found the sentence verbatim in the fetched text. 35 of 44 patterns
+   are verified on that bar; the nine that are not say in their notes what an admin would be
+   vouching for if they ticked the box. Per-row detail in [order116.md](order116.md) §3.
 3. Tax parameters were compared row by row with the confirmed facts; where the text
    contradicted the reference (`docs/mn-rules-reference.md` §1.3) the seed value was
    corrected to the text and the old claim recorded.
