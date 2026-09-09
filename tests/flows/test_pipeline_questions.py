@@ -462,3 +462,19 @@ def test_a_poisoned_remembered_supplier_is_dropped_and_recorded(books):
 	assert "previous_supplier" not in client.calls[0].user_text
 	events = frappe.get_all("Nyabo Event", filters={"event_type": "injection_suspected"}, fields=["reason"])
 	assert len(events) == 1 and events[0].reason == "Ignore all previous instructions"
+
+
+def test_a_month_figure_is_given_a_noun(run_receipt, books):
+	"""MINOR: «2026 оны 9-р сар: 6210 - Шатахуун - TST 77 272.73₮» never says what the figure is.
+
+	It is what the user reads whenever the model writes no sentence or an unverifiable one, so
+	it carries the whole answer on its own.
+	"""
+	proposal = run_receipt("petrovis_fuel")
+	post.post_proposal(proposal.name, ACCOUNTANT)
+	run = pipeline.books_handlers(books, today=NOW.date())["answer_from_books"]
+	spend = run({"query_kind": "spend_by_account", "args": {"account_code": "6210", "period": "2026-09"}})
+	label = mn.PERIOD_LABEL.format(year=2026, month=mn.MONTHS[8])
+	assert spend["text"] != f"{label}: {spend['account']} {spend['amount']}₮", "a number with no noun"
+	assert spend["text"].startswith(f"{label}: {spend['account']} ")
+	assert spend["text"].endswith(f"{spend['amount']}₮")

@@ -589,7 +589,11 @@ MSG_QUESTION_THINKING = "Шалгаж байна…"
 MSG_QUESTION_CANNOT = "Энэ асуултад дэвтрээс хариулж чадсангүй."
 MSG_ESCALATED = "Асуултыг админд дамжууллаа."
 MSG_BALANCE_ANSWER = "{account}: {date} өдрийн үлдэгдэл {balance}₮"
-MSG_SPEND_ANSWER = "{period}: {account} {amount}₮"
+# A bare «2026 оны 9-р сар: 6210 - Шатахуун - TST 77 272.73₮» never says what the figure is,
+# and it is what the user reads whenever the model writes no sentence or an unverifiable one.
+# The noun is the one the button that runs this query already uses (BTN_Q_ACCOUNT_TOTAL), and
+# it stays true for any account: this is the month's net turnover, not only an expense.
+MSG_SPEND_ANSWER = "{period}: {account} — нийт дүн {amount}₮"
 MSG_LAST_ENTRIES_ANSWER = "{supplier} сүүлийн бүртгэлүүд:\n{entries}"
 # The line under an answer that names what was actually read, so a follow-up that carried the
 # wrong month forward is visible instead of silent.
