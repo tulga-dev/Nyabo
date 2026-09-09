@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import base64
 import json
+import re
 from typing import Any
 
 from nyabo_mn.agent.llm_client import (
@@ -52,6 +53,7 @@ from nyabo_mn.agent.llm_client import (
 	ToolHandler,
 	ToolSpec,
 	check_against_schema,
+	logger,
 	parse_json_object,
 	run_tool_handler,
 	trace_as_dicts,
@@ -59,6 +61,28 @@ from nyabo_mn.agent.llm_client import (
 
 MAX_OUTPUT_TOKENS = 4096
 IMAGE_DETAIL = "high"
+
+#: Sampling parameters a model may refuse outright. The Responses API answers 400
+#: ("Unsupported parameter: 'temperature' is not supported with this model."), so the whole
+#: call fails until the parameter is dropped — which is how every receipt on the first live
+#: site failed extraction. Which model refuses which parameter is not something the API
+#: publishes, and a hard-coded list of model ids would rot, so it is learned per model at
+#: runtime instead: send it once, and never again to that model. Dropping it costs only
+#: determinism, and the JSON schema is what actually constrains the answer.
+DROPPABLE_PARAMS: frozenset[str] = frozenset({"temperature", "top_p"})
+_UNSUPPORTED_PARAM = re.compile(r"Unsupported parameter: '([A-Za-z0-9_.]+)'")
+_unsupported_by_model: dict[str, set[str]] = {}
+
+
+def unsupported_parameter(message: str) -> str | None:
+	"""The parameter name in an "Unsupported parameter" 400, if the message names one."""
+	match = _UNSUPPORTED_PARAM.search(message)
+	return match.group(1) if match else None
+
+
+def forget_unsupported_parameters() -> None:
+	"""Clear what has been learned. For tests; a process learns this once and keeps it."""
+	_unsupported_by_model.clear()
 
 
 def _field(obj: Any, key: str, default: Any = None) -> Any:
@@ -142,7 +166,26 @@ class OpenAIClient(BaseClient):
 		]
 
 	def _create(self, **kwargs: Any) -> Any:
-		return self._request(lambda: self.transport.responses.create(model=self.model, **kwargs))
+		"""One Responses call, retrying once without a parameter this model rejects.
+
+		See ``DROPPABLE_PARAMS``: the refusal is a 400 naming the parameter, so the answer is
+		to drop that one and repeat, then remember it for the life of the process. Only the
+		named parameter is dropped, and only if it is one we are willing to lose; any other
+		400 is a real error and is raised.
+		"""
+		known = _unsupported_by_model.setdefault(self.model, set())
+		for name in known & set(kwargs):
+			del kwargs[name]
+		try:
+			return self._request(lambda: self.transport.responses.create(model=self.model, **kwargs))
+		except LlmProviderError as exc:
+			name = unsupported_parameter(str(exc))
+			if name is None or name not in kwargs or name not in DROPPABLE_PARAMS:
+				raise
+			known.add(name)
+			del kwargs[name]
+			logger.info("llm dropping unsupported parameter model=%s param=%s", self.model, name)
+			return self._request(lambda: self.transport.responses.create(model=self.model, **kwargs))
 
 	# -- response reading --
 

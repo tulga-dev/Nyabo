@@ -8,13 +8,14 @@ import pytest
 
 from nyabo_mn.agent.llm_client import (
 	ImagePart,
+	LlmProviderError,
 	LlmRateLimited,
 	LlmSchemaError,
 	RetryPolicy,
 	TextPart,
 	ToolSpec,
 )
-from nyabo_mn.agent.openai_client import OpenAIClient
+from nyabo_mn.agent.openai_client import OpenAIClient, forget_unsupported_parameters
 
 SCHEMA = {
 	"type": "object",
@@ -248,3 +249,64 @@ def test_sdk_exceptions_are_translated(monkeypatch):
 	with pytest.raises(LlmProviderError) as exc:
 		client.structured(purpose="extract", system="s", user=[TextPart("u")], schema=SCHEMA, schema_name="t")
 	assert exc.value.status_code == 400 and len(transport.requests) == 1
+
+
+# --- parameters a model refuses -------------------------------------------------------------
+
+
+def _unsupported(param: str = "temperature") -> LlmProviderError:
+	"""What the Responses API answers for a model that refuses the parameter (a real 400)."""
+	return LlmProviderError(
+		"Error code: 400 - {'error': {'message': \"Unsupported parameter: '"
+		+ param
+		+ "' is not supported with this model.\", 'type': 'invalid_request_error'}}",
+		status_code=400,
+		retryable=False,
+	)
+
+
+def test_a_model_that_refuses_temperature_is_retried_without_it():
+	"""Every receipt on the first live site failed this way: a 400, never a degraded answer."""
+	forget_unsupported_parameters()
+	transport = FakeTransport([_unsupported(), _response(text='{"a": 1}')])
+	result = _client(transport).structured(
+		purpose="extract",
+		system="SYS",
+		user=[TextPart("hello")],
+		schema=SCHEMA,
+		schema_name="thing",
+		temperature=0,
+	)
+	assert result.data == {"a": 1}
+	assert len(transport.requests) == 2
+	assert "temperature" in transport.requests[0]
+	assert "temperature" not in transport.requests[1]
+
+
+def test_the_refusal_is_learned_so_the_next_call_never_sends_it_again():
+	forget_unsupported_parameters()
+	first = FakeTransport([_unsupported(), _response(text='{"a": 1}')])
+	_client(first).structured(
+		purpose="extract", system="S", user=[TextPart("x")], schema=SCHEMA, schema_name="t", temperature=0
+	)
+	second = FakeTransport([_response(text='{"a": 2}')])
+	_client(second).structured(
+		purpose="extract", system="S", user=[TextPart("x")], schema=SCHEMA, schema_name="t", temperature=0
+	)
+	assert "temperature" not in second.requests[0]
+	assert len(second.requests) == 1
+
+
+def test_a_400_that_names_nothing_droppable_is_raised():
+	forget_unsupported_parameters()
+	transport = FakeTransport([_unsupported("input"), _response(text='{"a": 1}')])
+	with pytest.raises(LlmProviderError):
+		_client(transport).structured(
+			purpose="extract",
+			system="S",
+			user=[TextPart("x")],
+			schema=SCHEMA,
+			schema_name="t",
+			temperature=0,
+		)
+	assert len(transport.requests) == 1
