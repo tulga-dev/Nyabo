@@ -658,7 +658,16 @@ def handle_escape(ctx: Ctx, state: str, payload: dict[str, Any], verb: str) -> b
 
 
 def _skip_step(ctx: Ctx, payload: dict[str, Any], step: str) -> bool:
-	"""True when the step is genuinely optional; the VAT regime and the summary never are."""
+	"""True when the step is genuinely optional; the VAT regime and the summary never are.
+
+	Nor is the Тийм/Үгүй stock question, which is why ``inv`` is absent while ``inv_wait`` and
+	``inv_confirm`` are here. It used to be honoured, and honouring it wrote ``has_inventory =
+	False`` — a definite answer about the books, and the one that decides whether provisioning
+	opens the inventory accounts — while replying ``ONB_INVENTORY_SKIPPED``, which talks about
+	the list. Nothing drew the button, so this only ever ran for the founder's typed «алгасах»,
+	and it recorded an answer they never gave, silently, under a sentence about something else.
+	Two buttons, no default, no third answer: the word is refused like it is on ``vat``.
+	"""
 	if step == "banks":
 		payload["selected_banks"] = []
 		payload["banks"] = []
@@ -676,12 +685,6 @@ def _skip_step(ctx: Ctx, payload: dict[str, Any], step: str) -> bool:
 		return True
 	if step == "acct":
 		_store_account_number(ctx, payload, None)
-		return True
-	if step == "inv":
-		payload.pop("inventory_skipped", None)
-		payload["has_inventory"] = False
-		ctx.reply(mn.ONB_INVENTORY_SKIPPED)
-		_ask_accountant(ctx, payload)
 		return True
 	if step in ("inv_wait", "inv_confirm"):
 		# The founder's case: «алгасах» here leaves the opening stock for later and the wizard

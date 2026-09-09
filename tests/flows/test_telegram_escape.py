@@ -90,6 +90,49 @@ def test_tapping_skip_in_the_inventory_step_does_the_same(company, monkeypatch):
 	assert mn.ONB_INVENTORY_SKIPPED in bot.texts()
 
 
+def _at_the_stock_question(uid: int, company: str, monkeypatch: pytest.MonkeyPatch) -> FakeBotApi:
+	"""One question earlier than ``_at_inventory_list``: «Бараа материалын үлдэгдэл бий юу?»."""
+	monkeypatch.setattr(_deps, "apply_onboarding", lambda *args: {"ok": True})
+	link_user(uid, "Accountant", company)
+	bot = FakeBotApi()
+	run(bot, message_update(uid, "/эхлэх"))
+	run(bot, callback_update(uid, "o:vat:no"))
+	run(bot, callback_update(uid, "o:400m:yes"))
+	run(bot, callback_update(uid, "o:banks:done"))
+	assert _state(uid) == "onb:inv"
+	return bot
+
+
+def _escape_verbs(markup: dict[str, Any] | None) -> set[str]:
+	"""The verbs a prompt really drew, so a test can tell an offer from a typed word."""
+	return {str(d).split(":")[2] for d in _datas(markup) if str(d).startswith(f"{keyboards.PREFIX_ESCAPE}:")}
+
+
+def test_typing_skip_at_the_stock_question_records_no_answer(company, monkeypatch):
+	"""MAJOR: «алгасах» here wrote has_inventory = False — an answer about the books — in silence.
+
+	The question draws Тийм and Үгүй and no Алгасах, and there is no third answer to record:
+	whether the company holds stock is what decides whether provisioning opens the inventory
+	accounts at all. The reply even talked about the *list* («жагсаалтыг алгаслаа»), so the
+	founder's own keystroke told Nyabo something they never said and then described it as
+	something else. It is refused, the way it is on the VAT question.
+	"""
+	bot = _at_the_stock_question(9215, company, monkeypatch)
+	assert keyboards.ESCAPE_SKIP not in _escape_verbs(bot.last_markup()), "no Алгасах is drawn here"
+	bot.clear()
+
+	run(bot, message_update(9215, "алгасах"))
+
+	assert bot.last_text == mn.MSG_STEP_CANNOT_SKIP
+	assert _state(9215) == "onb:inv", "the question stands, so it can still be answered"
+	assert "has_inventory" not in _payload(9215)
+	assert mn.ONB_INVENTORY_SKIPPED not in bot.texts()
+	# …and the answer the founder does give still lands.
+	run(bot, callback_update(9215, "o:inv:no"))
+	assert _payload(9215)["has_inventory"] is False
+	assert _state(9215) == "onb:acc_name"
+
+
 def _walk_to_the_summary(bot: FakeBotApi, uid: int) -> None:
 	"""From onb:acc_name to the summary card: a name, then Алгасах on the MICPA permit."""
 	run(bot, message_update(uid, "Дорж"))
@@ -687,6 +730,61 @@ def test_every_escape_button_the_wizard_draws_actually_works(company, monkeypatc
 	assert "onb:acc_name" in seen and "onb:summary" in seen, seen
 	if with_inventory:
 		assert "onb:inv_wait" in seen and "onb:inv_confirm" in seen, seen
+
+
+@pytest.mark.parametrize("with_inventory", [True, False])
+def test_every_typed_escape_the_wizard_meets_is_answered_and_invents_nothing(
+	company, monkeypatch, with_inventory
+):
+	"""The same walk by hand: the typed path reaches the flow whatever the prompt drew.
+
+	Round 2 asked that no drawn button ever answer «there is no such step». This is the other
+	half of the same promise, and the one the founder actually hit: a verb the prompt did *not*
+	draw must be answered out loud, never acted on in silence. The invariant that catches it is
+	the one the books care about — no escape may decide whether the company holds stock. That
+	question has two buttons, no default, and no third answer to record.
+	"""
+	uid = 9320 if with_inventory else 9330
+	probe = uid + 40
+	steps = _wizard_steps(uid, with_inventory)
+	seen: list[str] = []
+	bot = FakeBotApi()
+	monkeypatch.setattr(_deps, "apply_onboarding", lambda *args: {"ok": True})
+	monkeypatch.setattr(
+		_deps, "inventory_parse_text", lambda text: [{"item_name": "Цаас", "qty": 2, "rate": 1000}]
+	)
+	monkeypatch.setattr(_deps, "inventory_create_intake", lambda *a, **kw: "NYI-09000")
+	link_user(uid, "Accountant", company)
+	for index, update in enumerate(steps):
+		run(bot, update)
+		state = _state(uid)
+		if not state or not bot.last_markup():
+			continue
+		seen.append(state)
+		offered = _escape_verbs(bot.last_markup())
+		for word, verb in (("буцах", keyboards.ESCAPE_BACK), ("алгасах", keyboards.ESCAPE_SKIP)):
+			probe += 1
+			replayed = _walk_the_wizard(probe, company, monkeypatch, with_inventory, index)
+			assert _state(probe) == state, f"the replay did not reach {state}"
+			before = _payload(probe).get("has_inventory")
+			replayed.clear()
+			run(replayed, message_update(probe, word))
+
+			said = replayed.texts()
+			assert said, f"«{word}» at {state} was answered with silence"
+			assert _payload(probe).get("has_inventory") == before, (
+				f"«{word}» at {state} decided by itself whether the company holds stock"
+			)
+			refused = [t for t in said if t in (mn.MSG_STEP_NO_BACK, mn.MSG_STEP_CANNOT_SKIP)]
+			if verb in offered:
+				assert not refused, f"{state} draws «{word}» but the typed word is refused: {said}"
+			elif not refused:
+				# Not drawn and not refused is allowed only where the verb changes nothing but
+				# which question is on screen; it may never file an answer of its own.
+				assert mn.ONB_INVENTORY_SKIPPED not in said, (
+					f"«{word}» at {state} filed an answer the prompt never offered: {said}"
+				)
+	assert "onb:inv" in seen and "onb:summary" in seen, seen
 
 
 def test_back_from_the_accountant_name_returns_to_the_inventory_branch(company, monkeypatch):
