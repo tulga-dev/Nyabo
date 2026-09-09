@@ -294,16 +294,20 @@ def bank_settle(bank_transaction: str, voucher_doctype: str, voucher_name: str) 
 def bank_candidates(bank_transaction: str, count: int) -> dict[str, Any]:
 	"""Candidates live in the chat state; the button carries only the index (64-byte limit)."""
 	buttons = [button(str(i + 1), encode(PREFIX_BANK, bank_transaction, "m", i)) for i in range(count)]
-	return markup(*rows(buttons), [button(mn.BTN_CANCEL, encode(PREFIX_BANK, bank_transaction, "later"))])
+	return markup(
+		*rows(buttons),
+		[button(mn.BTN_CANCEL, encode(PREFIX_BANK, bank_transaction, "later"), style=STYLE_DANGER)],
+	)
 
 
 # --- month-end -------------------------------------------------------------------------------------
 
 
 def close_confirm(period: str) -> dict[str, Any]:
+	"""Цуцлах is red everywhere it appears, so the word and the colour always agree."""
 	return markup(
-		[button(mn.BTN_CLOSE_PERIOD, encode(PREFIX_CLOSE, period, "confirm"))],
-		[button(mn.BTN_CANCEL, encode(PREFIX_CLOSE, period, "cancel"))],
+		[button(mn.BTN_CLOSE_PERIOD, encode(PREFIX_CLOSE, period, "confirm"), style=STYLE_PRIMARY)],
+		[button(mn.BTN_CANCEL, encode(PREFIX_CLOSE, period, "cancel"), style=STYLE_DANGER)],
 	)
 
 

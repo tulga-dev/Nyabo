@@ -146,8 +146,10 @@ def handle_callback(ctx: Ctx, parts: list[str]) -> Any:
 	if action == "acc":
 		code = rest[0] if rest else ""
 		if code == "more":
-			ctx.set_state("acc_search", {"bank_transaction": name})
-			ctx.reply(mn.MSG_SEARCH_ACCOUNT)
+			# The message id rides along so leaving the search can put the line's own buttons
+			# back on the card it was opened from (approve.handle_escape).
+			ctx.set_state("acc_search", {"bank_transaction": name, "message_id": ctx.callback_message_id})
+			ctx.reply(mn.MSG_SEARCH_ACCOUNT, keyboards.account_search_prompt())
 			return None
 		proposal_name = _deps.propose_bank_expense(name, code, ctx.user)
 		ctx.edit(

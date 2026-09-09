@@ -215,8 +215,9 @@ def _dispatch(ctx: Ctx) -> Any:
 	from nyabo_mn.telegram.handlers import escape
 
 	# Before the command table and before the open step's own parser: «алгасах» typed into the
-	# inventory step is a skip, not an unreadable stock line (UX-13).
-	verb = escape.intent(ctx.text)
+	# inventory step is a skip, not an unreadable stock line (UX-13). A message carrying a photo
+	# or a file is that file, whatever its caption says, so it is never read as an escape.
+	verb = escape.intent(ctx.text) if not (ctx.photo or ctx.document) else None
 	if verb is not None:
 		return escape.handle_typed(ctx, verb)
 

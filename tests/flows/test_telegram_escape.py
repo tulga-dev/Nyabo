@@ -80,6 +80,26 @@ def test_the_inventory_answer_still_reaches_the_parser(company, monkeypatch):
 	assert _state(9203) == "onb:inv_confirm"
 
 
+def test_a_file_is_the_answer_whatever_its_caption_says(company, monkeypatch):
+	"""A workbook captioned «цуцлах» is still the stock list, not a way out."""
+	bot = _at_inventory_list(9204, company, monkeypatch)
+	bot.files["f-inv"] = b"PK\x03\x04 not really a workbook"
+	monkeypatch.setattr(
+		_deps, "inventory_parse_table", lambda content, name: [{"item_name": "Цаас", "qty": 1, "rate": 9}]
+	)
+	monkeypatch.setattr(_deps, "inventory_create_intake", lambda *a: "NYI-00010")
+
+	run(
+		bot,
+		message_update(
+			9204,
+			"цуцлах",
+			document={"file_id": "f-inv", "file_name": "uldegdel.xlsx", "file_size": 24},
+		),
+	)
+	assert _state(9204) == "onb:inv_confirm"
+
+
 # --- 2. «цуцлах» leaves any waiting state, and says so in Mongolian --------------------------------
 
 
