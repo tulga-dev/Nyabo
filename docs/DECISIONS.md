@@ -694,3 +694,34 @@ A `requests` transport failure embeds the request URL, and the request URL conta
 token, so `api.call` / `api.download` log and raise only the exception's class name.
 `log.scrub` masks anything token-shaped in any logged value, in the desk Error Log
 traceback and in the admin notice, as a backstop for paths that repr an exception.
+
+## bot UX review (post-merge, the founder's first live session)
+
+### UX-14 An escape button carries the step it was drawn for, not only the flow
+§5.1 lists callback data by prefix; the escape row added `e:<scope>:<verb>` and it is now
+`e:<scope>:<verb>:<step>`, the two halves of the conversation state the prompt belongs to.
+The scope alone could only catch a tap that crossed flows. Steps answered by typing
+(`acc_name`, `acct`, `micpa`, `cur_other`, `inv_wait`) are never edited when they are
+answered, so their escape row stays live above the question that followed, and a tap on it
+moved the wizard from a step it was not drawn for. A datum with no step is a card drawn
+before this change and still gets the old flow-level check, because a card lives in the chat
+across a deploy. The longest state name leaves the 64-byte datum less than half used
+(`tests/unit/test_telegram_escape_words.py`).
+
+### UX-15 `Nyabo Inventory Intake.status` gains `cancelled`
+§4 lists `draft/confirmed/posted` (the code already had `failed`). The draft is inserted
+when the confirmation card is drawn, so every way out of that step — Алгасах, Цуцлах, Буцах,
+the card's own [Цуцлах] — left one behind. `post_intake` refuses anything but a confirmed
+intake, so none of them could reach the ledger, but a draft nobody explained is a row an
+auditor has to ask about. It is cancelled by status and never deleted: this app corrects by
+reversal and keeps its trail (principle 5). A posted intake is never cancelled.
+
+### UX-16 A bank layout is not saved unless a statement can be read through it
+§5.4 has the accountant map the columns and saves the answer with `verified = 0`. That is
+now conditional: `core.statements.parse_rows` skips a row whose date cell does not parse and
+a row with no amount, so a mapping without a date column, or without one of
+`amount`/`debit`/`credit`, reads zero lines. Answering «Ашиглахгүй» to every column (by
+button or by Алгасах) used to save exactly that mapping, keyed on the header signature, and
+ask an admin to verify it — after which every later import of that bank's export would find
+it and read nothing. The last column now refuses to complete the mapping instead, in
+Mongolian, with the question left standing.
