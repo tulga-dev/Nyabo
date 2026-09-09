@@ -174,3 +174,58 @@ def test_owner_uploads_a_spreadsheet(company_v03):
 	doc = frappe.get_doc(intake.DOCTYPE, name)
 	assert (doc.source, doc.company, doc.total_amount) == ("excel", company_v03, 350000.0)
 	assert getdate(doc.posting_date) == getdate(today())
+
+	# The workbook itself is kept, and the intake points at it: the opening entry this list
+	# becomes has to carry the document it came from (Law on Accounting art. 13.7, principle 4).
+	uploaded = frappe.get_last_doc("Nyabo Document")
+	assert uploaded.doc_type == "inventory" and uploaded.company == company_v03
+	assert uploaded.retain_until, "the retention hook must have dated it"
+	assert doc.file and doc.file == uploaded.file
+	attached = frappe.db.get_value(
+		"File", {"attached_to_doctype": "Nyabo Document", "attached_to_name": uploaded.name}, "name"
+	)
+	assert attached, "the bytes are the record, not just the row"
+
+	run(bot, callback_update(uid, bot.callback_datas()[0]))
+	created = frappe.parse_json(frappe.db.get_value(intake.DOCTYPE, name, "created_docs_json"))
+	je = frappe.get_doc("Journal Entry", created["journal_entry"])
+	# The trail the auditor walks: entry -> intake -> the file the owner sent.
+	assert je.nyabo_primary_document_ref == name
+	assert frappe.db.get_value(intake.DOCTYPE, name, "file") == uploaded.file
+
+
+def test_the_same_workbook_sent_twice_is_not_stored_twice(company_v03):
+	"""Буцах and send it again: the first Nyabo Document is the record the intake points at."""
+	content = _xlsx([["Нэр", "Тоо", "Нэгж үнэ"], ["Хор", 5, 45000]])
+	uid = 9303
+	bot = _to_inventory_step(uid, company_v03)
+	bot.files["inv-file-2"] = content
+	upload = message_update(
+		uid, document={"file_id": "inv-file-2", "file_name": "бараа.xlsx", "mime_type": XLSX_MIME}
+	)
+	run(bot, upload)
+	first = frappe.get_last_doc("Nyabo Document")
+
+	run(bot, callback_update(uid, "e:onb:back:inv_confirm"))
+	run(
+		bot,
+		message_update(
+			uid, document={"file_id": "inv-file-2", "file_name": "бараа.xlsx", "mime_type": XLSX_MIME}
+		),
+	)
+
+	assert frappe.db.count("Nyabo Document", {"doc_type": "inventory"}) == 1
+	name = bot.callback_datas()[0].split(":")[1]
+	assert frappe.db.get_value(intake.DOCTYPE, name, "file") == first.file
+
+
+def test_a_typed_list_files_no_document_and_says_so(company_v03):
+	"""There is no file to keep; the intake's own rows are the primary record."""
+	uid = 9304
+	bot = _to_inventory_step(uid, company_v03)
+
+	run(bot, message_update(uid, TEXT_LIST))
+
+	name = bot.callback_datas()[0].split(":")[1]
+	assert not frappe.db.get_value(intake.DOCTYPE, name, "file")
+	assert frappe.db.count("Nyabo Document", {"doc_type": "inventory"}) == 0

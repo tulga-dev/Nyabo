@@ -32,7 +32,9 @@ def test_full_onboarding_stores_settings(company, monkeypatch):
 	monkeypatch.setattr(
 		_deps,
 		"inventory_create_intake",
-		lambda company, items, source, user: intakes.append((company, items, source, user)) or "NYI-00001",
+		lambda company, items, source, user, file_url=None: (
+			intakes.append((company, items, source, user, file_url)) or "NYI-00001"
+		),
 	)
 	posted: list = []
 	monkeypatch.setattr(
@@ -81,7 +83,8 @@ def test_full_onboarding_stores_settings(company, monkeypatch):
 	run(bot, callback_update(uid, "o:inv:yes"))
 	assert _state(uid) == "onb:inv_wait" and bot.last_text == mn.ONB_INVENTORY_HOW
 	run(bot, message_update(uid, "Принтерийн хор, 5, 45000\nЦаас, 10, 12000"))
-	assert intakes and intakes[0][0] == company and intakes[0][2] == "text"
+	# A typed list has no file behind it; the intake's own rows are the record.
+	assert intakes and intakes[0][0] == company and intakes[0][2] == "text" and intakes[0][4] is None
 	assert bot.last_text == mn.ONB_INVENTORY_PARSED.format(count=2, total=fmt_mnt(345000))
 	assert bot.callback_datas() == [
 		"i:NYI-00001:confirm",

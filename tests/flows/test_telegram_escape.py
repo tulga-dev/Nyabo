@@ -125,7 +125,7 @@ def test_the_inventory_answer_still_reaches_the_parser(company, monkeypatch):
 	monkeypatch.setattr(
 		_deps, "inventory_parse_text", lambda text: [{"item_name": "Цаас", "qty": 2, "rate": 1000}]
 	)
-	monkeypatch.setattr(_deps, "inventory_create_intake", lambda *a: "NYI-00009")
+	monkeypatch.setattr(_deps, "inventory_create_intake", lambda *a, **kw: "NYI-00009")
 
 	run(bot, message_update(9203, "Цаас, 2, 1000"))
 	assert _state(9203) == "onb:inv_confirm"
@@ -138,7 +138,7 @@ def test_a_file_is_the_answer_whatever_its_caption_says(company, monkeypatch):
 	monkeypatch.setattr(
 		_deps, "inventory_parse_table", lambda content, name: [{"item_name": "Цаас", "qty": 1, "rate": 9}]
 	)
-	monkeypatch.setattr(_deps, "inventory_create_intake", lambda *a: "NYI-00010")
+	monkeypatch.setattr(_deps, "inventory_create_intake", lambda *a, **kw: "NYI-00010")
 
 	run(
 		bot,

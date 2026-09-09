@@ -321,17 +321,56 @@ def _on_summary(ctx: Ctx, payload: dict[str, Any], value: str) -> Any:
 # --- inventory intake --------------------------------------------------------------------------------
 
 
-def _inventory_from_message(ctx: Ctx) -> tuple[list[dict[str, Any]], str]:
+def _inventory_from_message(ctx: Ctx) -> tuple[list[dict[str, Any]], str, str | None]:
+	"""``(items, source, file_url)``: the rows, and the workbook they were read out of.
+
+	The upload is kept, not thrown away. ``post_intake`` submits an opening Journal Entry (or
+	a Stock Reconciliation) for these numbers, and every posted document must carry the primary
+	document behind it — Law on Accounting art. 13.7, enforced by ``compliance.hooks``. The
+	receipt path is the precedent (``handlers.receipt._intake``): ``files.save_document`` writes
+	a Nyabo Document with the bytes attached as a private File, and the retention date is set by
+	the ``before_insert`` hook on that doctype.
+
+	A typed list has no file and none is invented: the intake's own rows *are* the record, and
+	the opening entry points at the intake (``nyabo_primary_document_ref``).
+	"""
 	if ctx.document:
 		document = ctx.document
-		content, _mime, name = files.download_telegram_file(
+		content, mime, name = files.download_telegram_file(
 			ctx.bot,
 			document.get("file_id"),
 			document.get("mime_type"),
 			document.get("file_name") or "inventory.xlsx",
 		)
-		return _deps.inventory_parse_table(content, name), "excel"
-	return _deps.inventory_parse_text(ctx.text), "text"
+		# Parsed first: an unreadable file is answered with the step's own message and leaves
+		# no Nyabo Document behind for an admin to wonder about.
+		items = _deps.inventory_parse_table(content, name)
+		return items, "excel", _save_inventory_file(ctx, content, name, mime)
+	return _deps.inventory_parse_text(ctx.text), "text", None
+
+
+def _save_inventory_file(ctx: Ctx, content: bytes, name: str, mime: str | None) -> str | None:
+	"""The stock workbook as a Nyabo Document; returns its ``file_url`` for the intake."""
+	try:
+		doc = files.save_document(
+			ctx.company or "",
+			ctx.sender,
+			"inventory",
+			content,
+			name,
+			mime=mime,
+			telegram_file_id=(ctx.document or {}).get("file_id"),
+			chat_id=ctx.chat_id,
+			message_id=ctx.message_id,
+			sender_user=ctx.user,
+		)
+	except files.DuplicateDocument as dup:
+		# The same workbook sent twice (Буцах, then send it again): the first Nyabo Document is
+		# the record, so the intake points at that one rather than storing a second copy.
+		log_event("telegram.onboarding.inventory_file_duplicate", existing=dup.existing_name)
+		return frappe.db.get_value(files.DOCUMENT, dup.existing_name, "file")
+	log_event("telegram.onboarding.inventory_file_saved", document=doc.name, company=ctx.company)
+	return doc.file
 
 
 def _inventory_prompt() -> dict[str, Any]:
@@ -353,7 +392,7 @@ def _on_inventory_input(ctx: Ctx, payload: dict[str, Any]) -> Any:
 		# workbook does, typing a line does not.
 		_typing(ctx)
 	try:
-		items, source = _inventory_from_message(ctx)
+		items, source, file_url = _inventory_from_message(ctx)
 	except DependencyMissing:
 		raise
 	except Exception as exc:
@@ -378,7 +417,7 @@ def _on_inventory_input(ctx: Ctx, payload: dict[str, Any]) -> Any:
 		)
 		return None
 	intake = _deps.inventory_create_intake(
-		ctx.company or payload.get("company") or "", items, source, ctx.user
+		ctx.company or payload.get("company") or "", items, source, ctx.user, file_url=file_url
 	)
 	payload["intake"] = intake
 	payload["inventory_count"] = len(items)
