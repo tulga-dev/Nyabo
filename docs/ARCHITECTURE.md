@@ -229,7 +229,8 @@ LLM work is enqueued (`long` queue) and replies later by editing or sending a ca
 Callback data (≤ 64 bytes): `p:<NYP-name>:ap|ch|rj`, `p:<name>:acc:<code>`,
 `p:<name>:rr:<personal|dup|company|other>`, `b:<bank txn name>:find|exp|later`,
 `b:<name>:acc:<code>`, `c:<period>:confirm|cancel`, `x:<posted doctype short>:<name>:rev`
-(reversal), `x:<name>:reason:<code>`, `o:<step>:<value>` (onboarding), `i:<NYI>:confirm`.
+(reversal), `x:<name>:reason:<code>`, `o:<step>:<value>` (onboarding), `i:<NYI>:confirm`,
+`q:<query verb>[:<arg>…]` (question follow-ups, §5.7; `q:esc`, `q:m`).
 
 ### 5.2 Onboarding (`/эхлэх`, also triggered on first accountant link for a company without settings)
 
@@ -329,11 +330,44 @@ corrections for a supplier create a `Nyabo Rule(status = pending_confirmation)`.
 
 ### 5.7 Questions
 
-Free text outside a state → `agent.questions.answer(user, company, text)`: one model
-call with tools `answer_from_books(query_kind, args)` (account balance on date, spend by
-account this month, last entries for a supplier, unmatched count), `answer_faq(question)`
-(from `config/faq.mn.md`), `escalate_to_admin(summary)`. Read-only; results are
-formatted by code, the model writes the sentence.
+Free text outside a state → `agent.pipeline.answer_question(user, company, text,
+memory=…)`: one model call with tools `answer_from_books(query_kind, args)`,
+`answer_faq(question)` (from `config/faq.mn.md`), `escalate_to_admin(summary)`.
+Read-only; results are formatted by code, the model writes the sentence. It returns a
+`questions.Reply` — the sentence, the follow-up buttons and the memory to store.
+
+`query_kind` (all reads, all filtered by `company`): `balance_on_date`,
+`spend_by_account`, `account_entries` (the entries behind a spend figure),
+`last_entries_for_supplier`, `supplier_total`, `vat_position`, `top_spend_accounts`,
+`unmatched_count`, `unmatched_lines`, `explain_entry` (a posted document's Nyabo
+Proposal: explanation, citation and source document).
+
+Three deterministic layers around that one call, all in `agent/questions.py` (no frappe
+import, so the simulator can drive them):
+
+- **Continuity.** `Nyabo Chat State.payload_json["question_memory"]`: one turn, twenty
+  minutes, one company. It carries the previous question (re-fenced when it re-enters the
+  prompt) and the subject the *handler* resolved (account code, period, supplier, date,
+  document) — never a figure, so the model cannot repeat last turn's number as this turn's
+  answer. `set_state` / `clear_state` drop it: starting or leaving a flow ends the
+  exchange. The answer card prints the subject it read (`📒 6210 · 2026 оны 8-р сар`) so a
+  context carried forward is visible rather than silent.
+- **Follow-up buttons.** `q:<verb>[:<arg>…]`, built by `questions.follow_ups` from the tool
+  trace. Each datum carries its whole query, so a tap runs `pipeline.books_answer` — the
+  same dispatcher, no model — and edits the card in place. A datum that will not fit 64
+  bytes drops that button and logs, like `keyboards.settle_row`. `q:esc` escalates,
+  `q:m` opens the menu.
+- **Number verification.** `questions.unverified_numbers`: every number in the model's
+  sentence must appear among the figures a handler *computed* (the `computed_numbers` a
+  read lists: its amounts and counts, the posting dates and received dates, voucher names,
+  account and supplier the ledger resolved, and the month or day it ran on) or in the
+  clock's calendar date (`now.date()` plus the years either side). Two sources, and nothing
+  else. Never the text a handler rendered — the FAQ is prose and quotes worked examples, and
+  a not-found sentence quotes the model's own argument back — never a free-text argument,
+  never the user's own question (a confirm-question «…биз дээ?» carries the very figure
+  that wants checking), and never the time of day (the hours, minutes and seconds put every
+  integer 0…59 into the set). Otherwise the sentence is replaced by the handler's own
+  Mongolian text and a `question_number_unverified` Nyabo Event is written.
 
 ## 6. LLM contract
 
@@ -359,10 +393,15 @@ Schemas come from pydantic v2 models in `agent/schemas.py`
 strict mode). OpenAI: Responses API, `text.format = {"type": "json_schema", "strict":
 true, …}`, image as `input_image` data URL. Anthropic: Messages API with a single forced
 tool whose input schema is the output schema (`tool_choice = {"type": "tool", "name":
-…}`). Model names come from `OPENAI_MODEL` / `ANTHROPIC_MODEL` settings; the defaults
-(`gpt-5.6-terra`, sweep `gpt-5.6-luna`) were given by the founder and are not verified
-against the provider's model list; `agent.cost` prices are a table with `verified =
-false` until the founder confirms. Every call writes a `Nyabo LLM Call`.
+…}`). Model names are per purpose: `get_client` returns a `PurposeRouter` that picks the
+adapter from the `purpose` of each call, so one client can extract on one model and
+classify on another and `Nyabo LLM Call.model` is the model that answered.
+`OPENAI_PURPOSE_MODELS` holds the routing (`extract` → `gpt-5.6-terra`, `classify` and
+`question` → `gpt-6-astra`, `eval` / `other` → `OPENAI_MODEL`) and `resolve_model` the
+precedence: the purpose's own key, then that default, then `OPENAI_MODEL`. The ids were
+given by the founder and are not verified against the provider's model list; `agent.cost`
+prices are a table with `verified = false` until the founder confirms. Every call writes a
+`Nyabo LLM Call`.
 
 `MockLlmClient` returns canned results keyed by purpose + a hash of the user parts; the
 simulator and tests use it.
@@ -372,7 +411,9 @@ returns `(core.models.Receipt, LlmResult)`; `extract_receipt_full(...)` returns 
 `warnings` carry `seller_name_missing`, `line_amount_missing`, `injection_suspected` (the pipeline sets
 `needs_accountant` and writes a `Nyabo Event injection_suspected` with `injection_fragment`).
 `agent.frappe_log.recorder(company=…, proposal=…)` is the `record_call` callback that writes `Nyabo LLM Call`.
-Settings: `OPENAI_MODEL`, `OPENAI_SWEEP_MODEL`, `ANTHROPIC_MODEL`.
+Settings: `OPENAI_MODEL`, `OPENAI_MODEL_EXTRACT`, `OPENAI_MODEL_CLASSIFY`,
+`OPENAI_MODEL_QUESTION`, `OPENAI_SWEEP_MODEL`, `ANTHROPIC_MODEL`;
+`nyabo_mn.api.config_check` answers the routing resolved.
 
 ## 7. Ebarimt contract
 

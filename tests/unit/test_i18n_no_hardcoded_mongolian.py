@@ -117,6 +117,54 @@ def test_the_genitive_of_bagana_is_spelled_one_way():
 	assert GENITIVE_OF_BAGANA in (ROOT / "i18n" / "mn.py").read_text(encoding="utf-8")
 
 
+# A case suffix hyphenated straight onto a placeholder — «{period}-д», «{date}-нд»,
+# «{retention_years}-аас». Banned, and this is the second time: the numeral truncation note
+# («{shown}-г») was fixed the same way a round earlier. The correct ending depends on the last
+# sound of the word the placeholder renders, and a placeholder renders a *formatted* value — a
+# month label («2027 оны 1-р сар» takes «сард», never «сар-д»), a numeral («5» takes «-аас», «2»
+# takes «-оос»), an ISO date («…-05» takes «-нд», «…-08» takes «-д») — so one spelling in the
+# source can only ever be right for some of the values it will be given. The suffix goes on a
+# fixed noun the sentence supplies instead («тайлант үед ({period})», «{date} өдрийн»), or the
+# label is set off with a colon.
+#
+# «-р» is not a case suffix but the ordinal marker, written the same after every numeral
+# («9-р сар», «2-р мөр»), so it is allowed — and no case suffix begins with «р», so
+# excluding it costs nothing.
+SUFFIXED_PLACEHOLDER = re.compile(r"\{([a-z_]+)\}-(?!р)[Ѐ-ӿ]")
+# The one exception: a proper name or an abbreviation, where the hyphenated suffix IS the
+# written form («Петровис ХХК-ийн»).
+NAME_PLACEHOLDERS = {"company"}
+
+
+def test_no_case_suffix_hangs_off_an_interpolated_label():
+	"""MAJOR: «Компани {period}-д НӨАТ төлөгч бус» rendered «… 2027 оны 1-р сар-д …».
+
+	Machine Mongolian on the card an accountant reads to find out whether VAT applies to them,
+	and the same fault class as the numeral suffix fixed a round earlier. This sweeps the whole
+	file rather than the one string, because the shape is what is banned.
+	"""
+	offenders = [
+		f"mn.py:{line}: {text[:70]!r}"
+		for line, text in cyrillic_literals(ROOT / "i18n" / "mn.py")
+		for match in SUFFIXED_PLACEHOLDER.finditer(text)
+		if match.group(1) not in NAME_PLACEHOLDERS
+	]
+	assert offenders == [], (
+		"a case suffix hyphenated onto a formatted value; reword so the suffix falls on a fixed "
+		"noun («тайлант үед ({period})», «{date} өдрийн») or set the label off with a colon:\n"
+		+ "\n".join(offenders)
+	)
+
+
+def test_the_vat_card_names_the_month_without_declining_it():
+	"""The card the sweep above was written for, checked as the accountant reads it."""
+	from nyabo_mn.i18n import mn
+
+	label = mn.PERIOD_LABEL.format(year=2027, month=mn.MONTHS[0])
+	answer = mn.MSG_VAT_NOT_PAYER_ANSWER.format(period=label)
+	assert label in answer and f"{label}-" not in answer
+
+
 # Every constant that says «доорх» ("below"), and where the keyboard it points at really is.
 # ``ctx.reply(text, markup)`` puts the buttons on the message itself; a line whose keyboard is
 # on the *next* message is still true, because that message is below it in the chat. A line

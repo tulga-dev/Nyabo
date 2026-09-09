@@ -26,7 +26,7 @@ from collections.abc import Callable, Iterable, Mapping
 from decimal import Decimal
 from typing import Any
 
-from nyabo_mn.agent import classify, extract, frappe_log
+from nyabo_mn.agent import classify, extract, frappe_log, questions
 from nyabo_mn.agent.llm_client import CallRecord, LlmClient, get_client
 from nyabo_mn.core import rules_engine
 from nyabo_mn.core.models import (
@@ -974,10 +974,48 @@ def _find_supplier(name: str) -> str | None:
 	return best[1] if best else None
 
 
+BOOKS_LIST_LIMIT = 5
+BOOKS_ENTRY_LIMIT = 8
+
+
+def _truncation_note(total: int, shown: int, template: str = mn.ANSWER_TRUNCATED) -> str:
+	"""«… нийт N мөрөөс хамгийн сүүлийн M мөрийг харууллаа.», or nothing when nothing was cut.
+
+	A list answer that was cut and does not say so is worse than a short one: the accountant
+	reads five of forty unmatched lines under a heading that claims to be the unmatched lines
+	and plans the day around a picture of the books that is not true.
+
+	``template`` is the note, because the note has to name the end of the list that survived:
+	the row lists are ordered newest-first, the account ranking is ordered by amount, and one
+	sentence cannot be true of both (``mn.ANSWER_TRUNCATED_TOP``).
+	"""
+	return template.format(total=total, shown=shown) if total > shown else ""
+
+
+TOP_ACCOUNTS_LIMIT = 5
+UNMATCHED_STATUSES = ("Unreconciled", "Pending")
+# What ``explain_entry`` will open, and the field on each that carries the amount a reader
+# recognises. Every lookup is filtered by ``company``, so a name from another client's books
+# comes back "not found" rather than "not permitted" (SEC-06: existence is information too).
+EXPLAINABLE_DOCTYPES: Mapping[str, str] = {
+	"Purchase Invoice": "grand_total",
+	"Journal Entry": "total_debit",
+	"Payment Entry": "paid_amount",
+}
+
+
 def books_handlers(
 	company: str, *, today: dt.date | None = None
 ) -> dict[str, Callable[[dict[str, Any]], dict[str, Any]]]:
-	"""Read-only handlers for ``agent.questions``; every number is formatted here, never by the model."""
+	"""Read-only handlers for ``agent.questions``; every number is formatted here, never by the model.
+
+	Ten query kinds, all reads (§5.7 named four). Each answer carries the subject it resolved
+	(``account_code``, ``period``, ``supplier``, ``on_date``, ``entry_ref``) beside the figures,
+	because that is what the follow-up buttons and the next turn's memory are built from: the
+	model writes «Петровис», the ledger knows «Петровис ХХК», and the button has to carry the
+	second. Every query is filtered by ``company``, so a document name typed into a question or
+	arriving in callback data can only ever reach the books the caller is linked to.
+	"""
 	import frappe
 	from erpnext.accounts.utils import get_balance_on
 
@@ -992,106 +1030,661 @@ def books_handlers(
 			raise ChartError("account_code required")
 		return account_for_code(company, str(code).strip(), leaf=False)
 
+	abbr: str | None = None
+
+	def _shown(account: str) -> str:
+		"""The account as a card prints it: «6210 - Шатахуун», not «6210 - Шатахуун - TST».
+
+		The company abbreviation ERPNext appends is there to keep names unique across
+		companies, and every one of these reads is already about one company. Read once and
+		kept, because a single answer renders up to ``TOP_ACCOUNTS_LIMIT`` account names.
+		"""
+		nonlocal abbr
+		if abbr is None:
+			abbr = str(frappe.db.get_value("Company", company, "abbr") or "")
+		return mn.account_label(account, abbr)
+
+	def _code(value: Any) -> str:
+		return str(value or "").strip()
+
+	def _period(value: Any) -> str:
+		"""The month asked for, else the one the clock is in; a typo raises rather than meaning today."""
+		text = str(value or "").strip()
+		if not text:
+			return dates.period_of(today)
+		dates.parse_period(text)  # ValueError -> {"error": "invalid_arguments"}
+		return text
+
+	def _gl(**filters: Any) -> list[Any]:
+		order = filters.pop("order_by", "posting_date desc, name desc")
+		limit = filters.pop("limit", None)
+		return frappe.get_all(
+			"GL Entry",
+			filters={"company": company, "is_cancelled": 0, **filters},
+			fields=["posting_date", "voucher_type", "voucher_no", "account", "debit", "credit"],
+			order_by=order,
+			limit=limit,
+		)
+
+	def _gl_count(**filters: Any) -> int:
+		"""How many rows the read matched, before any limit — the count a cut answer must name."""
+		return frappe.db.count("GL Entry", {"company": company, "is_cancelled": 0, **filters})
+
+	def _net_debit(rows: Iterable[Any]) -> Decimal:
+		return quantize(sum((Decimal(str(r.debit or 0)) - Decimal(str(r.credit or 0)) for r in rows), ZERO))
+
+	def _calendar(value: Any) -> list[str]:
+		"""The month, and the day when there is one, of the coordinate this read ran on.
+
+		Not the year. The month and the day are how an answer names the period it is about
+		(«7-р сард», «30-нд»), so they have to verify, and neither is wide enough to double as a
+		tögrög figure. The year is left to ``questions``, which takes it from the clock: a
+		handler that vouched for whichever year it was handed would let a model ask about
+		«9999 оны 12-р сар» and then state «9 999₮» on the strength of it.
+		"""
+		return [part for part in str(value or "").split("-")[1:] if part]
+
+	def _figures(*values: Any) -> dict[str, list[str]]:
+		"""The figures this read produced, in the one key ``questions`` will verify against.
+
+		Two kinds of thing go in, and nothing else. First, what the ledger gave back: the amounts
+		and counts this handler worked out, the posting dates and voucher names it read, the
+		account the chart resolved, the supplier name the register matched. Second, the calendar
+		coordinate the read ran on, month and day only (``_calendar``) — an answer about July says
+		«7-р сард» and that 7 has to verify, while the year, the one part wide enough to double as
+		a tögrög figure, is left to the clock in ``questions``.
+
+		Never a free-text argument the model wrote — a ``supplier`` or an ``entry_ref`` it made
+		up — and never the sentence built out of one. A rendered string is not a computation: the
+		FAQ's prose quotes figures, and a not-found sentence quotes the model's own wording back,
+		so either would let a number the ledger never produced verify itself.
+		"""
+		flat: list[str] = []
+		for value in values:
+			items = value if isinstance(value, (list, tuple, set)) else [value]
+			flat += [str(item) for item in items if item not in (None, "")]
+		return {questions.COMPUTED_NUMBERS_FIELD: flat}
+
+	# --- the ten reads -------------------------------------------------------------------------
+
+	def _balance_on_date(inner: dict[str, Any]) -> dict[str, Any]:
+		account = _account(inner.get("account_code"))
+		on = dt.date.fromisoformat(inner["on_date"]) if inner.get("on_date") else today
+		balance = Decimal(str(get_balance_on(account, on, company=company) or 0))
+		return {
+			"account": account,
+			"account_code": _code(inner.get("account_code")),
+			"date": on.isoformat(),
+			"on_date": on.isoformat(),
+			"balance": fmt_mnt(balance),
+			"text": mn.MSG_BALANCE_ANSWER.format(
+				account=_shown(account), date=on.isoformat(), balance=fmt_mnt(balance)
+			),
+			# Both spellings of the account: the machine field above carries the ERPNext name,
+			# the sentence carries the printed one, and the model may repeat either.
+			**_figures(fmt_mnt(balance), account, _shown(account), _calendar(on.isoformat())),
+		}
+
+	def _spend_by_account(inner: dict[str, Any]) -> dict[str, Any]:
+		account = _account(inner.get("account_code"))
+		period = _period(inner.get("period"))
+		start, end = dates.period_bounds(period)
+		amount = _net_debit(
+			_gl(account=account, posting_date=["between", [start, end]], order_by="posting_date asc")
+		)
+		return {
+			"account": account,
+			"account_code": _code(inner.get("account_code")),
+			"period": period,
+			"amount": fmt_mnt(amount),
+			"text": mn.MSG_SPEND_ANSWER.format(
+				period=dates.period_label(period), account=_shown(account), amount=fmt_mnt(amount)
+			),
+			**_figures(fmt_mnt(amount), account, _shown(account), _calendar(period)),
+		}
+
+	def _account_entries(inner: dict[str, Any]) -> dict[str, Any]:
+		"""The entries behind a figure — what «Юунаас бүрдэв?» under a spend answer asks for.
+
+		The heading reads as "that account's entries for that month", so a silent cut at
+		``BOOKS_ENTRY_LIMIT`` states something untrue about the books. The full count is read
+		and, when it is more than the rows shown, the answer says so.
+		"""
+		account = _account(inner.get("account_code"))
+		period = _period(inner.get("period"))
+		start, end = dates.period_bounds(period)
+		window = {"account": account, "posting_date": ["between", [start, end]]}
+		rows = _gl(**window, limit=BOOKS_ENTRY_LIMIT)
+		total = _gl_count(**window)
+		label = dates.period_label(period)
+		entries = [
+			{"date": str(row.posting_date), "voucher": row.voucher_no, "amount": fmt_mnt(_net_debit([row]))}
+			for row in rows
+		]
+		if entries:
+			text = mn.MSG_ACCOUNT_ENTRIES_ANSWER.format(
+				period=label,
+				account=_shown(account),
+				entries="\n".join(mn.ACCOUNT_ENTRY_LINE.format(**e) for e in entries),
+			) + _truncation_note(total, len(entries))
+		else:
+			text = mn.ACCOUNT_ENTRIES_NONE.format(period=label, account=_shown(account))
+		return {
+			"account": account,
+			"account_code": _code(inner.get("account_code")),
+			"period": period,
+			"entries": entries,
+			"count": total,
+			"text": text,
+			**_figures(
+				total,
+				len(entries),
+				account,
+				_shown(account),
+				_calendar(period),
+				[e["amount"] for e in entries],
+				[e["date"] for e in entries],
+				[e["voucher"] for e in entries],
+			),
+		}
+
+	def _last_entries_for_supplier(inner: dict[str, Any]) -> dict[str, Any]:
+		wanted = str(inner.get("supplier") or "").strip()
+		supplier = _find_supplier(wanted) if wanted else None
+		if not supplier:
+			# ``found: False`` and no figures: this sentence quotes the name the *model* asked
+			# for, so it resolves nothing, vouches for no number and is not an answer to build
+			# follow-up buttons or a memory on (agent.questions.resolved).
+			return {
+				"supplier": wanted,
+				"found": False,
+				"entries": [],
+				"text": mn.SUPPLIER_NOT_FOUND_ANSWER.format(supplier=wanted),
+			}
+		rows = _gl(party_type="Supplier", party=supplier)
+		returned = _return_vouchers(rows)
+		seen: dict[str, dict[str, Any]] = {}
+		for row in rows:
+			key = f"{row.voucher_type}:{row.voucher_no}"
+			if key in seen:
+				continue
+			# The larger side of the row is the voucher's amount — except on a debit note, which
+			# DEBITS the payable exactly as a payment does, so its magnitude is the purchase it
+			# reverses. Printed bare, a correction read as a second identical purchase on the card
+			# beside a supplier total already saying «худалдан авалт 0₮»: two cards about one
+			# supplier contradicting each other, and this the one that looks like evidence. The
+			# reversal is signed the way ``_supplier_total`` nets it out and named by its own line.
+			is_return = row.voucher_type == "Purchase Invoice" and row.voucher_no in returned
+			amount = max(Decimal(str(row.debit or 0)), Decimal(str(row.credit or 0)))
+			seen[key] = {
+				"doctype": row.voucher_type,
+				"name": row.voucher_no,
+				"date": str(row.posting_date),
+				"amount": fmt_mnt(-amount if is_return else amount),
+				"is_return": is_return,
+			}
+		# Every voucher is counted and only then is the list cut: «сүүлийн бүртгэлүүд» over five
+		# of forty, with nothing saying so, is a false picture of what this supplier did.
+		total = len(seen)
+		entries = list(seen.values())[:BOOKS_LIST_LIMIT]
+		if not entries:
+			return {
+				"supplier": supplier,
+				"found": True,
+				"entries": [],
+				"count": 0,
+				"text": mn.LAST_ENTRIES_NONE.format(supplier=supplier),
+				**_figures(0, supplier),
+			}
+		# The doctype is looked up rather than printed: it is an ERPNext name and it reaches this
+		# line as data, which is how English got onto a Mongolian card (mn.doctype_label). The
+		# entries themselves keep the raw doctype — that is a machine field, not a sentence.
+		lines = "\n".join(
+			(mn.LAST_ENTRY_LINE_RETURN if e["is_return"] else mn.LAST_ENTRY_LINE).format(
+				date=e["date"],
+				doctype=mn.doctype_label(e["doctype"]),
+				name=e["name"],
+				amount=e["amount"],
+			)
+			for e in entries
+		)
+		return {
+			"supplier": supplier,
+			"found": True,
+			"entries": entries,
+			"count": total,
+			"text": mn.MSG_LAST_ENTRIES_ANSWER.format(supplier=supplier, entries=lines)
+			+ _truncation_note(total, len(entries)),
+			**_figures(
+				total,
+				len(entries),
+				supplier,
+				[e["amount"] for e in entries],
+				[e["date"] for e in entries],
+				[e["name"] for e in entries],
+			),
+		}
+
+	def _return_vouchers(rows: Iterable[Any]) -> set[str]:
+		"""The Purchase Invoices among ``rows`` that are returns (debit notes).
+
+		Asked of the voucher rather than guessed from the amount, because a debit note and a
+		payment land on the same side of the payable: both DEBIT it. This app's own correction
+		path is a reversal (§1.5) and a Purchase Invoice reversal is a debit note, so without
+		this the first correction turns into a payment the bot then states, about a real
+		supplier, to an accountant.
+
+		Both supplier reads ask it, and they have to agree: ``_supplier_total`` nets the debit
+		note out of the purchases, and ``_last_entries_for_supplier`` marks the same voucher as
+		the correction it is rather than printing it as a purchase of its own.
+		"""
+		names = sorted({r.voucher_no for r in rows if r.voucher_type == "Purchase Invoice" and r.voucher_no})
+		if not names:
+			return set()
+		return {
+			row.name
+			for row in frappe.get_all(
+				"Purchase Invoice",
+				filters={"name": ["in", names], "company": company, "is_return": 1},
+				fields=["name"],
+			)
+		}
+
+	def _supplier_total(inner: dict[str, Any]) -> dict[str, Any]:
+		"""Purchases and payments on the supplier's party rows, kept apart on purpose.
+
+		Netting them answers «how much do we still owe them», which is a different question
+		from «how much did we buy from them»; an accountant asking the second must not be
+		handed the first under the same words.
+
+		Returns are a third thing again: a debit note nets out of what was bought, and is
+		never money that left the company — see ``_return_vouchers``.
+		"""
+		wanted = str(inner.get("supplier") or "").strip()
+		supplier = _find_supplier(wanted) if wanted else None
+		period = _period(inner.get("period"))
+		if not supplier:
+			return {
+				"supplier": wanted,
+				"found": False,
+				"period": period,
+				"text": mn.SUPPLIER_NOT_FOUND_ANSWER.format(supplier=wanted),
+			}
+		start, end = dates.period_bounds(period)
+		rows = _gl(
+			party_type="Supplier",
+			party=supplier,
+			posting_date=["between", [start, end]],
+			order_by="posting_date asc",
+		)
+		returned = _return_vouchers(rows)
+		reversals: list[Any] = []
+		straight: list[Any] = []
+		for row in rows:
+			is_reversal = row.voucher_type == "Purchase Invoice" and row.voucher_no in returned
+			(reversals if is_reversal else straight).append(row)
+		returns = _net_debit(reversals)
+		# The gross is what was invoiced before the debit notes came off it; the reported
+		# purchases are net of them. Both are kept, because the sentence that names the
+		# correction has to close arithmetically against the figure printed above it.
+		gross = quantize(sum((Decimal(str(r.credit or 0)) for r in straight), ZERO))
+		purchases = quantize(gross - returns)
+		payments = quantize(sum((Decimal(str(r.debit or 0)) for r in straight), ZERO))
+		label = dates.period_label(period)
+		if rows:
+			text = mn.MSG_SUPPLIER_TOTAL_ANSWER.format(
+				period=label,
+				supplier=supplier,
+				purchases=fmt_mnt(purchases),
+				payments=fmt_mnt(payments),
+			)
+			if returns:
+				# Say it out loud: 0₮ bought from a supplier whose invoice was reversed reads
+				# like a lost document unless the correction is named beside it — and it is
+				# named against the gross, because «худалдан авалт 0₮» above is already net.
+				text += mn.SUPPLIER_TOTAL_RETURNS.format(gross=fmt_mnt(gross), returns=fmt_mnt(returns))
+		else:
+			text = mn.SUPPLIER_TOTAL_NONE.format(period=label, supplier=supplier)
+		return {
+			"supplier": supplier,
+			"found": True,
+			"period": period,
+			"gross": fmt_mnt(gross),
+			"purchases": fmt_mnt(purchases),
+			"payments": fmt_mnt(payments),
+			"returns": fmt_mnt(returns),
+			"text": text,
+			**_figures(
+				fmt_mnt(gross),
+				fmt_mnt(purchases),
+				fmt_mnt(payments),
+				fmt_mnt(returns),
+				supplier,
+				_calendar(period),
+			),
+		}
+
+	def _vat_position(inner: dict[str, Any]) -> dict[str, Any]:
+		from nyabo_mn.reports import vat_summary
+
+		period = _period(inner.get("period"))
+		start, end = dates.period_bounds(period)
+		label = dates.period_label(period)
+		try:
+			vat_payer = regime_context(company, end).is_vat_payer
+		except rules_engine.RuleError:
+			vat_payer = True  # unknown regime: let the accounts answer rather than claim a regime
+		if not vat_payer:
+			# A simplified-regime company has no output/input VAT accounts to read, and "0₮"
+			# would read as "nothing to declare" rather than "this does not apply to you".
+			return {
+				"period": period,
+				"text": mn.MSG_VAT_NOT_PAYER_ANSWER.format(period=label),
+				**_figures(_calendar(period)),
+			}
+		summary = vat_summary.compute(company, (start, end))
+		net = Decimal(str(summary["net"]))
+		figures = {
+			"period": label,
+			"output": fmt_mnt(summary["output_vat"]),
+			"input": fmt_mnt(summary["input_vat"]),
+		}
+		# Which sentence, on the sign: a negative net is money the company is owed, not a
+		# payable of minus seven thousand tögrög. The stored ``net`` stays signed — that is
+		# the machine field — while the sentence names the side and shows the amount positive.
+		text = (
+			mn.MSG_VAT_POSITION_CREDIT_ANSWER.format(**figures, credit=fmt_mnt(-net))
+			if net < ZERO
+			else mn.MSG_VAT_POSITION_ANSWER.format(**figures, net=fmt_mnt(net))
+		)
+		return {
+			"period": period,
+			"output_vat": fmt_mnt(summary["output_vat"]),
+			"input_vat": fmt_mnt(summary["input_vat"]),
+			"net": fmt_mnt(net),
+			"text": text,
+			# Both signs of the net: the stored field is signed, the sentence shows a credit
+			# positive, and the model may repeat whichever of the two it read.
+			**_figures(
+				fmt_mnt(summary["output_vat"]),
+				fmt_mnt(summary["input_vat"]),
+				fmt_mnt(net),
+				fmt_mnt(-net),
+				_calendar(period),
+			),
+		}
+
+	def _top_spend_accounts(inner: dict[str, Any]) -> dict[str, Any]:
+		"""The month's biggest expense accounts, and how many accounts had spend in all.
+
+		«хамгийн их зардалтай данснууд» over five of eight, with nothing saying so, is exactly
+		the read an accountant acts on: they take the list for the whole of where the money
+		went. The count is read before the cut and, when it is larger, the answer names it —
+		and because the ranking is by amount rather than by date, the note it uses says "the
+		largest N", not "the most recent N" (``mn.ANSWER_TRUNCATED_TOP``).
+		"""
+		from nyabo_mn.reports import accounts as report_accounts
+
+		period = _period(inner.get("period"))
+		start, end = dates.period_bounds(period)
+		label = dates.period_label(period)
+		expense_accounts = report_accounts.accounts_by_root_type(company, ("Expense",))
+		totals: dict[str, Decimal] = {}
+		if expense_accounts:
+			for row in _gl(
+				account=["in", expense_accounts],
+				posting_date=["between", [start, end]],
+				order_by="posting_date asc",
+			):
+				totals[row.account] = totals.get(row.account, ZERO) + _net_debit([row])
+		numbers = report_accounts.account_numbers(company)
+		ranked = sorted(
+			((account, amount) for account, amount in totals.items() if amount > ZERO),
+			key=lambda pair: pair[1],
+			reverse=True,
+		)
+		# Counted before the cut: this is how many accounts the month had spend on at all.
+		total = len(ranked)
+		accounts_out = [
+			{
+				"code": numbers.get(account, ""),
+				"account": account,
+				"shown": _shown(account),
+				"amount": fmt_mnt(amount),
+			}
+			for account, amount in ranked[:TOP_ACCOUNTS_LIMIT]
+		]
+		if accounts_out:
+			text = mn.MSG_TOP_ACCOUNTS_ANSWER.format(
+				period=label,
+				accounts="\n".join(
+					mn.TOP_ACCOUNT_LINE.format(account=a["shown"], amount=a["amount"]) for a in accounts_out
+				),
+			) + _truncation_note(total, len(accounts_out), mn.ANSWER_TRUNCATED_TOP)
+		else:
+			text = mn.TOP_ACCOUNTS_NONE.format(period=label)
+		return {
+			"period": period,
+			"accounts": accounts_out,
+			"count": total,
+			"text": text,
+			# The codes and the names both come from the chart, not from the model, so an answer
+			# naming «6210» or «6210 - Шатахуун» is naming an account this read actually ranked.
+			# The name is vouched for because the name is what the rows above print: a model
+			# repeating the handler's own line must not lose its sentence over it.
+			**_figures(
+				total,
+				len(accounts_out),
+				_calendar(period),
+				[a["amount"] for a in accounts_out],
+				[a["code"] for a in accounts_out],
+				[a["account"] for a in accounts_out],
+				[a["shown"] for a in accounts_out],
+			),
+		}
+
+	def _unmatched_total() -> int:
+		return frappe.db.count(
+			"Bank Transaction",
+			{"company": company, "docstatus": 1, "status": ["in", list(UNMATCHED_STATUSES)]},
+		)
+
+	def _unmatched_count(inner: dict[str, Any]) -> dict[str, Any]:
+		count = _unmatched_total()
+		return {"count": count, "text": mn.UNMATCHED_ANSWER.format(count=count), **_figures(count)}
+
+	def _unmatched_lines(inner: dict[str, Any]) -> dict[str, Any]:
+		"""The unmatched statement lines themselves, and how many there are in all.
+
+		«Тулгагдаагүй банкны гүйлгээ:» over five rows of forty, with no sign of the cut, is the
+		answer an accountant would act on believing the work was nearly done.
+		"""
+		rows = frappe.get_all(
+			"Bank Transaction",
+			filters={"company": company, "docstatus": 1, "status": ["in", list(UNMATCHED_STATUSES)]},
+			fields=["name", "date", "deposit", "withdrawal", "description"],
+			order_by="date desc, name desc",
+			limit=BOOKS_LIST_LIMIT,
+		)
+		total = _unmatched_total()
+		lines = [
+			{
+				"date": str(row.date),
+				"amount": fmt_mnt(Decimal(str(row.deposit or 0)) - Decimal(str(row.withdrawal or 0))),
+				"description": (row.description or "")[:60],
+			}
+			for row in rows
+		]
+		if not lines:
+			return {"lines": [], "count": total, "text": mn.UNMATCHED_LINES_NONE, **_figures(total)}
+		text = mn.MSG_UNMATCHED_LINES_ANSWER.format(
+			lines="\n".join(mn.UNMATCHED_LINE.format(**line) for line in lines)
+		) + _truncation_note(total, len(lines))
+		return {
+			"lines": lines,
+			"count": total,
+			"text": text,
+			# The bank's own description is free text that arrived from outside; a figure
+			# inside it is not something this read computed, so it vouches for nothing.
+			**_figures(
+				total,
+				len(lines),
+				[line["amount"] for line in lines],
+				[line["date"] for line in lines],
+			),
+		}
+
+	def _posted_document(ref: str) -> tuple[str, dict[str, Any]] | None:
+		"""The named document, only when it belongs to this company."""
+		for doctype, amount_field in EXPLAINABLE_DOCTYPES.items():
+			if not frappe.db.exists("DocType", doctype):
+				continue
+			row = frappe.db.get_value(
+				doctype,
+				{"name": ref, "company": company},
+				["name", "posting_date", amount_field],
+				as_dict=True,
+			)
+			if row:
+				return doctype, {
+					"name": row.name,
+					"date": str(row.posting_date),
+					"amount": row.get(amount_field),
+				}
+		return None
+
+	def _explain_entry(inner: dict[str, Any]) -> dict[str, Any]:
+		"""What a posted entry was and why: the proposal's explanation, citation and source.
+
+		The Nyabo Proposal is the record of the decision (§1.4), so this reads it rather than
+		re-deriving anything. A document Nyabo did not propose is still answered — with its own
+		figures and a plain statement that there is no Nyabo explanation — because writing one
+		after the fact is exactly what principle 4 forbids.
+		"""
+		ref = str(inner.get("entry_ref") or "").strip()
+		if not ref:
+			raise ValueError("entry_ref required")
+		name = frappe.db.exists("Nyabo Proposal", {"name": ref, "company": company}) or frappe.db.exists(
+			"Nyabo Proposal", {"posted_name": ref, "company": company}
+		)
+		posted = _posted_document(ref)
+		if not name and posted is None:
+			return {"entry_ref": ref, "found": False, "text": mn.ENTRY_NOT_FOUND_ANSWER.format(name=ref)}
+		if not name:
+			doctype, facts = posted
+			amount = fmt_mnt(Decimal(str(facts["amount"] or 0)))
+			return {
+				"entry_ref": ref,
+				"found": True,
+				"text": mn.MSG_ENTRY_EXPLAIN_ANSWER.format(
+					doctype=mn.doctype_label(doctype),
+					name=ref,
+					date=facts["date"],
+					amount=amount,
+					explanation=mn.ENTRY_EXPLAIN_NO_PROPOSAL,
+				),
+				**_figures(amount, _calendar(facts["date"]), facts["name"]),
+			}
+		proposal = frappe.get_doc("Nyabo Proposal", name)
+		explanation = (proposal.explanation or "").strip()
+		total = fmt_mnt(Decimal(str(proposal.total or 0)))
+		parts = [
+			mn.MSG_ENTRY_EXPLAIN_ANSWER.format(
+				doctype=mn.doctype_label(proposal.posted_doctype or proposal.doctype),
+				name=proposal.posted_name or proposal.name,
+				date=str(proposal.posting_date or ""),
+				amount=total,
+				explanation=explanation or mn.ENTRY_EXPLAIN_NO_PROPOSAL,
+			)
+		]
+		if proposal.citation and proposal.citation not in explanation:
+			# The explanation the proposal stored usually already ends with the citation
+			# (mn.EXPL_SUFFIX_CITATION), and printing it again under the same card made the one
+			# line an accountant checks look like two different sources.
+			parts.append(mn.SIM_CITATION.format(citation=proposal.citation))
+		received = _document_received(proposal.document)
+		if received:
+			parts.append(mn.ENTRY_EXPLAIN_SOURCE.format(date=received))
+		return {
+			"entry_ref": proposal.posted_name or proposal.name,
+			"found": True,
+			"supplier": proposal.supplier or "",
+			"account_code": proposal.account_code or "",
+			"citation": proposal.citation or "",
+			"text": "\n".join(parts),
+			# The document's own figures. Not the explanation: the model wrote the middle of that
+			# sentence when the proposal was made, so a number in it is not one this read produced.
+			# Both dates, because the card prints both: a receipt photographed on the 5th and
+			# posted on the 7th is the normal case, and a model repeating the received date this
+			# read itself rendered (mn.ENTRY_EXPLAIN_SOURCE) must not lose its sentence over it.
+			#
+			# The account code and the citation for the same reason: the code is the one the chart
+			# resolved when the proposal was made and this card's own subject line prints it, and
+			# the citation is seeded rule text this read renders (inside the explanation, or on a
+			# line of its own). The natural sentence about an entry names the account it hit, and
+			# losing it to the code printed beside it was the check calling the card's own words
+			# invented.
+			**_figures(
+				total,
+				_calendar(str(proposal.posting_date or "")),
+				_calendar(received),
+				proposal.posted_name or proposal.name,
+				proposal.account_code or "",
+				proposal.citation or "",
+			),
+		}
+
+	def _document_received(document: str | None) -> str:
+		"""The day the source document reached Nyabo, or "" when there is none to name."""
+		if not document:
+			return ""
+		received = frappe.db.get_value("Nyabo Document", document, "received_at")
+		return str(received)[:10] if received else ""
+
+	kinds: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
+		"balance_on_date": _balance_on_date,
+		"spend_by_account": _spend_by_account,
+		"account_entries": _account_entries,
+		"last_entries_for_supplier": _last_entries_for_supplier,
+		"supplier_total": _supplier_total,
+		"vat_position": _vat_position,
+		"top_spend_accounts": _top_spend_accounts,
+		"unmatched_count": _unmatched_count,
+		"unmatched_lines": _unmatched_lines,
+		"explain_entry": _explain_entry,
+	}
+
 	def _books(args: dict[str, Any]) -> dict[str, Any]:
 		kind = args.get("query_kind")
 		inner = dict(args.get("args") or {})
-		try:
-			if kind == "balance_on_date":
-				account = _account(inner.get("account_code"))
-				on = dt.date.fromisoformat(inner["on_date"]) if inner.get("on_date") else today
-				balance = Decimal(str(get_balance_on(account, on, company=company) or 0))
-				return {
-					"account": account,
-					"date": on.isoformat(),
-					"balance": fmt_mnt(balance),
-					"text": mn.MSG_BALANCE_ANSWER.format(
-						account=account, date=on.isoformat(), balance=fmt_mnt(balance)
-					),
-				}
-			if kind == "spend_by_account":
-				account = _account(inner.get("account_code"))
-				period = inner.get("period") or dates.period_of(today)
-				start, end = dates.period_bounds(period)
-				rows = frappe.get_all(
-					"GL Entry",
-					filters={
-						"company": company,
-						"account": account,
-						"is_cancelled": 0,
-						"posting_date": ["between", [start, end]],
-					},
-					fields=["debit", "credit"],
-				)
-				amount = quantize(
-					sum((Decimal(str(r.debit or 0)) - Decimal(str(r.credit or 0)) for r in rows), ZERO)
-				)
-				label = dates.period_label(period)
-				return {
-					"account": account,
-					"period": period,
-					"amount": fmt_mnt(amount),
-					"text": mn.MSG_SPEND_ANSWER.format(period=label, account=account, amount=fmt_mnt(amount)),
-				}
-			if kind == "last_entries_for_supplier":
-				wanted = str(inner.get("supplier") or "").strip()
-				supplier = _find_supplier(wanted) if wanted else None
-				if not supplier:
-					return {
-						"supplier": wanted,
-						"entries": [],
-						"text": mn.SUPPLIER_NOT_FOUND_ANSWER.format(supplier=wanted),
-					}
-				rows = frappe.get_all(
-					"GL Entry",
-					filters={
-						"company": company,
-						"party_type": "Supplier",
-						"party": supplier,
-						"is_cancelled": 0,
-					},
-					fields=["voucher_type", "voucher_no", "posting_date", "debit", "credit"],
-					order_by="posting_date desc",
-				)
-				seen: dict[str, dict[str, Any]] = {}
-				for row in rows:
-					key = f"{row.voucher_type}:{row.voucher_no}"
-					if key in seen:
-						continue
-					amount = max(Decimal(str(row.debit or 0)), Decimal(str(row.credit or 0)))
-					seen[key] = {
-						"doctype": row.voucher_type,
-						"name": row.voucher_no,
-						"date": str(row.posting_date),
-						"amount": fmt_mnt(amount),
-					}
-					if len(seen) >= 5:
-						break
-				entries = list(seen.values())
-				if not entries:
-					return {
-						"supplier": supplier,
-						"entries": [],
-						"text": mn.LAST_ENTRIES_NONE.format(supplier=supplier),
-					}
-				lines = "\n".join(mn.LAST_ENTRY_LINE.format(**e) for e in entries)
-				return {
-					"supplier": supplier,
-					"entries": entries,
-					"text": mn.MSG_LAST_ENTRIES_ANSWER.format(supplier=supplier, entries=lines),
-				}
-			if kind == "unmatched_count":
-				count = frappe.db.count(
-					"Bank Transaction",
-					{"company": company, "docstatus": 1, "status": ["in", ["Unreconciled", "Pending"]]},
-				)
-				return {"count": count, "text": mn.UNMATCHED_ANSWER.format(count=count)}
+		run = kinds.get(str(kind))
+		if run is None:
 			return {"error": "invalid_arguments", "detail": [f"unknown query_kind {kind!r}"]}
+		try:
+			return run(inner)
 		except ChartError as exc:
 			return {"error": "unknown_account", "detail": [str(exc)]}
 		except ValueError as exc:
 			return {"error": "invalid_arguments", "detail": [str(exc)]}
 
 	return {"answer_from_books": _books}
+
+
+def books_answer(
+	company: str, query_kind: str, args: Mapping[str, Any] | None = None, *, now: dt.datetime | None = None
+) -> dict[str, Any]:
+	"""One read-only query run without a model: what a follow-up button under an answer does.
+
+	The tap already carries the query kind and its arguments, so there is nothing left for a
+	model to decide and a call would only risk a sentence the handler did not write. It goes
+	through the same dispatcher the model's tool calls go through, so the arguments are
+	validated by the same pydantic model and an impossible one is refused the same way.
+	"""
+	now = now or dt.datetime.now(dt.timezone.utc)
+	full: dict[str, Any] = dict.fromkeys(questions.BooksArgs.model_fields)
+	full.update({key: value for key, value in (args or {}).items() if key in full})
+	dispatch = questions.make_dispatcher(books_handlers(company, today=now.date()))
+	return dispatch("answer_from_books", {"query_kind": query_kind, "args": full})
 
 
 def load_faq() -> list[tuple[str, str]]:
@@ -1123,6 +1716,41 @@ def load_faq() -> list[tuple[str, str]]:
 	return []
 
 
+FAQ_ANSWER_CHARS = 1500
+_MD_BULLET = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+")
+_MD_LINK = re.compile(r"\[([^\]]+)\]\([^)]*\)")
+_MD_EMPHASIS = re.compile(r"(\*{1,3}|_{2,3}|`+)(.+?)\1", re.DOTALL)
+
+
+def faq_plain_text(markdown: str) -> str:
+	"""The FAQ section as a chat card reads it: no markup, no 80-column hard wraps.
+
+	``faq.mn.md`` is written for a repository — asterisks, backticks and paragraphs wrapped by
+	hand — and the answer card is sent with ``parse_mode`` unset, so the accountant read the
+	asterisks. Stripping here rather than switching the card to Markdown is deliberate: the
+	rest of the card is not markdown, and an accountant's own supplier name may contain a
+	character Telegram would then try to parse.
+	"""
+	blocks: list[str] = []
+	for block in re.split(r"\n\s*\n", markdown or ""):
+		lines = [line.strip() for line in block.splitlines() if line.strip()]
+		if not lines:
+			continue
+		joined: list[str] = []
+		for line in lines:
+			# A bullet starts its own line; anything else continues the sentence above it, which
+			# is where the hand-wrapping is undone.
+			if _MD_BULLET.match(line) or not joined:
+				joined.append(_MD_BULLET.sub("• ", line))
+			else:
+				joined[-1] = f"{joined[-1]} {line}"
+		blocks.append("\n".join(joined))
+	text = "\n\n".join(blocks)
+	text = _MD_LINK.sub(r"\1", text)
+	text = _MD_EMPHASIS.sub(r"\2", text)
+	return text.strip()
+
+
 def faq_handler(args: dict[str, Any]) -> dict[str, Any]:
 	question = str(args.get("question") or "").lower()
 	tokens = {t for t in re.split(r"\W+", question, flags=re.UNICODE) if len(t) > 2}
@@ -1134,7 +1762,9 @@ def faq_handler(args: dict[str, Any]) -> dict[str, Any]:
 			best = (score, heading, body)
 	if best is None:
 		return {"found": False, "text": mn.FAQ_NOT_FOUND}
-	return {"found": True, "title": best[1], "text": best[2][:1500]}
+	# The FAQ explains how Nyabo works and quotes worked examples; not one of those figures is
+	# from this company's ledger, so this answer vouches for none of them (agent.questions).
+	return {"found": True, "title": best[1], "text": faq_plain_text(best[2])[:FAQ_ANSWER_CHARS]}
 
 
 def escalate_handler(user: str, company: str, question: str) -> Callable[[dict[str, Any]], dict[str, Any]]:
@@ -1153,8 +1783,11 @@ def escalate_handler(user: str, company: str, question: str) -> Callable[[dict[s
 			try:
 				from nyabo_mn.telegram import api as telegram_api  # type: ignore[import-not-found]
 
-				# UNVERIFIED: the Telegram layer's admin notification entry point is not part of the
-				# contract yet; only used when it exposes notify_admins(summary, company).
+				# nyabo_mn.telegram.api.notify_admins(summary, company) is the contract: it builds
+				# the bot and the settings and calls router.notify_admins. Looked up rather than
+				# imported at module scope so the agent layer stays importable without the chat
+				# layer, but it is a real function now — a getattr that quietly returned None was
+				# how [Админаас асуух] came to promise a human and reach nobody.
 				notifier = getattr(telegram_api, "notify_admins", None)
 			except ImportError:
 				notifier = None
@@ -1174,12 +1807,20 @@ def answer_question(
 	company: str,
 	text: str,
 	*,
+	memory: Mapping[str, Any] | None = None,
 	client: LlmClient | None = None,
 	now: dt.datetime | None = None,
-) -> str:
-	"""One read-only, tool-using model call; returns the Mongolian sentence for the chat."""
-	from nyabo_mn.agent import questions
+	on_turn: Callable[[], None] | None = None,
+) -> questions.Reply:
+	"""One read-only, tool-using model call; returns the sentence, its buttons and its memory.
 
+	``memory`` is whatever the chat stored after the previous question. It is passed through
+	``questions.recall`` here rather than in the Telegram layer so every caller — the bot, the
+	simulator, an eval — gets the same expiry and the same company check.
+
+	``on_turn`` is called between model turns, for a caller that is showing the user something
+	while it waits (the bot re-sends «typing…»). It must not raise.
+	"""
 	now = now or dt.datetime.now(dt.timezone.utc)
 	recorder = frappe_log.recorder(company=company)
 	if client is None:
@@ -1196,12 +1837,27 @@ def answer_question(
 		regime = ctx.regime.value
 	except rules_engine.RuleError:
 		regime = "unknown"
+	recalled = questions.recall(memory, company=company, now=now)
+	if recalled is None and (planted := questions.memory_injection(memory)) is not None:
+		# The remembered subject carried an instruction aimed at the model. ``recall`` has
+		# already dropped it, but a supplier name comes off a receipt photograph through
+		# extraction, so this is the same event a poisoned receipt is and must be as visible.
+		write_event(
+			"injection_suspected",
+			company=company,
+			actor_user=user,
+			reason=planted[:200],
+			payload={"source": "question_memory"},
+		)
 	outcome = questions.answer(
 		client,
 		text,
 		handlers,
 		company_context=f"company: {company}\nregime: {regime}\nuser: {user}",
+		company=company,
+		memory=recalled,
 		now=now,
+		on_turn=on_turn,
 	)
 	if outcome.injection_suspected:
 		write_event(
@@ -1211,7 +1867,35 @@ def answer_question(
 			reason=(outcome.injection_fragment or "")[:200],
 			payload={"source": "question"},
 		)
-	return outcome.answer.answer_mn
+	if outcome.unverified_numbers:
+		# The sentence carried a figure no handler returned; ``questions.answer`` already
+		# replaced it. The event is what makes a model or prompt regression visible instead of
+		# it quietly degrading into round numbers nobody checks — so it has to say which of the
+		# two happened. «invented» is a figure nothing in the trace accounts for; «derived» is
+		# one the model worked out from figures the handlers did return (an average, a
+		# difference). Both cost the sentence; only one is an alarm.
+		kinds = outcome.number_kinds
+		write_event(
+			"question_number_unverified",
+			company=company,
+			actor_user=user,
+			reason=", ".join(
+				f"{n} ({kinds.get(n, questions.UNVERIFIED_INVENTED)})" for n in outcome.unverified_numbers
+			)[:200],
+			payload={"tools": list(outcome.tools_used), "numbers": dict(kinds)},
+		)
+	return questions.reply_of(outcome)
+
+
+def escalate_question(user: str, company: str, question: str, summary: str) -> dict[str, Any]:
+	"""[Админаас асуух] under an answer: the same escalation the model's tool performs.
+
+	The button exists because ``needs_escalation`` is built from the tool trace and never
+	claimed by the model (§5.7); when the model could not answer, the *user* gets to make the
+	call, and it goes through the same handler so the Nyabo Event and the admin notice are
+	identical either way.
+	"""
+	return escalate_handler(user, company, question)({"summary": summary})
 
 
 __all__ = [
@@ -1225,6 +1909,7 @@ __all__ = [
 	"PipelineError",
 	"UnverifiedRuleError",
 	"answer_question",
+	"books_answer",
 	"books_handlers",
 	"build_amounts",
 	"build_explanation",
@@ -1235,7 +1920,9 @@ __all__ = [
 	"decide_vat_treatment",
 	"dumps",
 	"escalate_handler",
+	"escalate_question",
 	"faq_handler",
+	"faq_plain_text",
 	"family_for_code",
 	"load_faq",
 	"load_patterns",

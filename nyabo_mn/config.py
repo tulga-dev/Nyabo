@@ -37,6 +37,14 @@ KEY_SPECS: tuple[KeySpec, ...] = (
 	KeySpec("ADMIN_TELEGRAM_IDS", feature="telegram", secret=False),
 	KeySpec("OPENAI_API_KEY", feature="llm"),
 	KeySpec("OPENAI_MODEL", default=DEFAULT_OPENAI_MODEL, secret=False),
+	# One model per purpose (agent.llm_client.OPENAI_PURPOSE_MODELS). Unset is the normal
+	# state: each purpose then runs the model the founder chose for it in code, and only a
+	# purpose without one falls back to OPENAI_MODEL. Separate keys, not a JSON map,
+	# because Frappe Cloud's Site Config is the founder's only door and it edits one key at
+	# a time. ``nyabo_mn.api.config_check`` answers what each purpose resolves to.
+	KeySpec("OPENAI_MODEL_EXTRACT", secret=False),
+	KeySpec("OPENAI_MODEL_CLASSIFY", secret=False),
+	KeySpec("OPENAI_MODEL_QUESTION", secret=False),
 	KeySpec("ANTHROPIC_API_KEY"),
 	KeySpec("ANTHROPIC_MODEL", default=DEFAULT_ANTHROPIC_MODEL, secret=False),
 	KeySpec("OPENAI_SWEEP_MODEL", default=DEFAULT_OPENAI_SWEEP_MODEL, secret=False),
@@ -158,6 +166,26 @@ def get_settings() -> Settings:
 	return Settings.from_mapping(frappe.conf)
 
 
+def model_routing(settings: Settings, provider: str = "openai") -> dict[str, Any]:
+	"""Which model each purpose will actually use, resolved - not just which keys are set.
+
+	The keys alone cannot answer it: a purpose with no key of its own still runs the model
+	chosen in code, and a wrong model reaches the books through the accounts classify
+	proposes. ``source`` names what decided (a key, the purpose default, ``OPENAI_MODEL``)
+	and ``warning`` carries the allowlist warning, so a typo is visible from the desk
+	console instead of at the next receipt.
+	"""
+	from nyabo_mn.agent.llm_client import resolve_models
+
+	return {
+		"provider": provider,
+		"by_purpose": {
+			purpose: {"model": choice.model, "source": choice.source, "warning": choice.warning}
+			for purpose, choice in resolve_models(settings, provider).items()
+		},
+	}
+
+
 def check() -> dict[str, Any]:
 	"""Which features are configured, with every secret redacted.
 
@@ -166,4 +194,8 @@ def check() -> dict[str, Any]:
 	answer to a System Manager from the desk console.
 	"""
 	settings = get_settings()
-	return {"missing_by_feature": settings.report(), "values": settings.redacted()}
+	return {
+		"missing_by_feature": settings.report(),
+		"values": settings.redacted(),
+		"models": model_routing(settings),
+	}

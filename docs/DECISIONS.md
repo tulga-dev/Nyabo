@@ -7,7 +7,7 @@ section. Agents append to their own section; the integrator merges.
 Identifiers are `<SECTION>-<nn>`, numbered inside the section they belong to — `CORE`
 (core + rules + seed), `INT` (integration), `RULES` (rules on the Frappe side + setup),
 `PIPE` (agent pipeline + posting + ebarimt), `COMP` (compliance + reports), `BANK`
-(parsers + matching), `REV` (review), `TG` (telegram review) — so an identifier names
+(parsers + matching), `REV` (review), `TG` (telegram review), `LLM` (model routing), `Q` (the question agent) — so an identifier names
 exactly one decision and a new entry never renumbers an old one. Cite them that way in
 code and in docs (REV-02).
 
@@ -725,3 +725,190 @@ button or by Алгасах) used to save exactly that mapping, keyed on the hea
 ask an admin to verify it — after which every later import of that bank's export would find
 it and read nothing. The last column now refuses to complete the mapping instead, in
 Mongolian, with the question left standing.
+
+## model routing (one model per purpose)
+
+### LLM-01 A purpose's own model outranks `OPENAI_MODEL`
+`resolve_model` reads the purpose's key first (`OPENAI_MODEL_CLASSIFY`), then the model
+chosen for that purpose in `OPENAI_PURPOSE_MODELS`, and only then `OPENAI_MODEL`. The other
+order was tempting — one key that moves everything — but the live site already sets
+`OPENAI_MODEL`, so under it the founder's routing would have applied to nothing until three
+keys were added, and «use Astra for chat» would have shipped as a no-op. `eval` and `other`
+have no model of their own and are exactly what `OPENAI_MODEL` says, so the fallback still
+means something. The cost is that pinning `OPENAI_MODEL` no longer moves extraction,
+classification or questions: `api.config_check` prints each purpose's model *and* the
+`source` that decided it so that is visible without reading code, and `llm_client.pin_models`
+(used by the eval sweep) sets every key at once when a caller really does mean "this model,
+everywhere". Reverse by swapping the two branches in `resolve_model`.
+
+### LLM-02 Classification runs on Astra, not on Terra — the judgement call in this task
+The founder said «Astra for reasoning and chat, terra for receipt parsing». Extraction is
+plainly parsing: a photograph in, the printed fields out, and Terra was picked for exactly
+that. Classification is not parsing. By the time it runs, the receipt is already text; it
+proposes the expense account and the VAT treatment *with a reason*, against a chart of
+accounts and a regime, and its answer is what the accountant taps «Зөв» on. It is the last
+model step before the ledger, and principle 3 (a human taps) is a review of that proposal,
+not a substitute for it: a plausible wrong account with a fluent Mongolian reason is the
+failure this app can least afford. So classification is read as reasoning and routed to
+`gpt-6-astra`. Against it: «receipt parsing» could fairly mean the whole receipt pipeline,
+and Astra is 5× Terra's price ($10/$50 vs $2/$12 per 1M tokens in `agent.cost`) — though
+classification sends text only, while extraction carries the image tokens, so the bill moves
+less than the ratio suggests. If the founder meant the pipeline, one key flips it back:
+`OPENAI_MODEL_CLASSIFY = gpt-5.6-terra` in Site Config, effective in about 30 seconds with
+no deploy. The eval sweep now covers every routed model, so the two can be compared on the
+golden set before deciding.
+
+### LLM-03 Separate keys, not one JSON map
+`OPENAI_MODEL_EXTRACT`, `OPENAI_MODEL_CLASSIFY`, `OPENAI_MODEL_QUESTION` rather than a
+single `OPENAI_MODELS` JSON blob. Frappe Cloud's Site Config is the founder's only door
+(no shell), it adds one key at a time as a String, and a JSON value is edited as a whole —
+a typo in the blob would break every purpose at once instead of one. Separate keys also
+grep, and each appears in `config.check` on its own line with `<missing>` when unset.
+Purposes with no key (`eval`, `other`) are deliberate: they are not something the founder
+tunes. Reverse by parsing one JSON key in `resolve_model`; `KEY_SPECS` and
+`OPENAI_PURPOSE_MODELS` are the only two places that name the keys, and a test keeps them
+in step.
+
+### LLM-04 The model is chosen per call, not once per client
+`get_client` returns a `PurposeRouter` holding one adapter per distinct model id and
+dispatching on the `purpose` every call already carries. A client is built once and used
+for several purposes — `agent.pipeline` extracts and then classifies through the same
+object — so a model fixed at construction could not honour a per-purpose routing without
+rewriting every caller. Routing per call keeps `pipeline`, `matching.rules` and `evals`
+exactly as they were, and each adapter records its own calls, so `Nyabo LLM Call.model` is
+the model that actually answered and the intent in `config_check` can be checked against
+it. `get_client(..., purpose="question")` still returns a single pinned adapter for a caller
+that makes only one kind of call. Reverse by giving the adapters a per-call model argument
+instead, which is a change in all three adapters.
+
+## interactive questions (§5.7 widened)
+
+### Q-01 Conversation memory keeps the subject, never the figures
+`Nyabo Chat State.payload_json["question_memory"]` carries one turn: the previous question
+(capped at 160 characters) and the subject the *handler* resolved — account code, period,
+supplier, date, document. It expires after twenty minutes, it is stamped with the company
+and dropped on a mismatch, and `set_state` / `clear_state` take it with them, so leaving a
+question for a receipt ends the exchange it belonged to. §5.7 said nothing about context;
+this is the smallest thing that makes «мөн өнгөрсөн сард?» work.
+
+Figures are deliberately not remembered and never enter the prompt. A number in the context
+is a number the model can repeat as if it were this turn's answer, and a receipt approved
+between two questions changes it — a bookkeeping bot that silently answers last month's
+figure is worse than one that asks again. The follow-up therefore always calls a handler.
+The other half of that trade is visibility: the answer card prints the subject it read
+(`📒 6210 · 2026 оны 8-р сар`), which is how an accountant catches a context carried forward
+wrongly instead of trusting it.
+
+### Q-02 A number the model wrote and no handler returned never reaches the user
+`questions.unverified_numbers` compares every number in the model's sentence against two
+sources and no others: the figures the handlers *computed*, and the calendar date the clock
+is on (thousands separators normalised, a rounded tögrög figure and a month written out of
+an ISO period accepted). One that matches nothing replaces the whole sentence with the last
+handler's own Mongolian text — or, when there is none, with `MSG_QUESTION_CANNOT_FULL` — and
+writes a `question_number_unverified` Nyabo Event.
+
+What counts as computed is the narrow part, and it took three passes to get right. Each
+books handler returns `computed_numbers` (`questions.COMPUTED_NUMBERS_FIELD`): the amounts
+and counts it worked out, the posting dates, voucher names, account and supplier name the
+ledger gave back, and the month and day of the coordinate it read. Nothing else — and in
+particular not a result's rendered `text`, which is where two leaks lived: `answer_faq`
+returns product prose quoting worked examples («85 000₮-ийн шатахууны и-баримт»), and every
+not-found answer renders the model's own argument (`SUPPLIER_NOT_FOUND_ANSWER.format(...)`),
+so a figure the model invented came home through the sentence saying the books never found
+it. A rendered string is not a computation, whoever wrote it.
+
+The year of a period is vouched for only inside the window these books cover. The read runs
+for whatever month it is given, so an unbounded year would let a model ask about «9999 оны
+12-р сар» and license «9 999₮» — any four-digit figure, chosen by choosing the question. The
+year therefore comes from the clock (`_clock_years`) and, for a period a *handler* resolved,
+from `_resolved_years` bounded to `LEDGER_YEARS_BACK` (ten years, Law on Accounting art.
+11.1) around it. Without that second source a correct answer about 2024 — the ordinary
+question when an auditor calls — had its sentence replaced and was logged as an invention.
+
+The check runs over the model's sentence and over nothing else. When the model spends its
+turns on tools and writes no closing sentence the user reads the *handler's* Mongolian text,
+which is deterministic output built from the ledger; checking it logged
+`question_number_unverified` against figures Nyabo itself had computed — a rounded total, a
+rendered label — which is the noise that gets the real alarms ignored.
+
+Two sources this brief once named were removed for the same reason. **The user's question**:
+«Петровисээс 9 сард 1 250 000₮-ийн шатахуун авсан биз дээ?» is the ordinary way a Mongolian
+bookkeeper checks a figure out loud, so admitting the question let the model answer «Тийм, …
+1 250 000₮» over a ledger holding 85 000₮ — a confirmation of what nothing had confirmed, in
+the commonest shape of question and the one where that does the most damage. A figure a user
+typed is a figure the books have not confirmed. **The time of day**: the clock contributes
+`now.date()`, never `now`, because the full timestamp put every hour, minute and second into
+the set and so verified each of 0…59 as a tögrög figure. An answer about the books is about
+dates, never times.
+
+**Two things this check does not do**, both inherent to its design and both written down
+here and on `unverified_numbers` so that a clean compliance log is not read as more than it
+is.
+
+*It proves a figure came from the ledger; it does not bind that figure to the subject the
+sentence names.* The allowed set is the union of every read in the turn, so a model that asks
+about Петровис and about Болор and then writes «Болороос 85 000₮ авсан» with Петровис's total
+passes the check: the figure is in the set, from the wrong read. Closing it means checking
+each number against the read whose subject the sentence is about, which means deciding from
+Mongolian prose which subject each figure belongs to — a language judgement in the middle of
+the one path built to keep language judgement out of numbers. The honest close is narrower
+and costs a turn: one read per answer, the subject printed on the card, the figure checked
+against that read alone. Not done now because it would refuse the legitimate two-read answer
+(«энэ сар vs өнгөрсөн сар») that §5.7 was widened for. What holds meanwhile is Q-01's other
+half: the card prints the subject each read resolved, so a wrong attribution is visible to
+the accountant rather than invisible.
+
+*Only decimal literals are checked.* `_NUMBER` matches digits, so «наян таван мянган төгрөг»
+— eighty-five thousand written out in Mongolian words — is not a number to this check and a
+sentence with no digits in it passes untouched however wrong it is. Closing it means parsing
+Mongolian numerals (unit words, «мянга»/«сая» multipliers, spoken compounds) and then
+deciding which spelled-out quantities are money at all — «хоёр бичилт» is a count. That is a
+Mongolian-language component inside the number path, and getting it wrong drops correct
+sentences. Not done now; instead the prompt asks for figures in digits and every handler
+renders its own with `fmt_mnt`, so the ordinary answer carries digits and is checked.
+
+The stricter set is walked against all ten query kinds in the flow tests, because the way
+this fails is not a leak but correct sentences quietly being replaced for ever.
+"The model writes sentences, deterministic code writes numbers" was a rule the prompt asked
+for politely; this is the same rule enforced. The shared question fixture is what proved it:
+its sentence says "3 unmatched lines" against a ledger with none, and the user now reads the
+handler's "0".
+
+### Q-03 A follow-up button carries its whole query, and runs without a model
+Callback data is `q:<verb>[:<arg>…]` where the verb is a three-letter query kind and the
+arguments are the ones that kind reads, in `questions.QUERY_ARGS` order. The tap runs
+`pipeline.books_answer` — the model's own dispatcher and pydantic validation, no LLM call —
+so a button's answer is always a figure the books produced, and it arrives in one round trip
+instead of two. Nothing is looked up in the chat state, so a tap still works on a card
+opened tomorrow, after a deploy, with the memory long expired; `bank_candidates` may use an
+index precisely because its taps follow immediately, and this one may not.
+
+The company is *not* in the datum: callback data is attacker-chosen (TG-03), so the handler
+answers about the caller's own active company and re-checks it against their `Nyabo User
+Company` rows first. A datum that cannot be encoded (a supplier name past 64 bytes, or one
+carrying the separator) drops that button and logs, exactly as `keyboards.settle_row` does —
+losing a button is a nuisance, losing the answer is not.
+
+### Q-04 Ten read-only query kinds, and `explain_entry` reads the proposal
+§5.7 named four. Added: `account_entries` (the entries behind a spend figure — the
+«Юунаас бүрдэв?» button), `supplier_total`, `vat_position`, `top_spend_accounts`,
+`unmatched_lines` and `explain_entry`. All are reads and all are filtered by company, so a
+document name typed into a question or arriving in callback data comes back "not found"
+rather than "not permitted" when it belongs to another client (SEC-06: existence is
+information too).
+
+`supplier_total` reports purchases and payments as two figures instead of netting them:
+the net answers «how much do we still owe them», which is a different question from «how
+much did we buy from them», and the accountant asking the second must not be handed the
+first under the same words. `explain_entry` reads the `Nyabo Proposal` (§1.4 — the record
+of the decision) and answers a document Nyabo did not propose with its own figures plus a
+plain "there is no Nyabo explanation", because writing one after the fact is what principle
+4 forbids.
+
+### Q-05 The question prompt is v2, and the widening is why
+`question.v2.md` describes the ten kinds, adds the `{{MEMORY}}` slot, and says three things
+the model would otherwise get wrong: the previous turn is for resolving what a follow-up
+refers to and carries no figures; a figure it did not receive from a tool is removed before
+the user sees it; and it must not list next steps in prose, because the buttons under the
+answer already are that list. `tests/unit/test_agent_prompts.py` now pins a version per
+prompt instead of asserting 1 for all of them, so a bump has to be deliberate.

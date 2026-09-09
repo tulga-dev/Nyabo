@@ -41,6 +41,7 @@ PREFIX_CORRECTION = "x"
 PREFIX_ONBOARDING = "o"
 PREFIX_INTAKE = "i"
 PREFIX_LAYOUT = "l"  # statement column mapping; not in §5.1, listed in the module report
+PREFIX_QUESTION = "q"  # q:<verb>[:<arg>…] — the next read offered under an answer (§5.7)
 PREFIX_ESCAPE = "e"  # e:<scope>:cancel|back|skip|menu:<step> — the way out of a waiting step (UX-13)
 
 # Escape verbs. The scope and step beside them are the conversation state the button was drawn
@@ -333,6 +334,39 @@ def bank_candidates(bank_transaction: str, count: int) -> dict[str, Any]:
 		*rows(buttons),
 		[button(mn.BTN_CANCEL, encode(PREFIX_BANK, bank_transaction, "later"), style=STYLE_DANGER)],
 	)
+
+
+# --- questions (§5.7) ------------------------------------------------------------------------------
+
+
+def question_keyboard(follow_ups: Sequence[Any]) -> dict[str, Any]:
+	"""The read-only next steps under an answer: ``q:<verb>[:<arg>…]``.
+
+	Each ``agent.questions.FollowUp`` already carries its arguments in the order the query
+	kind reads them, so the datum is the whole query and the tap keeps working on a card
+	opened tomorrow, after a deploy, with the chat state long since cleared. That is the
+	opposite trade to ``bank_candidates`` (an index into the state) and the same one as
+	``settle_row``: a datum that does not fit costs the button, never the card, so a supplier
+	name long enough to pass 64 bytes — or one carrying the separator — is logged and dropped
+	while the rest of the answer stands.
+
+	The company is deliberately *not* in the datum. Callback data is attacker-chosen (TG-03);
+	the handler answers about the caller's own active company and nothing else.
+	"""
+	buttons: list[dict[str, str]] = []
+	for follow_up in follow_ups:
+		try:
+			data = encode(PREFIX_QUESTION, follow_up.verb, *follow_up.args)
+		except (CallbackDataTooLong, ValueError) as exc:
+			log_event(
+				"telegram.question_button_dropped",
+				level="warning",
+				verb=follow_up.verb,
+				error=type(exc).__name__,
+			)
+			continue
+		buttons.append(button(follow_up.label[:40], data))
+	return markup(*rows(buttons, per_row=2))
 
 
 # --- month-end -------------------------------------------------------------------------------------

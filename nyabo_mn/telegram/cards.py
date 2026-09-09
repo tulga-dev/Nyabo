@@ -411,6 +411,27 @@ def recon_status(company: str, rows: list[dict[str, Any]]) -> str:
 	return "\n".join(lines)
 
 
+# --- questions (§5.7) ------------------------------------------------------------------------------
+
+
+def question_card(answer: str, subject: str = "") -> str:
+	"""The answer, then the one line naming what was actually read.
+
+	The subject line is the safety valve on conversation memory: «мөн өнгөрсөн сард?» resolves
+	against a remembered account and month, and the only way an accountant can catch the bot
+	having carried the wrong one forward is to see «6210 · 2026 оны 7-р сар» under the
+	sentence. It is built by code from the handler's resolved arguments, never by the model.
+	"""
+	# The empty-answer default is the WHOLE dead end, next step included. Both callers already
+	# pass ``MSG_QUESTION_CANNOT_FULL`` for the failures they know about, so this line only ever
+	# fires on one they did not — and a card that says "I could not answer" and stops there is
+	# exactly the bare refusal the typed path was just fixed for. Three sites, one string.
+	text = (answer or "").strip() or mn.MSG_QUESTION_CANNOT_FULL
+	if not subject:
+		return text
+	return f"{text}\n{mn.MSG_QUESTION_SUBJECT.format(subject=_clip(subject, CARD_MAX_LINE_CHARS))}"
+
+
 # --- quality (/чанар) ------------------------------------------------------------------------------
 
 

@@ -22,11 +22,18 @@ import sys
 from collections.abc import Callable, Iterable, Sequence
 from typing import Any
 
-from nyabo_mn.agent.llm_client import CallRecord, LlmClient, get_client
+from nyabo_mn.agent.llm_client import (
+	PURPOSES,
+	CallRecord,
+	LlmClient,
+	get_client,
+	pin_models,
+	resolve_model,
+	resolve_models,
+)
 from nyabo_mn.agent.mock_client import MockLlmClient
 from nyabo_mn.config import (
 	DEFAULT_ANTHROPIC_MODEL,
-	DEFAULT_OPENAI_MODEL,
 	DEFAULT_OPENAI_SWEEP_MODEL,
 	Settings,
 )
@@ -69,12 +76,25 @@ def is_simulation() -> bool:
 def configured_models(
 	settings: Settings | None = None, *, simulation: bool | None = None
 ) -> list[tuple[str, str]]:
-	"""(provider, model) pairs for a sweep: OPENAI_MODEL, OPENAI_SWEEP_MODEL, ANTHROPIC_MODEL when keyed."""
+	"""(provider, model) pairs for a sweep, deduplicated.
+
+	Every model the purpose routing can pick first, in ``PURPOSES`` order, then
+	``OPENAI_SWEEP_MODEL``, then ``ANTHROPIC_MODEL`` when keyed. The routed models lead so
+	``models[0]`` stays the model that reads the receipt (the primary run pins that one, as
+	it did when there was only ``OPENAI_MODEL``), and so a sweep covers the model that now
+	proposes the account - otherwise nothing would ever measure it.
+	"""
 	settings = settings or _settings()
 	simulated = is_simulation() if simulation is None else simulation
-	models = [("openai", settings.openai_model or DEFAULT_OPENAI_MODEL)]
+	models: list[tuple[str, str]] = []
+	seen: set[str] = set()
+	for purpose in PURPOSES:
+		model = resolve_model(settings, purpose, "openai").model
+		if model not in seen:
+			seen.add(model)
+			models.append(("openai", model))
 	sweep = settings.openai_sweep_model or DEFAULT_OPENAI_SWEEP_MODEL
-	if sweep and sweep != models[0][1]:
+	if sweep and sweep not in seen:
 		models.append(("openai", sweep))
 	if settings.anthropic_api_key or simulated:
 		models.append(("anthropic", settings.anthropic_model or DEFAULT_ANTHROPIC_MODEL))
@@ -82,17 +102,43 @@ def configured_models(
 
 
 def default_client_factory(records: list[CallRecord], *, simulation: bool | None = None) -> ClientFactory:
+	"""The factory for ONE SWEEP ENTRY: every purpose pinned to the model being asked about.
+
+	Not for the graded run — see :func:`default_primary_client`. Pinning is right here and
+	only here, because a sweep row asks "how does *this* model do on the golden set".
+	"""
 	settings = _settings()
 	simulated = is_simulation() if simulation is None else simulation
 
 	def factory(provider: str, model: str) -> LlmClient:
 		if simulated:
 			return MockLlmClient(model=model, record_call=records.append)
-		override = dict(settings.values)
-		override["OPENAI_MODEL" if provider == "openai" else "ANTHROPIC_MODEL"] = model
+		# A sweep asks about one model, so every purpose is pinned to it: setting
+		# OPENAI_MODEL alone would leave extraction and classification on the routed
+		# models and the report would name a model that never ran (llm_client.pin_models).
+		override = pin_models(settings.values, provider, model)
 		return get_client(Settings.from_mapping(override), provider, record_call=records.append)
 
 	return factory
+
+
+def default_primary_client(
+	records: list[CallRecord], provider: str, model: str, *, simulation: bool | None = None
+) -> LlmClient:
+	"""The client for the GRADED run: the site's own per-purpose routing, nothing pinned.
+
+	The metrics and the verdict of this run decide whether the app is fit to ship, so it has
+	to measure the configuration production uses. Built through the sweep's factory it was
+	pinned to one model id for every purpose, which is a configuration nothing runs — the
+	graded number then said nothing about the app that ships (docs/DECISIONS.md LLM-01).
+
+	Under simulation the id is only a label on the fixture-driven mock, so it is carried
+	through and the report still names the routed model.
+	"""
+	simulated = is_simulation() if simulation is None else simulation
+	if simulated:
+		return MockLlmClient(model=model, record_call=records.append)
+	return get_client(_settings(), provider, record_call=records.append)
 
 
 def load_site_cases(company: str | None) -> list[EvalCase]:
@@ -177,7 +223,13 @@ def run(
 	model_list = list(models) if models is not None else configured_models(simulation=simulated)
 	primary_provider, primary_model = model_list[0]
 	if any(c.kind in MODEL_KINDS for c in all_cases):
-		client: LlmClient = factory(primary_provider, primary_model)
+		# An injected factory is the caller's whole answer to "which client"; otherwise the
+		# graded run gets the unpinned, routed client — never ``factory``, which pins.
+		client: LlmClient = (
+			client_factory(primary_provider, primary_model)
+			if client_factory is not None
+			else default_primary_client(records, primary_provider, primary_model, simulation=simulated)
+		)
 	else:
 		client = MockLlmClient(record_call=records.append)
 		primary_model = client.model
@@ -193,6 +245,9 @@ def run(
 		"simulation": simulated,
 		"adapters": adapters.source,
 		"model": primary_model,
+		# What the graded run actually routed to, per purpose. ``model`` names one of these;
+		# without the rest, a reader cannot tell which configuration the verdict judged.
+		"routing": {p: c.model for p, c in resolve_models(_settings(), primary_provider).items()},
 		"results": [r.as_dict() for r in results],
 		"metrics": summary,
 		"verdict": verdict,
@@ -259,6 +314,10 @@ def format_table(report: dict[str, Any]) -> str:
 	lines = [
 		f"Nyabo evals · kinds: {', '.join(report['kinds'])} · model: {report['model'] or '-'} · simulation: {report['simulation']}"
 	]
+	routing = report.get("routing") or {}
+	if len(set(routing.values())) > 1:
+		# The graded run is routed, not pinned, so one model id does not describe it.
+		lines.append("routing: " + ", ".join(f"{p}={m}" for p, m in sorted(routing.items())))
 	lines += [f"{name.ljust(width)}  {value:>16}  {threshold}" for name, value, threshold in rows]
 	lines.append("VERDICT: " + ("PASS" if report["passed"] else "FAIL"))
 	for f in report["failures"]:
@@ -312,6 +371,7 @@ if __name__ == "__main__":
 __all__ = [
 	"configured_models",
 	"default_client_factory",
+	"default_primary_client",
 	"format_table",
 	"is_simulation",
 	"main",

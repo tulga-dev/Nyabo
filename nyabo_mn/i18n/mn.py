@@ -37,6 +37,25 @@ BTN_SHOW_ENTRY = "Бичилт харах"
 BTN_REVERSE = "Буцаах"
 BTN_NEW_ENTRY = "Шинэ бичилт"
 
+# --- question follow-ups (the next read the accountant would ask for; §5.7) -------------
+# The arrows carry the direction so the month name alone can be the label; a Telegram
+# button is one short line and «Өмнөх сарын дүнг харах» wraps on a narrow phone.
+BTN_Q_PREV_PERIOD = "← {period}"
+BTN_Q_NEXT_PERIOD = "{period} →"
+BTN_Q_EXPLAIN = "Юунаас бүрдэв?"
+# The same read under a *balance*, where «Юунаас бүрдэв?» would be a promise the query cannot
+# keep: a balance as of a date is not the sum of one month's entries. The month it will show is
+# named instead, and it leads with the noun so the two buttons on that card do not both start
+# with a date.
+BTN_Q_PERIOD_ENTRIES = "Бичилтүүд · {period}"
+BTN_Q_ACCOUNT_TOTAL = "Сарын нийт дүн"
+BTN_Q_SUPPLIER_ENTRIES = "Сүүлийн бичилтүүд"
+BTN_Q_SUPPLIER_TOTAL = "Харилцагчийн нийт дүн"
+BTN_Q_TOP_ACCOUNTS = "Хамгийн их зардал"
+BTN_Q_UNMATCHED_LINES = "Аль гүйлгээ вэ?"
+BTN_Q_UNMATCHED_COUNT = "Хэд байна?"
+BTN_Q_ASK_ADMIN = "Админаас асуух"
+
 # --- rejection reasons (one tap) -------------------------------------------------------
 REJECT_PERSONAL = "Хувийн зардал"
 REJECT_DUPLICATE = "Давхардсан"
@@ -325,7 +344,18 @@ MSG_PERIOD_UNVERIFIED_RULES = (
 )
 MSG_PERIOD_REOPENED = "🔓 {period} үеийг дахин нээлээ. Шалтгаан: {reason}"
 MSG_PERIOD_DELETE_BLOCKED = "Нябо-гоор хаасан тайлант үеийг ({name}) устгахгүй; шаардлагатай бол дахин нээнэ."
-MSG_POSTING_IN_CLOSED_PERIOD = "{date} огноо хаагдсан {period}-д багтаж байна. Бичилт хийх боломжгүй."
+# WHY no template ever writes «{placeholder}-<суффикс>»: the correct case ending depends on the
+# last sound of the word the placeholder renders, and a placeholder renders a *formatted* value —
+# a month label («2027 оны 1-р сар» wants «сард», not «сар-д»), a numeral («5» wants «-аас», «2»
+# wants «-оос»), an ISO date («…-05» wants «-нд», «…-08» wants «-д»). One spelling in the source
+# can only ever be right for some of the values, so the suffix attaches to a fixed noun the
+# sentence supplies instead («тайлант үед ({period})», «{date} өдрийн»), or the label is set off
+# with a colon or brackets. The one exception is a proper name or an abbreviation — «ХХК-ийн» IS
+# the written form — which is why «{company}-ийн» stays. tests/unit/test_i18n_no_hardcoded_mongolian.py
+# sweeps this module for the shape.
+MSG_POSTING_IN_CLOSED_PERIOD = (
+	"{date} огноо хаагдсан тайлант үед ({period}) багтаж байна. Бичилт хийх боломжгүй."
+)
 MSG_CLOSE_SIMPLIFIED_MONTH_LINE = "• {month}: орлого {revenue}₮"
 MSG_SIMPLIFIED_NOT_ELIGIBLE_VAT = (
 	"Хялбаршуулсан 1%-ийн горим НӨАТ-ын суутган төлөгчид хамаарахгүй (ААНОАТ-ын тухай хууль 29.3.1); "
@@ -502,7 +532,7 @@ POLICY_SECTIONS = [
 		"key": "fx",
 		"title": "6. Гадаад валют",
 		"paragraphs": [
-			"Гадаад валютын гүйлгээг гүйлгээний өдрийн {fx_policy}-аар төгрөгт хөрвүүлж бүртгэнэ. Валютын үлдэгдлийг "
+			"Гадаад валютын гүйлгээг гүйлгээний өдрийн ханшаар ({fx_policy}) төгрөгт хөрвүүлж бүртгэнэ. Валютын үлдэгдлийг "
 			"тайлант үеийн эцэст дахин үнэлж, ханшийн зөрүүг олз, гарзаар хүлээн зөвшөөрнө.",
 		],
 	},
@@ -532,7 +562,7 @@ POLICY_SECTIONS = [
 			"Анхан шатны баримтгүйгээр ажил гүйлгээг бүртгэхийг хориглоно (Хууль 13.7). Баримтын маягтыг Сангийн сайдын "
 			"2017 оны 347 дугаар тушаалын дагуу хэрэглэнэ; баримт нь гарын үсэг, тамгаар эсхүл цахим гарын үсгээр "
 			"баталгаажна (Хууль 13.5).",
-			"Нягтлан бодох бүртгэлийн баримт, тайланг {retention_years}-аас доошгүй жил хадгална (Хууль 11.1). Нябо-д "
+			"Нягтлан бодох бүртгэлийн баримт, тайланг хамгийн багадаа {retention_years} жил хадгална (Хууль 11.1). Нябо-д "
 			"илгээсэн баримтын зураг, файл болон бүртгэлийн бичилтийг устгахыг систем хориглоно.",
 		],
 	},
@@ -575,8 +605,24 @@ MSG_QUESTION_THINKING = "Шалгаж байна…"
 MSG_QUESTION_CANNOT = "Энэ асуултад дэвтрээс хариулж чадсангүй."
 MSG_ESCALATED = "Асуултыг админд дамжууллаа."
 MSG_BALANCE_ANSWER = "{account}: {date} өдрийн үлдэгдэл {balance}₮"
-MSG_SPEND_ANSWER = "{period}: {account} {amount}₮"
+# A bare «2026 оны 9-р сар: 6210 - Шатахуун - TST 77 272.73₮» never says what the figure is,
+# and it is what the user reads whenever the model writes no sentence or an unverifiable one.
+# The noun is the one the button that runs this query already uses (BTN_Q_ACCOUNT_TOTAL), and
+# it stays true for any account: this is the month's net turnover, not only an expense.
+MSG_SPEND_ANSWER = "{period}: {account} — нийт дүн {amount}₮"
 MSG_LAST_ENTRIES_ANSWER = "{supplier} сүүлийн бүртгэлүүд:\n{entries}"
+# The line under an answer that names what was actually read, so a follow-up that carried the
+# wrong month forward is visible instead of silent.
+MSG_QUESTION_SUBJECT = "📒 {subject}"
+MSG_QUESTION_TRY_REPHRASE = "Асуултаа өөрөөр бичиж үзнэ үү, эсвэл админаас асууна уу."
+# The whole dead end, in one string, because a typed question and a tapped button must reach
+# the same one. The tapped path always offered the next step; the typed path sent
+# MSG_QUESTION_CANNOT on its own, so the same failure read as a bare refusal in the shape of
+# question an accountant actually types. Composed here rather than at the two call sites so
+# the two can never drift apart again.
+MSG_QUESTION_CANNOT_FULL = f"{MSG_QUESTION_CANNOT}\n{MSG_QUESTION_TRY_REPHRASE}"
+MSG_QUESTION_CONTEXT_GONE = "Энэ хариулт хуучирсан байна. Асуултаа дахин бичнэ үү."
+MSG_QUESTION_ESCALATE_SUMMARY = "Хэрэглэгч хариултын дор «{button}» товч дарлаа: {question}"
 
 # --- reports (labels; report names stay ASCII) --------------------------------------------
 REPORT_GENERAL_JOURNAL = "Ерөнхий журнал"
@@ -844,10 +890,111 @@ MSG_RULE_LEARNED = "Хоёр ижил залруулгаас шинэ дүрэм
 EXPL_RULE_APPLIED = "«{rule}» дүрмээр {code} данс сонгов."
 EXPL_CORRECTION_PREFIX = "Залруулга ({reason}): "
 FAQ_NOT_FOUND = "Энэ асуултад тохирох тайлбар олдсонгүй."
+# The ERPNext doctypes an answer names out loud. Their names are English and they arrive as
+# *data* — a ``voucher_type`` off a GL row, a proposal's ``posted_doctype`` — so the i18n walk
+# cannot see them, and «Purchase Invoice ACC-PINV-2026-00001» reached a Mongolian card that
+# way. Anything unlisted keeps its raw name: an English label the reader can look the document
+# up by beats a Mongolian one Nyabo guessed.
+DOCTYPE_LABELS: dict[str, str] = {
+	"Purchase Invoice": "Худалдан авалтын нэхэмжлэх",
+	"Journal Entry": "Журналын бичилт",
+	"Payment Entry": "Төлбөрийн баримт",
+}
+
+
+def doctype_label(doctype: str | None) -> str:
+	"""The Mongolian name of an ERPNext doctype, or the raw name when there is none."""
+	name = str(doctype or "").strip()
+	return DOCTYPE_LABELS.get(name, name)
+
+
+def account_label(account: str | None, abbr: str | None = None) -> str:
+	"""An ERPNext account name as a card prints it: «6610 - Зар сурталчилгаа».
+
+	WHY: the stored name is «6610 - Зар сурталчилгаа - TST» — code, name, and the company
+	abbreviation ERPNext appends so names stay unique ACROSS companies. Every question is
+	answered about one company, so that suffix is noise on the card, and it is the reader's
+	own company abbreviation that is stripped rather than "whatever follows the last dash":
+	an account name may contain a dash of its own, and guessing would eat part of it.
+
+	The code stays, because it is what an accountant looks the account up by — and it is why
+	no caller prints the code beside this: the name already opens with it.
+	"""
+	name = str(account or "").strip()
+	suffix = f" - {str(abbr or '').strip()}"
+	if suffix.strip(" -") and name.endswith(suffix):
+		return name[: -len(suffix)].rstrip()
+	return name
+
+
 LAST_ENTRY_LINE = "{date} · {doctype} {name} · {amount}₮"
-LAST_ENTRIES_NONE = "{supplier} харилцагчийн бүртгэл олдсонгүй."
+# A debit note is this app's own correction (§1.5) and it DEBITS the payable, exactly as a
+# payment does, so the larger side of its GL row is the amount of the purchase it reverses. Read
+# as a bare magnitude the correction printed a second, identical purchase beside the one it
+# cancelled — while the supplier total card next to it said «худалдан авалт 0₮». The row is named
+# for what it is and shown negative, the way ``_supplier_total`` nets it out.
+LAST_ENTRY_LINE_RETURN = "{date} · {doctype} {name} · {amount}₮ (буцаалт/залруулга)"
+# Two different answers that both used to end «олдсонгүй»: this one is "the supplier is in the
+# register and has nothing posted", the one below is "there is no supplier by that name". An
+# accountant chasing a missing document has to be able to tell a typo in the name from a
+# supplier with an empty period, so the first says the supplier IS registered and the second
+# keeps «олдсонгүй» for the name that is not.
+LAST_ENTRIES_NONE = "{supplier} харилцагч бүртгэлтэй боловч гүйлгээ алга."
 UNMATCHED_ANSWER = "Тулгагдаагүй банкны гүйлгээ: {count}"
 SUPPLIER_NOT_FOUND_ANSWER = "{supplier} нэртэй харилцагч олдсонгүй."
+# The wider read-only answers (§5.7). Every figure in them is computed by the handler.
+ACCOUNT_ENTRY_LINE = "{date} · {voucher} · {amount}₮"
+MSG_ACCOUNT_ENTRIES_ANSWER = "{period}: {account} дансны бичилтүүд:\n{entries}"
+ACCOUNT_ENTRIES_NONE = "{period}: {account} дансанд бичилт алга."
+MSG_SUPPLIER_TOTAL_ANSWER = "{period}: {supplier} — худалдан авалт {purchases}₮, төлсөн {payments}₮"
+# Appended when a debit note nets out of the purchases: «худалдан авалт 0₮» after an invoice
+# was corrected reads like a lost document unless the correction is named beside it. The gross
+# is named because the line above already reports the purchases NET of the returns, so
+# «Үүнээс … 85 000₮» under «худалдан авалт 0₮» said "of that zero, 85 000" — the arithmetic has
+# to close on the card an accountant reads first after every correction.
+SUPPLIER_TOTAL_RETURNS = "\nХудалдан авалт {gross}₮-өөс {returns}₮ буцаалт/залруулга хасагдсан."
+SUPPLIER_TOTAL_NONE = "{period}: {supplier} харилцагчтай холбоотой гүйлгээ алга."
+MSG_VAT_POSITION_ANSWER = (
+	"{period}: борлуулалтын НӨАТ {output}₮, худалдан авалтын НӨАТ {input}₮, төлөх НӨАТ {net}₮"
+)
+# The other side of the same figure. «төлөх НӨАТ -7 727.27₮» says the company owes minus seven
+# thousand, which is not a sentence: it is owed that money. VAT is the number an accountant
+# scrutinises hardest, so the credit case is named as a credit and the amount is positive.
+MSG_VAT_POSITION_CREDIT_ANSWER = (
+	"{period}: борлуулалтын НӨАТ {output}₮, худалдан авалтын НӨАТ {input}₮, буцаан авах НӨАТ {credit}₮"
+)
+MSG_VAT_NOT_PAYER_ANSWER = "{period}: компани НӨАТ төлөгч бус тул НӨАТ-ын мэдээлэл байхгүй."
+# ``{account}`` is rendered by ``account_label``, which already begins with the account code,
+# so the code is not printed beside it: «6610 6610 - Зар сурталчилгаа - TST» was one row
+# naming one account three times.
+TOP_ACCOUNT_LINE = "{account} · {amount}₮"
+MSG_TOP_ACCOUNTS_ANSWER = "{period}: хамгийн их зардалтай данснууд:\n{accounts}"
+TOP_ACCOUNTS_NONE = "{period}: бүртгэсэн зардал алга."
+UNMATCHED_LINE = "{date} · {amount}₮ · {description}"
+MSG_UNMATCHED_LINES_ANSWER = "Тулгагдаагүй банкны гүйлгээ:\n{lines}"
+UNMATCHED_LINES_NONE = "Тулгагдаагүй банкны гүйлгээ алга."
+MSG_ENTRY_EXPLAIN_ANSWER = "{doctype} {name} · {date} · {amount}₮\n{explanation}"
+ENTRY_EXPLAIN_NO_PROPOSAL = "Энэ бичилтийг Нябо санал болгоогүй тул тайлбар алга."
+# The day the photograph arrived, not the Nyabo Document's own name: «Эх баримт: NYD-00002» is
+# an internal id an accountant has never seen, while the date is how they find that receipt.
+ENTRY_EXPLAIN_SOURCE = "🧾 Эх баримт: {date} өдөр хүлээн авсан"
+ENTRY_NOT_FOUND_ANSWER = "«{name}» нэртэй бүртгэл энэ компанид олдсонгүй."
+# Every list answer shows at most a handful of rows. Saying so is not a nicety: an accountant
+# reading five of forty unmatched lines with no sign of the cut acts on a false picture of the
+# books, so the full count is computed and the cut is named beside the rows.
+#
+# Two notes, because the two kinds of list are cut at different ends. The row lists are ordered
+# newest-first, so what is shown is the MOST RECENT rows and what is hidden is the older ones;
+# «эхний {shown}» said "the first N", which named the wrong end and contradicted the supplier
+# card's own «сүүлийн бүртгэлүүд» heading. The account list is ordered by amount, so its note
+# says "the largest N" instead — "most recent" would be a lie about a ranking.
+#
+# WHY the numeral is never given a case suffix: the correct accusative depends on the numeral
+# («тав» -> «тавыг», «найм» -> «наймыг»), and these are formatted with whatever the limit
+# happens to be, so «{shown}-г» could only ever be wrong for some of them. The suffix therefore
+# attaches to the noun that follows the numeral, which does not change.
+ANSWER_TRUNCATED = "\n… нийт {total} мөрөөс хамгийн сүүлийн {shown} мөрийг харууллаа."
+ANSWER_TRUNCATED_TOP = "\n… нийт {total} данснаас хамгийн их дүнтэй {shown} дансыг харууллаа."
 
 # --- explanation templates (LLM fills only the bracketed part) -----------------------------------
 EXPL_EXPENSE = "{what} тул {debit_code} дебетлэж, {credit_name} кредитлэв."
@@ -997,7 +1144,7 @@ WARN_BANK_LINE_INCOME_UNCLASSIFIED = "Орлогын гүйлгээ тул ня�
 CARD_BANK_UNMATCHED = "❔ Тулгаагүй"
 CARD_BANK_TRANSFER = "🔁 Шилжүүлэг: {from_account} → {to_account}"
 CARD_BANK_REASON = "Шалтгаан: {reason}"
-MSG_RECON_AS_OF = "{date}-ны байдлаар"
+MSG_RECON_AS_OF = "{date} өдрийн байдлаар"
 
 # --- telegram (router, handlers, cards) ---------------------------------------------------------
 ROLE_LABELS = {"Owner": "Эзэмшигч", "Accountant": "Нягтлан", "Admin": "Админ"}
@@ -1006,7 +1153,11 @@ MSG_LINK_ROLE_UNKNOWN = "Үүрэг буруу байна: «нягтлан» э
 MSG_LINK_COMPANY_NOT_FOUND = "Компани олдсонгүй: {company}"
 MSG_ADMIN_ONLY = "Энэ команд зөвхөн админд зориулагдсан."
 MSG_ADMIN_ERROR_NOTICE = "⚠️ Нябо алдаа: {event} · chat {chat_id} · {error}"
-MSG_ADMIN_LINK_GUESSING = "🔒 Холбох кодыг олон удаа буруу оруулсан тул chat {chat_id}-ыг түр хаалаа."
+MSG_ADMIN_LINK_GUESSING = "🔒 Холбох кодыг олон удаа буруу оруулсан тул {chat_id} дугаартай чатыг түр хаалаа."
+# What an admin actually receives when a question is handed to a human. The user has already
+# been told «Асуултыг админд дамжууллаа», so this message is the promise being kept: without
+# it the escalation is only a Nyabo Event nobody reads.
+MSG_ADMIN_QUESTION_ESCALATED = "❓ {company}: хэрэглэгчийн асуултыг админд дамжуулав.\n{summary}"
 # Same reading risk as MSG_ERROR_ADMIN_NOTIFIED (UX-13): nobody is approving anything. And
 # the same pair, for the same reason — only the router draws the button and notifies.
 MSG_FEATURE_UNAVAILABLE = (
