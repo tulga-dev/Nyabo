@@ -184,6 +184,31 @@ def test_a_mongolian_card_names_the_doctype_in_mongolian(run_receipt, books):
 	assert mn.doctype_label(None) == ""
 
 
+def test_a_recoverable_vat_position_is_named_a_credit_and_shown_positive(run_receipt, books):
+	"""MINOR: it read «төлөх НӨАТ -7 727.27₮» — a payable of minus seven thousand tögrög.
+
+	The company is owed that money. VAT is the number an accountant scrutinises hardest, so
+	the sentence names the side; only the machine field stays signed.
+	"""
+	proposal = run_receipt("petrovis_fuel")
+	post.post_proposal(proposal.name, ACCOUNTANT)
+	run = pipeline.books_handlers(books, today=NOW.date())["answer_from_books"]
+	label = mn.PERIOD_LABEL.format(year=2026, month=mn.MONTHS[8])
+
+	vat = run({"query_kind": "vat_position", "args": {"period": "2026-09"}})
+	assert vat["net"] == fmt_mnt("-7727.27")
+	assert vat["text"] == mn.MSG_VAT_POSITION_CREDIT_ANSWER.format(
+		period=label, output="0", input=fmt_mnt("7727.27"), credit=fmt_mnt("7727.27")
+	)
+	assert fmt_mnt("-7727.27") not in vat["text"]
+
+	# nothing owed either way is still stated as the payable it is, at zero
+	empty = run({"query_kind": "vat_position", "args": {"period": "2026-08"}})
+	assert empty["text"] == mn.MSG_VAT_POSITION_ANSWER.format(
+		period=mn.PERIOD_LABEL.format(year=2026, month=mn.MONTHS[7]), output="0", input="0", net="0"
+	)
+
+
 def test_a_simplified_regime_company_is_told_vat_does_not_apply(books):
 	run = pipeline.books_handlers(books, today=NOW.date())["answer_from_books"]
 	# The `books` fixture is a VAT payer in 2026 and simplified from 2027 (conftest).

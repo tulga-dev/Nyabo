@@ -1242,17 +1242,26 @@ def books_handlers(
 			# would read as "nothing to declare" rather than "this does not apply to you".
 			return {"period": period, "text": mn.MSG_VAT_NOT_PAYER_ANSWER.format(period=label)}
 		summary = vat_summary.compute(company, (start, end))
+		net = Decimal(str(summary["net"]))
+		figures = {
+			"period": label,
+			"output": fmt_mnt(summary["output_vat"]),
+			"input": fmt_mnt(summary["input_vat"]),
+		}
+		# Which sentence, on the sign: a negative net is money the company is owed, not a
+		# payable of minus seven thousand tögrög. The stored ``net`` stays signed — that is
+		# the machine field — while the sentence names the side and shows the amount positive.
+		text = (
+			mn.MSG_VAT_POSITION_CREDIT_ANSWER.format(**figures, credit=fmt_mnt(-net))
+			if net < ZERO
+			else mn.MSG_VAT_POSITION_ANSWER.format(**figures, net=fmt_mnt(net))
+		)
 		return {
 			"period": period,
 			"output_vat": fmt_mnt(summary["output_vat"]),
 			"input_vat": fmt_mnt(summary["input_vat"]),
-			"net": fmt_mnt(summary["net"]),
-			"text": mn.MSG_VAT_POSITION_ANSWER.format(
-				period=label,
-				output=fmt_mnt(summary["output_vat"]),
-				input=fmt_mnt(summary["input_vat"]),
-				net=fmt_mnt(summary["net"]),
-			),
+			"net": fmt_mnt(net),
+			"text": text,
 		}
 
 	def _top_spend_accounts(inner: dict[str, Any]) -> dict[str, Any]:

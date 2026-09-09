@@ -898,6 +898,12 @@ SUPPLIER_TOTAL_NONE = "{period}: {supplier} харилцагчтай холбо�
 MSG_VAT_POSITION_ANSWER = (
 	"{period}: борлуулалтын НӨАТ {output}₮, худалдан авалтын НӨАТ {input}₮, төлөх НӨАТ {net}₮"
 )
+# The other side of the same figure. «төлөх НӨАТ -7 727.27₮» says the company owes minus seven
+# thousand, which is not a sentence: it is owed that money. VAT is the number an accountant
+# scrutinises hardest, so the credit case is named as a credit and the amount is positive.
+MSG_VAT_POSITION_CREDIT_ANSWER = (
+	"{period}: борлуулалтын НӨАТ {output}₮, худалдан авалтын НӨАТ {input}₮, буцаан авах НӨАТ {credit}₮"
+)
 MSG_VAT_NOT_PAYER_ANSWER = "Компани {period}-д НӨАТ төлөгч бус тул НӨАТ-ын мэдээлэл байхгүй."
 TOP_ACCOUNT_LINE = "{code} {account} · {amount}₮"
 MSG_TOP_ACCOUNTS_ANSWER = "{period}: хамгийн их зардалтай данснууд:\n{accounts}"
