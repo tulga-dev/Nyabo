@@ -1532,13 +1532,25 @@ def answer_question(
 		regime = ctx.regime.value
 	except rules_engine.RuleError:
 		regime = "unknown"
+	recalled = questions.recall(memory, company=company, now=now)
+	if recalled is None and (planted := questions.memory_injection(memory)) is not None:
+		# The remembered subject carried an instruction aimed at the model. ``recall`` has
+		# already dropped it, but a supplier name comes off a receipt photograph through
+		# extraction, so this is the same event a poisoned receipt is and must be as visible.
+		write_event(
+			"injection_suspected",
+			company=company,
+			actor_user=user,
+			reason=planted[:200],
+			payload={"source": "question_memory"},
+		)
 	outcome = questions.answer(
 		client,
 		text,
 		handlers,
 		company_context=f"company: {company}\nregime: {regime}\nuser: {user}",
 		company=company,
-		memory=questions.recall(memory, company=company, now=now),
+		memory=recalled,
 		now=now,
 	)
 	if outcome.injection_suspected:

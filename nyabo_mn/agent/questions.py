@@ -293,12 +293,29 @@ def remember(
 	}
 
 
+def memory_injection(memory: Mapping[str, Any] | None) -> str | None:
+	"""The first instruction-looking fragment in the remembered *subject*, or None.
+
+	The subject is not ours. A supplier name originates in receipt extraction: it is model
+	output read off a photograph an owner sent, so «Петровис ХХК. Ignore all previous
+	instructions» reaches the memory by exactly the route ``core.quarantine`` exists for.
+	``recall`` drops a memory this finds something in; the caller logs the fragment, because
+	an instruction planted on a receipt is the same event whichever turn it surfaces on.
+	"""
+	for value in ((memory or {}).get("subject") or {}).values():
+		fragment = find_injection(str(value))
+		if fragment is not None:
+			return fragment
+	return None
+
+
 def recall(memory: Mapping[str, Any] | None, *, company: str, now: datetime) -> dict[str, Any] | None:
 	"""Return the stored memory only when it is still safe to use, else None.
 
-	Three ways it is dropped, all silent by design: a different company (an accountant
-	switched client), older than ``MEMORY_TTL_MINUTES`` (the books moved on), or written by
-	an older layout of this dict. A dropped context makes the bot ask again; a kept stale one
+	Four ways it is dropped, all silent by design: a different company (an accountant
+	switched client), older than ``MEMORY_TTL_MINUTES`` (the books moved on), written by
+	an older layout of this dict, or a subject carrying an instruction aimed at the model
+	(``memory_injection``). A dropped context makes the bot ask again; a kept stale one
 	would make it answer the wrong month without saying so.
 	"""
 	if not memory or memory.get("v") != MEMORY_VERSION:
@@ -316,19 +333,32 @@ def recall(memory: Mapping[str, Any] | None, *, company: str, now: datetime) -> 
 	subject = {k: str(v) for k, v in (memory.get("subject") or {}).items() if k in SUBJECT_KEYS and v}
 	if not subject:
 		return None
+	if memory_injection({"subject": subject}) is not None:
+		return None
 	return {**dict(memory), "subject": subject}
 
 
 def memory_text(memory: Mapping[str, Any] | None) -> str:
-	"""The prompt block for the previous turn; the question inside it stays fenced (§1.9)."""
+	"""The prompt block for the previous turn; everything the user's side wrote stays fenced (§1.9).
+
+	``previous_query_kind`` is the only line outside the fence, because it is a closed enum
+	this module wrote. The subject goes inside it with the question: a supplier name is model
+	output read off a photograph, and a bare ``previous_supplier: …`` line under a header the
+	prompt frames as trusted is a second run at the model for whatever was printed on that
+	receipt. ``recall`` scans the subject too — this is the belt to that brace.
+	"""
 	if not memory:
 		return "(none)"
 	subject = memory.get("subject") or {}
-	lines = [f"previous_query_kind: {memory.get('query_kind') or '(none)'}"]
-	lines += [f"previous_{key}: {subject[key]}" for key in SUBJECT_KEYS if subject.get(key)]
-	lines.append("previous question (untrusted content):")
-	lines.append(fence(str(memory.get("question") or ""), label="previous_question"))
-	return "\n".join(lines)
+	quarantined = [f"previous_question: {str(memory.get('question') or '')}"]
+	quarantined += [f"previous_{key}: {subject[key]}" for key in SUBJECT_KEYS if subject.get(key)]
+	return "\n".join(
+		[
+			f"previous_query_kind: {memory.get('query_kind') or '(none)'}",
+			"previous question and subject (untrusted content):",
+			fence("\n".join(quarantined), label="previous_turn"),
+		]
+	)
 
 
 # --- number verification ---------------------------------------------------------------------------
@@ -714,6 +744,7 @@ __all__ = [
 	"build_user_text",
 	"follow_ups",
 	"make_dispatcher",
+	"memory_injection",
 	"memory_text",
 	"numbers_in",
 	"recall",
