@@ -398,6 +398,47 @@ def test_the_verified_counts_split_the_seed_flag_from_a_human_tap(rules_site: st
 	assert after["by_person"] == 1 and after["by_seed"] == before["by_seed"]
 
 
+def test_a_write_that_cannot_go_through_is_a_shaped_failure_not_a_traceback(rules_site: str):
+	"""`verified_by` is a Link to User, so the save raises for a session user with no User row.
+
+	That is a real state: a Telegram admin linked before `ensure_frappe_user` existed has no
+	User row, and their tap would have raised inside the handler — the accountant sees the
+	router's apology and the rule stays unverified with nobody able to say why.
+	"""
+	assert not frappe.db.exists("User", "ghost@nyabo.local")
+
+	result = verify.verify(verify.KIND_PATTERN, BLOCKING, "ghost@nyabo.local")
+
+	assert result == {
+		"ok": False,
+		"reason": "save_failed",
+		"rule": BLOCKING,
+		"doctype": verify.PATTERN,
+	}
+	assert frappe.db.get_value(verify.PATTERN, BLOCKING, "verified") == 0
+	assert frappe.db.count("Nyabo Event", {"event_type": mn.EVENT_RULE_VERIFIED}) == 0
+
+
+def test_the_tap_answers_a_failed_write_with_something_a_person_can_act_on(
+	rules_site: str, monkeypatch: pytest.MonkeyPatch
+):
+	"""«Rule not found» would be a lie, and a silent tap is what this flow exists to remove."""
+
+	def verify_rule(kind: str, rule: str, user: str, telegram_id: Any = None) -> dict[str, Any]:
+		return {"ok": False, "reason": "save_failed", "rule": rule, "doctype": verify.PATTERN}
+
+	monkeypatch.setattr(_deps, "verify_rule", verify_rule)
+	bot = FakeBotApi()
+	data = keyboards.rule_data(keyboards.VERIFY_CONFIRM, verify.KIND_PATTERN, BLOCKING)
+	outcome = run(bot, callback_update(ADMIN_ID, data))
+
+	assert outcome["result"]["ok"] is False
+	failed = mn.MSG_RULE_VERIFY_FAILED.format(rule=BLOCKING)
+	assert failed in bot.texts(), "the admin is left with the desk, not with nothing"
+	assert failed in _alerts(bot)[-1]
+	assert mn.MSG_RULE_NOT_FOUND.format(rule=BLOCKING) not in bot.texts()
+
+
 def test_leaving_a_rule_changes_nothing(rules_site: str):
 	bot = FakeBotApi()
 	run(

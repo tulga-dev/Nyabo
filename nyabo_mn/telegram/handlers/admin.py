@@ -189,7 +189,13 @@ def confirm_rule(ctx: Ctx, kind: str, rule: str) -> Any:
 	"""The tap that is the compliance act: the flag, the name, the time and a Nyabo Event."""
 	result = _deps.verify_rule(kind, rule, ctx.user, telegram_id=ctx.telegram_id)
 	if not result.get("ok"):
-		ctx.answer(mn.MSG_RULE_NOT_FOUND.format(rule=rule), show_alert=True)
+		# A rule that is not there and a write that would not go through are different problems,
+		# and only one of them has a next step. Both leave the row unverified, so say which.
+		if result.get("reason") in ("not_found", "unknown_kind"):
+			ctx.answer(mn.MSG_RULE_NOT_FOUND.format(rule=rule), show_alert=True)
+		else:
+			ctx.answer(mn.MSG_RULE_VERIFY_FAILED.format(rule=rule), show_alert=True)
+			ctx.reply(mn.MSG_RULE_VERIFY_FAILED.format(rule=rule))
 		return result
 	if result.get("already"):
 		ctx.answer(

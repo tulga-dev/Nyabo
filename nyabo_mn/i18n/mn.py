@@ -1360,6 +1360,12 @@ CARD_RULE_NO_CITATION = (
 CARD_RULE_RESPONSIBILITY = "Баталгаажуулсан хүн, огноо бүртгэгдэж, аудитын мөр үлдэнэ."
 CARD_RULE_ASK = "Баталгаажуулах уу?"
 MSG_RULE_NOT_FOUND = "Дүрэм олдсонгүй: {rule}"
+# The write itself failed (verified_by is a Link to User: a session user with no User row stops
+# the save). Nothing was verified, so say that, and name the door that still works.
+MSG_RULE_VERIFY_FAILED = (
+	"«{rule}» дүрмийг баталгаажуулах үед алдаа гарлаа. Дүрэм баталгаажаагүй хэвээр байна. "
+	"ERPNext дэсктээс баталгаажуулж үзнэ үү; дахин давтагдвал сайтын админд хандана уу."
+)
 # Two things wear verified = 1 and they are not the same claim (DECISIONS VER-07): the seed's
 # own citation, which no person on this site signed, and a named human's tap. Never print the
 # first as if it were the second — an accountant reads a name as somebody having taken the

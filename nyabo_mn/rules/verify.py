@@ -436,7 +436,22 @@ def verify(kind: str, name: str, user: str, telegram_id: str | int | None = None
 	doc.verified_by = user
 	doc.verified_at = verified_at
 	doc.flags.ignore_permissions = True
-	doc.save()
+	try:
+		doc.save()
+	except Exception as exc:  # noqa: BLE001 - every failure here has the same answer for the tapper
+		# ``verified_by`` is a Link to User, so this raises for a session user with no User row —
+		# a Telegram admin whose ``ensure_frappe_user`` never ran, which is a real state on a site
+		# linked before that step existed. Nothing was written and nothing may post, so the caller
+		# gets the same shape as ``unknown_kind`` rather than a traceback and a silent tap.
+		log_event(
+			"rules.verify.save_failed",
+			level="error",
+			doctype=doctype,
+			rule=name,
+			user=user,
+			error=type(exc).__name__,
+		)
+		return {"ok": False, "reason": "save_failed", "rule": name, "doctype": doctype}
 	event = events.log(
 		mn.EVENT_RULE_VERIFIED,
 		ref_doctype=doctype,
