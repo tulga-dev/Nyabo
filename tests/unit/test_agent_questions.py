@@ -411,6 +411,45 @@ def test_an_invented_number_with_no_handler_sentence_falls_back_to_cannot_answer
 	assert [f.verb for f in outcome.follow_ups] == [questions.VERB_ESCALATE, questions.VERB_MENU]
 
 
+def test_the_handlers_sentence_is_sent_when_the_model_writes_none(tmp_path):
+	"""MAJOR: tool calls but no closing sentence went straight to «could not answer».
+
+	The books had answered — the handler wrote the Mongolian for it — and the accountant was
+	told otherwise. It is reachable whenever the model spends its turns on tools.
+	"""
+	client = MockLlmClient(fixtures_dir=tmp_path)
+	client.add(
+		"question",
+		{
+			"text": "",
+			"tool_calls": [
+				{
+					"name": "answer_from_books",
+					"arguments": {
+						"query_kind": "unmatched_count",
+						"args": dict.fromkeys(questions.SUBJECT_KEYS),
+					},
+				}
+			],
+		},
+	)
+	handlers = {"answer_from_books": lambda args: {"count": 2, "text": mn.UNMATCHED_ANSWER.format(count=2)}}
+	outcome = questions.answer(client, "Тулгаагүй гүйлгээ хэд вэ?", handlers, now=NOW)
+	assert outcome.answer.answer_mn == mn.UNMATCHED_ANSWER.format(count=2)
+	assert outcome.answer.used_tool == "answer_from_books"
+	# and because it *was* answered, the card offers the next read, not a person
+	assert [f.verb for f in outcome.follow_ups] == [questions.QUERY_SHORT["unmatched_lines"]]
+
+
+def test_no_sentence_and_no_handler_text_still_says_it_could_not_answer(tmp_path):
+	"""The fallback is the handler's own words; with none there is nothing honest to send."""
+	client = MockLlmClient(fixtures_dir=tmp_path)
+	client.add("question", {"text": "", "tool_calls": []})
+	outcome = questions.answer(client, "Кассад хэд байна?", {}, now=NOW)
+	assert outcome.answer.answer_mn == mn.MSG_QUESTION_CANNOT and outcome.answer.used_tool is None
+	assert [f.verb for f in outcome.follow_ups] == [questions.VERB_ESCALATE, questions.VERB_MENU]
+
+
 # --- follow-up buttons -----------------------------------------------------------------------------
 
 

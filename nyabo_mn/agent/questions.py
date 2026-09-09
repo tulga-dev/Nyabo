@@ -669,7 +669,15 @@ def answer(
 	elif all_failed and handler_broke:
 		answer_text, answered = mn.AGENT_ANSWER_TOOL_ERROR, False
 	else:
-		answer_text, answered = mn.MSG_QUESTION_CANNOT, False
+		# Tool calls but no closing sentence — reachable whenever the model spends its turns
+		# on tools, which ten query kinds and MAX_TURNS made likelier. The handler has by then
+		# written a correct Mongolian answer, so send it: telling an accountant the books could
+		# not answer when they did is a worse lie than an ugly sentence. Same fallback the
+		# invented-number path takes, for the same reason.
+		fallback = _handler_text(llm.tool_calls)
+		answer_text = fallback or mn.MSG_QUESTION_CANNOT
+		answered = fallback is not None
+		last_ok = last_ok if fallback else None
 
 	invented = unverified_numbers(answer_text, llm.tool_calls, text, now) if answered else ()
 	if invented:
