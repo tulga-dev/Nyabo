@@ -361,11 +361,29 @@ def handle_escape(ctx: Ctx, state: str, payload: dict[str, Any], verb: str) -> b
 	answered, so nothing was imported on a half-made guess (CORE-08). Skipping every column is
 	not a way to leave — it would write a mapping that reads nothing — and is refused where the
 	mapping is completed, not here.
+
+	Буцах and Алгасах are gated on the accountant the way ``handle_layout_callback``'s own
+	buttons are, because they do the same work: Алгасах *is* the «Ашиглахгүй» answer, and on the
+	last column it saves a Nyabo Bank Layout and asks the admins to verify it. The escape row is
+	drawn beside those buttons and the words are typed into the same step, so an Owner — who may
+	send a statement, and therefore reaches this conversation — used to walk round the check.
+	Цуцлах is deliberately not gated: leaving a step is never a permission, and the owner who
+	opened the question is entitled to close it. Nothing has been written at that point.
 	"""
 	index = _column_index(state)
 	headers: list[str] = payload.get("headers") or []
 	if index is None or index >= len(headers):
 		return False
+	if verb in (keyboards.ESCAPE_BACK, keyboards.ESCAPE_SKIP) and not ctx.is_accountant:
+		escape.refuse(ctx, mn.MSG_NO_PERMISSION)
+		log_event(
+			"telegram.layout.escape_refused",
+			level="warning",
+			verb=verb,
+			user=ctx.user,
+			document=payload.get("document"),
+		)
+		return True
 	if verb == keyboards.ESCAPE_BACK:
 		if index == 0:
 			return False

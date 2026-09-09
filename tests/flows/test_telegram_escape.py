@@ -892,6 +892,41 @@ def test_skipping_a_statement_column_marks_it_unused_and_moves_on(company):
 	assert "Дугаар" not in layout.column_map_json
 
 
+def test_an_owner_cannot_map_a_statement_column_through_the_escape_row(company):
+	"""MINOR: the buttons were gated on the accountant, the escape row beside them was not.
+
+	``handle_layout_callback`` answers MSG_NO_PERMISSION, but Алгасах — the escape row's button
+	and the typed word — went straight to ``_answer_column``, which writes the mapping, moves
+	the state and, on the last column, inserts a Nyabo Bank Layout and asks the admins to
+	verify it. An Owner may send a statement, so an Owner reaches this conversation.
+	"""
+	from nyabo_mn.telegram.handlers import statement
+
+	link_user(9297, "Owner", company)
+	bot = FakeBotApi()
+	statement.start_layout_mapping(
+		bot, 9297, "NYD-00006", {"headers": ["Огноо", "Дүн"], "preview": [["2026-08-01", "5"]]}
+	)
+	assert _state(9297) == "layout:0"
+	bot.clear()
+
+	run(bot, callback_update(9297, "e:layout:skip:0"))
+	assert _state(9297) == "layout:0", "the column question must not move"
+	assert mn.MSG_NO_PERMISSION in bot.texts()
+
+	# The typed word is the same door, and Буцах writes the mapping too.
+	run(bot, callback_update(9297, "l:0:date"))
+	run(bot, message_update(9297, "алгасах"))
+	run(bot, message_update(9297, "буцах"))
+	assert _state(9297) == "layout:0"
+	assert not frappe.get_all("Nyabo Bank Layout", filters={"layout_id": ["like", "custom-%"]})
+
+	# Leaving, though, is never a permission: the owner may close the question they opened.
+	run(bot, message_update(9297, "цуцлах"))
+	assert _state(9297) in (None, "")
+	assert mn.MSG_STATEMENT_LAYOUT_CANCELLED in bot.texts()
+
+
 def test_skipping_every_statement_column_saves_no_layout_and_says_why(company):
 	"""MAJOR: an empty mapping reads nothing, and would be re-used for that bank's format for ever.
 
