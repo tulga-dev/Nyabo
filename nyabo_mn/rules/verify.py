@@ -55,9 +55,10 @@ SOURCE_PERSON = "person"
 #: How much of a legal reference is worth reading in a chat bubble before it stops being a label.
 PURPOSE_MAX_CHARS = 70
 QUOTE_MAX_CHARS = 400
-#: The briefing is longer than a label on purpose — it is the whole reason the row is unverified.
-#: 800 fits every briefing the seed carries today (the longest is 715 characters).
-NOTE_MAX_CHARS = 800
+#: The briefing is longer than a label on purpose — it is the whole reason the row is unverified,
+#: or the scope its citation does not reach. 1000 leaves room above the longest the seed carries
+#: today (797 characters, ``purchase_expense_non_vat``); past it the card says it was cut.
+NOTE_MAX_CHARS = 1000
 
 #: Where the part of a seed note written *for the person at the verify button* begins. The
 #: citation pass appends it to `Nyabo Posting Pattern.notes` / `Nyabo Tax Parameter.note`
@@ -65,6 +66,7 @@ NOTE_MAX_CHARS = 800
 #: belongs in the repository and not in a chat bubble.
 BRIEFING_MARKERS: tuple[str, ...] = (
 	"DAILY USE:",
+	"SCOPE OF THIS CITATION",
 	"WHAT AN ADMIN WOULD BE VOUCHING FOR",
 	"WHAT UNBLOCKS IT",
 )

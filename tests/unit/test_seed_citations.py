@@ -195,6 +195,38 @@ def test_unverified_patterns_have_no_section_and_name_their_candidates(pattern_r
 		assert re.search(r"Citation:|Not prescribed by Order 116", row["notes"]), pid
 
 
+#: Patterns whose printed sentence is narrower than the work the pattern is selected for. The
+#: quotes are real and were confirmed against the instrument; what is stretched is the *reach*.
+#: 12.2.2 А prints its entry for fees for legal and other professional outside services, and
+#: both rows below are applied to expense purchases and bank outflows generally. That is a
+#: defensible reading of the mechanics, but an accountant must be told it is a reading — so the
+#: note has to carry the scope paragraph, and the card renders it (rules.verify.BRIEFING_MARKERS).
+BROADER_THAN_THEIR_QUOTE = ("purchase_expense_non_vat", "bank_line_expense")
+
+
+def test_a_citation_narrower_than_its_pattern_says_so_in_the_note(pattern_rows):
+	"""Do not unverify these rows and do not stretch the quote: state the scope."""
+	by_id = {r["pattern_id"]: r for r in pattern_rows}
+	for pattern_id in BROADER_THAN_THEIR_QUOTE:
+		row = by_id[pattern_id]
+		notes = row["notes"]
+		assert row["verified"], f"{pattern_id}: the quote is real; the scope note is the fix, not unverifying"
+		assert "SCOPE OF THIS CITATION" in notes, f"{pattern_id}: broader than its quote and silent about it"
+		# It has to name the narrow subject the instrument actually prints, and admit the gap.
+		assert "outside services" in notes, pattern_id
+		assert "was found in the instrument" in notes, pattern_id
+		assert "12.2.2 А" in row["citation"]["section"], pattern_id
+
+
+def test_the_scope_paragraph_is_reproduced_in_the_legal_folder(pattern_rows, order116_doc):
+	"""docs/legal is what the accountant and the ministry reviewer read; it must carry the caveat."""
+	by_id = {r["pattern_id"]: r for r in pattern_rows}
+	for pattern_id in BROADER_THAN_THEIR_QUOTE:
+		scope = by_id[pattern_id]["notes"]
+		scope = scope[scope.index("SCOPE OF THIS CITATION") :]
+		assert _norm(scope) in order116_doc, f"{pattern_id}: scope paragraph missing from order116.md"
+
+
 #: Patterns Order 116 prints no entry for. Whoever ticks one in the desk is vouching for
 #: double-entry mechanics or for another instrument, never for a sentence of this order, so
 #: the note has to say so in as many words (docs/legal/order116.md §3).

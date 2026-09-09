@@ -251,6 +251,26 @@ def test_a_quote_too_long_for_the_card_is_marked_cut_and_points_at_the_full_text
 	assert "https://legalinfo.mn/mn/detail?lawId=205201" in text
 
 
+def test_the_scope_caveat_reaches_the_card_of_a_rule_broader_than_its_quote(rules_site: str):
+	"""A quote about outside services on a pattern that books any expense: say so where it is read.
+
+	`purchase_expense_non_vat` is verified on Заавар 116 12.2.2 А, whose sentence names fees for
+	legal and other professional outside services, while the pattern is selected for every
+	ordinary receipt at a non-VAT company. The reading is defensible; presenting it as if the
+	instrument printed it for expenses in general is not.
+	"""
+	cited = "purchase_expense_non_vat"
+	frappe.db.set_value(verify.PATTERN, cited, "verified", 0)
+	bot = FakeBotApi()
+	run(
+		bot, callback_update(ADMIN_ID, keyboards.rule_data(keyboards.VERIFY_OPEN, verify.KIND_PATTERN, cited))
+	)
+
+	text = bot.last_text
+	assert mn.CARD_RULE_BRIEFING_TITLE in text
+	assert "SCOPE OF THIS CITATION" in text and "outside services" in text
+
+
 def test_a_quote_that_fits_is_not_marked_cut(rules_site: str):
 	"""The other half of the contract: a complete quote must not be dressed up as a fragment."""
 	whole = "sale_cash_vat_payer"

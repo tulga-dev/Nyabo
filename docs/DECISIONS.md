@@ -1093,3 +1093,20 @@ accountant's path: the request is recorded and the site admins are notified (VER
 The cost of this choice, stated plainly: on a site with `ADMIN_TELEGRAM_IDS` unset nobody can
 verify from Telegram at all, and the ERPNext desk is the only door — which is where it was
 before `/дүрэм` existed. `/status` already reports that key as missing.
+
+### VER-09 A citation narrower than its pattern states the gap; it is neither unverified nor stretched
+`purchase_expense_non_vat` is verified on Заавар 116 12.2.2 А, whose sentence is printed for fees
+for legal and other professional outside services, plus 9.4.1.1 for the gross amount.
+`bank_line_expense` cites the same 12.2.2 А sentence for any statement outflow charged to
+expense. The quotes are verbatim and were confirmed against the instrument; what is wider than
+the printed sentence is the *reach* of the pattern, and that is a reading.
+
+Three answers were possible. Unverifying both would refuse every ordinary receipt a non-VAT
+company sends and every unmatched bank outflow — for a scope question, not a doubt about the
+entry. Widening the quote to make it look general would be the one thing this project must never
+do. So: the rows stay verified, the quotes stay exactly as printed, and each note carries a
+`SCOPE OF THIS CITATION` paragraph saying which named expense the instrument prints the entry
+for, what is being carried across (the mechanics, not the words), and that no sentence printing
+it for expenses in general was found — with an invitation to cite one if it is. The marker is in
+`rules.verify.BRIEFING_MARKERS`, so the paragraph renders on the evidence card, and
+`docs/legal/order116.md` reproduces it for the accountant and the ministry reviewer.
