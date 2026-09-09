@@ -1299,6 +1299,14 @@ MSG_RULES_ADMIN_ONLY = (
 	"баталгаажаагүй дүрмээс болж бичилт зогсвол админд мэдэгдэл автоматаар очно."
 )
 # Keyed by ``rules.verify`` kinds ("p", "t"), which are also what the callback datum carries.
+# A posting pattern and a tax parameter are one row for the whole site, so verifying one is a
+# decision for every company on it — not a decision an admin of a single company may take
+# (DECISIONS VER-08). They still see the list and the evidence: it is their work being blocked.
+MSG_RULES_SITE_ADMIN_ONLY = (
+	"Энэ дүрэм сайт дээрх бүх компанид нэгэн адил хамаарна. Тиймээс нэг компанийн "
+	"админ биш, зөвхөн сайтын админ баталгаажуулна. Сайтын админд хандана уу — "
+	"баталгаажаагүй дүрмээс болж бичилт зогсвол түүнд мэдэгдэл очно."
+)
 RULE_KIND_LABELS = {"p": "бичилтийн загвар", "t": "татварын үзүүлэлт"}
 # Keyed in ``rules.verify`` (F-12: the regime name itself is spelled only in rules/regime.py).
 RULE_VAT_SCOPE_ANY = "бүх горим"

@@ -124,6 +124,20 @@ def handle_callback(ctx: Ctx, parts: list[str]) -> Any:
 	if action == keyboards.VERIFY_OPEN:
 		return show_rule(ctx, kind, rule)
 	if action == keyboards.VERIFY_CONFIRM:
+		if not ctx.is_site_admin:
+			# The row is global (VER-08): an admin of one company must not decide it for every
+			# other client on the site, and the datum is attacker-chosen, so this is re-checked
+			# on the tap and not only on the keyboard that was drawn.
+			ctx.answer(mn.MSG_RULES_SITE_ADMIN_ONLY, show_alert=True)
+			ctx.reply(mn.MSG_RULES_SITE_ADMIN_ONLY)
+			log_event(
+				"telegram.rules.tap_refused",
+				level="warning",
+				rule=rule,
+				telegram_id=ctx.telegram_id,
+				reason="not_site_admin",
+			)
+			return {"refused": "not_site_admin", "rule": rule}
 		return confirm_rule(ctx, kind, rule)
 	if action == keyboards.VERIFY_LEAVE:
 		ctx.answer(mn.MSG_RULE_LEFT)
@@ -144,20 +158,27 @@ def show_rule(ctx: Ctx, kind: str, rule: str) -> Any:
 		return {"rule": rule, "already": True, "verified_source": evidence.verified_source}
 	# A new message, not an edit: the list above it is what the admin is working through, and
 	# opening one rule must not take the other seven off the screen.
-	offered = offer_decision(ctx, kind, evidence)
+	offered = offer_decision(ctx, kind, evidence, may_verify=ctx.is_site_admin)
 	return {"rule": rule, "has_citation": evidence.has_citation, "offered": offered}
 
 
-def offer_decision(ctx: Ctx, kind: str, evidence: Any) -> bool:
-	"""The evidence card and the two buttons; False when the rule can only be verified in the desk.
+def offer_decision(ctx: Ctx, kind: str, evidence: Any, may_verify: bool = True) -> bool:
+	"""The evidence card and the buttons; False when this reader cannot answer it here.
 
 	A rule id long enough to push the callback datum past Telegram's 64 bytes costs the buttons
 	(``keyboards.rule_decision`` drops them and logs), and an admin left looking at a card with no
 	way to answer it would be exactly the dead end this whole flow exists to remove — so the card
 	is followed by the one instruction that still works.
+
+	``may_verify=False`` is the other reason a card can carry no [Баталгаажуулах]: the reader is
+	an admin of one company and the row belongs to the whole site (VER-08). They get the evidence,
+	because it is their work that is blocked, and the sentence naming who may clear it.
 	"""
-	markup = keyboards.rule_decision(kind, evidence.name)
+	markup = keyboards.rule_decision(kind, evidence.name, may_verify=may_verify)
 	ctx.reply(cards.rule_card(evidence), markup)
+	if not may_verify:
+		ctx.reply(mn.MSG_RULES_SITE_ADMIN_ONLY)
+		return False
 	if not markup.get("inline_keyboard"):
 		ctx.reply(mn.MSG_RULE_VERIFY_IN_DESK.format(rule=evidence.name))
 		return False
@@ -211,7 +232,10 @@ def rule_blocked(ctx: Ctx, rule: str, company: str | None = None) -> dict[str, A
 	that plainly, with the step that still works — the request is on record either way.
 	"""
 	company = company or ctx.company
-	if ctx.is_admin:
+	# Only a site admin is offered the tap here: the row applies to every company on the site
+	# (VER-08). A company admin takes the same path as the accountant — the request is recorded
+	# and the site admins are told — and reads the evidence through /дүрэм.
+	if ctx.is_site_admin:
 		found = _rule_evidence_by_name(rule)
 		if found is not None:
 			kind, evidence = found

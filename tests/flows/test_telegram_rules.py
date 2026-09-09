@@ -407,6 +407,53 @@ def test_a_forged_tap_from_a_non_admin_verifies_nothing(rules_site: str):
 	assert bot.last_text == mn.MSG_RULES_ADMIN_ONLY
 
 
+def test_an_admin_of_one_company_cannot_verify_a_rule_that_applies_to_every_client(rules_site: str):
+	"""Nyabo Posting Pattern is one row for the whole site; the Admin role is granted per company.
+
+	`/link admin <company>` makes somebody an admin of *those* books. Letting that person tick a
+	global rule would have one client's admin decide, for every other client on the site, that a
+	posting is backed by the law — with their name on the audit row.
+	"""
+	link_user(COMPANY_ADMIN_ID, "Admin", rules_site)
+	bot = FakeBotApi()
+	data = keyboards.rule_data(keyboards.VERIFY_CONFIRM, verify.KIND_PATTERN, BLOCKING)
+	outcome = run(bot, callback_update(COMPANY_ADMIN_ID, data))
+
+	assert outcome["result"] == {"refused": "not_site_admin", "rule": BLOCKING}
+	assert frappe.db.get_value(verify.PATTERN, BLOCKING, "verified") == 0
+	assert bot.last_text == mn.MSG_RULES_SITE_ADMIN_ONLY
+
+
+def test_a_company_admin_still_reads_the_evidence_and_is_told_who_may_clear_it(rules_site: str):
+	"""It is their work that is blocked, so they get the card — with no button that would refuse."""
+	link_user(COMPANY_ADMIN_ID, "Admin", rules_site)
+	bot = FakeBotApi()
+	data = keyboards.rule_data(keyboards.VERIFY_OPEN, verify.KIND_PATTERN, BLOCKING)
+	outcome = run(bot, callback_update(COMPANY_ADMIN_ID, data))
+
+	assert outcome["result"] == {"rule": BLOCKING, "has_citation": False, "offered": False}
+	assert BLOCKING_LABEL in bot.texts()[0]  # the evidence card came first
+	assert bot.callback_datas() == [
+		keyboards.rule_data(keyboards.VERIFY_LEAVE, verify.KIND_PATTERN, BLOCKING)
+	]
+	assert bot.last_text == mn.MSG_RULES_SITE_ADMIN_ONLY
+
+
+def test_a_blocked_company_admin_takes_the_accountants_path_not_the_verify_button(
+	rules_site: str, monkeypatch: pytest.MonkeyPatch
+):
+	"""A refusal must not hand a per-company admin a tap they are not allowed to make."""
+	link_user(COMPANY_ADMIN_ID, "Admin", rules_site)
+	_refuse_posting(monkeypatch)
+	proposal = make_proposal(rules_site, posting_pattern=BLOCKING)
+	bot = FakeBotApi()
+	outcome = run(bot, callback_update(COMPANY_ADMIN_ID, f"p:{proposal.name}:ap"))
+
+	assert outcome["result"]["offered"] is False and outcome["result"]["notified"] is True
+	assert _rule_datas(bot) == []
+	assert mn.MSG_UNVERIFIED_RULE_ADMIN_ASKED in bot.texts()
+
+
 # --- 5. the refusal the accountant hits -------------------------------------------------------
 
 

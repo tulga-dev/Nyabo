@@ -418,9 +418,17 @@ def pending_rules_keyboard(rules: Sequence[Any]) -> dict[str, Any]:
 	return markup(*rows(buttons, per_row=1))
 
 
-def rule_decision(kind: str, rule: str) -> dict[str, Any]:
-	"""[Баталгаажуулах] alone on top, [Одоохондоо үлдээх] under it: verify, or leave it."""
-	confirm = _rule_button(mn.BTN_CONFIRM, VERIFY_CONFIRM, kind, rule, style=STYLE_SUCCESS)
+def rule_decision(kind: str, rule: str, may_verify: bool = True) -> dict[str, Any]:
+	"""[Баталгаажуулах] alone on top, [Одоохондоо үлдээх] under it: verify, or leave it.
+
+	``may_verify=False`` draws only the second button. A per-company admin may read the evidence
+	— it is their work the rule is blocking — but the row is global, so the tap is not theirs
+	(VER-08), and a button that only ever answers «you may not» is the dead end this flow exists
+	to remove.
+	"""
+	confirm = (
+		_rule_button(mn.BTN_CONFIRM, VERIFY_CONFIRM, kind, rule, style=STYLE_SUCCESS) if may_verify else None
+	)
 	leave = _rule_button(mn.BTN_RULE_LEAVE, VERIFY_LEAVE, kind, rule)
 	return markup([confirm] if confirm else [], [leave] if leave else [])
 

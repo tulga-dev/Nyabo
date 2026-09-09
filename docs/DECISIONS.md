@@ -1064,3 +1064,32 @@ So the two provenances are separated everywhere they are shown, not merged into 
 `verified_by` therefore keeps VER-01's meaning exactly: it is the named human, and it is empty
 when there is not one. Reverse by deleting `verified_counts` and the two source constants — and
 then nothing on any screen distinguishes a citation from a signature.
+
+### VER-08 A global rule is verified by a site admin, not by an admin of one company
+`Nyabo Posting Pattern` and `Nyabo Tax Parameter` are one row for the whole site, but the Admin
+role is granted per company by `/link admin <company>` and `Ctx.is_admin` resolves against the
+active company (TG-04). So an admin of one client could tick a rule that then posts for every
+other client on the site, with their name on the audit row.
+
+Two ways out were on the table.
+
+*Record the verification per company.* Rejected on both what it costs and what it says. The
+cost: the rows are global, so a per-company verification needs its own DocType, and
+`rules.guard.require_verified` — which takes bare rule names, documents and core objects from
+every posting path — would have to learn a company on all of them. What it says is worse:
+verification is the statement "Order 116 12.2.2 А prints this entry". That has one answer for
+every company in Mongolia. Asking each client's admin the same legal question again invites ten
+different answers to it and makes the audit trail record ten readings that never happened.
+
+*Only a site admin (`ADMIN_TELEGRAM_IDS`) may verify.* Taken. `Ctx.is_site_admin` is the new
+check, and `is_admin` is now "Admin on this company **or** site admin", which is what it always
+meant. A per-company admin keeps everything except the tap: `/дүрэм` lists what is blocking
+their work, the card shows the entry, the citation and the briefing, and `rule_decision` draws
+only [Одоохондоо үлдээх] with `MSG_RULES_SITE_ADMIN_ONLY` under it — a button that could only
+ever answer "you may not" is the dead end this flow exists to remove. The confirm tap re-checks
+anyway, because callback data is attacker-chosen (TG-03). A blocked company admin takes the
+accountant's path: the request is recorded and the site admins are notified (VER-04, MAJOR 6).
+
+The cost of this choice, stated plainly: on a site with `ADMIN_TELEGRAM_IDS` unset nobody can
+verify from Telegram at all, and the ERPNext desk is the only door — which is where it was
+before `/дүрэм` existed. `/status` already reports that key as missing.
