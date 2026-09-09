@@ -237,10 +237,10 @@ def test_owner_types_a_list_and_taps_confirm(company_v03):
 	run(bot, message_update(uid, TEXT_LIST))
 
 	assert bot.last_text == mn.ONB_INVENTORY_PARSED.format(count=2, total=fmt_mnt(350000))
-	# The card also carries the wizard's escape row, so match the intake's own pair rather
+	# The card also carries the wizard's escape row, so match the intake's own button rather
 	# than counting buttons: this test is about the chain underneath, not the keyboard.
 	data = [d for d in bot.callback_datas() if d.startswith(f"{keyboards.PREFIX_INTAKE}:")]
-	assert [d.rsplit(":", 1)[1] for d in data] == ["confirm", "cancel"]
+	assert [d.rsplit(":", 1)[1] for d in data] == ["confirm"]
 	name = data[0].split(":")[1]
 	assert frappe.db.get_value(intake.DOCTYPE, name, "status") == "draft"
 

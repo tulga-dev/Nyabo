@@ -439,10 +439,19 @@ def onboarding_confirm(step: str) -> dict[str, Any]:
 
 
 def intake_confirm(intake_name: str) -> dict[str, Any]:
+	"""The parsed opening stock, waiting for [Батлах]; every way out of it is the escape row's.
+
+	The card used to draw its own red ``i:<intake>:cancel`` — which re-asked for the list — beside
+	an escape row with the cancel switched off, so ``onb:inv_confirm`` was the only waiting step
+	where Цуцлах did not mean "leave". One red word cannot mean two things across one wizard, and
+	Буцах already does exactly what that button did (``onboarding._back_target``: inv_confirm ->
+	inv_wait, with the draft intake cancelled on the way). So the duplicate goes and the escape
+	row's cancel comes back on. ``handle_intake_callback`` still answers the old datum: a card
+	drawn before this change lives on in someone's chat.
+	"""
 	return markup(
 		[button(mn.BTN_CONFIRM, encode(PREFIX_INTAKE, intake_name, "confirm"), style=STYLE_SUCCESS)],
-		[button(mn.BTN_CANCEL, encode(PREFIX_INTAKE, intake_name, "cancel"), style=STYLE_DANGER)],
-		escape_row(onboarding_state(STEP_INTAKE_CONFIRM), back=True, skip=True, cancel=False),
+		escape_row(onboarding_state(STEP_INTAKE_CONFIRM), back=True, skip=True),
 	)
 
 

@@ -194,6 +194,36 @@ def test_skipping_after_a_list_was_read_does_not_report_it_as_filed(company, mon
 	assert mn.ONB_SUMMARY_INVENTORY_COUNT.format(count=1) not in bot.last_text
 
 
+def test_the_stock_card_has_one_red_word_and_it_means_leaving(company, monkeypatch):
+	"""MINOR: [Цуцлах] on this one card re-asked for the list; everywhere else it means leave.
+
+	``intake_confirm`` drew ``i:<intake>:cancel`` in red *and* an escape row with the cancel
+	turned off, so ``onb:inv_confirm`` was the only waiting step whose Цуцлах did not leave.
+	Буцах already does exactly what that button did — back to the file/text prompt, with the
+	draft cancelled — so the word keeps its one meaning and the duplicate goes.
+	"""
+	bot = _at_inventory_list(9238, company, monkeypatch)
+	monkeypatch.setattr(
+		_deps, "inventory_parse_text", lambda text: [{"item_name": "Цаас", "qty": 2, "rate": 1000}]
+	)
+	monkeypatch.setattr(_deps, "inventory_create_intake", lambda *a, **kw: "NYI-00051")
+	run(bot, message_update(9238, "Цаас, 2, 1000"))
+	assert _state(9238) == "onb:inv_confirm"
+
+	assert _datas(bot.last_markup()) == [
+		"i:NYI-00051:confirm",
+		"e:onb:back:inv_confirm",
+		"e:onb:skip:inv_confirm",
+		"e:onb:cancel:inv_confirm",
+	]
+	labels = [b["text"] for row in bot.last_markup()["inline_keyboard"] for b in row]
+	assert labels.count(mn.BTN_CANCEL) == 1, "one red word on the card"
+
+	run(bot, callback_update(9238, "e:onb:cancel:inv_confirm"))
+	assert _state(9238) in (None, ""), "the red word leaves, the way it does everywhere else"
+	assert mn.MSG_FLOW_CANCELLED in bot.texts()
+
+
 def test_the_inventory_answer_still_reaches_the_parser(company, monkeypatch):
 	"""The escape check must not swallow the step's real input."""
 	bot = _at_inventory_list(9203, company, monkeypatch)

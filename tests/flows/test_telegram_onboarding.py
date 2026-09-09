@@ -86,11 +86,12 @@ def test_full_onboarding_stores_settings(company, monkeypatch):
 	# A typed list has no file behind it; the intake's own rows are the record.
 	assert intakes and intakes[0][0] == company and intakes[0][2] == "text" and intakes[0][4] is None
 	assert bot.last_text == mn.ONB_INVENTORY_PARSED.format(count=2, total=fmt_mnt(345000))
+	# One red word on the card, and it is the escape row's: Буцах is «another list», Цуцлах leaves.
 	assert bot.callback_datas() == [
 		"i:NYI-00001:confirm",
-		"i:NYI-00001:cancel",
 		"e:onb:back:inv_confirm",
 		"e:onb:skip:inv_confirm",
+		"e:onb:cancel:inv_confirm",
 	]
 	run(bot, callback_update(uid, "i:NYI-00001:confirm"))
 	assert posted == [("NYI-00001", "tg-9001@nyabo.local")]
