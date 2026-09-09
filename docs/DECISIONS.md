@@ -912,3 +912,57 @@ refers to and carries no figures; a figure it did not receive from a tool is rem
 the user sees it; and it must not list next steps in prose, because the buttons under the
 answer already are that list. `tests/unit/test_agent_prompts.py` now pins a version per
 prompt instead of asserting 1 for all of them, so a bump has to be deliberate.
+
+## rule verification from the chat (§1.2 given a door)
+
+### VER-01 Verification is one tap, not a workflow
+`rules.verify.verify(kind, name, user)` sets `verified = 1`, stamps `verified_by` /
+`verified_at` (two new fields on Nyabo Posting Pattern and Nyabo Tax Parameter) and writes a
+`rule_verified` Nyabo Event. Nothing else: no draft/approved states, no second approver, no
+un-verify from Telegram. The brief asks for a human confirmation, and that is what a
+verification is — one named person saying they read the primary text. Un-verifying stays in the
+desk, where the edit is itself a Version row; the guard starts refusing again the moment the
+flag comes off, so nothing has to be undone in Nyabo.
+
+The call is idempotent and returns `{"ok", "already"}` instead of raising: a second tap on a
+card someone scrolled back to must not overwrite the first verifier's name, and every caller has
+a sentence to show either way. `seed.sync` already skips a row an admin has verified, so a
+redeploy cannot silently undo the decision.
+
+### VER-02 The instrument alone is not a citation
+`RuleEvidence.has_citation` is true only when the row carries a *section* or a *quote*. All 44
+seeded posting patterns name «Заавар 116 (2000)» whether or not anyone has found the entry in
+it, so showing the instrument as the citation would put an authority on the card for the 16
+rules that have none. Those get `CARD_RULE_NO_CITATION` instead, which says in words that
+verifying them means vouching for the mechanics printed above it. The debit and credit lines are
+always shown, because for a rule with no citation they are the entire evidence.
+
+### VER-03 The callback datum carries the action before the rule
+`v:<action>:<kind>:<rule…>`. Everywhere else in `keyboards` the action comes last, but a Nyabo
+Tax Parameter is named `key:effective_from` — the separator is inside the name — so with the
+action last, `v:t:si.employer_rate:2027-01-01:ok` could not be told from a rule whose name ends
+in `:ok`. With it first the rule is "everything after the kind" and `rule_from_parts` puts it
+back exactly. The longest seeded names fit in 46 and 56 of the 64 bytes; a longer one drops the
+button and logs, never the card (`settle_row`'s trade), and the admin is pointed at the desk.
+
+### VER-04 A blocked proposal is retried by tapping [Батлах] again, not re-sent
+When `post_proposal` raises `UnverifiedRuleError`, `approve.refuse_unverified_rule` puts the
+card back exactly as it was — text and keyboard — because the proposal was never touched: it is
+still `proposed`, so once the rule is verified the same card posts on the next tap and the photo
+is never re-sent. The alternative, carrying the proposal name through the verification datum so
+that the verify tap could post it, does not fit in 64 bytes beside a rule name and would have
+one person's tap post another person's document; a retry queue would have to survive the rule
+staying unverified for days. So the accountant is told, in `MSG_RULE_VERIFIED_RETRY` and
+`MSG_UNVERIFIED_RULE_ADMIN_ASKED`, exactly what to press.
+
+Who reads the refusal decides what follows it: an admin gets the rule card and the two buttons
+in the same breath, everyone else gets a `rule_verification_requested` Nyabo Event plus
+`router.notify_admins` — the promise «the request has been recorded» is kept in the audit log,
+not only in the chat.
+
+### VER-05 `/дүрэм` is in everyone's ☰ menu, although only an admin may verify
+`commands.py` keeps `/link` and `/status` out of the menu because they are admin bootstrap. This
+one is different: the accountant is the person who *meets* the refusal, reads a rule id in it,
+and has to find out who can clear it. So `rules` is registered, `MSG_MENU` lists it with «админ
+баталгаажуулна» beside it, and a non-admin who runs it gets `MSG_RULES_ADMIN_ONLY` — who may do
+it and the fact that a blocked posting notifies them automatically — instead of a bare refusal.
