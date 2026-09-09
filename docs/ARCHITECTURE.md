@@ -229,7 +229,8 @@ LLM work is enqueued (`long` queue) and replies later by editing or sending a ca
 Callback data (≤ 64 bytes): `p:<NYP-name>:ap|ch|rj`, `p:<name>:acc:<code>`,
 `p:<name>:rr:<personal|dup|company|other>`, `b:<bank txn name>:find|exp|later`,
 `b:<name>:acc:<code>`, `c:<period>:confirm|cancel`, `x:<posted doctype short>:<name>:rev`
-(reversal), `x:<name>:reason:<code>`, `o:<step>:<value>` (onboarding), `i:<NYI>:confirm`.
+(reversal), `x:<name>:reason:<code>`, `o:<step>:<value>` (onboarding), `i:<NYI>:confirm`,
+`q:<query verb>[:<arg>…]` (question follow-ups, §5.7; `q:esc`, `q:m`).
 
 ### 5.2 Onboarding (`/эхлэх`, also triggered on first accountant link for a company without settings)
 
@@ -329,11 +330,37 @@ corrections for a supplier create a `Nyabo Rule(status = pending_confirmation)`.
 
 ### 5.7 Questions
 
-Free text outside a state → `agent.questions.answer(user, company, text)`: one model
-call with tools `answer_from_books(query_kind, args)` (account balance on date, spend by
-account this month, last entries for a supplier, unmatched count), `answer_faq(question)`
-(from `config/faq.mn.md`), `escalate_to_admin(summary)`. Read-only; results are
-formatted by code, the model writes the sentence.
+Free text outside a state → `agent.pipeline.answer_question(user, company, text,
+memory=…)`: one model call with tools `answer_from_books(query_kind, args)`,
+`answer_faq(question)` (from `config/faq.mn.md`), `escalate_to_admin(summary)`.
+Read-only; results are formatted by code, the model writes the sentence. It returns a
+`questions.Reply` — the sentence, the follow-up buttons and the memory to store.
+
+`query_kind` (all reads, all filtered by `company`): `balance_on_date`,
+`spend_by_account`, `account_entries` (the entries behind a spend figure),
+`last_entries_for_supplier`, `supplier_total`, `vat_position`, `top_spend_accounts`,
+`unmatched_count`, `unmatched_lines`, `explain_entry` (a posted document's Nyabo
+Proposal: explanation, citation and source document).
+
+Three deterministic layers around that one call, all in `agent/questions.py` (no frappe
+import, so the simulator can drive them):
+
+- **Continuity.** `Nyabo Chat State.payload_json["question_memory"]`: one turn, twenty
+  minutes, one company. It carries the previous question (re-fenced when it re-enters the
+  prompt) and the subject the *handler* resolved (account code, period, supplier, date,
+  document) — never a figure, so the model cannot repeat last turn's number as this turn's
+  answer. `set_state` / `clear_state` drop it: starting or leaving a flow ends the
+  exchange. The answer card prints the subject it read (`📒 6210 · 2026 оны 8-р сар`) so a
+  context carried forward is visible rather than silent.
+- **Follow-up buttons.** `q:<verb>[:<arg>…]`, built by `questions.follow_ups` from the tool
+  trace. Each datum carries its whole query, so a tap runs `pipeline.books_answer` — the
+  same dispatcher, no model — and edits the card in place. A datum that will not fit 64
+  bytes drops that button and logs, like `keyboards.settle_row`. `q:esc` escalates,
+  `q:m` opens the menu.
+- **Number verification.** `questions.unverified_numbers`: every number in the model's
+  sentence must appear in a handler result, in the question or in the timestamp.
+  Otherwise the sentence is replaced by the handler's own Mongolian text and a
+  `question_number_unverified` Nyabo Event is written.
 
 ## 6. LLM contract
 
