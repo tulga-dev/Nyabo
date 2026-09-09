@@ -6,12 +6,16 @@ built in parallel (docs/ARCHITECTURE.md §3). Handlers import *this* module and 
 ``NotImplementedError`` naming the dotted path instead of an ImportError at import time,
 and (b) tests monkeypatch one attribute here rather than the real module.
 
-Every function keeps the signature of the contract it wraps; nothing here adds logic.
+Every function keeps the signature of the contract it wraps; nothing here adds logic. The
+inventory group below is the one exception and says why in its own header: the intake module
+speaks ``IntakeRow`` dataclasses and wants a spreadsheet already read into cells, while the
+handler and ``cards.py`` carry plain dicts and hand over a raw upload.
 """
 
 from __future__ import annotations
 
 import importlib
+from collections.abc import Iterable
 from typing import Any
 
 
@@ -166,19 +170,64 @@ def quality_summary(company: str, days: int = 30) -> dict[str, Any]:
 # --- nyabo_mn.setup / rules --------------------------------------------------------------------
 
 
+# The inventory shims are the exception the module docstring names: they translate between the
+# two shapes rather than only forwarding. The chat side owns plain dicts (``cards.inventory_total``
+# reads ``item.get("qty")``) and an uploaded file as bytes; ``setup.inventory_intake`` owns
+# ``IntakeRow`` and expects a table already read into cells.
+
+
+def _intake_items(rows: Iterable[Any]) -> list[dict[str, Any]]:
+	"""``IntakeRow`` -> the dicts the preview card and the intake document both read."""
+	return [row.as_child() if hasattr(row, "as_child") else dict(row) for row in rows]
+
+
 def inventory_parse_text(text: str) -> list[dict[str, Any]]:
-	return _call("nyabo_mn.setup.inventory_intake", "parse_text", text)
+	return _intake_items(_call("nyabo_mn.setup.inventory_intake", "parse_text", text))
 
 
 def inventory_parse_table(content: bytes, filename: str) -> list[dict[str, Any]]:
-	return _call("nyabo_mn.setup.inventory_intake", "parse_table", content, filename)
+	"""Upload bytes -> rows -> items: ``parse_table`` takes read cells, never a file."""
+	rows = _call("nyabo_mn.parsers.excel", "read_rows", content, filename)
+	return _intake_items(_call("nyabo_mn.setup.inventory_intake", "parse_table", rows))
 
 
-def inventory_create_intake(company: str, items: list[dict[str, Any]], source: str, user: str) -> str:
-	return _call("nyabo_mn.setup.inventory_intake", "create_intake", company, items, source, user)
+def inventory_create_intake(
+	company: str, items: list[dict[str, Any]], source: str, user: str, file_url: str | None = None
+) -> str:
+	"""The draft intake behind the confirmation card; returns its name for the button data.
+
+	The argument order here is the chat's, not the target's - keeping them apart is what the
+	live crash needed: ``create_intake(company, source, rows, posting_date)`` was being fed
+	the item list as ``source`` and the Telegram user id as ``posting_date``, so ``getdate``
+	tried to read "tg-...@nyabo.local" as a date. Opening stock is dated today
+	(``frappe.utils.today()`` -> "Return today's date in `yyyy-mm-dd` format" - frappe/utils/data.py);
+	``user`` stays in the signature because the router already runs as that user, so Frappe
+	stamps the document ``owner``, and the same user is recorded again on the confirming tap.
+	"""
+	# Imported here, not at module top, so the shim layer stays importable without a bench.
+	from frappe.utils import today
+
+	doc = _call(
+		"nyabo_mn.setup.inventory_intake",
+		"create_intake",
+		company,
+		source,
+		items,
+		today(),
+		file_url=file_url,
+	)
+	return str(getattr(doc, "name", doc))
 
 
 def inventory_post_intake(intake_name: str, user: str) -> dict[str, Any]:
+	"""The [Батлах] tap: record the human confirmation, then post the opening documents.
+
+	``post_intake`` refuses an intake that is still a draft, and this tap on the confirmation
+	card is the human approval the ledger rule asks for - nothing else in the flow calls
+	``confirm_intake``, so the tap used to be answered with «...баталгаажаагүй» and no opening
+	stock was ever posted.
+	"""
+	_call("nyabo_mn.setup.inventory_intake", "confirm_intake", intake_name, user)
 	return _call("nyabo_mn.setup.inventory_intake", "post_intake", intake_name, user)
 
 
