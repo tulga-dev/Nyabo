@@ -1600,9 +1600,13 @@ def books_handlers(
 			"text": "\n".join(parts),
 			# The document's own figures. Not the explanation: the model wrote the middle of that
 			# sentence when the proposal was made, so a number in it is not one this read produced.
+			# Both dates, because the card prints both: a receipt photographed on the 5th and
+			# posted on the 7th is the normal case, and a model repeating the received date this
+			# read itself rendered (mn.ENTRY_EXPLAIN_SOURCE) must not lose its sentence over it.
 			**_figures(
 				total,
 				_calendar(str(proposal.posting_date or "")),
+				_calendar(received),
 				proposal.posted_name or proposal.name,
 			),
 		}

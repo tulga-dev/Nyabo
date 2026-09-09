@@ -1104,3 +1104,24 @@ def test_the_account_name_the_ranking_prints_is_vouched_for(books):
 		questions.unverified_numbers(sentence, _trace("top_spend_accounts", {"period": "2026-09"}, top), NOW)
 		== ()
 	)
+
+
+def test_the_received_date_the_card_prints_is_vouched_for(run_receipt, books):
+	"""MINOR: ``_figures`` carried the POSTING date only, and the card prints the received one too.
+
+	A receipt photographed on one day and posted on another is the normal case, so a model
+	repeating the source line the handler itself rendered lost its sentence.
+	"""
+	proposal = run_receipt("petrovis_fuel")
+	posted = post.post_proposal(proposal.name, ACCOUNTANT)
+	received = "2026-09-03"
+	assert str(proposal.posting_date)[8:] != received[8:], "the two dates must differ for this to bite"
+	frappe.db.set_value("Nyabo Document", proposal.document, "received_at", f"{received} 08:30:00")
+
+	run = pipeline.books_handlers(books, today=NOW.date())["answer_from_books"]
+	args = {"entry_ref": posted["posted_name"]}
+	explained = run({"query_kind": "explain_entry", "args": args})
+	assert explained["text"].endswith(mn.ENTRY_EXPLAIN_SOURCE.format(date=received))
+
+	sentence = f"Эх баримт нь {received}-нд ирсэн, {explained['entry_ref']} дугаартай бичилт."
+	assert questions.unverified_numbers(sentence, _trace("explain_entry", args, explained), NOW) == ()
