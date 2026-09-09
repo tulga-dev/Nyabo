@@ -617,13 +617,20 @@ def answer(
 
 	books_call = _last_books_call(llm.tool_calls)
 	subject = _subject_of(books_call) if books_call is not None else {}
+	# An escalated question is already with a person: offering [Админаас асуух] under it would
+	# invite sending the same thing twice, so that card gets only the way back.
+	offered = (
+		(FollowUp(VERB_MENU, mn.BTN_MENU),)
+		if escalated
+		else follow_ups(llm.tool_calls, now=now, answered=answered)
+	)
 	return AnswerOutcome(
 		answer=QuestionAnswer(answer_mn=answer_text, used_tool=last_ok, needs_escalation=escalated),
 		llm=llm,
 		injection_suspected=False,
 		injection_fragment=None,
 		tools_used=tools_used,
-		follow_ups=follow_ups(llm.tool_calls, now=now, answered=answered and not escalated),
+		follow_ups=offered,
 		memory=remember(text, llm.tool_calls, company=company, now=now),
 		unverified_numbers=invented,
 		subject=subject,
