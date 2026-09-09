@@ -43,6 +43,11 @@ BTN_NEW_ENTRY = "Шинэ бичилт"
 BTN_Q_PREV_PERIOD = "← {period}"
 BTN_Q_NEXT_PERIOD = "{period} →"
 BTN_Q_EXPLAIN = "Юунаас бүрдэв?"
+# The same read under a *balance*, where «Юунаас бүрдэв?» would be a promise the query cannot
+# keep: a balance as of a date is not the sum of one month's entries. The month it will show is
+# named instead, and it leads with the noun so the two buttons on that card do not both start
+# with a date.
+BTN_Q_PERIOD_ENTRIES = "Бичилтүүд · {period}"
 BTN_Q_ACCOUNT_TOTAL = "Сарын нийт дүн"
 BTN_Q_SUPPLIER_ENTRIES = "Сүүлийн бичилтүүд"
 BTN_Q_SUPPLIER_TOTAL = "Харилцагчийн нийт дүн"

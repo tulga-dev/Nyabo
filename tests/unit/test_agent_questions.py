@@ -510,6 +510,44 @@ def test_a_derived_figure_is_logged_as_derived_not_as_a_fabrication(tmp_path):
 	assert "40 000" not in outcome.answer.answer_mn, "the ledger rule still costs the sentence"
 
 
+
+
+def test_the_button_under_a_balance_names_the_month_it_will_show():
+	"""MAJOR: «Юунаас бүрдэв?» offered the composition of a cumulative figure and ran a month.
+
+	A balance as of 31 March is not the sum of March's postings. The read is still the one an
+	accountant reaches for next, so the button is kept and says which month it opens; under a
+	spend answer, where the month *is* the figure's own, the question stands as it was.
+	"""
+	balance = (
+		_books_call(
+			"balance_on_date",
+			{"account_code": "6210", "on_date": "2026-03-31", "date": "2026-03-31"},
+			account_code="6210",
+			on_date="2026-03-31",
+		),
+	)
+	entries = next(
+		f
+		for f in questions.follow_ups(balance, now=NOW)
+		if f.verb == questions.QUERY_SHORT["account_entries"]
+	)
+	assert entries.args == ("6210", "2026-03")
+	assert entries.label == mn.BTN_Q_PERIOD_ENTRIES.format(period="2026 оны 3-р сар")
+	assert entries.label != mn.BTN_Q_EXPLAIN, "a month is not a decomposition"
+
+	spend = (
+		_books_call(
+			"spend_by_account",
+			{"account_code": "6210", "period": "2026-03"},
+			account_code="6210",
+			period="2026-03",
+		),
+	)
+	breakdown = [f.label for f in questions.follow_ups(spend, now=NOW) if f.verb == "led"]
+	assert breakdown == [mn.BTN_Q_EXPLAIN]
+
+
 # --- follow-up buttons -----------------------------------------------------------------------------
 
 

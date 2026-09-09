@@ -606,10 +606,12 @@ def follow_ups(calls: Sequence[ToolCall], *, now: datetime, answered: bool = Tru
 	if kind in ("spend_by_account", "account_entries", "vat_position", "top_spend_accounts"):
 		out += _period_follow_ups(kind, subject, now)
 
-	# (this query kind) -> the next question the accountant would ask, and its label.
+	# (this query kind) -> the next question the accountant would ask, and its label. A label
+	# with a ``{period}`` in it is one whose query is about a month the answer above was not:
+	# see ``BTN_Q_PERIOD_ENTRIES`` under a balance.
 	next_questions: Mapping[str, tuple[tuple[str, str], ...]] = {
 		"balance_on_date": (
-			("account_entries", mn.BTN_Q_EXPLAIN),
+			("account_entries", mn.BTN_Q_PERIOD_ENTRIES),
 			("spend_by_account", mn.BTN_Q_ACCOUNT_TOTAL),
 		),
 		"spend_by_account": (("account_entries", mn.BTN_Q_EXPLAIN),),
@@ -625,8 +627,24 @@ def follow_ups(calls: Sequence[ToolCall], *, now: datetime, answered: bool = Tru
 	for target, label in next_questions.get(kind, ()):
 		args = _args_for(target, subject)
 		if args is not None:
-			out.append(FollowUp(QUERY_SHORT[target], label, args))
+			out.append(FollowUp(QUERY_SHORT[target], _label(label, subject["period"]), args))
 	return tuple(out[:MAX_FOLLOW_UPS])
+
+
+def _label(template: str, period: str) -> str:
+	"""A button label, with the month filled in when the label names one.
+
+	«Юунаас бүрдэв?» under a balance promised the composition of a cumulative figure and ran
+	one month's entries, which is a different question: a balance as of 30 September is not
+	September's postings. The button is kept — the entries behind an account are exactly what
+	the accountant reaches for next — but it now says which month it will show.
+	"""
+	if "{period}" not in template:
+		return template
+	try:
+		return template.format(period=dates.period_label(period))
+	except ValueError:
+		return template.format(period=period)
 
 
 def subject_label(subject: Mapping[str, str]) -> str:
