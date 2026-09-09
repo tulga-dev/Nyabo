@@ -804,7 +804,7 @@ wrongly instead of trusting it.
 sources and no others: the figures the handlers *computed*, and the calendar date the clock
 is on (thousands separators normalised, a rounded tögrög figure and a month written out of
 an ISO period accepted). One that matches nothing replaces the whole sentence with the last
-handler's own Mongolian text — or, when there is none, with `MSG_QUESTION_CANNOT` — and
+handler's own Mongolian text — or, when there is none, with `MSG_QUESTION_CANNOT_FULL` — and
 writes a `question_number_unverified` Nyabo Event.
 
 What counts as computed is the narrow part, and it took three passes to get right. Each

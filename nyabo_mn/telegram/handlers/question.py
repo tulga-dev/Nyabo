@@ -151,7 +151,7 @@ def handle_callback(ctx: Ctx, parts: list[str]) -> Any:
 		# The books refused the query (an account that no longer exists, a period that is not
 		# one). The card stays as it is; the user is told, and the way forward is a person.
 		ctx.reply(
-			cards.question_card(f"{mn.MSG_QUESTION_CANNOT}\n{mn.MSG_QUESTION_TRY_REPHRASE}"),
+			cards.question_card(mn.MSG_QUESTION_CANNOT_FULL),
 			keyboards.question_keyboard(STUCK_BUTTONS),
 		)
 		return {"error": result["error"]}
@@ -165,7 +165,7 @@ def handle_callback(ctx: Ctx, parts: list[str]) -> Any:
 	if answered:
 		subject.update({k: str(v) for k, v in result.items() if k in questions.SUBJECT_KEYS and v})
 	reply = questions.Reply(
-		text=str(result.get("text") or mn.MSG_QUESTION_CANNOT),
+		text=str(result.get("text") or mn.MSG_QUESTION_CANNOT_FULL),
 		follow_ups=questions.follow_ups(trace, now=now, answered=answered),
 		memory=questions.remember(_question_of(ctx, company), trace, company=company, now=now),
 		subject=questions.subject_label(subject),

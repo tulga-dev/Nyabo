@@ -904,7 +904,7 @@ def test_every_error_the_books_can_return_is_the_question_being_wrong(books):
 
 	client = _client("", _books_call("balance_on_date", account_code="4242", on_date="2026-09-30"))
 	reply = pipeline.answer_question(ACCOUNTANT, books, "4242 дансны үлдэгдэл?", client=client, now=NOW)
-	assert reply.text == mn.MSG_QUESTION_CANNOT
+	assert reply.text == mn.MSG_QUESTION_CANNOT_FULL
 	assert mn.AGENT_ANSWER_TOOL_ERROR not in reply.text
 	assert [f.verb for f in reply.follow_ups] == [questions.VERB_ESCALATE, questions.VERB_MENU]
 

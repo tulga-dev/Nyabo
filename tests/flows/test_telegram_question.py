@@ -243,6 +243,32 @@ def test_a_refused_query_leaves_the_card_and_offers_a_person(books):
 	assert bot.callback_datas() == [f"q:{questions.VERB_ESCALATE}", f"q:{questions.VERB_MENU}"]
 
 
+def test_the_typed_dead_end_says_the_same_next_step_as_the_tapped_one(books, monkeypatch):
+	"""MINOR: the tapped card told the user what to do next and the typed card did not.
+
+	Same failure, two ways in: a button whose query the books refuse, and a question the model
+	could not answer. The typed one sent MSG_QUESTION_CANNOT on its own, which reads as a dead
+	end; the words are now one string so the two cannot drift apart again.
+	"""
+	link_user(9021, "Accountant", books)
+	bot = FakeBotApi()
+	run(bot, callback_update(9021, f"q:{SPEND}:4242:2026-09"))
+	tapped = bot.last_text
+
+	monkeypatch.setattr(
+		_deps,
+		"answer_question",
+		lambda user, comp, text, memory=None, on_turn=None: questions.Reply(
+			text=mn.MSG_QUESTION_CANNOT_FULL,
+			follow_ups=question.STUCK_BUTTONS,
+		),
+	)
+	run(bot, message_update(9021, "Кассад хэд байна?"))
+	assert bot.last_text == tapped
+	assert mn.MSG_QUESTION_TRY_REPHRASE in bot.last_text
+	assert bot.callback_datas() == [f"q:{questions.VERB_ESCALATE}", f"q:{questions.VERB_MENU}"]
+
+
 def test_the_ask_admin_button_escalates_with_the_question_the_user_typed(company, monkeypatch):
 	monkeypatch.setattr(
 		_deps,

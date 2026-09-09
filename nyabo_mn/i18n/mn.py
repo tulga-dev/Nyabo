@@ -604,6 +604,12 @@ MSG_LAST_ENTRIES_ANSWER = "{supplier} сүүлийн бүртгэлүүд:\n{ent
 # wrong month forward is visible instead of silent.
 MSG_QUESTION_SUBJECT = "📒 {subject}"
 MSG_QUESTION_TRY_REPHRASE = "Асуултаа өөрөөр бичиж үзнэ үү, эсвэл админаас асууна уу."
+# The whole dead end, in one string, because a typed question and a tapped button must reach
+# the same one. The tapped path always offered the next step; the typed path sent
+# MSG_QUESTION_CANNOT on its own, so the same failure read as a bare refusal in the shape of
+# question an accountant actually types. Composed here rather than at the two call sites so
+# the two can never drift apart again.
+MSG_QUESTION_CANNOT_FULL = f"{MSG_QUESTION_CANNOT}\n{MSG_QUESTION_TRY_REPHRASE}"
 MSG_QUESTION_CONTEXT_GONE = "Энэ хариулт хуучирсан байна. Асуултаа дахин бичнэ үү."
 MSG_QUESTION_ESCALATE_SUMMARY = "Хэрэглэгч хариултын дор «{button}» товч дарлаа: {question}"
 

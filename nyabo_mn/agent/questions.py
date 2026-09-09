@@ -851,7 +851,7 @@ def answer(
 		# not answer when they did is a worse lie than an ugly sentence. Same fallback the
 		# invented-number path takes, for the same reason.
 		fallback = _handler_text(llm.tool_calls)
-		answer_text = fallback or mn.MSG_QUESTION_CANNOT
+		answer_text = fallback or mn.MSG_QUESTION_CANNOT_FULL
 		answered = fallback is not None
 		last_ok = last_ok if fallback else None
 
@@ -861,7 +861,7 @@ def answer(
 		# Mongolian sentence for what it found, so send that; there is never a reason to pass
 		# on a number the books did not produce.
 		fallback = _handler_text(llm.tool_calls)
-		answer_text = fallback or mn.MSG_QUESTION_CANNOT
+		answer_text = fallback or mn.MSG_QUESTION_CANNOT_FULL
 		answered = fallback is not None
 		last_ok = last_ok if fallback else None
 
@@ -871,7 +871,7 @@ def answer(
 		# is worth nothing, so the handler's own «олдсонгүй» sentence is what the user reads —
 		# and this is not an answer: the card offers a person, not four more reads about a
 		# supplier that does not exist. (``escalate_to_admin`` already has its own card.)
-		answer_text = _handler_text(llm.tool_calls) or mn.MSG_QUESTION_CANNOT
+		answer_text = _handler_text(llm.tool_calls) or mn.MSG_QUESTION_CANNOT_FULL
 		answered = False
 	subject = _subject_of(books_call) if books_call is not None else {}
 	# An escalated question is already with a person: offering [Админаас асуух] under it would

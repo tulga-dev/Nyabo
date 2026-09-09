@@ -142,7 +142,7 @@ def test_invalid_tool_arguments_never_reach_handlers(tmp_path):
 	outcome = questions.answer(client, "Юу?", _handlers(log), now=NOW)
 	assert log == []
 	assert outcome.llm.tool_calls[0].result["error"] == "invalid_arguments"
-	assert outcome.answer.answer_mn == mn.MSG_QUESTION_CANNOT and outcome.answer.used_tool is None
+	assert outcome.answer.answer_mn == mn.MSG_QUESTION_CANNOT_FULL and outcome.answer.used_tool is None
 
 
 def test_handler_exceptions_become_tool_error_message(tmp_path):
@@ -437,7 +437,7 @@ def test_an_invented_number_with_no_handler_sentence_falls_back_to_cannot_answer
 	client = MockLlmClient(fixtures_dir=tmp_path)
 	client.add("question", {"text": "Кассад 500 000₮ байна.", "tool_calls": []})
 	outcome = questions.answer(client, "Кассад хэд байна?", {}, now=NOW)
-	assert outcome.answer.answer_mn == mn.MSG_QUESTION_CANNOT and outcome.answer.used_tool is None
+	assert outcome.answer.answer_mn == mn.MSG_QUESTION_CANNOT_FULL and outcome.answer.used_tool is None
 	assert outcome.unverified_numbers == ("500000",)
 	assert [f.verb for f in outcome.follow_ups] == [questions.VERB_ESCALATE, questions.VERB_MENU]
 
@@ -477,7 +477,7 @@ def test_no_sentence_and_no_handler_text_still_says_it_could_not_answer(tmp_path
 	client = MockLlmClient(fixtures_dir=tmp_path)
 	client.add("question", {"text": "", "tool_calls": []})
 	outcome = questions.answer(client, "Кассад хэд байна?", {}, now=NOW)
-	assert outcome.answer.answer_mn == mn.MSG_QUESTION_CANNOT and outcome.answer.used_tool is None
+	assert outcome.answer.answer_mn == mn.MSG_QUESTION_CANNOT_FULL and outcome.answer.used_tool is None
 	assert [f.verb for f in outcome.follow_ups] == [questions.VERB_ESCALATE, questions.VERB_MENU]
 
 
@@ -866,3 +866,16 @@ def test_a_complete_faq_answer_is_not_offered_the_stuck_buttons(tmp_path):
 		now=NOW,
 	)
 	assert [f.verb for f in outcome.follow_ups] == [questions.VERB_MENU]
+
+
+def test_the_typed_dead_end_says_the_same_next_step_as_the_tapped_one(tmp_path):
+	"""MINOR: the tapped path told the user what to do next and the typed path did not.
+
+	Same failure, two cards: «…Асуултаа өөрөөр бичиж үзнэ үү, эсвэл админаас асууна уу» after a
+	button, and MSG_QUESTION_CANNOT on its own after a typed question.
+	"""
+	client = MockLlmClient(fixtures_dir=tmp_path)
+	client.add("question", {"text": "", "tool_calls": []})
+	outcome = questions.answer(client, "Кассад хэд байна?", {}, now=NOW)
+	assert outcome.answer.answer_mn == mn.MSG_QUESTION_CANNOT_FULL
+	assert mn.MSG_QUESTION_TRY_REPHRASE in outcome.answer.answer_mn
