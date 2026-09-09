@@ -20,13 +20,22 @@ bench:
    trace, so they can only ever offer a query the books already answered once. The model
    never names a button.
 3. **Number verification** (``unverified_numbers``). Every number in the model's sentence
-   must appear in what a handler *computed* — the Mongolian sentence the handler wrote and
-   its own numeric fields (``NUMERIC_RESULT_FIELDS``) — or in the question, or in the
-   timestamp. Never in the arguments the model chose: a handler echoes the subject it was
-   handed, so accepting the whole result would let a figure the model invented and passed in
-   verify itself. One that does not appear means the model wrote a figure of its own; the
-   sentence is dropped and the handler's own Mongolian text is sent instead. This is the
-   mechanical form of "the model writes sentences, deterministic code writes numbers".
+   must appear in what a handler *computed* (``COMPUTED_NUMBERS_FIELD`` — the figures it read
+   off or worked out from the ledger, listed by the handler itself), or in the question, or in
+   the timestamp. Nothing else, and in particular:
+
+   * **not the text a handler rendered.** Rendered text is not a computation. ``answer_faq``
+     returns product prose that quotes figures («85 000₮-ийн шатахууны и-баримт»), and a model
+     that looked something up in the FAQ and then stated that figure as this company's ledger
+     passed a check built from text. It computes nothing, so it now contributes nothing.
+   * **not the arguments the model chose.** A handler echoes the subject it was handed, and its
+     own not-found sentence quotes it back verbatim, so a figure the model invented and passed
+     in as ``supplier`` or ``entry_ref`` came home through the very sentence that says the
+     books never found it.
+
+   A number that does not appear means the model wrote a figure of its own; the sentence is
+   dropped and the handler's own Mongolian text is sent instead. This is the mechanical form of
+   "the model writes sentences, deterministic code writes numbers".
 4. **Read-only widening.** Ten query kinds (§5.7 named four); every one of them is a read.
    Nothing in this path may write to the ledger, and no tool here can.
 """
@@ -415,47 +424,47 @@ def numbers_in(text: str) -> list[set[str]]:
 	return [_variants(raw) for raw in _NUMBER.findall(cleaned)]
 
 
-# The result fields a handler *computes*. Everything else in a result is either an echo of
-# the arguments the model chose (``account_code``, ``period``, ``on_date``, ``entry_ref``) or
-# a list the handler already rendered into ``text`` line by line, so this is the whole of the
-# handler's own arithmetic.
-NUMERIC_RESULT_FIELDS = frozenset(
-	{
-		"amount",
-		"balance",
-		"count",
-		"input_vat",
-		"net",
-		"output_vat",
-		"payments",
-		"purchases",
-		"returns",
-	}
-)
+# The one result key a figure may enter the allowed set through: a handler's own list of the
+# numbers it read off or worked out from this company's ledger. A read that resolves nothing —
+# a supplier that is not in the books, an FAQ lookup — puts nothing in it, and no other key,
+# text included, is ever looked at.
+COMPUTED_NUMBERS_FIELD = "computed_numbers"
 
 
-def _handler_output(calls: Sequence[ToolCall]) -> list[str]:
-	"""What each handler itself produced: the Mongolian sentence it wrote and its own figures.
+def _computed_numbers(calls: Sequence[ToolCall]) -> list[str]:
+	"""Every figure the handlers computed, and nothing they merely rendered or were handed.
 
-	Deliberately not the whole result dict. Every handler echoes the subject it was handed
-	beside the figures it computed, so dumping the result would let a number the *model*
-	invented and passed in as an argument come back and verify itself — the number check
-	would then be a check on the model's consistency with itself, not on the ledger.
+	The narrow reading of this field is the whole guarantee. Harvesting a result's ``text``
+	instead looks equivalent — the handler wrote that sentence, after all — but a sentence is
+	not a computation: it carries the FAQ's prose figures and it quotes the model's own
+	argument back in every not-found answer. Both walked a number the ledger never produced
+	into the set of numbers the model is allowed to state.
 	"""
-	sources: list[str] = []
+	numbers: list[str] = []
 	for call in calls:
 		if call.is_error or not isinstance(call.result, Mapping):
 			continue
-		text = call.result.get("text")
-		if isinstance(text, str):
-			sources.append(text)
-		sources += [str(call.result[f]) for f in NUMERIC_RESULT_FIELDS if call.result.get(f) is not None]
-	return sources
+		computed = call.result.get(COMPUTED_NUMBERS_FIELD)
+		if isinstance(computed, (str, bytes)) or not isinstance(computed, Sequence):
+			continue  # a handler that lists nothing vouches for nothing
+		numbers += [str(value) for value in computed if value is not None]
+	return numbers
+
+
+def _clock_years(now: datetime) -> list[str]:
+	"""This year and the ones either side of it, because an answer names the year it is about.
+
+	«2025 оны 12-р сар» is what a question asked in January is about, and the year in it has to
+	verify. It comes from the clock rather than from the month the model asked for: a year is
+	the one part of a date wide enough to double as a tögrög figure, and a handler that vouched
+	for whatever year it was handed would let «9999 оны 12-р сар» license «9 999₮».
+	"""
+	return [str(now.year - 1), str(now.year), str(now.year + 1)]
 
 
 def _known_numbers(calls: Sequence[ToolCall], question: str, now: datetime) -> set[str]:
 	known: set[str] = set()
-	for source in [question or "", now.isoformat(), *_handler_output(calls)]:
+	for source in [question or "", now.isoformat(), *_clock_years(now), *_computed_numbers(calls)]:
 		for forms in numbers_in(source):
 			known |= forms
 	return known
@@ -528,7 +537,7 @@ def classify_unverified(unknown: Sequence[str], calls: Sequence[ToolCall]) -> di
 	supplier's balance, and an event that reads as though it had is the kind of noise that
 	gets real ones ignored.
 	"""
-	knowns = _decimals(_handler_output(calls))
+	knowns = _decimals(_computed_numbers(calls))
 	kinds: dict[str, str] = {}
 	for raw in unknown:
 		try:
@@ -874,6 +883,7 @@ def _handler_text(calls: Sequence[ToolCall]) -> str | None:
 
 
 __all__ = [
+	"COMPUTED_NUMBERS_FIELD",
 	"MAX_FOLLOW_UPS",
 	"MAX_TURNS",
 	"MEMORY_QUESTION_CHARS",

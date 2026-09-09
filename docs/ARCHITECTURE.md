@@ -358,9 +358,13 @@ import, so the simulator can drive them):
   bytes drops that button and logs, like `keyboards.settle_row`. `q:esc` escalates,
   `q:m` opens the menu.
 - **Number verification.** `questions.unverified_numbers`: every number in the model's
-  sentence must appear in a handler result, in the question or in the timestamp.
-  Otherwise the sentence is replaced by the handler's own Mongolian text and a
-  `question_number_unverified` Nyabo Event is written.
+  sentence must appear among the figures a handler *computed* (the `computed_numbers` a
+  read lists: its amounts and counts, the posting dates, voucher names, account and
+  supplier the ledger resolved, and the month or day it ran on), in the question, or in
+  the clock. Never in the text a handler rendered — the FAQ is prose and quotes worked
+  examples, and a not-found sentence quotes the model's own argument back — and never in
+  a free-text argument. Otherwise the sentence is replaced by the handler's own Mongolian
+  text and a `question_number_unverified` Nyabo Event is written.
 
 ## 6. LLM contract
 

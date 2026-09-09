@@ -1055,6 +1055,38 @@ def books_handlers(
 	def _net_debit(rows: Iterable[Any]) -> Decimal:
 		return quantize(sum((Decimal(str(r.debit or 0)) - Decimal(str(r.credit or 0)) for r in rows), ZERO))
 
+	def _calendar(value: Any) -> list[str]:
+		"""The month, and the day when there is one, of the coordinate this read ran on.
+
+		Not the year. The month and the day are how an answer names the period it is about
+		(«7-р сард», «30-нд»), so they have to verify, and neither is wide enough to double as a
+		tögrög figure. The year is left to ``questions``, which takes it from the clock: a
+		handler that vouched for whichever year it was handed would let a model ask about
+		«9999 оны 12-р сар» and then state «9 999₮» on the strength of it.
+		"""
+		return [part for part in str(value or "").split("-")[1:] if part]
+
+	def _figures(*values: Any) -> dict[str, list[str]]:
+		"""The figures this read produced, in the one key ``questions`` will verify against.
+
+		Two kinds of thing go in, and nothing else. First, what the ledger gave back: the amounts
+		and counts this handler worked out, the posting dates and voucher names it read, the
+		account the chart resolved, the supplier name the register matched. Second, the calendar
+		coordinate the read ran on, month and day only (``_calendar``) — an answer about July says
+		«7-р сард» and that 7 has to verify, while the year, the one part wide enough to double as
+		a tögrög figure, is left to the clock in ``questions``.
+
+		Never a free-text argument the model wrote — a ``supplier`` or an ``entry_ref`` it made
+		up — and never the sentence built out of one. A rendered string is not a computation: the
+		FAQ's prose quotes figures, and a not-found sentence quotes the model's own wording back,
+		so either would let a number the ledger never produced verify itself.
+		"""
+		flat: list[str] = []
+		for value in values:
+			items = value if isinstance(value, (list, tuple, set)) else [value]
+			flat += [str(item) for item in items if item not in (None, "")]
+		return {questions.COMPUTED_NUMBERS_FIELD: flat}
+
 	# --- the ten reads -------------------------------------------------------------------------
 
 	def _balance_on_date(inner: dict[str, Any]) -> dict[str, Any]:
@@ -1070,6 +1102,7 @@ def books_handlers(
 			"text": mn.MSG_BALANCE_ANSWER.format(
 				account=account, date=on.isoformat(), balance=fmt_mnt(balance)
 			),
+			**_figures(fmt_mnt(balance), account, _calendar(on.isoformat())),
 		}
 
 	def _spend_by_account(inner: dict[str, Any]) -> dict[str, Any]:
@@ -1087,6 +1120,7 @@ def books_handlers(
 			"text": mn.MSG_SPEND_ANSWER.format(
 				period=dates.period_label(period), account=account, amount=fmt_mnt(amount)
 			),
+			**_figures(fmt_mnt(amount), account, _calendar(period)),
 		}
 
 	def _account_entries(inner: dict[str, Any]) -> dict[str, Any]:
@@ -1122,6 +1156,15 @@ def books_handlers(
 			"entries": entries,
 			"count": total,
 			"text": text,
+			**_figures(
+				total,
+				len(entries),
+				account,
+				_calendar(period),
+				[e["amount"] for e in entries],
+				[e["date"] for e in entries],
+				[e["voucher"] for e in entries],
+			),
 		}
 
 	def _last_entries_for_supplier(inner: dict[str, Any]) -> dict[str, Any]:
@@ -1160,6 +1203,7 @@ def books_handlers(
 				"entries": [],
 				"count": 0,
 				"text": mn.LAST_ENTRIES_NONE.format(supplier=supplier),
+				**_figures(0, supplier),
 			}
 		# The doctype is looked up rather than printed: it is an ERPNext name and it reaches this
 		# line as data, which is how English got onto a Mongolian card (mn.doctype_label). The
@@ -1180,6 +1224,14 @@ def books_handlers(
 			"count": total,
 			"text": mn.MSG_LAST_ENTRIES_ANSWER.format(supplier=supplier, entries=lines)
 			+ _truncation_note(total, len(entries)),
+			**_figures(
+				total,
+				len(entries),
+				supplier,
+				[e["amount"] for e in entries],
+				[e["date"] for e in entries],
+				[e["name"] for e in entries],
+			),
 		}
 
 	def _return_vouchers(rows: Iterable[Any]) -> set[str]:
@@ -1267,6 +1319,14 @@ def books_handlers(
 			"payments": fmt_mnt(payments),
 			"returns": fmt_mnt(returns),
 			"text": text,
+			**_figures(
+				fmt_mnt(gross),
+				fmt_mnt(purchases),
+				fmt_mnt(payments),
+				fmt_mnt(returns),
+				supplier,
+				_calendar(period),
+			),
 		}
 
 	def _vat_position(inner: dict[str, Any]) -> dict[str, Any]:
@@ -1282,7 +1342,11 @@ def books_handlers(
 		if not vat_payer:
 			# A simplified-regime company has no output/input VAT accounts to read, and "0₮"
 			# would read as "nothing to declare" rather than "this does not apply to you".
-			return {"period": period, "text": mn.MSG_VAT_NOT_PAYER_ANSWER.format(period=label)}
+			return {
+				"period": period,
+				"text": mn.MSG_VAT_NOT_PAYER_ANSWER.format(period=label),
+				**_figures(_calendar(period)),
+			}
 		summary = vat_summary.compute(company, (start, end))
 		net = Decimal(str(summary["net"]))
 		figures = {
@@ -1304,6 +1368,15 @@ def books_handlers(
 			"input_vat": fmt_mnt(summary["input_vat"]),
 			"net": fmt_mnt(net),
 			"text": text,
+			# Both signs of the net: the stored field is signed, the sentence shows a credit
+			# positive, and the model may repeat whichever of the two it read.
+			**_figures(
+				fmt_mnt(summary["output_vat"]),
+				fmt_mnt(summary["input_vat"]),
+				fmt_mnt(net),
+				fmt_mnt(-net),
+				_calendar(period),
+			),
 		}
 
 	def _top_spend_accounts(inner: dict[str, Any]) -> dict[str, Any]:
@@ -1337,7 +1410,18 @@ def books_handlers(
 			)
 		else:
 			text = mn.TOP_ACCOUNTS_NONE.format(period=label)
-		return {"period": period, "accounts": accounts_out, "text": text}
+		return {
+			"period": period,
+			"accounts": accounts_out,
+			"text": text,
+			# The codes come from the chart, not from the model, so an answer naming «6210» is
+			# naming an account this read actually ranked.
+			**_figures(
+				_calendar(period),
+				[a["amount"] for a in accounts_out],
+				[a["code"] for a in accounts_out],
+			),
+		}
 
 	def _unmatched_total() -> int:
 		return frappe.db.count(
@@ -1347,7 +1431,7 @@ def books_handlers(
 
 	def _unmatched_count(inner: dict[str, Any]) -> dict[str, Any]:
 		count = _unmatched_total()
-		return {"count": count, "text": mn.UNMATCHED_ANSWER.format(count=count)}
+		return {"count": count, "text": mn.UNMATCHED_ANSWER.format(count=count), **_figures(count)}
 
 	def _unmatched_lines(inner: dict[str, Any]) -> dict[str, Any]:
 		"""The unmatched statement lines themselves, and how many there are in all.
@@ -1372,7 +1456,7 @@ def books_handlers(
 			for row in rows
 		]
 		if not lines:
-			return {"lines": [], "count": total, "text": mn.UNMATCHED_LINES_NONE}
+			return {"lines": [], "count": total, "text": mn.UNMATCHED_LINES_NONE, **_figures(total)}
 		text = mn.MSG_UNMATCHED_LINES_ANSWER.format(
 			lines="\n".join(mn.UNMATCHED_LINE.format(**line) for line in lines)
 		) + _truncation_note(total, len(lines))
@@ -1380,6 +1464,14 @@ def books_handlers(
 			"lines": lines,
 			"count": total,
 			"text": text,
+			# The bank's own description is free text that arrived from outside; a figure
+			# inside it is not something this read computed, so it vouches for nothing.
+			**_figures(
+				total,
+				len(lines),
+				[line["amount"] for line in lines],
+				[line["date"] for line in lines],
+			),
 		}
 
 	def _posted_document(ref: str) -> tuple[str, dict[str, Any]] | None:
@@ -1394,7 +1486,11 @@ def books_handlers(
 				as_dict=True,
 			)
 			if row:
-				return doctype, {"date": str(row.posting_date), "amount": row.get(amount_field)}
+				return doctype, {
+					"name": row.name,
+					"date": str(row.posting_date),
+					"amount": row.get(amount_field),
+				}
 		return None
 
 	def _explain_entry(inner: dict[str, Any]) -> dict[str, Any]:
@@ -1416,6 +1512,7 @@ def books_handlers(
 			return {"entry_ref": ref, "found": False, "text": mn.ENTRY_NOT_FOUND_ANSWER.format(name=ref)}
 		if not name:
 			doctype, facts = posted
+			amount = fmt_mnt(Decimal(str(facts["amount"] or 0)))
 			return {
 				"entry_ref": ref,
 				"found": True,
@@ -1423,9 +1520,10 @@ def books_handlers(
 					doctype=mn.doctype_label(doctype),
 					name=ref,
 					date=facts["date"],
-					amount=fmt_mnt(Decimal(str(facts["amount"] or 0))),
+					amount=amount,
 					explanation=mn.ENTRY_EXPLAIN_NO_PROPOSAL,
 				),
+				**_figures(amount, _calendar(facts["date"]), facts["name"]),
 			}
 		proposal = frappe.get_doc("Nyabo Proposal", name)
 		explanation = (proposal.explanation or "").strip()
@@ -1454,6 +1552,13 @@ def books_handlers(
 			"account_code": proposal.account_code or "",
 			"citation": proposal.citation or "",
 			"text": "\n".join(parts),
+			# The document's own figures. Not the explanation: the model wrote the middle of that
+			# sentence when the proposal was made, so a number in it is not one this read produced.
+			**_figures(
+				total,
+				_calendar(str(proposal.posting_date or "")),
+				proposal.posted_name or proposal.name,
+			),
 		}
 
 	def _document_received(document: str | None) -> str:

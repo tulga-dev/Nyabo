@@ -801,10 +801,25 @@ wrongly instead of trusting it.
 
 ### Q-02 A number the model wrote and no handler returned never reaches the user
 `questions.unverified_numbers` compares every number in the model's sentence against the
-tool results, the question and the timestamp (thousands separators normalised, a rounded
-tögrög figure and a month written out of an ISO period accepted). One that matches nothing
-replaces the whole sentence with the last handler's own Mongolian text — or, when there is
-none, with `MSG_QUESTION_CANNOT` — and writes a `question_number_unverified` Nyabo Event.
+figures the handlers *computed*, the question and the clock (thousands separators
+normalised, a rounded tögrög figure and a month written out of an ISO period accepted). One
+that matches nothing replaces the whole sentence with the last handler's own Mongolian text
+— or, when there is none, with `MSG_QUESTION_CANNOT` — and writes a
+`question_number_unverified` Nyabo Event.
+
+What counts as computed is the narrow part, and it took three passes to get right. Each
+books handler returns `computed_numbers` (`questions.COMPUTED_NUMBERS_FIELD`): the amounts
+and counts it worked out, the posting dates, voucher names, account and supplier name the
+ledger gave back, and the month and day of the coordinate it read. Nothing else — and in
+particular not a result's rendered `text`, which is where two leaks lived: `answer_faq`
+returns product prose quoting worked examples («85 000₮-ийн шатахууны и-баримт»), and every
+not-found answer renders the model's own argument (`SUPPLIER_NOT_FOUND_ANSWER.format(...)`),
+so a figure the model invented came home through the sentence saying the books never found
+it. A rendered string is not a computation, whoever wrote it. The year of a period is not
+vouched for either: the read runs for whatever month it is given, so the year comes from the
+clock (`_clock_years`) and a model cannot ask about «9999 оны 12-р сар» to license «9 999₮».
+The stricter set is walked against all ten query kinds in the flow tests, because the way
+this fails is not a leak but correct sentences quietly being replaced for ever.
 "The model writes sentences, deterministic code writes numbers" was a rule the prompt asked
 for politely; this is the same rule enforced. The shared question fixture is what proved it:
 its sentence says "3 unmatched lines" against a ledger with none, and the user now reads the

@@ -15,10 +15,19 @@ NOW = datetime(2026, 9, 8, 12, 0, tzinfo=timezone.utc)
 
 def _handlers(log: list):
 	return {
-		"answer_from_books": lambda args: log.append(("books", args)) or {"count": 3},
+		# ``computed_numbers`` is the whole of what a handler vouches for: the figures it read
+		# off the ledger. Every fake here answers in the shape ``pipeline.books_handlers`` does.
+		"answer_from_books": lambda args: (
+			log.append(("books", args)) or {"count": 3, questions.COMPUTED_NUMBERS_FIELD: ["3"]}
+		),
 		"answer_faq": lambda args: log.append(("faq", args)) or {"text": "…"},
 		"escalate_to_admin": lambda args: log.append(("esc", args)) or {"ticket": "T1"},
 	}
+
+
+def _computed(*numbers: str) -> dict:
+	"""The one key a handler vouches for its figures through (``COMPUTED_NUMBERS_FIELD``)."""
+	return {questions.COMPUTED_NUMBERS_FIELD: list(numbers)}
 
 
 def _books_call(kind: str, result: dict, **args) -> ToolCall:
@@ -276,12 +285,15 @@ def test_a_follow_up_question_carries_the_previous_subject_into_the_call(tmp_pat
 		},
 	)
 	handlers = {
-		# The text names the subject, as every handler in ``pipeline.books_handlers`` does:
-		# that sentence is now the whole of what verifies the model's numbers.
+		# The figure the read computed is listed as such; the sentence beside it verifies
+		# nothing on its own.
 		"answer_from_books": lambda args: {
 			"account_code": "6210",
 			"period": "2026-07",
 			"amount": "40 000",
+			# what the real handler vouches for: its figure, the account the chart resolved
+			# and the month it read (pipeline.books_handlers._figures)
+			**_computed("40 000", "6210 - Шатахуун - TST", "07"),
 			"text": "2026 оны 7-р сар: 6210 - Шатахуун - TST 40 000₮",
 		}
 	}
@@ -312,12 +324,15 @@ def test_a_follow_up_question_carries_the_previous_subject_into_the_call(tmp_pat
 	[
 		("85 000₮ зарцуулсан", []),  # narrow no-break space, as fmt_mnt writes it
 		("85000₮", []),
-		("7 727.27₮", []),
-		("7 727₮", []),  # the model rounding a figure it was given
+		("77 272.73₮", []),
+		("77 272₮", []),  # the model rounding a figure it was given
 		("2026-08 сард", []),
 		("8-р сард", []),
 		("99 999₮", ["99999"]),
 		("Нийт 85 000₮, үүнээс 12 000₮ НӨАТ", ["12000"]),
+		# Only in the sentence the handler rendered, not among the figures it computed: a
+		# rendered string is not a computation, whoever wrote it.
+		("НӨАТ 7 727.27₮", ["7727.27"]),
 	],
 )
 def test_only_numbers_a_handler_returned_survive(text, expected):
@@ -328,6 +343,7 @@ def test_only_numbers_a_handler_returned_survive(text, expected):
 				"account_code": "6210",
 				"period": "2026-08",
 				"amount": "85 000",
+				questions.COMPUTED_NUMBERS_FIELD: ["85 000", "77 272.73"],
 				"text": "2026 оны 8-р сар: 6210 - Шатахуун - TST 85 000₮ (НӨАТ 7 727.27₮)",
 			},
 			account_code="6210",
@@ -473,8 +489,8 @@ def test_a_derived_figure_is_logged_as_derived_not_as_a_fabrication(tmp_path):
 	given, is the noise that gets the real alarms ignored.
 	"""
 	trace = (
-		_books_call("spend_by_account", {"amount": "100 000", "text": "2026 оны 8-р сар: 6210 100 000₮"}),
-		_books_call("spend_by_account", {"amount": "60 000", "text": "2026 оны 7-р сар: 6210 60 000₮"}),
+		_books_call("spend_by_account", {**_computed("100 000"), "amount": "100 000"}),
+		_books_call("spend_by_account", {**_computed("60 000"), "amount": "60 000"}),
 	)
 	assert questions.classify_unverified(("40000",), trace) == {"40000": questions.UNVERIFIED_DERIVED}
 	assert questions.classify_unverified(("160000",), trace) == {"160000": questions.UNVERIFIED_DERIVED}
@@ -500,6 +516,7 @@ def test_a_derived_figure_is_logged_as_derived_not_as_a_fabrication(tmp_path):
 	)
 	handlers = {
 		"answer_from_books": lambda args: {
+			**_computed("100 000", "60 000"),
 			"amount": "100 000",
 			"text": "2026 оны 8-р сар: 6210 100 000₮, өмнөх сард 60 000₮",
 		}
@@ -510,6 +527,34 @@ def test_a_derived_figure_is_logged_as_derived_not_as_a_fabrication(tmp_path):
 	assert "40 000" not in outcome.answer.answer_mn, "the ledger rule still costs the sentence"
 
 
+def test_a_rendered_sentence_vouches_for_no_number_of_its_own():
+	"""BLOCKER: the allowed set was built from every handler's text, and text is not a computation.
+
+	``answer_faq`` returns product prose that quotes worked examples, and a not-found lookup
+	renders the model's own argument back. Neither computes anything about these books, so
+	neither may license a figure in the answer.
+	"""
+	faq = ToolCall(
+		name="answer_faq",
+		arguments={"question": "хоёр горим"},
+		result={"found": True, "text": "Жишээ нь 85 000₮-ийн шатахууны и-баримт (НӨАТ 7 727.27₮)…"},
+		is_error=False,
+	)
+	missing = _books_call(
+		"last_entries_for_supplier",
+		{
+			"supplier": "Талх 250 000 ХХК",
+			"found": False,
+			"text": "Талх 250 000 ХХК нэртэй харилцагч олдсонгүй.",
+		},
+		supplier="Талх 250 000 ХХК",
+	)
+	read = _books_call("unmatched_count", {**_computed("0"), "count": 0})
+	trace = (faq, missing, read)
+	assert questions.unverified_numbers("Шатахуунд 85 000₮ зарцуулсан.", trace, "Хэд вэ?", NOW) == ("85000",)
+	assert questions.unverified_numbers("Тэднээс 250 000₮ авсан.", trace, "Хэд вэ?", NOW) == ("250000",)
+	# what the read itself computed still passes
+	assert questions.unverified_numbers("Тулгагдаагүй 0 гүйлгээ.", trace, "Хэд вэ?", NOW) == ()
 
 
 def test_a_lookup_that_found_nothing_resolves_no_subject_and_is_not_remembered():
