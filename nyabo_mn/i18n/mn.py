@@ -917,7 +917,9 @@ MSG_UNMATCHED_LINES_ANSWER = "Тулгагдаагүй банкны гүйлгэ
 UNMATCHED_LINES_NONE = "Тулгагдаагүй банкны гүйлгээ алга."
 MSG_ENTRY_EXPLAIN_ANSWER = "{doctype} {name} · {date} · {amount}₮\n{explanation}"
 ENTRY_EXPLAIN_NO_PROPOSAL = "Энэ бичилтийг Нябо санал болгоогүй тул тайлбар алга."
-ENTRY_EXPLAIN_SOURCE = "🧾 Эх баримт: {document}"
+# The day the photograph arrived, not the Nyabo Document's own name: «Эх баримт: NYD-00002» is
+# an internal id an accountant has never seen, while the date is how they find that receipt.
+ENTRY_EXPLAIN_SOURCE = "🧾 Эх баримт: {date}-нд хүлээн авсан"
 ENTRY_NOT_FOUND_ANSWER = "«{name}» нэртэй бүртгэл энэ компанид олдсонгүй."
 
 # --- explanation templates (LLM fills only the bracketed part) -----------------------------------

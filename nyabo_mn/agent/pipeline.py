@@ -1375,19 +1375,25 @@ def books_handlers(
 				),
 			}
 		proposal = frappe.get_doc("Nyabo Proposal", name)
+		explanation = (proposal.explanation or "").strip()
+		total = fmt_mnt(Decimal(str(proposal.total or 0)))
 		parts = [
 			mn.MSG_ENTRY_EXPLAIN_ANSWER.format(
 				doctype=mn.doctype_label(proposal.posted_doctype or proposal.doctype),
 				name=proposal.posted_name or proposal.name,
 				date=str(proposal.posting_date or ""),
-				amount=fmt_mnt(Decimal(str(proposal.total or 0))),
-				explanation=(proposal.explanation or "").strip() or mn.ENTRY_EXPLAIN_NO_PROPOSAL,
+				amount=total,
+				explanation=explanation or mn.ENTRY_EXPLAIN_NO_PROPOSAL,
 			)
 		]
-		if proposal.citation:
+		if proposal.citation and proposal.citation not in explanation:
+			# The explanation the proposal stored usually already ends with the citation
+			# (mn.EXPL_SUFFIX_CITATION), and printing it again under the same card made the one
+			# line an accountant checks look like two different sources.
 			parts.append(mn.SIM_CITATION.format(citation=proposal.citation))
-		if proposal.document:
-			parts.append(mn.ENTRY_EXPLAIN_SOURCE.format(document=proposal.document))
+		received = _document_received(proposal.document)
+		if received:
+			parts.append(mn.ENTRY_EXPLAIN_SOURCE.format(date=received))
 		return {
 			"entry_ref": proposal.posted_name or proposal.name,
 			"found": True,
@@ -1396,6 +1402,13 @@ def books_handlers(
 			"citation": proposal.citation or "",
 			"text": "\n".join(parts),
 		}
+
+	def _document_received(document: str | None) -> str:
+		"""The day the source document reached Nyabo, or "" when there is none to name."""
+		if not document:
+			return ""
+		received = frappe.db.get_value("Nyabo Document", document, "received_at")
+		return str(received)[:10] if received else ""
 
 	kinds: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
 		"balance_on_date": _balance_on_date,

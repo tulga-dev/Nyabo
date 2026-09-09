@@ -480,6 +480,30 @@ def test_a_month_figure_is_given_a_noun(run_receipt, books):
 	assert spend["text"].endswith(f"{spend['amount']}₮")
 
 
+def test_the_explanation_prints_its_citation_once_and_names_a_source_a_reader_knows(run_receipt, books):
+	"""MINOR: the proposal's explanation already ends with the citation, and it was appended again.
+
+	The source line named the Nyabo Document («NYD-00002»), an internal id the accountant has
+	never seen; the day the photograph arrived is what they can match against their own pile.
+	"""
+	proposal = run_receipt("petrovis_fuel")
+	posted = post.post_proposal(proposal.name, ACCOUNTANT)
+	run = pipeline.books_handlers(books, today=NOW.date())["answer_from_books"]
+	explained = run({"query_kind": "explain_entry", "args": {"entry_ref": posted["posted_name"]}})
+
+	citation = frappe.db.get_value("Nyabo Proposal", proposal.name, "citation")
+	assert citation and citation in (proposal.explanation or "")
+	assert explained["text"].count(citation) == 1, "the explanation already carries it"
+
+	document = frappe.db.get_value("Nyabo Proposal", proposal.name, "document")
+	assert document and document not in explained["text"], "an internal id is not a source"
+	# the day the document reached Nyabo is what the accountant can match against their own pile
+	frappe.db.set_value("Nyabo Document", document, "received_at", "2026-09-05 08:30:00")
+	again = run({"query_kind": "explain_entry", "args": {"entry_ref": posted["posted_name"]}})
+	assert again["text"].endswith(mn.ENTRY_EXPLAIN_SOURCE.format(date="2026-09-05"))
+	assert document not in again["text"]
+
+
 def test_the_faq_reaches_the_card_as_plain_text(books):
 	"""MINOR: the card is sent with parse_mode unset, so the accountant read the asterisks.
 
