@@ -336,7 +336,17 @@ def onboarding_summary(payload: dict[str, Any], company: str) -> str:
 		if banks
 		else mn.ONB_SUMMARY_BANKS_NONE
 	)
-	if payload.get("inventory_skipped"):
+	if payload.get("posted_intake"):
+		# Asked first, because the ledger outranks every answer given after it. Буцах from the
+		# accountant's name lands on the stock question again, and Тийм → «алгасах» there skips
+		# the *next* list — but the skipped note reads «not entered, register it later», which
+		# for a company whose opening entry is already posted invites filing it a second time.
+		# ``posted_count`` is the count as filed, kept because a later draft that is read and
+		# then dropped takes ``inventory_count`` with it (``_forget_inventory_list``).
+		inventory = mn.ONB_SUMMARY_INVENTORY_COUNT.format(
+			count=payload.get("posted_count", payload.get("inventory_count", 0))
+		)
+	elif payload.get("inventory_skipped"):
 		# Asked before ``has_inventory``: a skipped list keeps the Тийм answer (the company does
 		# hold stock, so provisioning still opens the inventory accounts), and a count printed
 		# from a payload with no list in it would report a stock count that never happened.

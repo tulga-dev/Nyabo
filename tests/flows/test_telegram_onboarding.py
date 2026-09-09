@@ -386,6 +386,52 @@ def test_posted_opening_stock_cannot_be_answered_away(company, monkeypatch):
 	assert settings.has_inventory == 1
 
 
+def test_a_skip_after_a_posted_list_does_not_report_it_as_unfiled(company, monkeypatch):
+	"""The other door onto the same fault: «Үгүй» is refused, so «алгасах» is the way past.
+
+	Refusing «Үгүй» leaves Тийм as the only answer that moves, and Тийм leads to the list step,
+	whose «алгасах» set ``inventory_skipped``. The summary then read «stock exists, list not
+	entered — register it later» to a founder whose opening entry is already in the ledger, which
+	is an invitation to file it a second time. The ledger outranks the answers given after it.
+	"""
+	calls = _posted_intake_deps(monkeypatch)
+	link_user(9009, "Accountant", company)
+	uid = 9009
+	bot = FakeBotApi()
+	run(bot, message_update(uid, "/эхлэх"))
+	run(bot, callback_update(uid, "o:vat:no"))
+	run(bot, callback_update(uid, "o:400m:yes"))
+	run(bot, callback_update(uid, "o:banks:done"))
+	run(bot, callback_update(uid, "o:inv:yes"))
+	run(bot, message_update(uid, "Принтерийн хор, 1, 10"))
+	run(bot, callback_update(uid, "i:NYI-0001-1:confirm"))
+	assert calls["posted"] == ["NYI-0001-1"]
+
+	run(bot, callback_update(uid, "e:onb:back:acc_name"))
+	run(bot, callback_update(uid, "o:inv:yes"))
+	assert _state(uid) == "onb:inv_wait"
+	run(bot, message_update(uid, "алгасах"))
+	assert _state(uid) == "onb:acc_name"
+	run(bot, message_update(uid, "Дорж"))
+	run(bot, callback_update(uid, "o:micpa:skip"))
+	assert mn.ONB_SUMMARY_INVENTORY_SKIPPED not in bot.last_text
+	assert mn.ONB_SUMMARY_INVENTORY_COUNT.format(count=1) in bot.last_text
+
+	# …and a second list read and then dropped does not take the filed count with it.
+	run(bot, callback_update(uid, "e:onb:back:summary"))
+	run(bot, callback_update(uid, "e:onb:back:micpa"))
+	run(bot, callback_update(uid, "e:onb:back:acc_name"))
+	assert _state(uid) == "onb:inv"
+	run(bot, callback_update(uid, "o:inv:yes"))
+	run(bot, message_update(uid, "Цаас, 1, 10"))
+	assert _state(uid) == "onb:inv_confirm"
+	run(bot, message_update(uid, "алгасах"))
+	assert calls["cancelled"] == ["NYI-0001-2"]
+	run(bot, message_update(uid, "Дорж"))
+	run(bot, callback_update(uid, "o:micpa:skip"))
+	assert mn.ONB_SUMMARY_INVENTORY_COUNT.format(count=1) in bot.last_text
+
+
 def test_a_draft_made_after_a_posted_one_is_still_cancelled_on_leaving(company, monkeypatch):
 	"""MINOR: the posted guard was a boolean, so it covered every later draft as well.
 

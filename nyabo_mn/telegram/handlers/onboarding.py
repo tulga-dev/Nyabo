@@ -533,6 +533,10 @@ def handle_intake_callback(ctx: Ctx, parts: list[str]) -> Any:
 	# Which intake was filed, not only that one was: ``_forget_inventory_list`` spares this
 	# name and cancels any draft that comes after it.
 	payload["posted_intake"] = intake
+	# And how many rows it filed, because ``inventory_count`` belongs to whatever list the
+	# payload holds now: a later draft overwrites it and being dropped pops it, leaving the
+	# summary to report an opening stock of nothing for books that carry one.
+	payload["posted_count"] = payload.get("inventory_count", 0)
 	return _ask_accountant(ctx, payload)
 
 
