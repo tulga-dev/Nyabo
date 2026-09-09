@@ -21,8 +21,8 @@ bench:
    never names a button.
 3. **Number verification** (``unverified_numbers``). Every number in the model's sentence
    must appear in what a handler *computed* (``COMPUTED_NUMBERS_FIELD`` — the figures it read
-   off or worked out from the ledger, listed by the handler itself), or in the question, or in
-   the timestamp. Nothing else, and in particular:
+   off or worked out from the ledger, listed by the handler itself), or in the timestamp.
+   Nothing else, and in particular:
 
    * **not the text a handler rendered.** Rendered text is not a computation. ``answer_faq``
      returns product prose that quotes figures («85 000₮-ийн шатахууны и-баримт»), and a model
@@ -32,6 +32,11 @@ bench:
      own not-found sentence quotes it back verbatim, so a figure the model invented and passed
      in as ``supplier`` or ``entry_ref`` came home through the very sentence that says the
      books never found it.
+   * **not the user's own question.** «Петровисээс 1 250 000₮-ийн шатахуун авсан биз дээ?» is
+     the ordinary way a Mongolian bookkeeper checks a figure out loud, and admitting the
+     question let the model answer «Тийм, … 1 250 000₮» over a ledger holding 85 000₮ — a
+     confirmation of what nothing had confirmed, in the shape of question where that does the
+     most damage. A figure a user typed is a figure the books have not confirmed.
 
    A number that does not appear means the model wrote a figure of its own; the sentence is
    dropped and the handler's own Mongolian text is sent instead. This is the mechanical form of
@@ -462,18 +467,27 @@ def _clock_years(now: datetime) -> list[str]:
 	return [str(now.year - 1), str(now.year), str(now.year + 1)]
 
 
-def _known_numbers(calls: Sequence[ToolCall], question: str, now: datetime) -> set[str]:
+def _known_numbers(calls: Sequence[ToolCall], now: datetime) -> set[str]:
+	"""Every figure the model may state: what the handlers computed, plus the clock.
+
+	The user's question is deliberately not among them — a figure a user typed is a figure
+	the books have not confirmed, and the whole point of the check is that only the books
+	confirm figures.
+	"""
 	known: set[str] = set()
-	for source in [question or "", now.isoformat(), *_clock_years(now), *_computed_numbers(calls)]:
+	for source in [now.isoformat(), *_clock_years(now), *_computed_numbers(calls)]:
 		for forms in numbers_in(source):
 			known |= forms
 	return known
 
 
-def unverified_numbers(
-	answer_text: str, calls: Sequence[ToolCall], question: str, now: datetime
-) -> tuple[str, ...]:
-	"""Numbers in the model's sentence that no handler, the question or the clock produced.
+def unverified_numbers(answer_text: str, calls: Sequence[ToolCall], now: datetime) -> tuple[str, ...]:
+	"""Numbers in the model's sentence that no handler computed and the clock did not supply.
+
+	The question is deliberately not an argument here, so it cannot become a source again by
+	accident. It was one, and it was the hole: a confirm-question («…биз дээ?», «…мөн үү?») is
+	how a bookkeeper checks a figure out loud, so the commonest shape of question was also the
+	one that licensed the model to agree with a figure the ledger had never produced.
 
 	The threshold is deliberately strict: it accepts a figure only where it can point at the
 	handler that produced it, so *any* arithmetic of the model's own — an average, a
@@ -485,7 +499,7 @@ def unverified_numbers(
 	Returned rather than raised so the caller can log it — see ``classify_unverified``, which
 	keeps the log honest about which of the two happened.
 	"""
-	known = _known_numbers(calls, question, now)
+	known = _known_numbers(calls, now)
 	cleaned = _GROUP_SEPARATOR.sub("", answer_text or "")
 	unknown = [raw for raw in _NUMBER.findall(cleaned) if not (_variants(raw) & known)]
 	return tuple(dict.fromkeys(unknown))
@@ -831,7 +845,7 @@ def answer(
 		answered = fallback is not None
 		last_ok = last_ok if fallback else None
 
-	invented = unverified_numbers(answer_text, llm.tool_calls, text, now) if answered else ()
+	invented = unverified_numbers(answer_text, llm.tool_calls, now) if answered else ()
 	if invented:
 		# The sentence carried a figure nothing returned. The handler already wrote a correct
 		# Mongolian sentence for what it found, so send that; there is never a reason to pass

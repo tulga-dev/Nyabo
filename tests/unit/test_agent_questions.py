@@ -350,7 +350,7 @@ def test_only_numbers_a_handler_returned_survive(text, expected):
 			period="2026-08",
 		),
 	)
-	assert list(questions.unverified_numbers(text, trace, "Хэд вэ?", NOW)) == expected
+	assert list(questions.unverified_numbers(text, trace, NOW)) == expected
 
 
 def test_a_number_the_model_passed_as_an_argument_cannot_verify_itself(tmp_path):
@@ -551,10 +551,10 @@ def test_a_rendered_sentence_vouches_for_no_number_of_its_own():
 	)
 	read = _books_call("unmatched_count", {**_computed("0"), "count": 0})
 	trace = (faq, missing, read)
-	assert questions.unverified_numbers("Шатахуунд 85 000₮ зарцуулсан.", trace, "Хэд вэ?", NOW) == ("85000",)
-	assert questions.unverified_numbers("Тэднээс 250 000₮ авсан.", trace, "Хэд вэ?", NOW) == ("250000",)
+	assert questions.unverified_numbers("Шатахуунд 85 000₮ зарцуулсан.", trace, NOW) == ("85000",)
+	assert questions.unverified_numbers("Тэднээс 250 000₮ авсан.", trace, NOW) == ("250000",)
 	# what the read itself computed still passes
-	assert questions.unverified_numbers("Тулгагдаагүй 0 гүйлгээ.", trace, "Хэд вэ?", NOW) == ()
+	assert questions.unverified_numbers("Тулгагдаагүй 0 гүйлгээ.", trace, NOW) == ()
 
 
 def test_a_lookup_that_found_nothing_resolves_no_subject_and_is_not_remembered():
@@ -735,3 +735,54 @@ def test_the_subject_line_names_what_was_read():
 		"Петровис ХХК · 2026-08-31"
 	)
 	assert questions.subject_label({}) == ""
+
+
+def test_a_figure_the_user_typed_cannot_verify_itself(tmp_path):
+	"""BLOCKER: the question was a source, and a confirm-question is how a bookkeeper asks.
+
+	«…биз дээ?» / «…мөн үү?» puts the figure the accountant wants checked into the question
+	itself, so admitting the question let the model answer «Тийм, … 1 250 000₮» over a ledger
+	holding 85 000₮ — a confirmation of what nothing had confirmed, in the commonest shape of
+	question and the one where a confirmatory hallucination does the most damage. A figure a
+	user typed is a figure the books have not confirmed.
+	"""
+	asked = "Петровисээс 9 сард 1 250 000₮-ийн шатахуун авсан биз дээ?"
+	trace = (
+		_books_call(
+			"supplier_total",
+			{**_computed("85 000", "0", "Петровис ХХК"), "supplier": "Петровис ХХК", "period": "2026-09"},
+			supplier="Петровис",
+			period="2026-09",
+		),
+	)
+	sentence = "Тийм, 2026 оны 9-р сард Петровис ХХК-аас 1 250 000₮-ийн худалдан авалт хийсэн байна."
+	assert questions.unverified_numbers(sentence, trace, NOW) == ("1250000",)
+
+	# the whole loop: the sentence is dropped and the handler's own figure is what is sent
+	client = MockLlmClient(fixtures_dir=tmp_path)
+	client.add(
+		"question",
+		{
+			"text": sentence,
+			"tool_calls": [
+				{
+					"name": "answer_from_books",
+					"arguments": {
+						"query_kind": "supplier_total",
+						"args": {**dict.fromkeys(questions.SUBJECT_KEYS), "supplier": "Петровис"},
+					},
+				}
+			],
+		},
+	)
+	handlers = {
+		"answer_from_books": lambda args: {
+			**_computed("85 000", "0"),
+			"supplier": "Петровис ХХК",
+			"text": "2026 оны 9-р сар: Петровис ХХК — худалдан авалт 85 000₮, төлсөн 0₮",
+		}
+	}
+	outcome = questions.answer(client, asked, handlers, now=NOW)
+	assert outcome.unverified_numbers == ("1250000",)
+	assert "1 250 000" not in outcome.answer.answer_mn
+	assert "85 000" in outcome.answer.answer_mn

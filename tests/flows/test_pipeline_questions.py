@@ -584,7 +584,7 @@ def test_a_legitimate_sentence_for_every_query_kind_still_passes(run_receipt, bo
 		return result
 
 	def _check(kind: str, args: dict, sentence: str) -> None:
-		unknown = questions.unverified_numbers(sentence, _trace(kind, args, _answer(kind, args)), "", NOW)
+		unknown = questions.unverified_numbers(sentence, _trace(kind, args, _answer(kind, args)), NOW)
 		assert unknown == (), (kind, sentence, unknown)
 
 	balance_args = {"account_code": "1810", "on_date": "2026-09-30"}
@@ -732,9 +732,9 @@ def test_a_year_the_model_asked_about_cannot_become_a_figure(books):
 	assert result["amount"] == "0" and result["period"] == "9999-12"
 	trace = _trace("spend_by_account", args, result)
 
-	assert questions.unverified_numbers("Шатахуунд 9 999₮ зарцуулсан.", trace, "Хэд вэ?", NOW) == ("9999",)
+	assert questions.unverified_numbers("Шатахуунд 9 999₮ зарцуулсан.", trace, NOW) == ("9999",)
 	# what an answer legitimately names: the month it read, and a year around the clock
-	assert questions.unverified_numbers("2025 оны 12-р сард 0₮ зарцуулсан.", trace, "Хэд вэ?", NOW) == ()
+	assert questions.unverified_numbers("2025 оны 12-р сард 0₮ зарцуулсан.", trace, NOW) == ()
 
 
 # --- a cut list says so ------------------------------------------------------------------------------
@@ -774,7 +774,7 @@ def test_a_list_answer_names_the_rows_it_did_not_show(books):
 	# and the count it names is a figure the read computed, so the model may state it
 	assert (
 		questions.unverified_numbers(
-			f"Тулгагдаагүй {lines['count']} гүйлгээ байна.", _trace("unmatched_lines", {}, lines), "", NOW
+			f"Тулгагдаагүй {lines['count']} гүйлгээ байна.", _trace("unmatched_lines", {}, lines), NOW
 		)
 		== ()
 	)
@@ -816,7 +816,6 @@ def test_the_correction_line_closes_against_the_gross(run_receipt, books):
 		questions.unverified_numbers(
 			total["text"],
 			_trace("supplier_total", {"supplier": "Петровис", "period": "2026-09"}, total),
-			"",
 			NOW,
 		)
 		== ()
