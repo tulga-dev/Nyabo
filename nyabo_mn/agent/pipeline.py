@@ -1401,6 +1401,14 @@ def books_handlers(
 		}
 
 	def _top_spend_accounts(inner: dict[str, Any]) -> dict[str, Any]:
+		"""The month's biggest expense accounts, and how many accounts had spend in all.
+
+		«хамгийн их зардалтай данснууд» over five of eight, with nothing saying so, is exactly
+		the read an accountant acts on: they take the list for the whole of where the money
+		went. The count is read before the cut and, when it is larger, the answer names it —
+		and because the ranking is by amount rather than by date, the note it uses says "the
+		largest N", not "the most recent N" (``mn.ANSWER_TRUNCATED_TOP``).
+		"""
 		from nyabo_mn.reports import accounts as report_accounts
 
 		period = _period(inner.get("period"))
@@ -1420,7 +1428,9 @@ def books_handlers(
 			((account, amount) for account, amount in totals.items() if amount > ZERO),
 			key=lambda pair: pair[1],
 			reverse=True,
-		)[:TOP_ACCOUNTS_LIMIT]
+		)
+		# Counted before the cut: this is how many accounts the month had spend on at all.
+		total = len(ranked)
 		accounts_out = [
 			{
 				"code": numbers.get(account, ""),
@@ -1428,7 +1438,7 @@ def books_handlers(
 				"shown": _shown(account),
 				"amount": fmt_mnt(amount),
 			}
-			for account, amount in ranked
+			for account, amount in ranked[:TOP_ACCOUNTS_LIMIT]
 		]
 		if accounts_out:
 			text = mn.MSG_TOP_ACCOUNTS_ANSWER.format(
@@ -1436,16 +1446,19 @@ def books_handlers(
 				accounts="\n".join(
 					mn.TOP_ACCOUNT_LINE.format(account=a["shown"], amount=a["amount"]) for a in accounts_out
 				),
-			)
+			) + _truncation_note(total, len(accounts_out), mn.ANSWER_TRUNCATED_TOP)
 		else:
 			text = mn.TOP_ACCOUNTS_NONE.format(period=label)
 		return {
 			"period": period,
 			"accounts": accounts_out,
+			"count": total,
 			"text": text,
 			# The codes come from the chart, not from the model, so an answer naming «6210» is
 			# naming an account this read actually ranked.
 			**_figures(
+				total,
+				len(accounts_out),
 				_calendar(period),
 				[a["amount"] for a in accounts_out],
 				[a["code"] for a in accounts_out],

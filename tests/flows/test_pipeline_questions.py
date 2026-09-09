@@ -1015,3 +1015,39 @@ def test_one_ranking_row_names_its_account_once(books):
 		assert result["account"] == "6210 - Шатахуун - TST", "the machine field keeps the ERPNext name"
 		assert " - TST" not in result["text"]
 		assert "6210 - Шатахуун" in result["text"]
+
+
+def test_the_account_ranking_names_the_accounts_it_did_not_show(books):
+	"""MAJOR: the fourth list still cut silently, and it is the one an accountant acts on.
+
+	«хамгийн их зардалтай данснууд» over five of eight, with nothing on the card saying so,
+	is read as the whole of where the month's money went. The other three lists were given a
+	count and a note last round; this one was added on the same branch and missed it.
+	"""
+	_spend_on(books)
+	run = pipeline.books_handlers(books, today=NOW.date())["answer_from_books"]
+	top = run({"query_kind": "top_spend_accounts", "args": {"period": "2026-09"}})
+
+	assert top["count"] == len(SPEND_ACCOUNTS), "counted before the cut, not after"
+	assert len(top["accounts"]) == pipeline.TOP_ACCOUNTS_LIMIT
+	assert top["text"].endswith(
+		mn.ANSWER_TRUNCATED_TOP.format(total=top["count"], shown=pipeline.TOP_ACCOUNTS_LIMIT)
+	)
+	# and the count is a figure the read computed, so the model may state it in its own sentence
+	assert (
+		questions.unverified_numbers(
+			f"2026 оны 9-р сард {top['count']} дансанд зардал гарсан байна.",
+			_trace("top_spend_accounts", {"period": "2026-09"}, top),
+			NOW,
+		)
+		== ()
+	)
+
+
+def test_an_account_ranking_that_fits_says_nothing_about_a_cut(books):
+	"""The note is for a cut list only; a complete ranking must not apologise for being complete."""
+	_spend_on(books, SPEND_ACCOUNTS[: pipeline.TOP_ACCOUNTS_LIMIT - 1])
+	run = pipeline.books_handlers(books, today=NOW.date())["answer_from_books"]
+	top = run({"query_kind": "top_spend_accounts", "args": {"period": "2026-09"}})
+	assert top["count"] == len(top["accounts"]) == pipeline.TOP_ACCOUNTS_LIMIT - 1
+	assert "…" not in top["text"]
