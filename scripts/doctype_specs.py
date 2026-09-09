@@ -535,6 +535,12 @@ doctype(
 		F("article", "Data", "Зүйл, заалт"),
 		F("quote_mn", "Small Text", "Иш татсан текст"),
 		F("note", "Small Text", "Тэмдэглэл"),
+		# Who took responsibility for the legal reading, and when (nyabo_mn/rules/verify.py).
+		# Read-only because the row is stamped by the verification path, which also writes the
+		# Nyabo Event; a hand-typed name here would claim an approval nothing recorded.
+		SB("sb_verification", "Баталгаажуулалт"),
+		F("verified_by", "Link", "Баталгаажуулсан хэрэглэгч", options="User", read_only=1),
+		F("verified_at", "Datetime", "Баталгаажуулсан огноо", read_only=1),
 	],
 )
 
@@ -582,6 +588,11 @@ doctype(
 		F("citation_quote", "Small Text", "Иш татсан текст"),
 		F("citation_url", "Data", "URL"),
 		F("notes", "Small Text", "Тэмдэглэл"),
+		# Same pair as Nyabo Tax Parameter, for the same reason: the flag alone says a rule may
+		# post, not who vouched for it (nyabo_mn/rules/verify.py writes both plus a Nyabo Event).
+		SB("sb_verification", "Баталгаажуулалт"),
+		F("verified_by", "Link", "Баталгаажуулсан хэрэглэгч", options="User", read_only=1),
+		F("verified_at", "Datetime", "Баталгаажуулсан огноо", read_only=1),
 	],
 )
 
