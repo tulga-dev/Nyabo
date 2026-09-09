@@ -1047,6 +1047,10 @@ MSG_LINK_COMPANY_NOT_FOUND = "Компани олдсонгүй: {company}"
 MSG_ADMIN_ONLY = "Энэ команд зөвхөн админд зориулагдсан."
 MSG_ADMIN_ERROR_NOTICE = "⚠️ Нябо алдаа: {event} · chat {chat_id} · {error}"
 MSG_ADMIN_LINK_GUESSING = "🔒 Холбох кодыг олон удаа буруу оруулсан тул chat {chat_id}-ыг түр хаалаа."
+# What an admin actually receives when a question is handed to a human. The user has already
+# been told «Асуултыг админд дамжууллаа», so this message is the promise being kept: without
+# it the escalation is only a Nyabo Event nobody reads.
+MSG_ADMIN_QUESTION_ESCALATED = "❓ {company}: хэрэглэгчийн асуултыг админд дамжуулав.\n{summary}"
 # Same reading risk as MSG_ERROR_ADMIN_NOTIFIED (UX-13): nobody is approving anything. And
 # the same pair, for the same reason — only the router draws the button and notifies.
 MSG_FEATURE_UNAVAILABLE = (

@@ -11,9 +11,12 @@ from nyabo_mn.agent import pipeline, post, questions
 from nyabo_mn.agent.mock_client import MockLlmClient
 from nyabo_mn.core.money import fmt_mnt
 from nyabo_mn.i18n import mn
+from nyabo_mn.telegram import api
+from tests.fixtures.telegram.fake_bot import FakeBotApi
 from tests.flows.conftest import ACCOUNTANT
 
 NOW = datetime(2026, 9, 8, 12, 0, tzinfo=timezone.utc)
+ADMIN_TELEGRAM_ID = 1001  # tests/fixtures/site/site_config.json admin_telegram_ids
 
 
 def _client(text: str, *calls: dict) -> MockLlmClient:
@@ -292,6 +295,40 @@ def test_escalate_question_is_the_same_escalation_the_tool_performs(books, monke
 	result = pipeline.escalate_question(ACCOUNTANT, books, "Кассад хэд байна?", "Товч дарлаа")
 	assert result["escalated"] is True and result["text"] == mn.MSG_ESCALATED
 	assert notified == [("Товч дарлаа", books)]
+	assert frappe.db.count("Nyabo Event", {"event_type": "question_escalated"}) == 1
+
+
+def test_the_escalation_reaches_a_real_admin_chat_through_the_bot(books):
+	"""BLOCKER: with no ``ADMIN_NOTIFIER`` installed, the escalation must still reach a person.
+
+	``escalate_handler`` looks the notifier up on ``nyabo_mn.telegram.api``; that name used
+	not to exist, so ``getattr`` returned None and the escalation was dropped while the user
+	read «Асуултыг админд дамжууллаа». The admin id is the stub site's ADMIN_TELEGRAM_IDS.
+	"""
+	client = _client(
+		"", {"name": "escalate_to_admin", "arguments": {"summary": "Хэрэглэгч тайлан хүсэж байна"}}
+	)
+	bot = FakeBotApi()
+	with api.use_bot(bot):
+		reply = pipeline.answer_question(
+			ACCOUNTANT, books, "Жилийн тайлангаа гаргаж өгөөч", client=client, now=NOW
+		)
+	assert reply.text == mn.MSG_ESCALATED and reply.needs_escalation is True
+	sent = bot.sent("send_message")
+	assert [m["chat_id"] for m in sent] == [ADMIN_TELEGRAM_ID]
+	assert sent[0]["text"] == mn.MSG_ADMIN_QUESTION_ESCALATED.format(
+		company=books, summary="Хэрэглэгч тайлан хүсэж байна"
+	)
+	assert frappe.db.count("Nyabo Event", {"event_type": "question_escalated"}) == 1
+
+
+def test_the_button_escalation_reaches_the_same_admin_chat(books):
+	"""[Админаас асуух] goes through the same handler, so it must send the same notice."""
+	bot = FakeBotApi()
+	with api.use_bot(bot):
+		result = pipeline.escalate_question(ACCOUNTANT, books, "Кассад хэд байна?", "Товч дарлаа")
+	assert result["escalated"] is True and result["notified"] is True
+	assert [m["chat_id"] for m in bot.sent("send_message")] == [ADMIN_TELEGRAM_ID]
 	assert frappe.db.count("Nyabo Event", {"event_type": "question_escalated"}) == 1
 
 

@@ -1446,8 +1446,11 @@ def escalate_handler(user: str, company: str, question: str) -> Callable[[dict[s
 			try:
 				from nyabo_mn.telegram import api as telegram_api  # type: ignore[import-not-found]
 
-				# UNVERIFIED: the Telegram layer's admin notification entry point is not part of the
-				# contract yet; only used when it exposes notify_admins(summary, company).
+				# nyabo_mn.telegram.api.notify_admins(summary, company) is the contract: it builds
+				# the bot and the settings and calls router.notify_admins. Looked up rather than
+				# imported at module scope so the agent layer stays importable without the chat
+				# layer, but it is a real function now — a getattr that quietly returned None was
+				# how [Админаас асуух] came to promise a human and reach nobody.
 				notifier = getattr(telegram_api, "notify_admins", None)
 			except ImportError:
 				notifier = None

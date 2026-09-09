@@ -287,6 +287,24 @@ def get_bot() -> Any:
 	return BotApi(settings.telegram_bot_token)
 
 
+def notify_admins(summary: str, company: str = "") -> None:
+	"""Push one escalated question to the admin chats (``agent.pipeline.escalate_handler``).
+
+	The pipeline may not import the Telegram layer eagerly, so it looks this name up on this
+	module at call time; the signature is therefore the pipeline's ``(summary, company)`` and
+	not ``router.notify_admins(bot, settings, text)``, which is what this builds the bot and
+	the settings for. It exists as a named function rather than a duck-typed guess because
+	the user has already been told an admin was asked: a notifier that resolves to ``None``
+	turns that sentence into a lie, silently.
+	"""
+	from nyabo_mn.config import get_settings
+	from nyabo_mn.i18n import mn
+	from nyabo_mn.telegram.router import notify_admins as router_notify_admins
+
+	text = mn.MSG_ADMIN_QUESTION_ESCALATED.format(company=company or "-", summary=summary)
+	router_notify_admins(get_bot(), get_settings(), text)
+
+
 @contextlib.contextmanager
 def use_bot(bot: Any) -> Iterator[Any]:
 	"""Install a bot object for the duration of a block (a FakeBotApi in tests)."""
