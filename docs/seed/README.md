@@ -94,13 +94,16 @@ reference §3 (Order 116/2000 posting instruction). Fields mirror `Nyabo Posting
   `class_assumed` (the reference does not name the class; confirm with the accountant).
 - `primary_document_mn`: the primary document Law on Accounting art. 13.7 requires.
 - `citation`: `{instrument, instrument_full, section, verified, url, quote}`. Sections of
-  Заавар 116 come from two independent readings of the instrument reconciled by a third
-  (`docs/legal/order116.md`): where both readers (or the reconciler) rated the section
-  exact and the sentence was found verbatim, `section` and `quote` are set and `verified`
-  is `true` (28 patterns); otherwise `section` and `quote` are `null`, `verified` is
-  `false` and `notes` lists the candidate sections (probable readings, disagreements,
-  patterns added after the mapping, and the two `customer_prepayment_recognize_*`
-  patterns the instrument does not prescribe). The explanation suffix
+  Заавар 116 come from two independent readings of the instrument reconciled by a third,
+  plus a second reading on 2026-09-09 (`docs/legal/order116.md`): where a reader pair, the
+  reconciler or the second reading rated the section exact and the sentence was found
+  verbatim, `section` and `quote` are set and `verified` is `true` (35 patterns);
+  otherwise `section` and `quote` are `null`, `verified` is `false` and `notes` says
+  whether the instrument prints no such entry at all or prints only part of it, and what an
+  admin would be vouching for if they ticked the box anyway. A `section` may name more than
+  one label, joined with `; `, when the entry is a composite of printed sentences (the
+  amount from one, the accounts from another) — `tests/unit/test_seed_citations.py` checks
+  every label against the instrument's own numbering. The explanation suffix
   (`" — Заавар 116 (2000), <section>"`) is generated at runtime by
   `rules_engine.citation_suffix`; a null section prints `mn.CITATION_SECTION_PENDING`.
 
@@ -175,11 +178,17 @@ rule (`match_value` is the keyword alternation of `core.matching.FEE_KEYWORDS`,
 
 ## Open items (after the legal-citation pass; details in `docs/legal/README.md`)
 
-1. Заавар 116 sections for the 14 unverified patterns: a second reader for
-   `receivable_collect`, `payable_pay`, `income_tax_pay` (candidate sentences are verbatim
-   in the notes); an accountant's ruling on the "probable" composites
-   (`sale_credit_vat_payer`, `purchase_expense_*`, `fixed_asset_acquire_vat_payer`,
-   `income_tax_accrue`); another authority for `customer_prepayment_recognize_*`.
+1. **Closed on 2026-09-09** by the second reading of Заавар 116 (docs/legal/order116.md §3):
+   the second reader confirmed `receivable_collect`, `payable_pay` and `income_tax_pay`, and
+   `purchase_expense_non_vat`, `bank_line_expense`, `bank_fee_expense` and
+   `sale_credit_vat_payer` are verified as composites of printed sentences. 35 of 44
+   patterns are verified and the everyday path posts without a human tick. What remains is
+   NOT a reading task: `purchase_expense_vat_payer`, `fixed_asset_acquire_vat_payer`,
+   `vat_settle`, `income_tax_accrue`, `payroll_withhold_employee_si`,
+   `simplified_tax_accrue`, `customer_prepayment_recognize_*` and `bank_transfer_internal`
+   need a different instrument (VAT Law art. 14 and 14.1.5, MoF order 135/2000, the General
+   Law on Social Insurance, IFRS for SMEs s.23) or an accountant vouching for mechanics no
+   order prescribes. Each row's `notes` says which.
 2. The standalone amending laws of 26 June 2026 (their legalinfo lawIds were not found) to
    rule out a consolidation lag; the fate of the 30 Dec 2025 Government bill (400M
    simplified regime) before the pending 2027 `simplified.*` rows are encoded.

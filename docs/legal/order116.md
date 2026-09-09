@@ -1,11 +1,21 @@
 # Order 116 (2000) — Аж ахуйн нэгж, байгууллагад мөрдөх нягтлан бодох бүртгэлийн дансны үлгэрчилсэн заавар
 
-*Generated from the seed on 2026-09-08 by the legal-citation pass; the quotes are verbatim from the saved copies of the texts listed in docs/legal/README.md. Regenerate rather than edit the tables by hand.*
+*Generated from the seed on 2026-09-08 by the legal-citation pass and rewritten from it on 2026-09-09 by the second reading; the quotes are verbatim from the saved copies of the texts listed in docs/legal/README.md. Regenerate rather than edit the tables by hand — §3 below is written straight out of `posting_patterns.json`.*
 
 Primary text: https://legalinfo.mn/mn/detail?lawId=205201 (Сангийн сайдын 2000 оны 116 дугаар
 тушаал; fetched 2026-09-08 with curl, 424,757 bytes, full instrument text present; the
 page shows 16 items under «Нэмэлт өөрчлөлт»). Two independent readers mapped every posting
 pattern to a section; a third reconciled their disagreements.
+
+**Second reading, 2026-09-09.** The page was fetched again (424,099 bytes — the difference
+is the site chrome, which came back in English this time). The instrument body is
+byte-identical to the 2026-09-08 copy after whitespace normalisation, so nothing quoted here
+has changed under the seed. That reading confirmed the single-reader candidates the first
+pass had left in the notes (`receivable_collect`, `payable_pay`, `income_tax_pay`) and took
+the four patterns everyday bookkeeping actually runs on off the blocked list; every quote
+added on 2026-09-09 was cut out of the fetched text by offset rather than retyped. It also
+settled which of the remaining patterns can never be verified from THIS instrument and why —
+each of those rows now says what an admin would be vouching for if they ticked it.
 
 **Still to confirm by a human on the live page:** the status badge (Хүчинтэй / Хүчингүй) —
 the extracted text carries the search-filter labels, not an unambiguous status for this
@@ -85,10 +95,29 @@ rows 5–12 and 18–20 visually in the Pdf/Word export on the page.
 
 ## 3. Posting patterns → sections
 
-Two readers (A, B) and a reconciler (R). *verified* = both readers or R rated the section
-exact **and** the quoted sentence was found verbatim in the saved text; the quote is stored
-in the seed as `citation.quote`. *unverified* = probable, disagreement, single reader
-(patterns added after the mapping), or not prescribed by the instrument.
+Two readers (A, B) and a reconciler (R) on 2026-09-08; a second reading (S) on 2026-09-09.
+*verified* = a reader pair, R, or S rated the section exact **and** the quoted sentence was
+found verbatim in the fetched text; the quote is stored in the seed as `citation.quote`.
+*unverified* = probable, disagreement, or the instrument does not print the entry (or prints
+only part of it).
+
+35 of the 44 patterns are verified. The nine that are not fall into two groups, and the
+distinction is the one that matters to whoever is asked to tick the box:
+
+- **Order 116 prints no such entry at all** — `customer_prepayment_recognize_vat_payer`,
+  `customer_prepayment_recognize_non_vat`, `bank_transfer_internal`. Ticking one of these
+  vouches for another authority (IFRS for SMEs s.23) or for plain double-entry mechanics.
+- **Order 116 prints the entry only in part** — `purchase_expense_vat_payer`,
+  `fixed_asset_acquire_vat_payer`, `vat_settle`, `income_tax_accrue`,
+  `payroll_withhold_employee_si`, `simplified_tax_accrue`. One leg is printed and the other
+  is not: input VAT is printed for goods and never for a service or a fixed asset; the
+  income-tax accrual is printed only with a deferred-tax line this pattern does not carry;
+  the VAT offset and the employee's own social-insurance share belong to the VAT Law and the
+  General Law on Social Insurance. Ticking one of these vouches for that other instrument.
+
+Neither group blocks an ordinary non-VAT company's day: the everyday path (an expense
+receipt, an inventory purchase, a cash or credit sale, collecting a receivable, paying a
+supplier, a bank outflow, a bank charge) is verified end to end.
 
 | Pattern | Section | Verbatim quote (Mongolian) | Status | Reader notes |
 |---|---|---|---|---|
