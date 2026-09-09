@@ -131,7 +131,10 @@ def approve(ctx: Ctx, proposal: Any) -> Any:
 		return {"approved": False}
 	text = cards.receipt_card(receipt.proposal_to_dict(proposal)) + "\n" + mn.MSG_APPROVED_POSTING
 	ctx.edit(ctx.callback_message_id, text, keyboards.empty_markup())
-	result = _deps.post_proposal(proposal.name, ctx.user, str(ctx.telegram_id)) or {}
+	try:
+		result = _deps.post_proposal(proposal.name, ctx.user, str(ctx.telegram_id)) or {}
+	except _deps.unverified_rule_error() as exc:
+		return refuse_unverified_rule(ctx, proposal, exc)
 	proposal.reload()
 	posted_doctype = result.get("posted_doctype") or proposal.posted_doctype or ""
 	posted_name = result.get("posted_name") or proposal.posted_name or "—"
@@ -145,6 +148,32 @@ def approve(ctx: Ctx, proposal: Any) -> Any:
 	ctx.answer(mn.MSG_POSTED.format(doc_name=posted_name))
 	log_event("telegram.approve.posted", proposal=proposal.name, posted=posted_name, user=ctx.user)
 	return {"approved": True, "posted_doctype": posted_doctype, "posted_name": posted_name}
+
+
+def refuse_unverified_rule(ctx: Ctx, proposal: Any, exc: Exception) -> dict[str, Any]:
+	"""The tap is refused because the rule behind it is unverified (§1.2) — with the way out.
+
+	The card is put back exactly as it was, buttons and all, because the proposal was not touched:
+	it is still ``proposed``, so once the rule is verified the accountant taps [Батлах] again and
+	the receipt goes through without re-sending the photo. Anything else here — retiring the card,
+	rejecting the proposal — would throw away a document the guard never objected to; the guard
+	objects to the rule, and the rule is what ``admin.rule_blocked`` offers to fix.
+	"""
+	rule = str(getattr(exc, "rule", "") or proposal.posting_pattern or mn.VALUE_UNKNOWN)
+	ctx.edit(
+		ctx.callback_message_id,
+		cards.receipt_card(receipt.proposal_to_dict(proposal)),
+		keyboards.receipt_keyboard(proposal.name),
+	)
+	ctx.answer(mn.MSG_UNVERIFIED_RULE_BLOCKED.format(rule=rule), show_alert=True)
+	log_event("telegram.approve.unverified_rule", proposal=proposal.name, rule=rule, user=ctx.user)
+	from nyabo_mn.telegram.handlers import admin
+
+	# The refusal itself, then the door: the message the accountant is used to reading must still
+	# be the first thing they see, and it must still name the rule that stopped them.
+	ctx.reply(mn.MSG_UNVERIFIED_RULE_BLOCKED.format(rule=rule))
+	outcome = admin.rule_blocked(ctx, rule, company=proposal.company)
+	return {"approved": False, "unverified_rule": rule, **outcome}
 
 
 def choose_account(ctx: Ctx, proposal: Any) -> Any:
