@@ -1,10 +1,16 @@
 """/дүрэм: the door MSG_UNVERIFIED_RULE_BLOCKED points at, and the refusal that now names it.
 
-The founder's live session is the case under test: Тест ХХК is not a VAT payer, so an ordinary
-receipt maps to ``purchase_expense_non_vat``, which ships unverified — the tap was refused with a
-sentence about an admin who had no command to run. These tests pin the list, the evidence, the
-single confirming tap (row + Nyabo Event), the two readers of the refusal, and the guard itself,
-which must keep refusing until a human has actually said yes.
+Тест ХХК is not a VAT payer, so the flow is exercised on a rule an ordinary non-VAT company
+really walks into and the seed really ships unverified. These tests pin the list, the evidence,
+the single confirming tap (row + Nyabo Event), the two readers of the refusal, and the guard
+itself, which must keep refusing until a human has actually said yes.
+
+WHY the anchor rule is a named constant the fixture checks: which seed rows are verified is
+*data*, and a legal-citation pass changes it. This module was anchored on
+``purchase_expense_non_vat`` until Order 116 12.2.2 А was found for it, and the eight tests below
+then failed for a reason that had nothing to do with the flow they cover. ``unverified_seed``
+asserts the anchors are still unverified in the seed and says what to do when they are not, so
+the next citation pass gets a sentence instead of eight red tests.
 """
 
 from __future__ import annotations
@@ -30,11 +36,49 @@ from tests.fixtures.telegram.fake_bot import (
 
 ADMIN_ID = 1001  # tests/fixtures/site/site_config.json admin_telegram_ids
 ACCOUNTANT_ID = 2001
-BLOCKING = "purchase_expense_non_vat"
+
+#: The rule these tests verify. Order 116 prints no entry that turns a customer advance into
+#: revenue (docs/legal/order116.md §3, "Order 116 prints no such entry at all"), so the seed
+#: ships it unverified, and a non-VAT company meets it on every delivery against an advance.
+BLOCKING = "customer_prepayment_recognize_non_vat"
+#: A second rule of the same group: verifying one rule must clear that one and nothing else.
+STILL_BLOCKED = "bank_transfer_internal"
+#: The Mongolian name and the debit and credit of ``BLOCKING`` as the seed spells them, so the
+#: card assertions name the entry the admin is asked to vouch for and not merely two accounts.
+BLOCKING_LABEL = "Урьдчилгааг орлогоор хүлээн зөвшөөрөх (НӨАТ төлөгч бус)"
+BLOCKING_DEBIT = "Бусад өглөг, урьдчилан төлөгдсөн орлого"
+BLOCKING_CREDIT = "Борлуулалт"
 
 
 @pytest.fixture
-def rules_site(seeded: dict, company: str) -> str:
+def unverified_seed() -> tuple[list[str], list[str]]:
+	"""The rule names the seed itself ships unverified: patterns first, then tax parameters.
+
+	Read out of the seed rather than written down, because every citation pass moves rows off
+	this list; the assertions below then measure the list instead of a number that rots.
+	"""
+	patterns = [
+		row["pattern_id"]
+		for row in load_seed("posting_patterns")["rows"]
+		if not row.get("verified") and row.get("enabled", True)
+	]
+	parameters = [
+		f"{row['key']}:{row['effective_from']}"
+		for row in load_seed("tax_parameters")["rows"]
+		if not row.get("verified")
+	]
+	for anchor in (BLOCKING, STILL_BLOCKED):
+		assert anchor in patterns, (
+			f"{anchor} is verified in the seed now, so it can no longer anchor this flow. Point "
+			"BLOCKING / STILL_BLOCKED at another pattern the seed still ships unverified, and "
+			"move the label and account names with it. Do not un-verify the seed row instead: "
+			"the citations are the product, these tests are only its first reader."
+		)
+	return patterns, parameters
+
+
+@pytest.fixture
+def rules_site(seeded: dict, company: str, unverified_seed: tuple[list[str], list[str]]) -> str:
 	"""The seeded rule rows on a provisioned company, with the founder linked as accountant.
 
 	``ADMIN_ID`` is an admin through ADMIN_TELEGRAM_IDS, which is how the founder is one before
@@ -58,18 +102,22 @@ def _rule_datas(bot: FakeBotApi) -> list[str]:
 # --- 1. an admin can see what is pending ------------------------------------------------------
 
 
-def test_admin_lists_the_rules_that_are_blocking_work_most_used_first(rules_site: str):
+def test_admin_lists_the_rules_that_are_blocking_work_most_used_first(
+	rules_site: str, unverified_seed: tuple[list[str], list[str]]
+):
 	_use_pattern(rules_site, BLOCKING, times=3)
 	bot = FakeBotApi()
 	outcome = run(bot, message_update(ADMIN_ID, "/дүрэм"))
 
+	patterns, parameters = unverified_seed
 	result = outcome["result"]
 	assert result["shown"][0] == BLOCKING, "the pattern that blocks the most work comes first"
-	assert result["pending"] >= 16  # 16 unverified posting patterns + 13 tax parameters in the seed
+	# Every unverified seed row reaches the list, and the header counts them all, not the page.
+	assert result["pending"] == len(patterns) + len(parameters)
 	text = bot.last_text
 	assert mn.MSG_RULES_TITLE.format(count=result["pending"]) in text
 	# The row says what the rule is for, and how much work it is holding up.
-	assert "Зардлын худалдан авалт (НӨАТ төлөгч бус)" in text
+	assert BLOCKING_LABEL in text
 	assert "3 удаа хэрэглэсэн" in text
 	assert _rule_datas(bot)[0] == keyboards.rule_data(keyboards.VERIFY_OPEN, verify.KIND_PATTERN, BLOCKING)
 
@@ -101,9 +149,9 @@ def test_the_rule_card_shows_the_entry_and_says_plainly_that_there_is_no_citatio
 
 	assert outcome["result"] == {"rule": BLOCKING, "has_citation": False, "offered": True}
 	text = bot.last_text
-	assert "Зардлын худалдан авалт (НӨАТ төлөгч бус)" in text
+	assert BLOCKING_LABEL in text
 	assert mn.CARD_RULE_SIDE_LABELS["debit"] in text and mn.CARD_RULE_SIDE_LABELS["credit"] in text
-	assert "Удирдлагын зардал" in text and "Дансны өглөг" in text
+	assert BLOCKING_DEBIT in text and BLOCKING_CREDIT in text
 	# The seed carries the instrument for every pattern, so «Заавар 116» alone must not read as
 	# an authority: this row has no section and no quote, and the card has to say it in words.
 	assert mn.CARD_RULE_NO_CITATION in text
@@ -165,7 +213,7 @@ def test_verifying_writes_the_row_the_event_and_stops_the_guard_refusing(rules_s
 	# The guard is what actually gates a posting, and it is now satisfied — without being weakened.
 	guard.require_verified(BLOCKING)
 	with pytest.raises(guard.UnverifiedRuleError):
-		guard.require_verified("payable_pay")
+		guard.require_verified(STILL_BLOCKED)
 	assert mn.MSG_RULE_VERIFIED_RETRY in bot.texts()
 
 
@@ -261,7 +309,7 @@ def test_a_rule_id_too_long_for_a_button_sends_the_admin_to_the_desk(
 	rules_site: str, monkeypatch: pytest.MonkeyPatch
 ):
 	"""The other side of the 64-byte cap: no button, but never a card with no answer on it."""
-	long_id = "purchase_expense_non_vat_" + "x" * 40
+	long_id = f"{BLOCKING}_" + "x" * 40
 	row = frappe.copy_doc(frappe.get_doc(verify.PATTERN, BLOCKING))
 	row.pattern_id = long_id
 	row.flags.ignore_permissions = True
