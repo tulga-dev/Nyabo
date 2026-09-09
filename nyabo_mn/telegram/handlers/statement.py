@@ -24,6 +24,7 @@ from nyabo_mn.log import log_error, log_event
 from nyabo_mn.telegram import _deps, api, files, keyboards
 from nyabo_mn.telegram._deps import DependencyMissing
 from nyabo_mn.telegram.context import Ctx
+from nyabo_mn.telegram.handlers import escape
 
 IMPORT_METHOD = "nyabo_mn.telegram.handlers.statement.run_import"
 STATE_PREFIX = "layout"
@@ -382,7 +383,9 @@ def handle_escape(ctx: Ctx, state: str, payload: dict[str, Any], verb: str) -> b
 		return True
 	if verb == keyboards.ESCAPE_CANCEL:
 		ctx.clear_state()
+		# This line is the goodbye — it says the statement was not imported, which the generic
+		# one does not — so the caller is told not to say it again.
 		ctx.reply(mn.MSG_STATEMENT_LAYOUT_CANCELLED)
 		log_event("telegram.layout.cancelled", document=payload.get("document"), column=index)
-		return True
+		return escape.CANCEL_ANNOUNCED
 	return False

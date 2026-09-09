@@ -34,6 +34,12 @@ BACK = keyboards.ESCAPE_BACK
 SKIP = keyboards.ESCAPE_SKIP
 MENU = keyboards.ESCAPE_MENU
 
+# A flow that says its own goodbye answers with this instead of ``CANCEL``: leaving is still
+# the outcome, but ``MSG_FLOW_CANCELLED`` on top of «Дараа руу шилжүүллээ» is two answers to
+# one tap, and on the typed path it was two messages in a row.
+CANCEL_ANNOUNCED = "cancel_announced"
+LEAVING = (CANCEL, CANCEL_ANNOUNCED)
+
 # Words the user types. These are *input* Nyabo reads, not output it writes, which is why they
 # live here and not in i18n (tests/unit/test_i18n_no_hardcoded_mongolian.py allow-list).
 #
@@ -104,9 +110,10 @@ def _flow_handlers() -> dict[str, Callable[[Ctx, str, dict[str, Any], str], bool
 	"""State prefix -> the flow's own ``handle_escape``; missing means the plain cancel.
 
 	A flow answers with ``True`` when it dealt with the verb itself (it moved the step and said
-	so), ``CANCEL`` when its own clean-up is done and leaving is now the right outcome, and
-	``False`` when the verb means nothing there — Буцах on the first question, Алгасах on a
-	step that has no default worth guessing.
+	so), ``CANCEL`` when its own clean-up is done and leaving is now the right outcome,
+	``CANCEL_ANNOUNCED`` when it is leaving *and* has already told the user so, and ``False``
+	when the verb means nothing there — Буцах on the first question, Алгасах on a step that has
+	no default worth guessing.
 	"""
 	from nyabo_mn.telegram.handlers import approve, bank, correct, onboarding, statement
 
@@ -179,8 +186,9 @@ def handle_callback(ctx: Ctx, parts: list[str]) -> Any:
 		)
 		return {"stale": True}
 	if verb == CANCEL:
-		announced = _retire_prompt(ctx, mn.MSG_FLOW_CANCELLED)
-		return _apply(ctx, state, payload, verb, announced=announced)
+		# The prompt is retired inside ``_apply``, not here: the flow gets to speak first, and
+		# the generic goodbye must not be written over a farewell it has already given.
+		return _apply(ctx, state, payload, verb, tapped=True)
 	_retire_prompt(ctx)
 	return _apply(ctx, state, payload, verb)
 
@@ -222,7 +230,13 @@ def _retire_prompt(ctx: Ctx, text: str | None = None) -> bool:
 # --- what an escape does -----------------------------------------------------------------------
 
 
-def _apply(ctx: Ctx, state: str | None, payload: dict[str, Any], verb: str, announced: bool = False) -> Any:
+def _apply(ctx: Ctx, state: str | None, payload: dict[str, Any], verb: str, tapped: bool = False) -> Any:
+	"""Hand the verb to the open flow and act on what it answers.
+
+	``tapped`` says the goodbye still has to be written onto the prompt that was tapped — which
+	is decided here, after the flow has spoken, because only then is it known whether it said
+	its own.
+	"""
 	if verb == MENU:
 		return _go_home(ctx, state)
 	if not state:
@@ -231,7 +245,10 @@ def _apply(ctx: Ctx, state: str | None, payload: dict[str, Any], verb: str, anno
 	outcome: bool | str = handler(ctx, state, payload, verb) if handler is not None else False
 	if outcome is True:
 		return {"escape": verb, "state": state}
-	if verb == CANCEL or outcome == CANCEL:
+	if verb == CANCEL or outcome in LEAVING:
+		announced = outcome == CANCEL_ANNOUNCED
+		if tapped:
+			announced = _retire_prompt(ctx, None if announced else mn.MSG_FLOW_CANCELLED) or announced
 		return _cancel(ctx, announced=announced)
 	# A flow that cannot go back or skip here must not be left silent: say why and let the
 	# state stand, so the prompt on screen is still the answer to give.
@@ -267,6 +284,7 @@ def _go_home(ctx: Ctx, state: str | None) -> Any:
 __all__ = [
 	"BACK",
 	"CANCEL",
+	"CANCEL_ANNOUNCED",
 	"MENU",
 	"SKIP",
 	"drawn_for_open_step",

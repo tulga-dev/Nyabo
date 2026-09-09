@@ -18,7 +18,7 @@ from nyabo_mn.log import log_error, log_event
 from nyabo_mn.telegram import _deps, cards, keyboards
 from nyabo_mn.telegram._deps import DependencyMissing
 from nyabo_mn.telegram.context import Ctx
-from nyabo_mn.telegram.handlers import receipt
+from nyabo_mn.telegram.handlers import escape, receipt
 
 BANK_TRANSACTION = "Bank Transaction"
 STATE_FIND = "bank_find"
@@ -221,6 +221,9 @@ def handle_escape(ctx: Ctx, state: str, payload: dict[str, Any], verb: str) -> b
 	The card is restored with its own buttons so the line can be picked up again later — an
 	unmatched line the accountant can no longer act on would come back at month end as an
 	item on the checklist with no way to clear it.
+
+	«Дараа руу шилжүүллээ» *is* the goodbye here, so the answer says so and the generic one is
+	not added to it (``escape.CANCEL_ANNOUNCED``).
 	"""
 	name = payload.get("bank_transaction")
 	message_id = payload.get("message_id")
@@ -230,7 +233,7 @@ def handle_escape(ctx: Ctx, state: str, payload: dict[str, Any], verb: str) -> b
 		except Exception as exc:  # the card may be gone; the state is cleared either way
 			log_event("telegram.escape.card_restore_failed", level="warning", error=type(exc).__name__)
 	ctx.reply(mn.MSG_BANK_LATER)
-	return keyboards.ESCAPE_CANCEL
+	return escape.CANCEL_ANNOUNCED
 
 
 def match_chosen(ctx: Ctx, name: str, index_text: str) -> Any:

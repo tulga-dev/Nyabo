@@ -182,7 +182,38 @@ def test_typing_cancel_leaves_the_column_mapping_without_saving_a_layout(company
 	run(bot, message_update(9230, "цуцлах"))
 	assert _state(9230) in (None, "")
 	assert mn.MSG_STATEMENT_LAYOUT_CANCELLED in bot.texts()
+	# One goodbye, not two: this line says more than the generic one (the statement was not
+	# imported), so the generic one must not follow it.
+	assert mn.MSG_FLOW_CANCELLED not in bot.texts()
 	assert not frappe.get_all("Nyabo Bank Layout", filters={"layout_id": ["like", "custom-%"]})
+
+
+def _in_the_bank_find_step(uid: int, company: str) -> FakeBotApi:
+	"""The typed step of an unmatched bank line, without needing a statement behind it."""
+	from nyabo_mn.telegram import state as chat_state
+	from nyabo_mn.telegram.handlers import bank
+
+	link_user(uid, "Accountant", company)
+	chat_state.set_state(uid, bank.STATE_FIND, {})
+	bot = FakeBotApi()
+	return bot
+
+
+@pytest.mark.parametrize("tapped", [False, True])
+def test_leaving_the_bank_line_search_says_goodbye_once(company, tapped):
+	"""MINOR: «Дараа руу шилжүүллээ» was followed by «Болилоо…», two answers to one action."""
+	uid = 9295 if tapped else 9296
+	bot = _in_the_bank_find_step(uid, company)
+
+	if tapped:
+		run(bot, callback_update(uid, "e:bank_find:cancel"))
+	else:
+		run(bot, message_update(uid, "цуцлах"))
+
+	assert _state(uid) in (None, "")
+	assert bot.texts().count(mn.MSG_BANK_LATER) == 1
+	assert mn.MSG_FLOW_CANCELLED not in bot.texts()
+	assert bot.sent("answer_callback_query") or not tapped
 
 
 def test_cancel_with_nothing_open_says_so_instead_of_answering_as_a_question(company):
