@@ -22,11 +22,17 @@ import sys
 from collections.abc import Callable, Iterable, Sequence
 from typing import Any
 
-from nyabo_mn.agent.llm_client import CallRecord, LlmClient, get_client
+from nyabo_mn.agent.llm_client import (
+	PURPOSES,
+	CallRecord,
+	LlmClient,
+	get_client,
+	pin_models,
+	resolve_model,
+)
 from nyabo_mn.agent.mock_client import MockLlmClient
 from nyabo_mn.config import (
 	DEFAULT_ANTHROPIC_MODEL,
-	DEFAULT_OPENAI_MODEL,
 	DEFAULT_OPENAI_SWEEP_MODEL,
 	Settings,
 )
@@ -69,12 +75,25 @@ def is_simulation() -> bool:
 def configured_models(
 	settings: Settings | None = None, *, simulation: bool | None = None
 ) -> list[tuple[str, str]]:
-	"""(provider, model) pairs for a sweep: OPENAI_MODEL, OPENAI_SWEEP_MODEL, ANTHROPIC_MODEL when keyed."""
+	"""(provider, model) pairs for a sweep, deduplicated.
+
+	Every model the purpose routing can pick first, in ``PURPOSES`` order, then
+	``OPENAI_SWEEP_MODEL``, then ``ANTHROPIC_MODEL`` when keyed. The routed models lead so
+	``models[0]`` stays the model that reads the receipt (the primary run pins that one, as
+	it did when there was only ``OPENAI_MODEL``), and so a sweep covers the model that now
+	proposes the account - otherwise nothing would ever measure it.
+	"""
 	settings = settings or _settings()
 	simulated = is_simulation() if simulation is None else simulation
-	models = [("openai", settings.openai_model or DEFAULT_OPENAI_MODEL)]
+	models: list[tuple[str, str]] = []
+	seen: set[str] = set()
+	for purpose in PURPOSES:
+		model = resolve_model(settings, purpose, "openai").model
+		if model not in seen:
+			seen.add(model)
+			models.append(("openai", model))
 	sweep = settings.openai_sweep_model or DEFAULT_OPENAI_SWEEP_MODEL
-	if sweep and sweep != models[0][1]:
+	if sweep and sweep not in seen:
 		models.append(("openai", sweep))
 	if settings.anthropic_api_key or simulated:
 		models.append(("anthropic", settings.anthropic_model or DEFAULT_ANTHROPIC_MODEL))
@@ -88,8 +107,10 @@ def default_client_factory(records: list[CallRecord], *, simulation: bool | None
 	def factory(provider: str, model: str) -> LlmClient:
 		if simulated:
 			return MockLlmClient(model=model, record_call=records.append)
-		override = dict(settings.values)
-		override["OPENAI_MODEL" if provider == "openai" else "ANTHROPIC_MODEL"] = model
+		# A sweep asks about one model, so every purpose is pinned to it: setting
+		# OPENAI_MODEL alone would leave extraction and classification on the routed
+		# models and the report would name a model that never ran (llm_client.pin_models).
+		override = pin_models(settings.values, provider, model)
 		return get_client(Settings.from_mapping(override), provider, record_call=records.append)
 
 	return factory
