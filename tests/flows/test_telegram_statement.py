@@ -116,7 +116,9 @@ def test_an_unexpected_failure_is_not_leaked_to_the_chat(books, monkeypatch):
 	link_user(9305, "Accountant", books)
 	bot = FakeBotApi(files={"stmt": b"PK\x03\x04 sheet"})
 	_send(bot, 9305, "khan.xlsx")
-	assert bot.last_text == mn.MSG_ERROR_ADMIN_NOTIFIED
+	# The worker has no keyboard to draw and notifies nobody, so it promises neither (UX-13).
+	assert bot.last_text == mn.MSG_ERROR_NO_BUTTON
+	assert not [kw for kw in bot.sent("send_message") if kw.get("reply_markup")]
 	assert "psycopg2" not in "\n".join(bot.texts())  # no stack trace, no driver noise
 	assert frappe.local.error_log[-1].title == "nyabo: telegram.statement.import_failed"
 
@@ -129,7 +131,8 @@ def test_a_missing_matching_module_tells_the_user_the_feature_is_off(books, monk
 	link_user(9306, "Accountant", books)
 	bot = FakeBotApi(files={"stmt": b"PK\x03\x04 sheet"})
 	_send(bot, 9306, "khan.xlsx")
-	assert bot.last_text == mn.MSG_FEATURE_UNAVAILABLE
+	assert bot.last_text == mn.MSG_FEATURE_UNAVAILABLE_NO_BUTTON
+	assert not [kw for kw in bot.sent("send_message") if kw.get("reply_markup")]
 
 
 def test_an_unknown_layout_without_a_header_row_cannot_be_mapped(books, monkeypatch):

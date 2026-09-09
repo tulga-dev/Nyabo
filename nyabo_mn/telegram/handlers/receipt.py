@@ -120,7 +120,9 @@ def card_for(proposal: Any) -> tuple[str, dict[str, Any]]:
 	if status == "approved":
 		return cards.receipt_card(data) + "\n" + mn.MSG_APPROVED_POSTING, keyboards.empty_markup()
 	if status == "failed":
-		return cards.receipt_card(data) + "\n" + mn.MSG_ERROR_ADMIN_NOTIFIED, keyboards.empty_markup()
+		# No keyboard on a card, and the pipeline's failure path writes a Nyabo Event and a log
+		# line but notifies nobody, so this is the variant that promises neither (UX-13).
+		return cards.receipt_card(data) + "\n" + mn.MSG_ERROR_NO_BUTTON, keyboards.empty_markup()
 	return cards.receipt_card(data), keyboards.receipt_keyboard(data["name"])
 
 

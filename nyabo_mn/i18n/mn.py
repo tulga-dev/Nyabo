@@ -92,10 +92,20 @@ MSG_ERROR_GENERIC = "Уучлаарай, алдаа гарлаа. Дахин о�
 # UX-13: the old wording was «Уучлаарай, алдаа гарлаа. Админд мэдэгдлээ.», and the founder
 # read «Админд мэдэгдлээ» as "an administrator has to approve your entry". It must say a
 # technical fault happened, promise no approval step, and name the way out.
+#
+# Two of them, because only one caller can keep both promises. ``telegram.router`` draws the
+# [Цэс] button beside the text and calls ``notify_admins``; everything else (the failed
+# receipt card, the statement worker) has no keyboard and sends nothing, so it names /меню as
+# a command to type and does not claim a notification that was never sent.
 MSG_ERROR_ADMIN_NOTIFIED = (
 	"Уучлаарай, техникийн алдаа гарлаа. Энэ нь таны бичилтийг хэн нэгэн зөвшөөрөх гэж "
 	"хүлээж байна гэсэн үг биш — алдааг Нябо-г хөгжүүлэгч рүү илгээлээ, шалгаж засна. "
 	"Та дахин оролдож болно, эсвэл доорх «Цэс» товч (/меню) дээр дарж эхнээс нь эхэлнэ үү."
+)
+MSG_ERROR_NO_BUTTON = (
+	"Уучлаарай, техникийн алдаа гарлаа. Энэ нь таны бичилтийг хэн нэгэн зөвшөөрөх гэж "
+	"хүлээж байна гэсэн үг биш. Та дахин оролдож болно, эсвэл «/меню» гэж бичээд "
+	"эхнээс нь эхэлнэ үү."
 )
 MSG_ACCOUNTANT_ONLY = "Энэ саналыг зөвхөн нягтлан батлах боломжтой (⚠️ тэмдэглэгээтэй)."
 MSG_NO_PERMISSION = "Танд энэ үйлдлийг хийх эрх байхгүй."
@@ -989,10 +999,15 @@ MSG_LINK_COMPANY_NOT_FOUND = "Компани олдсонгүй: {company}"
 MSG_ADMIN_ONLY = "Энэ команд зөвхөн админд зориулагдсан."
 MSG_ADMIN_ERROR_NOTICE = "⚠️ Нябо алдаа: {event} · chat {chat_id} · {error}"
 MSG_ADMIN_LINK_GUESSING = "🔒 Холбох кодыг олон удаа буруу оруулсан тул chat {chat_id}-ыг түр хаалаа."
-# Same reading risk as MSG_ERROR_ADMIN_NOTIFIED (UX-13): nobody is approving anything.
+# Same reading risk as MSG_ERROR_ADMIN_NOTIFIED (UX-13): nobody is approving anything. And
+# the same pair, for the same reason — only the router draws the button and notifies.
 MSG_FEATURE_UNAVAILABLE = (
 	"Энэ боломж одоогоор бэлэн болоогүй байна. Нябо-г хөгжүүлэгч рүү мэдэгдэл очлоо. "
 	"Та өөр үйлдэл хийж болно — доорх «Цэс» товч (/меню)."
+)
+MSG_FEATURE_UNAVAILABLE_NO_BUTTON = (
+	"Энэ боломж одоогоор бэлэн болоогүй байна. Энэ нь таны бичилтийг хэн нэгэн зөвшөөрөх "
+	"гэж хүлээж байна гэсэн үг биш. Та «/меню» гэж бичээд өөр үйлдэл хийж болно."
 )
 MSG_CANCELLED = "Цуцаллаа."
 

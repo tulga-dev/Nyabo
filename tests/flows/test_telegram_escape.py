@@ -8,6 +8,8 @@ founder read as the bot asking an administrator to approve their transaction.
 
 from __future__ import annotations
 
+import re
+from pathlib import Path
 from typing import Any
 
 import frappe
@@ -16,6 +18,8 @@ import pytest
 from nyabo_mn.i18n import mn
 from nyabo_mn.telegram import _deps, keyboards
 from tests.fixtures.telegram.fake_bot import FakeBotApi, callback_update, link_user, message_update, run
+
+TELEGRAM = Path(__file__).resolve().parents[2] / "nyabo_mn" / "telegram"
 
 
 def _state(chat_id: int) -> str | None:
@@ -331,6 +335,43 @@ def test_a_handler_failure_answers_with_a_way_out_and_promises_no_approval(compa
 	assert "зөвшөөрөх" in mn.MSG_ERROR_ADMIN_NOTIFIED and "гэсэн үг биш" in mn.MSG_ERROR_ADMIN_NOTIFIED
 	sent = [kw for kw in bot.sent("send_message") if kw["text"] == mn.MSG_ERROR_ADMIN_NOTIFIED]
 	assert _datas(sent[-1]["reply_markup"]) == ["e:err:menu"]
+
+
+def test_only_the_caller_that_draws_the_button_and_notifies_says_so(company):
+	"""MAJOR: three of the four call sites named a «Цэс» button that was not on the message.
+
+	``router`` is the only one that attaches ``keyboards.menu_markup()`` and calls
+	``notify_admins``; the failed receipt card and the statement worker draw no keyboard and
+	send nothing, so they get the variants that name /меню as a command and claim no notice.
+	"""
+	assert "доорх" in mn.MSG_ERROR_ADMIN_NOTIFIED and "доорх" in mn.MSG_FEATURE_UNAVAILABLE
+	for text in (mn.MSG_ERROR_NO_BUTTON, mn.MSG_FEATURE_UNAVAILABLE_NO_BUTTON):
+		assert "доорх" not in text and "/меню" in text
+	# The sentence the founder needed is in every one of them.
+	for text in (
+		mn.MSG_ERROR_ADMIN_NOTIFIED,
+		mn.MSG_ERROR_NO_BUTTON,
+		mn.MSG_FEATURE_UNAVAILABLE_NO_BUTTON,
+	):
+		assert "зөвшөөрөх" in text and "гэсэн үг биш" in text
+
+	promising = re.compile(r"mn\.(MSG_ERROR_ADMIN_NOTIFIED|MSG_FEATURE_UNAVAILABLE)\b")
+	users = {
+		path.name for path in TELEGRAM.rglob("*.py") if promising.search(path.read_text(encoding="utf-8"))
+	}
+	assert users == {"router.py"}, users
+
+
+def test_a_failed_receipt_card_does_not_promise_a_button_it_has_not_got(company):
+	"""The pipeline's failure path writes a Nyabo Event and a log line; it notifies nobody."""
+	from nyabo_mn.telegram.handlers import receipt
+	from tests.fixtures.telegram.fake_bot import make_proposal
+
+	proposal = make_proposal(company, status="failed")
+	text, markup = receipt.card_for(proposal)
+	assert mn.MSG_ERROR_NO_BUTTON in text
+	assert mn.MSG_ERROR_ADMIN_NOTIFIED not in text
+	assert markup == keyboards.empty_markup()
 
 
 def test_the_escape_on_a_failure_reaches_the_menu_and_clears_a_stuck_step(company, monkeypatch):

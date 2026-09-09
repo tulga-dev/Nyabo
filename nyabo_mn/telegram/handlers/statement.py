@@ -91,23 +91,28 @@ def handle_document(ctx: Ctx) -> Any:
 
 
 def run_import(document_name: str, chat_id: int | str) -> dict[str, Any]:
-	"""Worker: import, then report or start the mapping conversation. Never raises into RQ."""
+	"""Worker: import, then report or start the mapping conversation. Never raises into RQ.
+
+	This runs on the ``long`` queue with no ``Ctx``, so nothing here draws a keyboard and
+	nothing here notifies the admins: the replies are the ``_NO_BUTTON`` variants, which name
+	/меню as a command to type and claim no notification (UX-13).
+	"""
 	bot = api.get_bot()
 	try:
 		summary = _deps.import_statement(document_name) or {}
 	except DependencyMissing as exc:
 		log_error("telegram.statement.dependency_missing", exc, document=document_name)
-		bot.send_message(chat_id, mn.MSG_FEATURE_UNAVAILABLE)
+		bot.send_message(chat_id, mn.MSG_FEATURE_UNAVAILABLE_NO_BUTTON)
 		return {"ok": False}
 	except _deps.bank_import_error() as exc:
 		# The importer's own Mongolian text says what the accountant has to fix.
 		log_event("telegram.statement.import_refused", level="warning", document=document_name)
-		bot.send_message(chat_id, str(exc) or mn.MSG_ERROR_ADMIN_NOTIFIED)
+		bot.send_message(chat_id, str(exc) or mn.MSG_ERROR_NO_BUTTON)
 		return {"ok": False, "refused": str(exc)}
 	except Exception as exc:
 		# BankImportError (no bank account, unreadable file, no lines) carries the card text.
 		log_error("telegram.statement.import_failed", exc, document=document_name)
-		bot.send_message(chat_id, getattr(exc, "message_mn", None) or mn.MSG_ERROR_ADMIN_NOTIFIED)
+		bot.send_message(chat_id, getattr(exc, "message_mn", None) or mn.MSG_ERROR_NO_BUTTON)
 		return {"ok": False}
 	# The importer sets ``unknown_layout`` for both cases, so the more specific one is asked
 	# first: a layout that was mapped once but is not verified must not re-ask the accountant,
