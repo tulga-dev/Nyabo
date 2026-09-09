@@ -1617,11 +1617,20 @@ def books_handlers(
 			# Both dates, because the card prints both: a receipt photographed on the 5th and
 			# posted on the 7th is the normal case, and a model repeating the received date this
 			# read itself rendered (mn.ENTRY_EXPLAIN_SOURCE) must not lose its sentence over it.
+			#
+			# The account code and the citation for the same reason: the code is the one the chart
+			# resolved when the proposal was made and this card's own subject line prints it, and
+			# the citation is seeded rule text this read renders (inside the explanation, or on a
+			# line of its own). The natural sentence about an entry names the account it hit, and
+			# losing it to the code printed beside it was the check calling the card's own words
+			# invented.
 			**_figures(
 				total,
 				_calendar(str(proposal.posting_date or "")),
 				_calendar(received),
 				proposal.posted_name or proposal.name,
+				proposal.account_code or "",
+				proposal.citation or "",
 			),
 		}
 

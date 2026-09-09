@@ -859,6 +859,28 @@ def test_the_entry_card_and_the_total_card_agree_after_a_correction(run_receipt,
 	assert last["text"].count(f"· {fmt_mnt(85000)}₮") == 1, "one purchase, and the correction of it"
 
 
+def test_the_explain_card_vouches_for_the_account_code_and_the_citation_it_prints(run_receipt, books):
+	"""MAJOR: the natural sentence about an entry names the account it hit, and lost to it.
+
+	``_explain_entry`` renders the account code (the card's own subject line prints it) and the
+	citation, and vouched for neither — so a model writing «6210 дансанд … (Хууль 15.1)» had its
+	sentence replaced by the very card it was describing.
+	"""
+	proposal = run_receipt("petrovis_fuel")
+	posted = post.post_proposal(proposal.name, ACCOUNTANT)
+	run = pipeline.books_handlers(books, today=NOW.date())["answer_from_books"]
+	args = {"entry_ref": posted["posted_name"]}
+	explained = run({"query_kind": "explain_entry", "args": args})
+	assert explained["account_code"] == "6210" and explained["citation"]
+	assert explained["citation"] in explained["text"], "the card prints it, so the check must know it"
+
+	sentence = (
+		f"{explained['entry_ref']} бичилт {explained['account_code']} дансанд "
+		f"{fmt_mnt(proposal.total)}₮-өөр бүртгэгдсэн ({explained['citation']})."
+	)
+	assert questions.unverified_numbers(sentence, _trace("explain_entry", args, explained), NOW) == ()
+
+
 def test_a_month_figure_is_given_a_noun(run_receipt, books):
 	"""MINOR: «2026 оны 9-р сар: 6210 - Шатахуун - TST 77 272.73₮» never says what the figure is.
 
