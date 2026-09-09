@@ -1107,9 +1107,19 @@ entry. Widening the quote to make it look general would be the one thing this pr
 do. So: the rows stay verified, the quotes stay exactly as printed, and each note carries a
 `SCOPE OF THIS CITATION` paragraph saying which named expense the instrument prints the entry
 for, what is being carried across (the mechanics, not the words), and that no sentence printing
-it for expenses in general was found — with an invitation to cite one if it is. The marker is in
-`rules.verify.BRIEFING_MARKERS`, so the paragraph renders on the evidence card, and
-`docs/legal/order116.md` reproduces it for the accountant and the ministry reviewer.
+it for expenses in general was found — with an invitation to cite one if it is.
+
+*Where that paragraph is actually readable, stated exactly, because the answer is not "on the
+card".* `SCOPE OF THIS CITATION` is in `rules.verify.BRIEFING_MARKERS`, so `cards.rule_card`
+does render it — but a card is only ever drawn for an **unverified** rule: `/дүрэм` lists
+`verify.pending()`, `admin.show_rule` answers a verified row with «already verified» and sends
+no card, and `admin._rule_evidence_by_name` skips verified rows. Both of these rows ship
+verified, so no admin and no accountant meets the paragraph in Telegram. It reaches its readers
+in three other places, and those are the ones to keep true: the row's own `notes` field in the
+ERPNext desk (`seed._fill_evidence` writes it there on every migrate, VER-06),
+`docs/legal/order116.md` §3, and the seed JSON. The marker is kept because it costs nothing and
+is what would render the paragraph the moment either row is un-verified in the desk — which is
+exactly when somebody is being asked to re-decide it.
 
 ## the accountant's own reading (skeptic's walk of the merged flow)
 
