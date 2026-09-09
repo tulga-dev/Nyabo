@@ -181,6 +181,27 @@ def _intake_items(rows: Iterable[Any]) -> list[dict[str, Any]]:
 	return [row.as_child() if hasattr(row, "as_child") else dict(row) for row in rows]
 
 
+class _NeverRaised(Exception):
+	"""Stands in for an error class whose module has not landed; nothing ever raises it."""
+
+
+def intake_parse_error() -> type[Exception]:
+	"""``inventory_intake.IntakeParseError``, resolved late like every other target here.
+
+	It carries ``message_mn``, a Mongolian sentence Nyabo wrote for the chat, so the handler
+	shows that instead of the generic "could not read the list". Unlike ``bank_import_error``
+	this does not fall back to ``ValueError``: the caller catches the generic case separately
+	and a stand-in that matched every ValueError would send unrelated failures down the path
+	that prints ``message_mn``.
+	"""
+	try:
+		module = importlib.import_module("nyabo_mn.setup.inventory_intake")
+	except ImportError:
+		return _NeverRaised
+	error = getattr(module, "IntakeParseError", None)
+	return error if isinstance(error, type) and issubclass(error, Exception) else _NeverRaised
+
+
 def inventory_parse_text(text: str) -> list[dict[str, Any]]:
 	return _intake_items(_call("nyabo_mn.setup.inventory_intake", "parse_text", text))
 

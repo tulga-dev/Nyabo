@@ -391,10 +391,36 @@ def _on_inventory_input(ctx: Ctx, payload: dict[str, Any]) -> Any:
 		# noticeable amount of time to arrive" (sendChatAction): downloading and parsing a
 		# workbook does, typing a line does not.
 		_typing(ctx)
+	# The guard covers the write, not only the read: ``create_intake`` re-validates the rows
+	# it is handed (``as_rows``) and raises the same IntakeParseError from there, which used to
+	# leave the step through the router's generic apology.
 	try:
 		items, source, file_url = _inventory_from_message(ctx)
+		if not items:
+			ctx.reply(
+				mn.ONB_INVENTORY_PARSE_ERROR.format(error=mn.MSG_ONBOARDING_INVENTORY_NEED_FILE),
+				_inventory_prompt(),
+			)
+			return None
+		intake = _deps.inventory_create_intake(
+			ctx.company or payload.get("company") or "", items, source, ctx.user, file_url=file_url
+		)
 	except DependencyMissing:
 		raise
+	except _deps.intake_parse_error() as exc:
+		# Nyabo's own Mongolian sentence about the line it could not read: it says more than the
+		# generic message, and it is safe to show (SEC-09 — the module builds it, not the file).
+		log_event(
+			"telegram.onboarding.inventory_refused",
+			level="warning",
+			company=ctx.company,
+			source="excel" if ctx.document else "text",
+		)
+		ctx.reply(
+			mn.ONB_INVENTORY_PARSE_ERROR.format(error=getattr(exc, "message_mn", "") or str(exc)),
+			_inventory_prompt(),
+		)
+		return None
 	except Exception as exc:
 		# SEC-09: a parser exception carries file paths, sheet names and library internals,
 		# and the file itself is untrusted input. The user gets the Mongolian instruction;
@@ -410,15 +436,6 @@ def _on_inventory_input(ctx: Ctx, payload: dict[str, Any]) -> Any:
 		# the input must still be answerable (UX-13).
 		ctx.reply(mn.ONB_INVENTORY_PARSE_FAILED, _inventory_prompt())
 		return None
-	if not items:
-		ctx.reply(
-			mn.ONB_INVENTORY_PARSE_ERROR.format(error=mn.MSG_ONBOARDING_INVENTORY_NEED_FILE),
-			_inventory_prompt(),
-		)
-		return None
-	intake = _deps.inventory_create_intake(
-		ctx.company or payload.get("company") or "", items, source, ctx.user, file_url=file_url
-	)
 	payload["intake"] = intake
 	payload["inventory_count"] = len(items)
 	payload["inventory_total"] = str(cards.inventory_total(items))

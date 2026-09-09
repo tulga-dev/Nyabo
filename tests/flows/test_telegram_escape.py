@@ -337,6 +337,56 @@ def test_an_unreadable_inventory_line_keeps_the_step_and_re_offers_the_buttons(c
 	assert _state(9240) == "onb:acc_name"
 
 
+def test_a_refusal_from_the_intake_itself_keeps_the_step_and_shows_its_message(company, monkeypatch):
+	"""MINOR: create_intake re-validates the rows and raises the same error from outside the guard.
+
+	``as_rows`` re-reads the dicts the chat carried between turns, so a row the preview accepted
+	and the document refuses (a qty that is not positive) raised IntakeParseError from the
+	create call, which sat after the try/except and reached the router's generic apology.
+	"""
+	from nyabo_mn.setup.inventory_intake import IntakeParseError
+
+	bot = _at_inventory_list(9242, company, monkeypatch)
+	monkeypatch.setattr(
+		_deps, "inventory_parse_text", lambda text: [{"item_name": "Хор", "qty": 0, "rate": 5}]
+	)
+
+	def refuse(*args, **kwargs):
+		raise IntakeParseError(mn.MSG_INTAKE_QTY_RATE_POSITIVE.format(item="Хор"))
+
+	monkeypatch.setattr(_deps, "inventory_create_intake", refuse)
+	bot.clear()
+	run(bot, message_update(9242, "Хор, 0, 5"))
+
+	assert mn.MSG_INTAKE_QTY_RATE_POSITIVE.format(item="Хор") in bot.last_text
+	assert mn.MSG_ERROR_ADMIN_NOTIFIED not in bot.texts()
+	assert _state(9242) == "onb:inv_wait", "the step stands, so the list can be sent again"
+	assert _datas(bot.last_markup()) == [
+		"e:onb:back:inv_wait",
+		"e:onb:skip:inv_wait",
+		"e:onb:cancel:inv_wait",
+	]
+
+
+def test_a_missing_intake_module_still_reaches_the_router(company, monkeypatch):
+	"""DependencyMissing keeps propagating: it is an install problem, not a bad stock list."""
+	bot = _at_inventory_list(9243, company, monkeypatch)
+	monkeypatch.setattr(
+		_deps, "inventory_parse_text", lambda text: [{"item_name": "Хор", "qty": 1, "rate": 5}]
+	)
+
+	def missing(*args, **kwargs):
+		raise _deps.DependencyMissing("nyabo_mn.setup.inventory_intake.create_intake is not available")
+
+	monkeypatch.setattr(_deps, "inventory_create_intake", missing)
+	bot.clear()
+	run(bot, message_update(9243, "Хор, 1, 5"))
+
+	sent = [kw for kw in bot.sent("send_message") if kw["text"] == mn.MSG_FEATURE_UNAVAILABLE]
+	assert sent, bot.texts()
+	assert _datas(sent[-1]["reply_markup"]) == ["e:err:menu"]
+
+
 def test_an_empty_inventory_list_also_re_offers_the_buttons(company, monkeypatch):
 	bot = _at_inventory_list(9241, company, monkeypatch)
 	monkeypatch.setattr(_deps, "inventory_parse_text", lambda text: [])
