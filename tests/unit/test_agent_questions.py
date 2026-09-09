@@ -567,6 +567,33 @@ def test_a_question_about_a_past_year_keeps_the_sentence_the_model_wrote(tmp_pat
 	assert questions.unverified_numbers("2024 онд …", unresolved, NOW) == ("2024",)
 
 
+def test_an_answer_card_always_keeps_a_way_back(tmp_path):
+	"""MINOR: ``explain_entry`` is offered one next question, and it needs a supplier.
+
+	A Journal Entry has none, so the only button was dropped and the answer card was sent with
+	no keyboard at all — not even [Цэс].
+	"""
+	trace = (
+		_books_call(
+			"explain_entry",
+			{"entry_ref": "ACC-JV-2026-00001", "found": True, "supplier": ""},
+			entry_ref="ACC-JV-2026-00001",
+		),
+	)
+	assert [f.verb for f in questions.follow_ups(trace, now=NOW)] == [questions.VERB_MENU]
+	# the supplier the read did resolve still buys the real next question
+	with_supplier = (
+		_books_call(
+			"explain_entry",
+			{"entry_ref": "ACC-PINV-2026-00003", "found": True, "supplier": "Петровис ХХК"},
+			entry_ref="ACC-PINV-2026-00003",
+		),
+	)
+	assert [f.verb for f in questions.follow_ups(with_supplier, now=NOW)] == [
+		questions.QUERY_SHORT["last_entries_for_supplier"]
+	]
+
+
 def test_a_derived_figure_is_logged_as_derived_not_as_a_fabrication(tmp_path):
 	"""MINOR: an average or a difference failed the check and was logged as an invention.
 

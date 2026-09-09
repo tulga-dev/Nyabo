@@ -720,7 +720,11 @@ def follow_ups(calls: Sequence[ToolCall], *, now: datetime, answered: bool = Tru
 		args = _args_for(target, subject)
 		if args is not None:
 			out.append(FollowUp(QUERY_SHORT[target], _label(label, subject["period"]), args))
-	return tuple(out[:MAX_FOLLOW_UPS])
+	# Never an answer with no buttons at all. Every query above can lose its follow-up to a
+	# subject that does not supply the arguments — ``explain_entry`` is offered exactly one next
+	# question, about the supplier, and a Journal Entry has none — and the card was then sent
+	# with no keyboard whatsoever, not even the way back to the menu.
+	return tuple(out[:MAX_FOLLOW_UPS]) or (FollowUp(VERB_MENU, mn.BTN_MENU),)
 
 
 def _label(template: str, period: str) -> str:
