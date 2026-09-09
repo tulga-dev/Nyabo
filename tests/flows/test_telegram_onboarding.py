@@ -384,3 +384,40 @@ def test_posted_opening_stock_cannot_be_answered_away(company, monkeypatch):
 		"Nyabo Company Settings", frappe.db.exists("Nyabo Company Settings", {"company": company})
 	)
 	assert settings.has_inventory == 1
+
+
+def test_a_draft_made_after_a_posted_one_is_still_cancelled_on_leaving(company, monkeypatch):
+	"""MINOR: the posted guard was a boolean, so it covered every later draft as well.
+
+	``inventory_posted`` says «some intake was filed», not «this payload's intake was filed». A
+	second list, drafted after the first was posted, was therefore never cancelled when the
+	accountant left the wizard — a draft nobody can explain, left on the desk.
+	"""
+	calls = _posted_intake_deps(monkeypatch)
+	link_user(9008, "Accountant", company)
+	uid = 9008
+	bot = FakeBotApi()
+	run(bot, message_update(uid, "/эхлэх"))
+	run(bot, callback_update(uid, "o:vat:no"))
+	run(bot, callback_update(uid, "o:400m:yes"))
+	run(bot, callback_update(uid, "o:banks:done"))
+	run(bot, callback_update(uid, "o:inv:yes"))
+	run(bot, message_update(uid, "Принтерийн хор, 1, 10"))
+	run(bot, callback_update(uid, "i:NYI-0001-1:confirm"))
+	assert calls["posted"] == ["NYI-0001-1"]
+
+	# Тийм agrees with the ledger, so it is honoured: more opening stock may still be filed.
+	run(bot, callback_update(uid, "e:onb:back:acc_name"))
+	run(bot, callback_update(uid, "o:inv:yes"))
+	assert _state(uid) == "onb:inv_wait"
+	run(bot, message_update(uid, "Цаас, 1, 10"))
+	assert calls["created"] == [
+		[{"item_name": "Принтерийн хор", "qty": 1, "rate": 10}],
+		[{"item_name": "Цаас", "qty": 1, "rate": 10}],
+	]
+	assert _state(uid) == "onb:inv_confirm"
+
+	run(bot, message_update(uid, "/меню"))
+	assert _state(uid) in (None, "")
+	# The second draft goes; the posted one is left exactly where it is.
+	assert calls["cancelled"] == ["NYI-0001-2"]

@@ -317,10 +317,16 @@ def _forget_inventory_list(ctx: Ctx, payload: dict[str, Any]) -> None:
 	it — an error line in the log on the happy path. The opening entry is in the ledger and only
 	a reversal takes it back, and the count and total the summary prints are true once posted.
 
+	That exemption is named, not general: it is the intake this payload holds being *the* one
+	that was filed. The guard used to read the ``inventory_posted`` boolean, which says «some
+	intake was filed» — so a second list, drafted after the first was posted (Тийм is still a
+	live answer on the stock question, principle 5 forbids undoing, not adding), inherited the
+	exemption and was left on the desk as a draft nobody could explain.
 	"""
-	if payload.get("inventory_posted"):
+	intake = payload.get("intake")
+	if intake and intake == payload.get("posted_intake"):
 		return
-	intake = payload.pop("intake", None)
+	payload.pop("intake", None)
 	for key in ("inventory_count", "inventory_total"):
 		payload.pop(key, None)
 	if not intake:
@@ -524,6 +530,9 @@ def handle_intake_callback(ctx: Ctx, parts: list[str]) -> Any:
 		keyboards.empty_markup(),
 	)
 	payload["inventory_posted"] = True
+	# Which intake was filed, not only that one was: ``_forget_inventory_list`` spares this
+	# name and cancels any draft that comes after it.
+	payload["posted_intake"] = intake
 	return _ask_accountant(ctx, payload)
 
 
