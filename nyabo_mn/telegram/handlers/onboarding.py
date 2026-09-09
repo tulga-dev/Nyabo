@@ -522,9 +522,29 @@ BACK_STEPS = {
 	"inv": "banks",
 	"inv_wait": "inv",
 	"inv_confirm": "inv_wait",
+	"acc_name": "inv",
 	"micpa": "acc_name",
 	"summary": "micpa",
 }
+
+
+def _back_target(step: str, payload: dict[str, Any]) -> str | None:
+	"""The step Буцах returns to, for a wizard whose shape depends on the answers so far.
+
+	``acc_name`` is the one branching step: the accountant's name is reached from the stock
+	list when the company said Тийм and from the Тийм/Үгүй question itself when it said Үгүй,
+	so a static table would send half the users to a question they never saw. It was drawn
+	with Буцах and had no entry at all, which answered «this is the first step» — false, and
+	the reason this walk is now tested button by button.
+
+	A list that has already been posted is not offered again: the opening stock is in the
+	ledger and only a reversal takes it back (principle 5), so Буцах goes to the question.
+	"""
+	if step == "acc_name":
+		if payload.get("has_inventory") and not payload.get("inventory_posted"):
+			return "inv_wait"
+		return "inv"
+	return BACK_STEPS.get(step)
 
 
 def _go_to(ctx: Ctx, payload: dict[str, Any], step: str) -> Any:
@@ -540,7 +560,7 @@ def handle_escape(ctx: Ctx, state: str, payload: dict[str, Any], verb: str) -> b
 	"""
 	step = state.split(":", 1)[1] if ":" in state else ""
 	if verb == keyboards.ESCAPE_BACK:
-		target = BACK_STEPS.get(step)
+		target = _back_target(step, payload)
 		if not target:
 			return False
 		_go_to(ctx, payload, target)

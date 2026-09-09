@@ -27,6 +27,17 @@ def _datas(markup: dict[str, Any] | None) -> list[str]:
 	return [b.get("callback_data") for row in rows for b in row]
 
 
+def _escape_datum(markup: dict[str, Any] | None, verb: str) -> str:
+	"""The datum of the escape button the prompt really drew, so a test taps what a user taps."""
+	drawn = [
+		str(d)
+		for d in _datas(markup)
+		if str(d).startswith(f"{keyboards.PREFIX_ESCAPE}:") and str(d).split(":")[2] == verb
+	]
+	assert drawn, f"no «{verb}» button on this prompt: {_datas(markup)}"
+	return drawn[0]
+
+
 def _at_inventory_list(uid: int, company: str, monkeypatch: pytest.MonkeyPatch) -> FakeBotApi:
 	"""Drive onboarding to the step the founder was trapped in: «send me your stock list»."""
 	monkeypatch.setattr(_deps, "apply_onboarding", lambda *args: {"ok": True})
@@ -370,28 +381,116 @@ def test_a_step_that_cannot_be_skipped_says_so_and_stays(company, monkeypatch):
 # --- 7. every waiting prompt carries a way out ----------------------------------------------------
 
 
-def test_every_prompt_in_the_wizard_offers_an_escape(company, monkeypatch):
-	"""Walk the whole of /эхлэх and check that no message with a keyboard is a dead end."""
+def _wizard_steps(uid: int, with_inventory: bool) -> list[dict[str, Any]]:
+	"""The whole of ``/эхлэх``, one update per answer, through both inventory branches."""
+	if with_inventory:
+		tail = [
+			callback_update(uid, "o:inv:yes"),
+			message_update(uid, "Цаас, 2, 1000"),  # -> inv_confirm (the preview card)
+			callback_update(uid, "e:onb:skip:inv_confirm"),  # -> acc_name, the list left for later
+		]
+	else:
+		tail = [callback_update(uid, "o:inv:no")]
+	return [
+		message_update(uid, "/эхлэх"),
+		callback_update(uid, "o:vat:no"),
+		callback_update(uid, "o:400m:yes"),
+		callback_update(uid, "o:banks:Khan_Bank"),
+		callback_update(uid, "o:banks:done"),
+		callback_update(uid, "o:cur:other"),  # -> cur_other, the typed currency code
+		message_update(uid, "CNY"),
+		callback_update(uid, "o:cur:done"),
+		message_update(uid, "5001234567"),  # -> acct
+		*tail,
+		message_update(uid, "Дорж"),  # -> micpa
+		message_update(uid, "12345"),  # -> summary
+	]
+
+
+def _walk_the_wizard(uid: int, company: str, monkeypatch, with_inventory: bool, upto: int) -> FakeBotApi:
 	monkeypatch.setattr(_deps, "apply_onboarding", lambda *args: {"ok": True})
-	link_user(9280, "Accountant", company)
+	monkeypatch.setattr(
+		_deps, "inventory_parse_text", lambda text: [{"item_name": "Цаас", "qty": 2, "rate": 1000}]
+	)
+	monkeypatch.setattr(_deps, "inventory_create_intake", lambda *a, **kw: "NYI-09000")
+	link_user(uid, "Accountant", company)
 	bot = FakeBotApi()
-	for update in (
-		message_update(9280, "/эхлэх"),
-		callback_update(9280, "o:vat:no"),
-		callback_update(9280, "o:400m:yes"),
-		callback_update(9280, "o:banks:Khan_Bank"),
-		callback_update(9280, "o:banks:done"),
-		callback_update(9280, "o:cur:MNT"),
-		callback_update(9280, "o:cur:done"),
-		message_update(9280, "5001234567"),
-		callback_update(9280, "o:inv:no"),
-		message_update(9280, "Дорж"),
-	):
+	for update in _wizard_steps(uid, with_inventory)[: upto + 1]:
 		run(bot, update)
-		if _state(9280) and bot.last_markup():
-			assert any(
-				str(data).startswith(f"{keyboards.PREFIX_ESCAPE}:") for data in _datas(bot.last_markup())
-			), f"no way out of {_state(9280)}"
+	return bot
+
+
+@pytest.mark.parametrize("with_inventory", [True, False])
+def test_every_escape_button_the_wizard_draws_actually_works(company, monkeypatch, with_inventory):
+	"""Tap every verb each prompt offers: a drawn button may never answer «there is no such step».
+
+	Presence was all the old walk checked, which is how a [Буцах] on onb:acc_name shipped green
+	while ``BACK_STEPS`` had no entry for it and the tap answered «this is the first step».
+	"""
+	uid = 9280 if with_inventory else 9285
+	probe = uid + 100
+	steps = _wizard_steps(uid, with_inventory)
+	seen: list[str] = []
+	bot = FakeBotApi()
+	monkeypatch.setattr(_deps, "apply_onboarding", lambda *args: {"ok": True})
+	monkeypatch.setattr(
+		_deps, "inventory_parse_text", lambda text: [{"item_name": "Цаас", "qty": 2, "rate": 1000}]
+	)
+	monkeypatch.setattr(_deps, "inventory_create_intake", lambda *a, **kw: "NYI-09000")
+	link_user(uid, "Accountant", company)
+	for index, update in enumerate(steps):
+		run(bot, update)
+		state = _state(uid)
+		if not state or not bot.last_markup():
+			continue
+		seen.append(state)
+		offered = [d for d in _datas(bot.last_markup()) if str(d).startswith(f"{keyboards.PREFIX_ESCAPE}:")]
+		assert offered, f"no way out of {state}"
+		for datum in offered:
+			verb = str(datum).split(":")[2]
+			if verb == keyboards.ESCAPE_CANCEL:
+				continue  # leaving is always allowed; it is Буцах and Алгасах that can refuse
+			probe += 1
+			replayed = _walk_the_wizard(probe, company, monkeypatch, with_inventory, index)
+			assert _state(probe) == state, f"the replay did not reach {state}"
+			replayed.clear()
+			run(replayed, callback_update(probe, datum))
+			refusals = (mn.MSG_STEP_NO_BACK, mn.MSG_STEP_CANNOT_SKIP, mn.MSG_ESCAPE_STALE)
+			said = replayed.texts() + [
+				kw.get("text") for kw in replayed.sent("answer_callback_query") if kw.get("text")
+			]
+			assert not [text for text in said if text in refusals], (
+				f"{datum} is drawn on {state} but refuses: {said}"
+			)
+	assert "onb:acc_name" in seen and "onb:summary" in seen, seen
+	if with_inventory:
+		assert "onb:inv_wait" in seen and "onb:inv_confirm" in seen, seen
+
+
+def test_back_from_the_accountant_name_returns_to_the_inventory_branch(company, monkeypatch):
+	"""MAJOR: the step behind the name is the stock list when there is one, the question when not."""
+	bot = _at_inventory_list(9287, company, monkeypatch)
+	run(bot, callback_update(9287, _escape_datum(bot.last_markup(), keyboards.ESCAPE_SKIP)))
+	assert _state(9287) == "onb:acc_name"
+	back = _escape_datum(bot.last_markup(), keyboards.ESCAPE_BACK)
+
+	run(bot, callback_update(9287, back))
+	assert _state(9287) == "onb:inv_wait"
+	assert bot.last_text == mn.ONB_INVENTORY_HOW
+
+	# …and with no stock at all, back is the Тийм/Үгүй question it really came from.
+	monkeypatch.setattr(_deps, "apply_onboarding", lambda *args: {"ok": True})
+	link_user(9288, "Accountant", company)
+	other = FakeBotApi()
+	run(other, message_update(9288, "/эхлэх"))
+	run(other, callback_update(9288, "o:vat:no"))
+	run(other, callback_update(9288, "o:400m:yes"))
+	run(other, callback_update(9288, "o:banks:done"))
+	run(other, callback_update(9288, "o:inv:no"))
+	assert _state(9288) == "onb:acc_name"
+	run(other, callback_update(9288, _escape_datum(other.last_markup(), keyboards.ESCAPE_BACK)))
+	assert _state(9288) == "onb:inv"
+	assert other.last_text == mn.ONB_ASK_INVENTORY
 
 
 def test_leaving_the_account_search_gives_the_card_its_own_buttons_back(company, monkeypatch):
