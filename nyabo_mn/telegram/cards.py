@@ -411,6 +411,23 @@ def recon_status(company: str, rows: list[dict[str, Any]]) -> str:
 	return "\n".join(lines)
 
 
+# --- questions (§5.7) ------------------------------------------------------------------------------
+
+
+def question_card(answer: str, subject: str = "") -> str:
+	"""The answer, then the one line naming what was actually read.
+
+	The subject line is the safety valve on conversation memory: «мөн өнгөрсөн сард?» resolves
+	against a remembered account and month, and the only way an accountant can catch the bot
+	having carried the wrong one forward is to see «6210 · 2026 оны 7-р сар» under the
+	sentence. It is built by code from the handler's resolved arguments, never by the model.
+	"""
+	text = (answer or "").strip() or mn.MSG_QUESTION_CANNOT
+	if not subject:
+		return text
+	return f"{text}\n{mn.MSG_QUESTION_SUBJECT.format(subject=_clip(subject, CARD_MAX_LINE_CHARS))}"
+
+
 # --- quality (/чанар) ------------------------------------------------------------------------------
 
 

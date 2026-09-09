@@ -98,6 +98,7 @@ def _callback_handlers() -> dict[str, Callable[[Ctx, list[str]], Any]]:
 		correct,
 		escape,
 		onboarding,
+		question,
 		statement,
 	)
 
@@ -110,6 +111,7 @@ def _callback_handlers() -> dict[str, Callable[[Ctx, list[str]], Any]]:
 		keyboards.PREFIX_INTAKE: onboarding.handle_intake_callback,
 		keyboards.PREFIX_LAYOUT: statement.handle_layout_callback,
 		keyboards.PREFIX_ESCAPE: escape.handle_callback,
+		keyboards.PREFIX_QUESTION: question.handle_callback,
 		"k": company.handle_callback,
 	}
 

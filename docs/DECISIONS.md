@@ -7,7 +7,7 @@ section. Agents append to their own section; the integrator merges.
 Identifiers are `<SECTION>-<nn>`, numbered inside the section they belong to — `CORE`
 (core + rules + seed), `INT` (integration), `RULES` (rules on the Frappe side + setup),
 `PIPE` (agent pipeline + posting + ebarimt), `COMP` (compliance + reports), `BANK`
-(parsers + matching), `REV` (review), `TG` (telegram review), `LLM` (model routing) — so an identifier names
+(parsers + matching), `REV` (review), `TG` (telegram review), `LLM` (model routing), `Q` (the question agent) — so an identifier names
 exactly one decision and a new entry never renumbers an old one. Cite them that way in
 code and in docs (REV-02).
 
@@ -780,3 +780,71 @@ the model that actually answered and the intent in `config_check` can be checked
 it. `get_client(..., purpose="question")` still returns a single pinned adapter for a caller
 that makes only one kind of call. Reverse by giving the adapters a per-call model argument
 instead, which is a change in all three adapters.
+
+## interactive questions (§5.7 widened)
+
+### Q-01 Conversation memory keeps the subject, never the figures
+`Nyabo Chat State.payload_json["question_memory"]` carries one turn: the previous question
+(capped at 160 characters) and the subject the *handler* resolved — account code, period,
+supplier, date, document. It expires after twenty minutes, it is stamped with the company
+and dropped on a mismatch, and `set_state` / `clear_state` take it with them, so leaving a
+question for a receipt ends the exchange it belonged to. §5.7 said nothing about context;
+this is the smallest thing that makes «мөн өнгөрсөн сард?» work.
+
+Figures are deliberately not remembered and never enter the prompt. A number in the context
+is a number the model can repeat as if it were this turn's answer, and a receipt approved
+between two questions changes it — a bookkeeping bot that silently answers last month's
+figure is worse than one that asks again. The follow-up therefore always calls a handler.
+The other half of that trade is visibility: the answer card prints the subject it read
+(`📒 6210 · 2026 оны 8-р сар`), which is how an accountant catches a context carried forward
+wrongly instead of trusting it.
+
+### Q-02 A number the model wrote and no handler returned never reaches the user
+`questions.unverified_numbers` compares every number in the model's sentence against the
+tool results, the question and the timestamp (thousands separators normalised, a rounded
+tögrög figure and a month written out of an ISO period accepted). One that matches nothing
+replaces the whole sentence with the last handler's own Mongolian text — or, when there is
+none, with `MSG_QUESTION_CANNOT` — and writes a `question_number_unverified` Nyabo Event.
+"The model writes sentences, deterministic code writes numbers" was a rule the prompt asked
+for politely; this is the same rule enforced. The shared question fixture is what proved it:
+its sentence says "3 unmatched lines" against a ledger with none, and the user now reads the
+handler's "0".
+
+### Q-03 A follow-up button carries its whole query, and runs without a model
+Callback data is `q:<verb>[:<arg>…]` where the verb is a three-letter query kind and the
+arguments are the ones that kind reads, in `questions.QUERY_ARGS` order. The tap runs
+`pipeline.books_answer` — the model's own dispatcher and pydantic validation, no LLM call —
+so a button's answer is always a figure the books produced, and it arrives in one round trip
+instead of two. Nothing is looked up in the chat state, so a tap still works on a card
+opened tomorrow, after a deploy, with the memory long expired; `bank_candidates` may use an
+index precisely because its taps follow immediately, and this one may not.
+
+The company is *not* in the datum: callback data is attacker-chosen (TG-03), so the handler
+answers about the caller's own active company and re-checks it against their `Nyabo User
+Company` rows first. A datum that cannot be encoded (a supplier name past 64 bytes, or one
+carrying the separator) drops that button and logs, exactly as `keyboards.settle_row` does —
+losing a button is a nuisance, losing the answer is not.
+
+### Q-04 Ten read-only query kinds, and `explain_entry` reads the proposal
+§5.7 named four. Added: `account_entries` (the entries behind a spend figure — the
+«Юунаас бүрдэв?» button), `supplier_total`, `vat_position`, `top_spend_accounts`,
+`unmatched_lines` and `explain_entry`. All are reads and all are filtered by company, so a
+document name typed into a question or arriving in callback data comes back "not found"
+rather than "not permitted" when it belongs to another client (SEC-06: existence is
+information too).
+
+`supplier_total` reports purchases and payments as two figures instead of netting them:
+the net answers «how much do we still owe them», which is a different question from «how
+much did we buy from them», and the accountant asking the second must not be handed the
+first under the same words. `explain_entry` reads the `Nyabo Proposal` (§1.4 — the record
+of the decision) and answers a document Nyabo did not propose with its own figures plus a
+plain "there is no Nyabo explanation", because writing one after the fact is what principle
+4 forbids.
+
+### Q-05 The question prompt is v2, and the widening is why
+`question.v2.md` describes the ten kinds, adds the `{{MEMORY}}` slot, and says three things
+the model would otherwise get wrong: the previous turn is for resolving what a follow-up
+refers to and carries no figures; a figure it did not receive from a tool is removed before
+the user sees it; and it must not list next steps in prose, because the buttons under the
+answer already are that list. `tests/unit/test_agent_prompts.py` now pins a version per
+prompt instead of asserting 1 for all of them, so a bump has to be deliberate.
