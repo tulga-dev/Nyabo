@@ -320,6 +320,35 @@ def test_a_tapped_cancel_retires_the_prompt_in_place(company, monkeypatch):
 	assert bot.sent("answer_callback_query"), "the spinner must be stopped"
 
 
+def test_a_refused_back_leaves_the_step_a_keyboard_it_can_still_answer(company, monkeypatch):
+	"""MAJOR: the prompt was retired before the flow was asked, so a refusal left it disabled.
+
+	``handle_callback`` re-sent every button ``disabled`` and only then asked the flow what the
+	verb meant. A flow that answers False moves nothing — the question is still the one on
+	screen — so the accountant was left on a live step whose only keyboard was inert: the exact
+	dead end this branch exists to remove. The card here is the shape a chat still holds from
+	before the step rode along in the datum.
+	"""
+	monkeypatch.setattr(_deps, "apply_onboarding", lambda *args: {"ok": True})
+	link_user(9236, "Accountant", company)
+	bot = FakeBotApi()
+	run(bot, message_update(9236, "/эхлэх"))
+	prompt = bot.last_markup()
+	assert "o:vat:yes" in _datas(prompt), "the VAT question is what is on screen"
+	bot.clear()
+
+	run(bot, callback_update(9236, "e:onb:back", message_id=555, reply_markup=prompt))
+
+	assert _state(9236) == "onb:vat", "the first question has nothing behind it"
+	assert mn.MSG_STEP_NO_BACK in bot.texts()
+	live = [kw for kw in bot.sent("edit_message_reply_markup") if kw["message_id"] == 555][-1]
+	assert _datas(live["reply_markup"]) == _datas(prompt), "the question keeps the buttons that answer it"
+	assert not [b for row in live["reply_markup"]["inline_keyboard"] for b in row if "disabled" in b]
+	# …and the answer still lands on it.
+	run(bot, callback_update(9236, "o:vat:no"))
+	assert _state(9236) == "onb:400m"
+
+
 def test_a_cancel_on_an_inaccessible_message_is_sent_not_edited(company, monkeypatch):
 	"""``InaccessibleMessage.date`` is "Always 0" — there is nothing there to edit, so we send."""
 	bot = _at_inventory_list(9234, company, monkeypatch)

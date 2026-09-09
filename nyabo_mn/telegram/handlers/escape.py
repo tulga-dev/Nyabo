@@ -237,6 +237,38 @@ def _retire_prompt(ctx: Ctx, text: str | None = None) -> bool:
 	return False
 
 
+def _revive_prompt(ctx: Ctx) -> None:
+	"""Put the tapped prompt's own keyboard back, live, after a verb the flow could not honour.
+
+	A prompt is retired the moment it is tapped, before the flow is asked what the verb means,
+	so that one card cannot be tapped twice while the step moves. But a refused Буцах or
+	Алгасах moves nothing: the state stands and the question on screen is still the one to
+	answer, and a disabled keyboard above the refusal is the dead end this module exists to
+	remove. ``CallbackQuery.message`` carries the original ``reply_markup``, so the live buttons
+	are put back from what Telegram itself sent — nothing is reconstructed.
+	"""
+	if not ctx.is_callback or ctx.callback_message_id is None or not _message_is_accessible(ctx):
+		return
+	markup = ((ctx.callback or {}).get("message") or {}).get("reply_markup")
+	if not markup:
+		return
+	try:
+		ctx.bot.edit_message_reply_markup(ctx.chat_id, ctx.callback_message_id, markup)
+	except Exception as exc:  # the refusal was still said; the typed word is the way through
+		log_event("telegram.escape.revive_failed", level="warning", error=type(exc).__name__)
+
+
+def refuse(ctx: Ctx, text: str) -> None:
+	"""Say why the verb was not honoured and leave the step something to answer with.
+
+	A flow that returns False gets this from ``_apply``; a flow that has its own reason to
+	refuse — the column mapping, where Буцах and Алгасах both write a layout only an accountant
+	may write — calls it directly, so the sentence differs but the card does not go dead.
+	"""
+	_revive_prompt(ctx)
+	ctx.reply(text)
+
+
 # --- what an escape does -----------------------------------------------------------------------
 
 
@@ -260,9 +292,10 @@ def _apply(ctx: Ctx, state: str | None, payload: dict[str, Any], verb: str, tapp
 		if tapped:
 			announced = _retire_prompt(ctx, None if announced else mn.MSG_FLOW_CANCELLED) or announced
 		return _cancel(ctx, announced=announced)
-	# A flow that cannot go back or skip here must not be left silent: say why and let the
-	# state stand, so the prompt on screen is still the answer to give.
-	ctx.reply(mn.MSG_STEP_NO_BACK if verb == BACK else mn.MSG_STEP_CANNOT_SKIP)
+	# A flow that cannot go back or skip here must not be left silent: say why, put the tapped
+	# prompt's keyboard back, and let the state stand — the question on screen is still the one
+	# to answer, and now there is something to answer it with.
+	refuse(ctx, mn.MSG_STEP_NO_BACK if verb == BACK else mn.MSG_STEP_CANNOT_SKIP)
 	return {"escape": verb, "refused": True, "state": state}
 
 
@@ -303,6 +336,7 @@ __all__ = [
 	"handle_callback",
 	"handle_typed",
 	"intent",
+	"refuse",
 	"state_scope",
 	"state_step",
 ]
