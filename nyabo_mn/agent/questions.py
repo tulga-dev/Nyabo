@@ -21,8 +21,8 @@ bench:
    never names a button.
 3. **Number verification** (``unverified_numbers``). Every number in the model's sentence
    must appear in what a handler *computed* (``COMPUTED_NUMBERS_FIELD`` — the figures it read
-   off or worked out from the ledger, listed by the handler itself), or in the timestamp.
-   Nothing else, and in particular:
+   off or worked out from the ledger, listed by the handler itself), or in the calendar date
+   the clock is on. Nothing else, and in particular:
 
    * **not the text a handler rendered.** Rendered text is not a computation. ``answer_faq``
      returns product prose that quotes figures («85 000₮-ийн шатахууны и-баримт»), and a model
@@ -37,6 +37,9 @@ bench:
      question let the model answer «Тийм, … 1 250 000₮» over a ledger holding 85 000₮ — a
      confirmation of what nothing had confirmed, in the shape of question where that does the
      most damage. A figure a user typed is a figure the books have not confirmed.
+   * **not the time of day.** The clock contributes the calendar date and nothing else. The
+     whole timestamp put every hour, minute and second into the set, so each of 0…59 verified
+     as a tögrög figure. An answer about the books is about dates, never times.
 
    A number that does not appear means the model wrote a figure of its own; the sentence is
    dropped and the handler's own Mongolian text is sent instead. This is the mechanical form of
@@ -468,21 +471,22 @@ def _clock_years(now: datetime) -> list[str]:
 
 
 def _known_numbers(calls: Sequence[ToolCall], now: datetime) -> set[str]:
-	"""Every figure the model may state: what the handlers computed, plus the clock.
+	"""Every figure the model may state: what the handlers computed, plus today's calendar date.
 
-	The user's question is deliberately not among them — a figure a user typed is a figure
-	the books have not confirmed, and the whole point of the check is that only the books
-	confirm figures.
+	Two sources, and the shortness of that list is the guarantee. The user's question is not
+	one of them — a figure a user typed is a figure the books have not confirmed — and the
+	clock contributes ``now.date()``, never ``now``: an answer about the books names days,
+	so «14», «23» and «59» off a wall clock are not tögrög.
 	"""
 	known: set[str] = set()
-	for source in [now.isoformat(), *_clock_years(now), *_computed_numbers(calls)]:
+	for source in [now.date().isoformat(), *_clock_years(now), *_computed_numbers(calls)]:
 		for forms in numbers_in(source):
 			known |= forms
 	return known
 
 
 def unverified_numbers(answer_text: str, calls: Sequence[ToolCall], now: datetime) -> tuple[str, ...]:
-	"""Numbers in the model's sentence that no handler computed and the clock did not supply.
+	"""Numbers in the model's sentence that no handler computed and the calendar did not supply.
 
 	The question is deliberately not an argument here, so it cannot become a source again by
 	accident. It was one, and it was the hole: a confirm-question («…биз дээ?», «…мөн үү?») is

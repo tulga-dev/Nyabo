@@ -800,12 +800,12 @@ The other half of that trade is visibility: the answer card prints the subject i
 wrongly instead of trusting it.
 
 ### Q-02 A number the model wrote and no handler returned never reaches the user
-`questions.unverified_numbers` compares every number in the model's sentence against the
-figures the handlers *computed*, the question and the clock (thousands separators
-normalised, a rounded tögrög figure and a month written out of an ISO period accepted). One
-that matches nothing replaces the whole sentence with the last handler's own Mongolian text
-— or, when there is none, with `MSG_QUESTION_CANNOT` — and writes a
-`question_number_unverified` Nyabo Event.
+`questions.unverified_numbers` compares every number in the model's sentence against two
+sources and no others: the figures the handlers *computed*, and the calendar date the clock
+is on (thousands separators normalised, a rounded tögrög figure and a month written out of
+an ISO period accepted). One that matches nothing replaces the whole sentence with the last
+handler's own Mongolian text — or, when there is none, with `MSG_QUESTION_CANNOT` — and
+writes a `question_number_unverified` Nyabo Event.
 
 What counts as computed is the narrow part, and it took three passes to get right. Each
 books handler returns `computed_numbers` (`questions.COMPUTED_NUMBERS_FIELD`): the amounts
@@ -818,6 +818,17 @@ so a figure the model invented came home through the sentence saying the books n
 it. A rendered string is not a computation, whoever wrote it. The year of a period is not
 vouched for either: the read runs for whatever month it is given, so the year comes from the
 clock (`_clock_years`) and a model cannot ask about «9999 оны 12-р сар» to license «9 999₮».
+
+Two sources this brief once named were removed for the same reason. **The user's question**:
+«Петровисээс 9 сард 1 250 000₮-ийн шатахуун авсан биз дээ?» is the ordinary way a Mongolian
+bookkeeper checks a figure out loud, so admitting the question let the model answer «Тийм, …
+1 250 000₮» over a ledger holding 85 000₮ — a confirmation of what nothing had confirmed, in
+the commonest shape of question and the one where that does the most damage. A figure a user
+typed is a figure the books have not confirmed. **The time of day**: the clock contributes
+`now.date()`, never `now`, because the full timestamp put every hour, minute and second into
+the set and so verified each of 0…59 as a tögrög figure. An answer about the books is about
+dates, never times.
+
 The stricter set is walked against all ten query kinds in the flow tests, because the way
 this fails is not a leak but correct sentences quietly being replaced for ever.
 "The model writes sentences, deterministic code writes numbers" was a rule the prompt asked

@@ -786,3 +786,46 @@ def test_a_figure_the_user_typed_cannot_verify_itself(tmp_path):
 	assert outcome.unverified_numbers == ("1250000",)
 	assert "1 250 000" not in outcome.answer.answer_mn
 	assert "85 000" in outcome.answer.answer_mn
+
+
+def test_the_clock_licenses_a_calendar_date_and_never_a_time_of_day(tmp_path):
+	"""BLOCKER: the whole timestamp went into the allowed set, so every 0…59 was a tögrög figure.
+
+	An hour, a minute and a second are three more integers under 60, and an answer about the
+	books is about dates, never times: «59₮» must not verify because the clock happens to read
+	14:37:59. What the calendar legitimately supplies — the year, the month, the day — still does.
+	"""
+	at = datetime(2026, 9, 8, 14, 37, 59, tzinfo=timezone.utc)
+	trace = (_books_call("unmatched_count", {**_computed("0"), "count": 0}),)
+	assert questions.unverified_numbers("Тулгагдаагүй 59 гүйлгээ байна.", trace, at) == ("59",)
+	assert questions.unverified_numbers("Нийт 14 000₮, үүнээс 37₮.", trace, at) == ("14000", "37")
+	# the date itself is still a source: an answer has to be able to name the day it ran on
+	assert questions.unverified_numbers("2026 оны 9-р сарын 8-нд 0 гүйлгээ.", trace, at) == ()
+
+	# the whole loop, at the second of the minute that used to license it
+	client = MockLlmClient(fixtures_dir=tmp_path)
+	client.add(
+		"question",
+		{
+			"text": "Тулгагдаагүй 59 гүйлгээ байна.",
+			"tool_calls": [
+				{
+					"name": "answer_from_books",
+					"arguments": {
+						"query_kind": "unmatched_count",
+						"args": dict.fromkeys(questions.SUBJECT_KEYS),
+					},
+				}
+			],
+		},
+	)
+	handlers = {
+		"answer_from_books": lambda args: {
+			**_computed("0"),
+			"count": 0,
+			"text": mn.UNMATCHED_ANSWER.format(count=0),
+		}
+	}
+	outcome = questions.answer(client, "Тулгаагүй гүйлгээ хэд вэ?", handlers, now=at)
+	assert outcome.unverified_numbers == ("59",)
+	assert outcome.answer.answer_mn == mn.UNMATCHED_ANSWER.format(count=0)

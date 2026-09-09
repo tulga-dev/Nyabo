@@ -360,10 +360,13 @@ import, so the simulator can drive them):
 - **Number verification.** `questions.unverified_numbers`: every number in the model's
   sentence must appear among the figures a handler *computed* (the `computed_numbers` a
   read lists: its amounts and counts, the posting dates, voucher names, account and
-  supplier the ledger resolved, and the month or day it ran on), in the question, or in
-  the clock. Never in the text a handler rendered — the FAQ is prose and quotes worked
-  examples, and a not-found sentence quotes the model's own argument back — and never in
-  a free-text argument. Otherwise the sentence is replaced by the handler's own Mongolian
+  supplier the ledger resolved, and the month or day it ran on) or in the clock's calendar
+  date (`now.date()` plus the years either side). Two sources, and nothing else. Never the
+  text a handler rendered — the FAQ is prose and quotes worked examples, and a not-found
+  sentence quotes the model's own argument back — never a free-text argument, never the
+  user's own question (a confirm-question «…биз дээ?» carries the very figure that wants
+  checking), and never the time of day (the hours, minutes and seconds put every integer
+  0…59 into the set). Otherwise the sentence is replaced by the handler's own Mongolian
   text and a `question_number_unverified` Nyabo Event is written.
 
 ## 6. LLM contract
