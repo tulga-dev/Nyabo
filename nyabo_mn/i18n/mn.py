@@ -901,8 +901,11 @@ MSG_ACCOUNT_ENTRIES_ANSWER = "{period}: {account} дансны бичилтүү�
 ACCOUNT_ENTRIES_NONE = "{period}: {account} дансанд бичилт алга."
 MSG_SUPPLIER_TOTAL_ANSWER = "{period}: {supplier} — худалдан авалт {purchases}₮, төлсөн {payments}₮"
 # Appended when a debit note nets out of the purchases: «худалдан авалт 0₮» after an invoice
-# was corrected reads like a lost document unless the correction is named beside it.
-SUPPLIER_TOTAL_RETURNS = "\nҮүнээс буцаалт/залруулга: {returns}₮"
+# was corrected reads like a lost document unless the correction is named beside it. The gross
+# is named because the line above already reports the purchases NET of the returns, so
+# «Үүнээс … 85 000₮» under «худалдан авалт 0₮» said "of that zero, 85 000" — the arithmetic has
+# to close on the card an accountant reads first after every correction.
+SUPPLIER_TOTAL_RETURNS = "\nХудалдан авалт {gross}₮-өөс {returns}₮ буцаалт/залруулга хасагдсан."
 SUPPLIER_TOTAL_NONE = "{period}: {supplier} харилцагчтай холбоотой гүйлгээ алга."
 MSG_VAT_POSITION_ANSWER = (
 	"{period}: борлуулалтын НӨАТ {output}₮, худалдан авалтын НӨАТ {input}₮, төлөх НӨАТ {net}₮"

@@ -1237,7 +1237,11 @@ def books_handlers(
 			is_reversal = row.voucher_type == "Purchase Invoice" and row.voucher_no in returned
 			(reversals if is_reversal else straight).append(row)
 		returns = _net_debit(reversals)
-		purchases = quantize(sum((Decimal(str(r.credit or 0)) for r in straight), ZERO) - returns)
+		# The gross is what was invoiced before the debit notes came off it; the reported
+		# purchases are net of them. Both are kept, because the sentence that names the
+		# correction has to close arithmetically against the figure printed above it.
+		gross = quantize(sum((Decimal(str(r.credit or 0)) for r in straight), ZERO))
+		purchases = quantize(gross - returns)
 		payments = quantize(sum((Decimal(str(r.debit or 0)) for r in straight), ZERO))
 		label = dates.period_label(period)
 		if rows:
@@ -1249,14 +1253,16 @@ def books_handlers(
 			)
 			if returns:
 				# Say it out loud: 0₮ bought from a supplier whose invoice was reversed reads
-				# like a lost document unless the correction is named beside it.
-				text += mn.SUPPLIER_TOTAL_RETURNS.format(returns=fmt_mnt(returns))
+				# like a lost document unless the correction is named beside it — and it is
+				# named against the gross, because «худалдан авалт 0₮» above is already net.
+				text += mn.SUPPLIER_TOTAL_RETURNS.format(gross=fmt_mnt(gross), returns=fmt_mnt(returns))
 		else:
 			text = mn.SUPPLIER_TOTAL_NONE.format(period=label, supplier=supplier)
 		return {
 			"supplier": supplier,
 			"found": True,
 			"period": period,
+			"gross": fmt_mnt(gross),
 			"purchases": fmt_mnt(purchases),
 			"payments": fmt_mnt(payments),
 			"returns": fmt_mnt(returns),

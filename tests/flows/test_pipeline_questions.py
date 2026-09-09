@@ -152,7 +152,6 @@ def test_a_corrected_invoice_is_not_reported_to_the_accountant_as_a_payment(run_
 	assert total["payments"] == "0", "a debit note is not money that left the company"
 	assert total["purchases"] == "0", "the reversal nets out of what was bought"
 	assert total["returns"] == fmt_mnt(85000)
-	assert mn.SUPPLIER_TOTAL_RETURNS.format(returns=fmt_mnt(85000)) in total["text"]
 	assert fmt_mnt(85000) not in mn.MSG_SUPPLIER_TOTAL_ANSWER.format(
 		period=mn.PERIOD_LABEL.format(year=2026, month=mn.MONTHS[8]),
 		supplier="Петровис ХХК",
@@ -611,6 +610,38 @@ def test_a_list_that_fits_on_the_card_says_nothing_about_a_cut(books):
 	assert lines["count"] == len(lines["lines"]) == pipeline.BOOKS_LIST_LIMIT - 2
 	assert mn.ANSWER_TRUNCATED.format(total=lines["count"], shown=lines["count"]) not in lines["text"]
 	assert "…" not in lines["text"]
+
+
+def test_the_correction_line_closes_against_the_gross(run_receipt, books):
+	"""MAJOR: «худалдан авалт 0₮ … Үүнээс буцаалт 85 000₮» is "of that zero, 85 000".
+
+	The line above reports purchases NET of the returns, so the correction has to be named
+	against the gross for the arithmetic to close. This is the first card an accountant sees
+	after any correction.
+	"""
+	proposal = run_receipt("petrovis_fuel")
+	posted = post.post_proposal(proposal.name, ACCOUNTANT)
+	reversal.reverse("Purchase Invoice", posted["posted_name"], "dup", "давхар илгээсэн", "Administrator")
+	run = pipeline.books_handlers(books, today=NOW.date())["answer_from_books"]
+
+	total = run({"query_kind": "supplier_total", "args": {"supplier": "Петровис", "period": "2026-09"}})
+	assert total["gross"] == fmt_mnt(85000), "what was invoiced before the debit note came off it"
+	assert total["purchases"] == "0" and total["returns"] == fmt_mnt(85000)
+	assert total["text"].endswith(
+		mn.SUPPLIER_TOTAL_RETURNS.format(gross=total["gross"], returns=total["returns"])
+	)
+	# the sentence is arithmetic the reader can follow: gross - returns is the figure above it
+	assert (
+		questions.unverified_numbers(
+			total["text"],
+			_trace("supplier_total", {"supplier": "Петровис", "period": "2026-09"}, total),
+			"",
+			NOW,
+		)
+		== ()
+	)
+
+
 def test_a_month_figure_is_given_a_noun(run_receipt, books):
 	"""MINOR: «2026 оны 9-р сар: 6210 - Шатахуун - TST 77 272.73₮» never says what the figure is.
 
