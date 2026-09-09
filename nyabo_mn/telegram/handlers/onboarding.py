@@ -257,6 +257,11 @@ def _ask_inventory(ctx: Ctx, payload: dict[str, Any]) -> Any:
 
 
 def _on_inventory(ctx: Ctx, payload: dict[str, Any], value: str) -> Any:
+	# Both answers clear the note that the list was skipped, because both re-answer the question
+	# the note hangs off. Only ``_on_inventory_input`` used to pop it, so a walk that came back
+	# here through Буцах and answered Үгүй left it standing and the summary reported a list left
+	# for later on books that hold no stock at all.
+	payload.pop("inventory_skipped", None)
 	payload["has_inventory"] = value == "yes"
 	ctx.edit(
 		ctx.callback_message_id,
@@ -673,6 +678,7 @@ def _skip_step(ctx: Ctx, payload: dict[str, Any], step: str) -> bool:
 		_store_account_number(ctx, payload, None)
 		return True
 	if step == "inv":
+		payload.pop("inventory_skipped", None)
 		payload["has_inventory"] = False
 		ctx.reply(mn.ONB_INVENTORY_SKIPPED)
 		_ask_accountant(ctx, payload)

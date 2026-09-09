@@ -8,6 +8,7 @@ founder read as the bot asking an administrator to approve their transaction.
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 from typing import Any
@@ -24,6 +25,12 @@ TELEGRAM = Path(__file__).resolve().parents[2] / "nyabo_mn" / "telegram"
 
 def _state(chat_id: int) -> str | None:
 	return frappe.db.get_value("Nyabo Chat State", {"chat_id": str(chat_id)}, "state")
+
+
+def _payload(chat_id: int) -> dict[str, Any]:
+	"""What the wizard is carrying between turns, so a test can see an answer nobody gave."""
+	raw = frappe.db.get_value("Nyabo Chat State", {"chat_id": str(chat_id)}, "payload_json")
+	return json.loads(raw) if raw else {}
 
 
 def _datas(markup: dict[str, Any] | None) -> list[str]:
@@ -88,6 +95,31 @@ def _walk_to_the_summary(bot: FakeBotApi, uid: int) -> None:
 	run(bot, message_update(uid, "Дорж"))
 	run(bot, message_update(uid, "алгасах"))
 	assert _state(uid) == "onb:summary"
+
+
+def test_re_answering_the_stock_question_forgets_the_list_that_was_skipped(company, monkeypatch):
+	"""MAJOR: the summary reported a list left for later on a company that holds no stock at all.
+
+	``inventory_skipped`` was set by Алгасах and popped only by a list that arrived afterwards,
+	so a walk that goes back to the Тийм/Үгүй question and answers Үгүй left the flag standing
+	and the card said «байгаа, жагсаалт оруулаагүй» about books with no inventory in them.
+	"""
+	bot = _at_inventory_list(9209, company, monkeypatch)
+
+	run(bot, callback_update(9209, "e:onb:skip:inv_wait"))
+	assert _state(9209) == "onb:acc_name"
+	run(bot, callback_update(9209, "e:onb:back:acc_name"))
+	assert _state(9209) == "onb:inv_wait"
+	run(bot, callback_update(9209, "e:onb:back:inv_wait"))
+	assert _state(9209) == "onb:inv"
+
+	run(bot, callback_update(9209, "o:inv:no"))
+	assert _state(9209) == "onb:acc_name"
+	assert _payload(9209).get("inventory_skipped") is None, "the question was answered afresh"
+	_walk_to_the_summary(bot, 9209)
+
+	assert mn.ONB_SUMMARY_INVENTORY_NONE in bot.last_text
+	assert mn.ONB_SUMMARY_INVENTORY_SKIPPED not in bot.last_text
 
 
 def test_skipping_the_stock_list_is_what_the_summary_says(company, monkeypatch):
