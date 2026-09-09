@@ -1069,3 +1069,38 @@ def test_a_supplier_with_nothing_posted_does_not_read_like_a_name_that_is_not_th
 	assert missing["text"] == mn.SUPPLIER_NOT_FOUND_ANSWER.format(supplier="Хэн ч биш")
 	assert "олдсонгүй" in missing["text"], "the name is not in the register"
 	assert "олдсонгүй" not in empty["text"], "this supplier was found; it just has nothing posted"
+
+
+def test_the_account_name_the_ranking_prints_is_vouched_for(books):
+	"""MINOR: the rows render account NAMES and the read vouched only for account CODES.
+
+	A Mongolian account name carries digits of its own — «А92 шатахуун» — so a model repeating
+	the line the handler itself printed lost its sentence and logged an «invented» alarm about
+	a number the handler wrote.
+	"""
+	parent = frappe.db.get_value("Account", {"company": books, "root_type": "Expense", "is_group": 1}, "name")
+	account = frappe.get_doc(
+		{
+			"doctype": "Account",
+			"company": books,
+			"account_name": "А92 шатахуун",
+			"account_number": "6230",
+			"parent_account": parent,
+			"root_type": "Expense",
+			"is_group": 0,
+		}
+	)
+	account.flags.ignore_permissions = True
+	account.insert()
+	_spend_on(books, (account.name,))
+	run = pipeline.books_handlers(books, today=NOW.date())["answer_from_books"]
+	top = run({"query_kind": "top_spend_accounts", "args": {"period": "2026-09"}})
+	first = top["accounts"][0]
+	assert first["shown"] == "6230 - А92 шатахуун"
+	assert mn.TOP_ACCOUNT_LINE.format(account=first["shown"], amount=first["amount"]) in top["text"]
+
+	sentence = f"2026 оны 9-р сард {first['shown']} данс {first['amount']}₮-өөр тэргүүлж байна."
+	assert (
+		questions.unverified_numbers(sentence, _trace("top_spend_accounts", {"period": "2026-09"}, top), NOW)
+		== ()
+	)

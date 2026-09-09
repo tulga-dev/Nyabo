@@ -1454,14 +1454,18 @@ def books_handlers(
 			"accounts": accounts_out,
 			"count": total,
 			"text": text,
-			# The codes come from the chart, not from the model, so an answer naming «6210» is
-			# naming an account this read actually ranked.
+			# The codes and the names both come from the chart, not from the model, so an answer
+			# naming «6210» or «6210 - Шатахуун» is naming an account this read actually ranked.
+			# The name is vouched for because the name is what the rows above print: a model
+			# repeating the handler's own line must not lose its sentence over it.
 			**_figures(
 				total,
 				len(accounts_out),
 				_calendar(period),
 				[a["amount"] for a in accounts_out],
 				[a["code"] for a in accounts_out],
+				[a["account"] for a in accounts_out],
+				[a["shown"] for a in accounts_out],
 			),
 		}
 
