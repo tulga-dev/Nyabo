@@ -367,6 +367,68 @@ def test_verifying_writes_the_row_the_event_and_stops_the_guard_refusing(rules_s
 	assert mn.MSG_RULE_VERIFIED_RETRY in bot.texts()
 
 
+def test_the_accountant_who_was_blocked_is_told_the_rule_was_cleared(
+	rules_site: str, monkeypatch: pytest.MonkeyPatch
+):
+	"""The last leg of the walk: the refusal promised this moment, and nobody was told it came.
+
+	The accountant is told «press [Батлах] again once an admin has verified it» — their proposal
+	stays `proposed` and keeps its own button, so the retry really is one tap. But the tap
+	happens in the admin's chat, and the person waiting had no way to learn the rule had been
+	cleared: they either re-send the receipt or the card is never answered at all.
+	"""
+	_refuse_posting(monkeypatch)
+	proposal = make_proposal(rules_site, posting_pattern=BLOCKING)
+	bot = FakeBotApi()
+	run(bot, callback_update(ACCOUNTANT_ID, f"p:{proposal.name}:ap"))
+	assert mn.MSG_UNVERIFIED_RULE_ADMIN_ASKED in bot.texts()
+
+	admin_bot = FakeBotApi()
+	outcome = run(
+		admin_bot,
+		callback_update(
+			ADMIN_ID, keyboards.rule_data(keyboards.VERIFY_CONFIRM, verify.KIND_PATTERN, BLOCKING)
+		),
+	)
+
+	assert outcome["result"]["requesters_told"] == 1
+	told = [
+		call["chat_id"]
+		for call in admin_bot.sent("send_message")
+		if call["text"] == mn.MSG_RULE_VERIFIED_FOR_REQUESTER.format(rule=BLOCKING)
+	]
+	assert told == [str(ACCOUNTANT_ID)], "the person who was stopped, and only them"
+
+
+def test_the_person_who_taps_is_not_sent_the_news_as_if_they_were_somebody_else(
+	rules_site: str, monkeypatch: pytest.MonkeyPatch
+):
+	"""Blocked first, made a site admin afterwards — which is how the founder unblocks a colleague.
+
+	Their own request is on record, so the notice would go to the chat that just tapped: the same
+	sentence twice, the second one addressed to them as if they were still waiting on somebody.
+	"""
+	link_user(COMPANY_ADMIN_ID, "Admin", rules_site)
+	_refuse_posting(monkeypatch)
+	proposal = make_proposal(rules_site, posting_pattern=BLOCKING)
+	bot = FakeBotApi()
+	run(bot, callback_update(COMPANY_ADMIN_ID, f"p:{proposal.name}:ap"))
+	assert verify.requesters(BLOCKING) == [str(COMPANY_ADMIN_ID)]
+
+	monkeypatch.setitem(frappe.conf, "admin_telegram_ids", str(COMPANY_ADMIN_ID))
+	promoted = FakeBotApi()
+	outcome = run(
+		promoted,
+		callback_update(
+			COMPANY_ADMIN_ID, keyboards.rule_data(keyboards.VERIFY_CONFIRM, verify.KIND_PATTERN, BLOCKING)
+		),
+	)
+
+	assert outcome["result"]["requesters_told"] == 0
+	assert mn.MSG_RULE_VERIFIED_FOR_REQUESTER.format(rule=BLOCKING) not in promoted.texts()
+	assert mn.MSG_RULE_VERIFIED_RETRY in promoted.texts()
+
+
 def test_verifying_twice_is_not_a_second_approval(rules_site: str):
 	first = verify.verify(verify.KIND_PATTERN, BLOCKING, "Administrator")
 	again = verify.verify(verify.KIND_PATTERN, BLOCKING, "tg-2001@nyabo.local")

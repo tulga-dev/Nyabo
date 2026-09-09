@@ -330,6 +330,11 @@ def recent_rule_request(rule: str, company: str | None = None) -> Any:
 	return _call("nyabo_mn.rules.verify", "recent_request", rule, company)
 
 
+def rule_requesters(rule: str) -> list[str]:
+	"""The chats this rule stopped recently — the people owed the news that it was verified."""
+	return _call("nyabo_mn.rules.verify", "requesters", rule)
+
+
 def request_rule_verification(
 	rule: str,
 	company: str | None = None,

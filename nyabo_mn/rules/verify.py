@@ -66,6 +66,11 @@ NOTE_MAX_CHARS = 1000
 #: one sitting, short enough that a real second attempt an hour later is heard.
 REQUEST_DEDUPE_MINUTES = 15
 
+#: How long after being stopped by a rule somebody is still told that it was verified. A receipt
+#: refused on Friday is still ``proposed`` on Monday, wearing its own [Батлах], so the news is
+#: still worth having; past a week the person has moved on and the card has been dealt with.
+REQUEST_NOTICE_DAYS = 7
+
 #: Where the part of a seed note written *for the person at the verify button* begins. The
 #: citation pass appends it to `Nyabo Posting Pattern.notes` / `Nyabo Tax Parameter.note`
 #: (DECISIONS CORE-18, CORE-19); everything before the first marker is reader provenance, which
@@ -533,6 +538,36 @@ def recent_request(
 				payload = {}
 		return {"event": row["name"], **(payload or {})}
 	return None
+
+
+def requesters(rule: str, within_days: int = REQUEST_NOTICE_DAYS) -> list[str]:
+	"""The Telegram chats this rule stopped recently, newest first and each one once.
+
+	Verifying a rule ends somebody's wait, and until now only the admin who tapped was told. The
+	accountant whose receipt was refused had been promised «press [Батлах] again once it is
+	verified» with no way of learning when that happened — their proposal is still ``proposed``
+	and still wearing its own button, so the whole retry is one tap they do not know to make.
+	The request events are the list of people owed that sentence.
+	"""
+	from frappe.utils import add_to_date, now_datetime
+
+	since = add_to_date(now_datetime(), days=-int(within_days))
+	rows = frappe.get_all(
+		events.EVENT_DOCTYPE,
+		filters={
+			"event_type": mn.EVENT_RULE_VERIFY_REQUESTED,
+			"reason": rule,
+			"creation": [">=", since],
+		},
+		fields=["actor_telegram_id"],
+		order_by="creation desc",
+	)
+	chats: list[str] = []
+	for row in rows:
+		chat = str(row.get("actor_telegram_id") or "").strip()
+		if chat and chat not in chats:
+			chats.append(chat)
+	return chats
 
 
 def request_verification(

@@ -344,7 +344,7 @@ def notify_admins(bot: Any, settings: Any, text: str, company: str | None = None
 	return notify_chats(bot, admin_chat_ids(settings, company), text)
 
 
-def notify_chats(bot: Any, chat_ids: Iterable[int], text: str) -> int:
+def notify_chats(bot: Any, chat_ids: Iterable[int | str], text: str) -> int:
 	"""Send one notice to an explicit list of chats; returns how many were actually reached.
 
 	The explicit list is what lets a caller say something different to two groups of admins and

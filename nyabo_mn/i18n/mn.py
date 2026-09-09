@@ -1395,6 +1395,13 @@ MSG_RULE_VERIFIED_RETRY = (
 	"Энэ дүрмээр бичилт хийх боломжтой боллоо. Хүлээж байсан баримтын карт дээрх «Батлах» "
 	"товчийг дахин дарна уу; зургийг дахин илгээх шаардлагагүй."
 )
+# The same news, sent to the person whose posting the rule refused — who is not in this chat and
+# has been waiting since. MSG_UNVERIFIED_RULE_ADMIN_ASKED promised them exactly this moment, so
+# the message names the rule (they may have hit more than one) and repeats the one tap that is left.
+MSG_RULE_VERIFIED_FOR_REQUESTER = (
+	"✅ «{rule}» дүрэм баталгаажлаа. Энэ дүрмээс болж зогссон баримтынхаа карт дээрх «Батлах» "
+	"товчийг дахин дарна уу; зургийг дахин илгээх шаардлагагүй."
+)
 MSG_RULE_LEFT = "Дүрмийг баталгаажуулаагүй үлдээлээ; энэ дүрмээр бичилт хийгдэхгүй хэвээр."
 MSG_RULE_VERIFY_IN_DESK = (
 	"Энэ дүрмийн кодыг товчинд багтаах боломжгүй тул ERPNext дэсктээс баталгаажуулна уу: {rule}"

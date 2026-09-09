@@ -212,9 +212,31 @@ def confirm_rule(ctx: Ctx, kind: str, rule: str) -> Any:
 	# Nothing was re-sent and nothing was lost: the proposal that was refused is still `proposed`
 	# and still wearing its own [Батлах] (telegram.handlers.approve), so this is the whole retry.
 	ctx.reply(mn.MSG_RULE_VERIFIED_RETRY)
+	told = _tell_whoever_this_rule_stopped(ctx, rule)
 	# ``event`` is log_event's own first parameter; the Nyabo Event name rides under its own key.
-	log_event("telegram.rules.verified", rule=rule, kind=kind, user=ctx.user, nyabo_event=result.get("event"))
-	return {"verified": True, "rule": rule, "event": result.get("event")}
+	log_event(
+		"telegram.rules.verified",
+		rule=rule,
+		kind=kind,
+		user=ctx.user,
+		nyabo_event=result.get("event"),
+		requesters_told=told,
+	)
+	return {"verified": True, "rule": rule, "event": result.get("event"), "requesters_told": told}
+
+
+def _tell_whoever_this_rule_stopped(ctx: Ctx, rule: str) -> int:
+	"""Close the loop the refusal opened: the accountant who was blocked hears that it is cleared.
+
+	`MSG_UNVERIFIED_RULE_ADMIN_ASKED` tells them «press [Батлах] again once an admin has verified
+	it» — and nothing ever told them that moment had come. Their proposal is still `proposed` and
+	still wearing its own button, so the news is the whole difference between one tap and a
+	receipt nobody comes back to. The admin who just tapped is skipped: they have the reply above.
+	"""
+	from nyabo_mn.telegram.router import notify_chats
+
+	chats = [chat for chat in _deps.rule_requesters(rule) if str(chat) != str(ctx.telegram_id)]
+	return notify_chats(ctx.bot, chats, mn.MSG_RULE_VERIFIED_FOR_REQUESTER.format(rule=rule))
 
 
 def _already_verified(rule: str, verified_by: Any, verified_at: Any) -> str:
