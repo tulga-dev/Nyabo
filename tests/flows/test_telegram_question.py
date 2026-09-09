@@ -11,7 +11,7 @@ from nyabo_mn.agent import post, questions
 from nyabo_mn.config import get_settings
 from nyabo_mn.core.money import fmt_mnt
 from nyabo_mn.i18n import mn
-from nyabo_mn.telegram import _deps, context, keyboards
+from nyabo_mn.telegram import _deps, cards, context, keyboards
 from nyabo_mn.telegram import state as chat_state
 from nyabo_mn.telegram.handlers import question
 from tests.fixtures.telegram.fake_bot import FakeBotApi, callback_update, link_user, message_update, run
@@ -267,6 +267,17 @@ def test_the_typed_dead_end_says_the_same_next_step_as_the_tapped_one(books, mon
 	assert bot.last_text == tapped
 	assert mn.MSG_QUESTION_TRY_REPHRASE in bot.last_text
 	assert bot.callback_datas() == [f"q:{questions.VERB_ESCALATE}", f"q:{questions.VERB_MENU}"]
+
+
+def test_an_empty_answer_still_reaches_the_card_with_its_next_step():
+	"""MINOR: the card's own empty-answer default was the third place the dead end could drift.
+
+	Both callers pass ``MSG_QUESTION_CANNOT_FULL`` for the failures they know about, so this
+	default only fires on one they do not — and it used to render the bare refusal, which is
+	the very card the typed path was just fixed for.
+	"""
+	assert cards.question_card("") == mn.MSG_QUESTION_CANNOT_FULL
+	assert mn.MSG_QUESTION_TRY_REPHRASE in cards.question_card("   ")
 
 
 def test_the_ask_admin_button_escalates_with_the_question_the_user_typed(company, monkeypatch):
