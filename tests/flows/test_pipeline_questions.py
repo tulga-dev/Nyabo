@@ -15,7 +15,7 @@ from nyabo_mn.core.money import fmt_mnt
 from nyabo_mn.i18n import mn
 from nyabo_mn.telegram import api
 from tests.fixtures.telegram.fake_bot import FakeBotApi
-from tests.flows.compliance_helpers import BANK, EXPENSE, PAYABLE
+from tests.flows.compliance_helpers import BANK, CASH, EXPENSE, PAYABLE, make_je
 from tests.flows.conftest import ACCOUNTANT
 
 NOW = datetime(2026, 9, 8, 12, 0, tzinfo=timezone.utc)
@@ -61,7 +61,7 @@ def test_books_handlers_read_the_ledger(run_receipt, books):
 		balance["balance"] == fmt_mnt("7727.27") and balance["account"] == "1810 - Татан суутгах НӨАТ - TST"
 	)
 	assert balance["text"] == mn.MSG_BALANCE_ANSWER.format(
-		account="1810 - Татан суутгах НӨАТ - TST", date="2026-09-30", balance=fmt_mnt("7727.27")
+		account="1810 - Татан суутгах НӨАТ", date="2026-09-30", balance=fmt_mnt("7727.27")
 	)
 
 	spend = books_handler(
@@ -107,7 +107,7 @@ def test_the_widened_reads_answer_from_the_same_ledger(run_receipt, books):
 		"text"
 	] == mn.ACCOUNT_ENTRIES_NONE.format(
 		period=mn.PERIOD_LABEL.format(year=2026, month=mn.MONTHS[7]),
-		account="6210 - Шатахуун - TST",
+		account="6210 - Шатахуун",
 	)
 
 	total = run({"query_kind": "supplier_total", "args": {"supplier": "Петровис", "period": "2026-09"}})
@@ -833,8 +833,9 @@ def test_a_month_figure_is_given_a_noun(run_receipt, books):
 	run = pipeline.books_handlers(books, today=NOW.date())["answer_from_books"]
 	spend = run({"query_kind": "spend_by_account", "args": {"account_code": "6210", "period": "2026-09"}})
 	label = mn.PERIOD_LABEL.format(year=2026, month=mn.MONTHS[8])
-	assert spend["text"] != f"{label}: {spend['account']} {spend['amount']}₮", "a number with no noun"
-	assert spend["text"].startswith(f"{label}: {spend['account']} ")
+	shown = mn.account_label(spend["account"], "TST")
+	assert spend["text"] != f"{label}: {shown} {spend['amount']}₮", "a number with no noun"
+	assert spend["text"].startswith(f"{label}: {shown} ")
 	assert spend["text"].endswith(f"{spend['amount']}₮")
 
 
@@ -953,3 +954,64 @@ def test_the_truncation_note_names_the_end_of_the_list_that_survived(books):
 		for numeral in ("5", "8", "40"):
 			rendered = template.format(total=numeral, shown=numeral)
 			assert f"{numeral}-" not in rendered, "no case suffix may hang off a variable numeral"
+
+
+# --- the account ranking ------------------------------------------------------------------------------
+
+# Eight expense leaves of the V1 chart, so a top-five over them is a cut the reader cannot see.
+SPEND_ACCOUNTS = (
+	"6210 - Шатахуун - TST",
+	"6310 - Түрээс - TST",
+	"6410 - Холбоо, интернет - TST",
+	"6510 - Бичиг хэрэг, оффисын зардал - TST",
+	"6610 - Зар сурталчилгаа - TST",
+	"6710 - Мэргэжлийн үйлчилгээ - TST",
+	"6810 - Банкны үйлчилгээний хураамж - TST",
+	"6910 - Бусад үйл ажиллагааны зардал - TST",
+)
+
+
+def _spend_on(company: str, accounts=SPEND_ACCOUNTS) -> None:
+	"""One 2026-09 journal entry per account, descending so the ranking is the fixture's order."""
+	for index, account in enumerate(accounts):
+		je = make_je(
+			company,
+			amount=100000 - index * 1000,
+			posting_date="2026-09-15",
+			debit=account,
+			credit=CASH,
+			user_remark="Тест",
+			nyabo_primary_document_ref=f"TOP-{index}",
+		)
+		je.flags.ignore_permissions = True
+		je.insert()
+		je.submit()
+
+
+def test_one_ranking_row_names_its_account_once(books):
+	"""MAJOR: «6610 6610 - Зар сурталчилгаа - TST» — the code twice and the company after it.
+
+	``{account}`` is the ERPNext account name, which already opens with the code, and the
+	suffix ERPNext appends to keep names unique across companies is noise on a card that is
+	about one company. Every line that renders an account name is checked for the same fault.
+	"""
+	_spend_on(books, SPEND_ACCOUNTS[:2])
+	run = pipeline.books_handlers(books, today=NOW.date())["answer_from_books"]
+	top = run({"query_kind": "top_spend_accounts", "args": {"period": "2026-09"}})
+	first = top["accounts"][0]
+
+	assert first["shown"] == "6210 - Шатахуун"
+	assert top["text"].count(first["code"]) == 1, "the code is printed once, by the name that carries it"
+	assert " - TST" not in top["text"]
+
+	# the other reads that render an account name
+	balance = run(
+		{"query_kind": "balance_on_date", "args": {"account_code": "6210", "on_date": "2026-09-30"}}
+	)
+	spend = run({"query_kind": "spend_by_account", "args": {"account_code": "6210", "period": "2026-09"}})
+	entries = run({"query_kind": "account_entries", "args": {"account_code": "6210", "period": "2026-09"}})
+	empty = run({"query_kind": "account_entries", "args": {"account_code": "6210", "period": "2026-08"}})
+	for result in (balance, spend, entries, empty):
+		assert result["account"] == "6210 - Шатахуун - TST", "the machine field keeps the ERPNext name"
+		assert " - TST" not in result["text"]
+		assert "6210 - Шатахуун" in result["text"]

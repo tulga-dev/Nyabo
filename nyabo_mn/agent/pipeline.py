@@ -1030,6 +1030,20 @@ def books_handlers(
 			raise ChartError("account_code required")
 		return account_for_code(company, str(code).strip(), leaf=False)
 
+	abbr: str | None = None
+
+	def _shown(account: str) -> str:
+		"""The account as a card prints it: «6210 - Шатахуун», not «6210 - Шатахуун - TST».
+
+		The company abbreviation ERPNext appends is there to keep names unique across
+		companies, and every one of these reads is already about one company. Read once and
+		kept, because a single answer renders up to ``TOP_ACCOUNTS_LIMIT`` account names.
+		"""
+		nonlocal abbr
+		if abbr is None:
+			abbr = str(frappe.db.get_value("Company", company, "abbr") or "")
+		return mn.account_label(account, abbr)
+
 	def _code(value: Any) -> str:
 		return str(value or "").strip()
 
@@ -1104,9 +1118,11 @@ def books_handlers(
 			"on_date": on.isoformat(),
 			"balance": fmt_mnt(balance),
 			"text": mn.MSG_BALANCE_ANSWER.format(
-				account=account, date=on.isoformat(), balance=fmt_mnt(balance)
+				account=_shown(account), date=on.isoformat(), balance=fmt_mnt(balance)
 			),
-			**_figures(fmt_mnt(balance), account, _calendar(on.isoformat())),
+			# Both spellings of the account: the machine field above carries the ERPNext name,
+			# the sentence carries the printed one, and the model may repeat either.
+			**_figures(fmt_mnt(balance), account, _shown(account), _calendar(on.isoformat())),
 		}
 
 	def _spend_by_account(inner: dict[str, Any]) -> dict[str, Any]:
@@ -1122,9 +1138,9 @@ def books_handlers(
 			"period": period,
 			"amount": fmt_mnt(amount),
 			"text": mn.MSG_SPEND_ANSWER.format(
-				period=dates.period_label(period), account=account, amount=fmt_mnt(amount)
+				period=dates.period_label(period), account=_shown(account), amount=fmt_mnt(amount)
 			),
-			**_figures(fmt_mnt(amount), account, _calendar(period)),
+			**_figures(fmt_mnt(amount), account, _shown(account), _calendar(period)),
 		}
 
 	def _account_entries(inner: dict[str, Any]) -> dict[str, Any]:
@@ -1148,11 +1164,11 @@ def books_handlers(
 		if entries:
 			text = mn.MSG_ACCOUNT_ENTRIES_ANSWER.format(
 				period=label,
-				account=account,
+				account=_shown(account),
 				entries="\n".join(mn.ACCOUNT_ENTRY_LINE.format(**e) for e in entries),
 			) + _truncation_note(total, len(entries))
 		else:
-			text = mn.ACCOUNT_ENTRIES_NONE.format(period=label, account=account)
+			text = mn.ACCOUNT_ENTRIES_NONE.format(period=label, account=_shown(account))
 		return {
 			"account": account,
 			"account_code": _code(inner.get("account_code")),
@@ -1164,6 +1180,7 @@ def books_handlers(
 				total,
 				len(entries),
 				account,
+				_shown(account),
 				_calendar(period),
 				[e["amount"] for e in entries],
 				[e["date"] for e in entries],
@@ -1405,12 +1422,20 @@ def books_handlers(
 			reverse=True,
 		)[:TOP_ACCOUNTS_LIMIT]
 		accounts_out = [
-			{"code": numbers.get(account, ""), "account": account, "amount": fmt_mnt(amount)}
+			{
+				"code": numbers.get(account, ""),
+				"account": account,
+				"shown": _shown(account),
+				"amount": fmt_mnt(amount),
+			}
 			for account, amount in ranked
 		]
 		if accounts_out:
 			text = mn.MSG_TOP_ACCOUNTS_ANSWER.format(
-				period=label, accounts="\n".join(mn.TOP_ACCOUNT_LINE.format(**a) for a in accounts_out)
+				period=label,
+				accounts="\n".join(
+					mn.TOP_ACCOUNT_LINE.format(account=a["shown"], amount=a["amount"]) for a in accounts_out
+				),
 			)
 		else:
 			text = mn.TOP_ACCOUNTS_NONE.format(period=label)

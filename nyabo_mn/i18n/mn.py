@@ -891,6 +891,25 @@ def doctype_label(doctype: str | None) -> str:
 	return DOCTYPE_LABELS.get(name, name)
 
 
+def account_label(account: str | None, abbr: str | None = None) -> str:
+	"""An ERPNext account name as a card prints it: «6610 - Зар сурталчилгаа».
+
+	WHY: the stored name is «6610 - Зар сурталчилгаа - TST» — code, name, and the company
+	abbreviation ERPNext appends so names stay unique ACROSS companies. Every question is
+	answered about one company, so that suffix is noise on the card, and it is the reader's
+	own company abbreviation that is stripped rather than "whatever follows the last dash":
+	an account name may contain a dash of its own, and guessing would eat part of it.
+
+	The code stays, because it is what an accountant looks the account up by — and it is why
+	no caller prints the code beside this: the name already opens with it.
+	"""
+	name = str(account or "").strip()
+	suffix = f" - {str(abbr or '').strip()}"
+	if suffix.strip(" -") and name.endswith(suffix):
+		return name[: -len(suffix)].rstrip()
+	return name
+
+
 LAST_ENTRY_LINE = "{date} · {doctype} {name} · {amount}₮"
 LAST_ENTRIES_NONE = "{supplier} харилцагчийн бүртгэл олдсонгүй."
 UNMATCHED_ANSWER = "Тулгагдаагүй банкны гүйлгээ: {count}"
@@ -917,7 +936,10 @@ MSG_VAT_POSITION_CREDIT_ANSWER = (
 	"{period}: борлуулалтын НӨАТ {output}₮, худалдан авалтын НӨАТ {input}₮, буцаан авах НӨАТ {credit}₮"
 )
 MSG_VAT_NOT_PAYER_ANSWER = "Компани {period}-д НӨАТ төлөгч бус тул НӨАТ-ын мэдээлэл байхгүй."
-TOP_ACCOUNT_LINE = "{code} {account} · {amount}₮"
+# ``{account}`` is rendered by ``account_label``, which already begins with the account code,
+# so the code is not printed beside it: «6610 6610 - Зар сурталчилгаа - TST» was one row
+# naming one account three times.
+TOP_ACCOUNT_LINE = "{account} · {amount}₮"
 MSG_TOP_ACCOUNTS_ANSWER = "{period}: хамгийн их зардалтай данснууд:\n{accounts}"
 TOP_ACCOUNTS_NONE = "{period}: бүртгэсэн зардал алга."
 UNMATCHED_LINE = "{date} · {amount}₮ · {description}"
