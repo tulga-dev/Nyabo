@@ -16,10 +16,11 @@ marked with the reason.
       added to the bench instead so the site kept it.
 - [ ] Plan USD 25 or higher after the trial, daily backups on.
 - [x] `EBARIMT_API_BASE` = `https://api.ebarimt.mn`.
-- [ ] The four secret keys: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`,
-      `ADMIN_TELEGRAM_IDS`, `OPENAI_API_KEY`. Only the founder adds these.
+- [x] The four secret keys are set: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`,
+      `ADMIN_TELEGRAM_IDS`, `OPENAI_API_KEY`.
       `ADMIN_TELEGRAM_IDS` is the **numeric** id `/whoami` prints, never an `@username`;
-      add it last, once the webhook is live and the bot can tell you the number.
+      add it last, once the webhook is live and the bot can tell you the number. It went in
+      as `@battulga2999` the first time, which silently disables every admin command.
       Frappe Cloud → the site → **Site Config** → **Add Config**, then per key:
       1. **Config Name** → choose **Custom Key** (the first entry in the list). Until you
          pick it the Key and Type fields stay greyed out, which is what makes the dialog
@@ -31,13 +32,13 @@ marked with the reason.
       Do **not** pick `Press Bootstrap Telegram Bot Token` from the Config Name list. That
       is Frappe Cloud's own key for its internal bot and Nyabo never reads it.
       The site takes about 30 seconds to pick up a new key.
-- [ ] Config check shows no missing key for `telegram` and `llm`. From the desk console:
-      `frappe.call("nyabo_mn.api.config_check").then(r => console.log(r.message))`.
-- [ ] Webhook set and `/start` answers. From the desk console:
-      `frappe.call("nyabo_mn.api.setup_webhook").then(r => console.log(r.message))`.
-- [ ] Command menu registered:
-      `frappe.call("nyabo_mn.api.setup_commands").then(r => console.log(r.message))`;
-      the ☰ button next to the message box then lists the commands.
+- [x] Config check shows no missing key for `telegram`, `llm` or `ebarimt`. From the desk
+      console: `frappe.call("nyabo_mn.api.config_check").then(r => console.log(r.message))`.
+- [x] Webhook set and the bot answers. `setup_webhook` returned `result: true`, and a real
+      message from Telegram reached the site: it passed the secret check, the router ran and
+      wrote a Nyabo Chat State row named with the sender's chat id. Both directions work.
+- [x] Command menu registered: start, menu, help, bank, close, quality, policy, company,
+      setup. `/whoami` is routed but deliberately not in the menu, so it must be typed.
 - [ ] Bot token regenerated after it was pasted into chat; old token invalid.
 
 ## B. Books (founder + accountant)
