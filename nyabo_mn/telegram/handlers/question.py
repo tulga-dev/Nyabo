@@ -4,7 +4,9 @@ Three jobs beyond forwarding the text:
 
 * **It says it is working.** A ledger question is a model call and several reads, and the
   chat is silent for seconds; ``sendChatAction`` is the cheapest honest signal there is, and
-  a callback query is answered before the work starts so no client is left spinning.
+  it is re-sent between model turns because Telegram clears it after about five (``_typing``,
+  which also says why this work stays on the short queue). A callback query is answered
+  before the work starts so no client is left spinning.
 * **It offers the next read as buttons.** ``agent.questions`` builds them from the tool
   trace; each button carries its whole query, so a tap runs the *handler* again with no model
   in the loop — the answer to a button is therefore always a figure the books produced. A tap
@@ -20,6 +22,7 @@ escalation event the user asked for by tapping [Админаас асуух].
 from __future__ import annotations
 
 import datetime as dt
+from collections.abc import Callable
 from typing import Any
 
 from nyabo_mn.agent import questions
@@ -69,19 +72,44 @@ def _send(ctx: Ctx, reply: questions.Reply, message_id: int | None = None) -> di
 	return {"answer": reply.text, "buttons": [f.verb for f in reply.follow_ups]}
 
 
+def _typing(ctx: Ctx) -> Callable[[], None]:
+	"""A callable that re-sends «typing…»; handed to the answerer to beat between model turns.
+
+	"The status is set for 5 seconds or less" and Telegram clears it when the answer lands
+	(telegram.api.send_chat_action). One action at the start was enough when the answer was
+	one lookup and a sentence; this branch gives the question five turns on a slower model
+	across ten query kinds, so the bubble expired and the user was left watching nothing.
+	``agent.questions`` calls this once per tool dispatch — the seam between two model turns,
+	and the only place that loop is visible from outside.
+
+	Why the question stays on the SHORT queue, unlike receipts and statements: those are
+	handed off because the user is expected to walk away from them — a photo is sent and the
+	card arrives later. A question is a thing the user is waiting for with the chat open, and
+	its whole value is coming back inside the conversation. Moving it to long would add a
+	round trip through the queue and turn a slow answer into a late one, arriving detached
+	from the turn it belongs to. The queue was never the problem; the missing sign of life
+	was. If the answer's latency ever grows past what a person will hold a phone for, the fix
+	is the model or the turn budget, not the queue.
+	"""
+
+	def beat() -> None:
+		try:
+			ctx.bot.send_chat_action(ctx.chat_id, TYPING)
+		except Exception as exc:  # noqa: BLE001 - a missing typing bubble must never cost the answer
+			log_event("telegram.chat_action_failed", level="warning", error=type(exc).__name__)
+
+	return beat
+
+
 def handle_text(ctx: Ctx) -> Any:
 	company = _company(ctx)
 	if not company:
 		ctx.reply(mn.MSG_NO_COMPANY)
 		return None
-	# "The status is set for 5 seconds or less" and Telegram clears it when the answer lands
-	# (telegram.api.send_chat_action) — the right signal for a step that thinks before it talks.
-	try:
-		ctx.bot.send_chat_action(ctx.chat_id, TYPING)
-	except Exception as exc:  # noqa: BLE001 - a missing typing bubble must never cost the answer
-		log_event("telegram.chat_action_failed", level="warning", error=type(exc).__name__)
+	beat = _typing(ctx)
+	beat()
 	memory = chat_state.get_question_memory(ctx.chat_id)
-	reply = _deps.answer_question(ctx.user, company, ctx.text, memory)
+	reply = _deps.answer_question(ctx.user, company, ctx.text, memory, on_turn=beat)
 	chat_state.set_question_memory(ctx.chat_id, reply.memory, telegram_id=ctx.telegram_id)
 	return _send(ctx, reply)
 

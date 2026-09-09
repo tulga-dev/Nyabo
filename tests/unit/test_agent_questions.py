@@ -86,6 +86,21 @@ def test_answer_from_default_fixture_builds_flags_from_trace():
 	)
 
 
+def test_on_turn_beats_once_before_every_tool_dispatch():
+	"""The seam between two model turns is a tool call, and it is the only one visible here."""
+	log: list = []
+	beats: list[int] = []
+	questions.answer(
+		MockLlmClient(),
+		"Тулгаагүй гүйлгээ хэд байна?",
+		_handlers(log),
+		now=NOW,
+		on_turn=lambda: beats.append(len(log)),
+	)
+	assert len(beats) == len([entry for entry in log]) == 1
+	assert beats == [0], "the beat lands before the handler runs, not after"
+
+
 def test_escalation_flag_only_when_tool_actually_called(tmp_path):
 	log: list = []
 	client = MockLlmClient(fixtures_dir=tmp_path)

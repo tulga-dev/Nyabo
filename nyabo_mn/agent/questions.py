@@ -694,6 +694,20 @@ def build_user_text(
 	)
 
 
+def _beating(
+	dispatch: Callable[[str, dict[str, Any]], dict[str, Any]], on_turn: Callable[[], None] | None
+) -> Callable[[str, dict[str, Any]], dict[str, Any]]:
+	"""``dispatch`` with a beat before every tool call, or ``dispatch`` itself when unwanted."""
+	if on_turn is None:
+		return dispatch
+
+	def beating(name: str, args: dict[str, Any]) -> dict[str, Any]:
+		on_turn()
+		return dispatch(name, args)
+
+	return beating
+
+
 def answer(
 	client: LlmClient,
 	text: str,
@@ -704,11 +718,16 @@ def answer(
 	memory: Mapping[str, Any] | None = None,
 	now: datetime | None = None,
 	max_turns: int = MAX_TURNS,
+	on_turn: Callable[[], None] | None = None,
 ) -> AnswerOutcome:
 	"""One tool-using model call; the answer sentence is the model's, the flags are ours.
 
 	``memory`` is what ``recall`` returned for this chat (already expired and company-checked
 	by the caller); the outcome carries the memory the *next* turn should be given.
+
+	``on_turn`` is called once before each tool dispatch — a tool call is the seam between two
+	model turns and the only place this module can see one, so it is where a caller refreshes
+	whatever it is showing the user. It must not raise: this is the answer path.
 	"""
 	now = now or datetime.now(timezone.utc)
 	fragment = find_injection(text)
@@ -735,7 +754,7 @@ def answer(
 		system=system,
 		user=[TextPart(build_user_text(text, company_context=company_context, now=now, memory=memory))],
 		tools=list(TOOL_SPECS),
-		handler=make_dispatcher(handlers),
+		handler=_beating(make_dispatcher(handlers), on_turn),
 		max_turns=max_turns,
 		prompt_version=prompts.version_tag(PROMPT_NAME, version),
 	)

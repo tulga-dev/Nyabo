@@ -15,7 +15,7 @@ handler and ``cards.py`` carry plain dicts and hand over a raw upload.
 from __future__ import annotations
 
 import importlib
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from typing import Any
 
 
@@ -69,9 +69,21 @@ def make_correction_proposal(original_doctype: str, original_name: str, reason_c
 	)
 
 
-def answer_question(user: str, company: str, text: str, memory: dict[str, Any] | None = None) -> Any:
-	"""``agent.questions.Reply``: the sentence, its follow-up buttons and the memory to store."""
-	return _call("nyabo_mn.agent.pipeline", "answer_question", user, company, text, memory=memory)
+def answer_question(
+	user: str,
+	company: str,
+	text: str,
+	memory: dict[str, Any] | None = None,
+	on_turn: Callable[[], None] | None = None,
+) -> Any:
+	"""``agent.questions.Reply``: the sentence, its follow-up buttons and the memory to store.
+
+	``on_turn`` is called between model turns, so the chat can keep showing a sign of life
+	through an answer that takes several of them. It must not raise.
+	"""
+	return _call(
+		"nyabo_mn.agent.pipeline", "answer_question", user, company, text, memory=memory, on_turn=on_turn
+	)
 
 
 def books_answer(company: str, query_kind: str, args: dict[str, Any] | None = None) -> dict[str, Any]:

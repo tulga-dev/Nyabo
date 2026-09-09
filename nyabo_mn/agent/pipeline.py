@@ -1529,12 +1529,16 @@ def answer_question(
 	memory: Mapping[str, Any] | None = None,
 	client: LlmClient | None = None,
 	now: dt.datetime | None = None,
+	on_turn: Callable[[], None] | None = None,
 ) -> questions.Reply:
 	"""One read-only, tool-using model call; returns the sentence, its buttons and its memory.
 
 	``memory`` is whatever the chat stored after the previous question. It is passed through
 	``questions.recall`` here rather than in the Telegram layer so every caller — the bot, the
 	simulator, an eval — gets the same expiry and the same company check.
+
+	``on_turn`` is called between model turns, for a caller that is showing the user something
+	while it waits (the bot re-sends «typing…»). It must not raise.
 	"""
 	now = now or dt.datetime.now(dt.timezone.utc)
 	recorder = frappe_log.recorder(company=company)
@@ -1572,6 +1576,7 @@ def answer_question(
 		company=company,
 		memory=recalled,
 		now=now,
+		on_turn=on_turn,
 	)
 	if outcome.injection_suspected:
 		write_event(

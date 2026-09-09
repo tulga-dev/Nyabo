@@ -508,7 +508,9 @@ def test_quality_policy_question_and_status(company, monkeypatch):
 	monkeypatch.setattr(
 		_deps,
 		"answer_question",
-		lambda user, company, text, memory=None: questions.Reply(f"{company}: 1110 данс 500 000₮"),
+		lambda user, company, text, memory=None, on_turn=None: questions.Reply(
+			f"{company}: 1110 данс 500 000₮"
+		),
 	)
 	link_user(8040, "Admin", company)
 	bot = FakeBotApi()

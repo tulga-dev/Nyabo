@@ -62,7 +62,7 @@ def test_the_bot_says_it_is_working_and_offers_the_next_read(company, monkeypatc
 	monkeypatch.setattr(
 		_deps,
 		"answer_question",
-		lambda user, comp, text, memory=None: (
+		lambda user, comp, text, memory=None, on_turn=None: (
 			asked.append((comp, text, memory)) or _spend_reply(memory=_memory(comp))
 		),
 	)
@@ -83,7 +83,7 @@ def test_the_bot_says_it_is_working_and_offers_the_next_read(company, monkeypatc
 def test_the_next_question_is_answered_in_the_context_of_the_last(company, monkeypatch):
 	seen: list = []
 
-	def _answer(user, comp, text, memory=None):
+	def _answer(user, comp, text, memory=None, on_turn=None):
 		seen.append(memory)
 		return _spend_reply(memory=_memory(comp))
 
@@ -100,7 +100,9 @@ def test_the_next_question_is_answered_in_the_context_of_the_last(company, monke
 def test_an_open_flow_takes_the_question_memory_with_it(company, monkeypatch):
 	"""Leaving a question for a receipt (or any step) ends the exchange the memory belonged to."""
 	monkeypatch.setattr(
-		_deps, "answer_question", lambda user, comp, text, memory=None: _spend_reply(memory=_memory(comp))
+		_deps,
+		"answer_question",
+		lambda user, comp, text, memory=None, on_turn=None: _spend_reply(memory=_memory(comp)),
 	)
 	link_user(9003, "Accountant", company)
 	bot = FakeBotApi()
@@ -108,6 +110,47 @@ def test_an_open_flow_takes_the_question_memory_with_it(company, monkeypatch):
 	assert chat_state.get_question_memory(9003)
 	chat_state.set_state(9003, "onb:banks", {"banks": []})
 	assert chat_state.get_question_memory(9003) == {}
+
+
+def test_the_typing_bubble_is_re_sent_around_every_model_turn(company, monkeypatch):
+	"""MINOR: Telegram clears the status after about five seconds; this answer takes five turns.
+
+	One action at the start left the user watching nothing while the question held the short
+	queue. The beat is sent between model turns — see ``question._typing`` for why the work
+	stays on the short queue rather than moving to long.
+	"""
+	turns = 3
+
+	def _answer(user, comp, text, memory=None, on_turn=None):
+		assert on_turn is not None, "the answerer is given something to beat with"
+		for _ in range(turns):
+			on_turn()
+		return _spend_reply(memory=_memory(comp))
+
+	monkeypatch.setattr(_deps, "answer_question", _answer)
+	link_user(9015, "Accountant", company)
+	bot = FakeBotApi()
+	run(bot, message_update(9015, "Шатахуунд хэд зарцуулсан бэ?"))
+
+	actions = bot.sent("send_chat_action")
+	assert len(actions) == turns + 1, "one before the call, then one per model turn"
+	assert {a["action"] for a in actions} == {"typing"}
+	assert bot.last_text.startswith("2026 оны 9-р сар")
+
+
+def test_a_bot_that_cannot_send_the_action_still_answers(company, monkeypatch):
+	"""A missing typing bubble must never cost the answer, mid-loop as well as at the start."""
+
+	def _answer(user, comp, text, memory=None, on_turn=None):
+		on_turn()
+		return _spend_reply(memory=_memory(comp))
+
+	monkeypatch.setattr(_deps, "answer_question", _answer)
+	link_user(9016, "Accountant", company)
+	bot = FakeBotApi()
+	monkeypatch.setattr(bot, "send_chat_action", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("429")))
+	run(bot, message_update(9016, "Шатахуунд хэд зарцуулсан бэ?"))
+	assert bot.last_text.startswith("2026 оны 9-р сар")
 
 
 # --- the buttons -------------------------------------------------------------------------------------
@@ -174,7 +217,9 @@ def test_a_refused_query_leaves_the_card_and_offers_a_person(books):
 
 def test_the_ask_admin_button_escalates_with_the_question_the_user_typed(company, monkeypatch):
 	monkeypatch.setattr(
-		_deps, "answer_question", lambda user, comp, text, memory=None: _spend_reply(memory=_memory(comp))
+		_deps,
+		"answer_question",
+		lambda user, comp, text, memory=None, on_turn=None: _spend_reply(memory=_memory(comp)),
 	)
 	link_user(9009, "Accountant", company)
 	bot = FakeBotApi()
@@ -196,7 +241,9 @@ def test_the_escalation_never_quotes_a_memory_from_another_company(company, comp
 	name. It goes through ``questions.recall`` like every other read of that memory.
 	"""
 	monkeypatch.setattr(
-		_deps, "answer_question", lambda user, comp, text, memory=None: _spend_reply(memory=_memory(comp))
+		_deps,
+		"answer_question",
+		lambda user, comp, text, memory=None, on_turn=None: _spend_reply(memory=_memory(comp)),
 	)
 	link_user(9014, "Accountant", company)
 	bot = FakeBotApi()
