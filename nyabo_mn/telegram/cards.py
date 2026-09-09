@@ -491,9 +491,10 @@ def pending_rules_card(rules: Any, total: int | None = None) -> str:
 def rule_card(rule: Any) -> str:
 	"""One rule with its mechanics and its citation — or with the plain statement that it has none.
 
-	The «no citation» line is the whole point of the card: 16 of the 44 seeded patterns carry the
-	instrument «Заавар 116 (2000)» and nothing else, and an admin who is not told that is being
-	invited to tap a button that looks like it is backed by a legal text.
+	The «no citation» line is the whole point of the card: the nine seeded patterns Order 116 does
+	not print carry the instrument «Заавар 116 (2000)» and nothing else, and an admin who is not
+	told that is being invited to tap a button that looks like it is backed by a legal text. The
+	briefing under it is what the seed says they would be vouching for instead.
 	"""
 	kind_label = mn.RULE_KIND_LABELS.get(rule.kind, mn.VALUE_UNKNOWN)
 	lines = [
@@ -518,6 +519,7 @@ def rule_card(rule: Any) -> str:
 		)
 	lines.append("")
 	lines += _rule_citation(rule)
+	lines += _rule_briefing(rule)
 	lines.append("")
 	lines.append(mn.CARD_RULE_RESPONSIBILITY)
 	lines.append(mn.CARD_RULE_ASK)
@@ -531,6 +533,22 @@ def _rule_line(line: Any) -> str:
 	if line.optional:
 		amount = f"{amount} ({mn.CARD_RULE_LINE_OPTIONAL})"
 	return mn.CARD_RULE_ENTRY_LINE.format(side=side, account=line.account, amount=amount)
+
+
+def _rule_briefing(rule: Any) -> list[str]:
+	"""The seed's «what you would be vouching for» sentence, on the screen where it is decided.
+
+	Without it the nine patterns Order 116 does not print, and the pending tax parameters, offer
+	a verify button with nothing but «no citation» beside it — while the seed has a sentence
+	naming the other instrument, or saying that the entry is plain double-entry mechanics.
+	"""
+	note = getattr(rule, "note", "")
+	if not note:
+		return []
+	lines = ["", mn.CARD_RULE_BRIEFING_TITLE, note]
+	if getattr(rule, "note_truncated", False):
+		lines.append(mn.CARD_RULE_TEXT_CUT)
+	return lines
 
 
 def _rule_citation(rule: Any) -> list[str]:

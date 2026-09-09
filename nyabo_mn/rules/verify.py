@@ -3,9 +3,10 @@
 WHY this module exists: §1.2 refuses a Nyabo Posting Pattern or a Nyabo Tax Parameter with
 ``verified = 0`` for a real posting, and ``guard.UnverifiedRuleError`` tells the accountant that
 an admin compares the rule with the primary text and marks it verified. Until now the only place
-that could happen was the ERPNext desk, so from Telegram that sentence pointed at nothing — and
-the pattern a non-VAT company uses for every ordinary receipt (``purchase_expense_non_vat``)
-ships unverified, so nothing the founder sent could post.
+that could happen was the ERPNext desk, so from Telegram that sentence pointed at nothing. The
+citation pass has since verified the everyday path — ``purchase_expense_non_vat`` and the rest of
+an ordinary non-VAT day post without a tick — but nine posting patterns and thirteen tax
+parameters still wait for a human, and every one of them stops somebody's work when it is reached.
 
 Verification is deliberately *not* a workflow. It is one human saying "I have read the source and
 I take responsibility": the flag, who, when, and a Nyabo Event — no states, no second approver,
@@ -43,6 +44,19 @@ DOCTYPES: dict[str, str] = {KIND_PATTERN: PATTERN, KIND_PARAMETER: PARAMETER}
 #: How much of a legal reference is worth reading in a chat bubble before it stops being a label.
 PURPOSE_MAX_CHARS = 70
 QUOTE_MAX_CHARS = 400
+#: The briefing is longer than a label on purpose — it is the whole reason the row is unverified.
+#: 800 fits every briefing the seed carries today (the longest is 715 characters).
+NOTE_MAX_CHARS = 800
+
+#: Where the part of a seed note written *for the person at the verify button* begins. The
+#: citation pass appends it to `Nyabo Posting Pattern.notes` / `Nyabo Tax Parameter.note`
+#: (DECISIONS CORE-18, CORE-19); everything before the first marker is reader provenance, which
+#: belongs in the repository and not in a chat bubble.
+BRIEFING_MARKERS: tuple[str, ...] = (
+	"DAILY USE:",
+	"WHAT AN ADMIN WOULD BE VOUCHING FOR",
+	"WHAT UNBLOCKS IT",
+)
 
 #: ``Nyabo Posting Pattern.applies_to_vat`` -> the Mongolian scope on the card. The VAT-payer key
 #: is the regime name, so it comes from ``rules.regime`` rather than being spelled again (F-12).
@@ -104,6 +118,9 @@ class RuleEvidence:
 	section: str = ""
 	quote: str = ""
 	url: str = ""
+	#: What the seed says an admin would be taking responsibility for; see `_briefing`.
+	note: str = ""
+	note_truncated: bool = False
 
 	@property
 	def has_citation(self) -> bool:
@@ -209,6 +226,35 @@ def _clip(text: str, limit: int = PURPOSE_MAX_CHARS) -> str:
 	return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
 
 
+def _cut(text: str, limit: int) -> tuple[str, bool]:
+	"""``(text as it will be shown, was it cut?)`` — the caller has to say so on the card.
+
+	Silently shortening a legal quote or a briefing is the dangerous case this returns a flag
+	for: the admin decides on what is on the screen, so a fragment must not read as the whole.
+	"""
+	text = str(text or "").strip()
+	if len(text) <= limit:
+		return text, False
+	return text[:limit].rstrip(), True
+
+
+def _briefing(note: Any) -> tuple[str, bool]:
+	"""The part of a seed note addressed to whoever is asked to tick the box, and whether it was cut.
+
+	An unverifiable row's note ends with the sentence CORE-18 / CORE-19 require — what an admin
+	would be vouching for, or what would unblock the row. That sentence was written for this exact
+	screen, so the card shows it; the research provenance above it (which reader, which fetch) is
+	for the repository. A note with no marker at all yields nothing rather than a paragraph of
+	notes-to-self, and `tests/unit/test_seed_citations.py` is what keeps the markers there.
+	"""
+	text = " ".join(str(note or "").split())
+	starts = [text.find(marker) for marker in BRIEFING_MARKERS]
+	found = [start for start in starts if start >= 0]
+	if not found:
+		return "", False
+	return _cut(text[min(found) :], NOTE_MAX_CHARS)
+
+
 # --- the evidence behind one rule ---------------------------------------------------------------
 
 
@@ -225,6 +271,7 @@ def evidence(kind: str, name: str) -> RuleEvidence | None:
 
 def _pattern_evidence(doc: Any) -> RuleEvidence:
 	citation_section = str(doc.get("citation_section") or "").strip()
+	note, note_cut = _briefing(doc.get("notes"))
 	return RuleEvidence(
 		kind=KIND_PATTERN,
 		doctype=PATTERN,
@@ -252,6 +299,8 @@ def _pattern_evidence(doc: Any) -> RuleEvidence:
 		section=citation_section,
 		quote=str(doc.get("citation_quote") or "")[:QUOTE_MAX_CHARS],
 		url=str(doc.get("citation_url") or ""),
+		note=note,
+		note_truncated=note_cut,
 	)
 
 
@@ -264,6 +313,7 @@ def _account_label(line: Any) -> str:
 
 
 def _parameter_evidence(doc: Any) -> RuleEvidence:
+	note, note_cut = _briefing(doc.get("note"))
 	return RuleEvidence(
 		kind=KIND_PARAMETER,
 		doctype=PARAMETER,
@@ -285,6 +335,8 @@ def _parameter_evidence(doc: Any) -> RuleEvidence:
 		section=str(doc.get("article") or ""),
 		quote=str(doc.get("quote_mn") or "")[:QUOTE_MAX_CHARS],
 		url=str(doc.get("source_url") or ""),
+		note=note,
+		note_truncated=note_cut,
 	)
 
 

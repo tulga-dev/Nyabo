@@ -1327,6 +1327,12 @@ CARD_RULE_CITATION = "📜 Эх сурвалж: {instrument}, {section}"
 CARD_RULE_CITATION_NO_SECTION = "📜 Эх сурвалж: {instrument}"
 CARD_RULE_QUOTE = "«{quote}»"
 CARD_RULE_SOURCE_URL = "🔗 {url}"
+# The seed's own briefing for whoever is at the verify button (DECISIONS CORE-18, CORE-19).
+# Only the heading is translated: the body is the seed note verbatim, and the seed writes its
+# notes in English for the repository's readers. Paraphrasing it here would put a second,
+# unreviewed wording of a legal caveat in front of the person taking responsibility for it.
+CARD_RULE_BRIEFING_TITLE = "📝 Баталгаажуулбал юуг хүлээн зөвшөөрөх вэ:"
+CARD_RULE_TEXT_CUT = "… (тасарсан — бүрэн эхийг ERPNext дэсктээс, эсвэл дээрх холбоосоос үзнэ үү)"
 CARD_RULE_NO_CITATION = (
 	"⚠️ Хуулийн тодорхой заалт, ишлэл энэ дүрэмд алга. Баталгаажуулна гэдэг нь дээрх агуулгыг "
 	"эх сурвалжтай нь өөрөө тулгаж, хариуцлагыг нь хүлээж байгаа хэрэг."

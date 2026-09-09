@@ -162,6 +162,46 @@ def test_the_rule_card_shows_the_entry_and_says_plainly_that_there_is_no_citatio
 	]
 
 
+def test_the_card_shows_the_briefing_the_seed_wrote_for_whoever_taps_the_button(rules_site: str):
+	"""CORE-18: an unverifiable row's note says what an admin would be vouching for. Show it.
+
+	The nine patterns Order 116 does not print each carry that sentence, and the card is the one
+	screen where the decision is actually taken — an admin who only reads «no citation» is being
+	asked to take responsibility for something nobody named to them.
+	"""
+	seed_note = next(
+		row["notes"] for row in load_seed("posting_patterns")["rows"] if row["pattern_id"] == BLOCKING
+	)
+	bot = FakeBotApi()
+	run(
+		bot,
+		callback_update(ADMIN_ID, keyboards.rule_data(keyboards.VERIFY_OPEN, verify.KIND_PATTERN, BLOCKING)),
+	)
+
+	text = bot.last_text
+	assert mn.CARD_RULE_BRIEFING_TITLE in text
+	briefing = seed_note[seed_note.index("WHAT AN ADMIN WOULD BE VOUCHING FOR") :]
+	assert briefing in text, "the seed's own sentence, not a paraphrase of it"
+	assert "IFRS for SMEs s.23" in text  # the other authority the tick would rest on
+	# The reader provenance above that sentence stays in the repository; it is not evidence.
+	assert "re-checked 2026-09-09" not in text
+	assert mn.CARD_RULE_TEXT_CUT not in text, "this briefing fits whole"
+
+
+def test_a_pending_tax_parameter_card_says_what_would_unblock_it(rules_site: str):
+	"""CORE-19: a parameter note opens its tail with DAILY USE and then what unblocks the row."""
+	name = "emd.employee_rate:2026-01-01"
+	bot = FakeBotApi()
+	run(
+		bot,
+		callback_update(ADMIN_ID, keyboards.rule_data(keyboards.VERIFY_OPEN, verify.KIND_PARAMETER, name)),
+	)
+
+	text = bot.last_text
+	assert mn.CARD_RULE_BRIEFING_TITLE in text
+	assert "DAILY USE:" in text and "WHAT UNBLOCKS IT" in text
+
+
 def test_a_verified_citation_is_quoted_instead(rules_site: str):
 	verified_pattern = "sale_cash_vat_payer"
 	frappe.db.set_value(verify.PATTERN, verified_pattern, "verified", 0)
