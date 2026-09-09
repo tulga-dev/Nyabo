@@ -478,3 +478,22 @@ def test_a_month_figure_is_given_a_noun(run_receipt, books):
 	assert spend["text"] != f"{label}: {spend['account']} {spend['amount']}₮", "a number with no noun"
 	assert spend["text"].startswith(f"{label}: {spend['account']} ")
 	assert spend["text"].endswith(f"{spend['amount']}₮")
+
+
+def test_the_faq_reaches_the_card_as_plain_text(books):
+	"""MINOR: the card is sent with parse_mode unset, so the accountant read the asterisks.
+
+	The markup is stripped and the hand-wrapped paragraphs are rejoined here rather than by
+	switching the card to Markdown: the rest of the card is not markdown, and a supplier name
+	with a special character in it would then be parsed as markup.
+	"""
+	result = pipeline.faq_handler({"question": "хялбаршуулсан горим нөат төлөгч ялгаа бичилт"})
+	assert result["found"]
+	assert "**" not in result["text"] and "`" not in result["text"]
+	# the paragraph the FAQ hard-wraps at 80 columns arrives as one line
+	assert "vat_payer" in result["text"]
+	longest = max(len(line) for line in result["text"].splitlines())
+	assert longest > 80, "the hand wrapping is undone"
+	assert pipeline.faq_plain_text("**тод** ба `код`\nүргэлжлэл\n\n- нэг\n- хоёр") == (
+		"тод ба код үргэлжлэл\n\n• нэг\n• хоёр"
+	)

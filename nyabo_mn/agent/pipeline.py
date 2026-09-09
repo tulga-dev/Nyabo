@@ -1472,6 +1472,41 @@ def load_faq() -> list[tuple[str, str]]:
 	return []
 
 
+FAQ_ANSWER_CHARS = 1500
+_MD_BULLET = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+")
+_MD_LINK = re.compile(r"\[([^\]]+)\]\([^)]*\)")
+_MD_EMPHASIS = re.compile(r"(\*{1,3}|_{2,3}|`+)(.+?)\1", re.DOTALL)
+
+
+def faq_plain_text(markdown: str) -> str:
+	"""The FAQ section as a chat card reads it: no markup, no 80-column hard wraps.
+
+	``faq.mn.md`` is written for a repository — asterisks, backticks and paragraphs wrapped by
+	hand — and the answer card is sent with ``parse_mode`` unset, so the accountant read the
+	asterisks. Stripping here rather than switching the card to Markdown is deliberate: the
+	rest of the card is not markdown, and an accountant's own supplier name may contain a
+	character Telegram would then try to parse.
+	"""
+	blocks: list[str] = []
+	for block in re.split(r"\n\s*\n", markdown or ""):
+		lines = [line.strip() for line in block.splitlines() if line.strip()]
+		if not lines:
+			continue
+		joined: list[str] = []
+		for line in lines:
+			# A bullet starts its own line; anything else continues the sentence above it, which
+			# is where the hand-wrapping is undone.
+			if _MD_BULLET.match(line) or not joined:
+				joined.append(_MD_BULLET.sub("• ", line))
+			else:
+				joined[-1] = f"{joined[-1]} {line}"
+		blocks.append("\n".join(joined))
+	text = "\n\n".join(blocks)
+	text = _MD_LINK.sub(r"\1", text)
+	text = _MD_EMPHASIS.sub(r"\2", text)
+	return text.strip()
+
+
 def faq_handler(args: dict[str, Any]) -> dict[str, Any]:
 	question = str(args.get("question") or "").lower()
 	tokens = {t for t in re.split(r"\W+", question, flags=re.UNICODE) if len(t) > 2}
@@ -1483,7 +1518,9 @@ def faq_handler(args: dict[str, Any]) -> dict[str, Any]:
 			best = (score, heading, body)
 	if best is None:
 		return {"found": False, "text": mn.FAQ_NOT_FOUND}
-	return {"found": True, "title": best[1], "text": best[2][:1500]}
+	# The FAQ explains how Nyabo works and quotes worked examples; not one of those figures is
+	# from this company's ledger, so this answer vouches for none of them (agent.questions).
+	return {"found": True, "title": best[1], "text": faq_plain_text(best[2])[:FAQ_ANSWER_CHARS]}
 
 
 def escalate_handler(user: str, company: str, question: str) -> Callable[[dict[str, Any]], dict[str, Any]]:
@@ -1641,6 +1678,7 @@ __all__ = [
 	"escalate_handler",
 	"escalate_question",
 	"faq_handler",
+	"faq_plain_text",
 	"family_for_code",
 	"load_faq",
 	"load_patterns",
