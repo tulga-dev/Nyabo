@@ -85,6 +85,24 @@ def test_no_user_facing_mongolian_outside_i18n():
 	)
 
 
+def test_the_genitive_of_bagana_is_spelled_one_way(site):
+	"""MINOR: «Баганын» and «Баганы» sat in the same conversation, three lines apart.
+
+	«Баганы» is the standard genitive of «багана». The column-mapping flow said one thing when
+	it cancelled and another when it finished, which reads as carelessness in a bot an
+	accountant is being asked to trust with the books.
+	"""
+	from nyabo_mn.i18n import mn
+
+	offenders = [
+		name
+		for name, value in vars(mn).items()
+		if not name.startswith("_") and isinstance(value, str) and "аганын" in value
+	]
+	assert offenders == [], f"«баганы», not «баганын»: {offenders}"
+	assert "Баганы" in mn.MSG_STATEMENT_LAYOUT_CANCELLED
+
+
 @pytest.mark.parametrize("rel", sorted(ALLOWED))
 def test_allow_list_has_no_stale_entry(rel: str):
 	"""An exemption that no longer applies must be deleted, not left to hide a new literal."""
