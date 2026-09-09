@@ -230,7 +230,14 @@ def test_a_follow_up_question_carries_the_previous_subject_into_the_call(tmp_pat
 		},
 	)
 	handlers = {
-		"answer_from_books": lambda args: {"account_code": "6210", "period": "2026-07", "text": "40 000"}
+		# The text names the subject, as every handler in ``pipeline.books_handlers`` does:
+		# that sentence is now the whole of what verifies the model's numbers.
+		"answer_from_books": lambda args: {
+			"account_code": "6210",
+			"period": "2026-07",
+			"amount": "40 000",
+			"text": "2026 оны 7-р сар: 6210 - Шатахуун - TST 40 000₮",
+		}
 	}
 	previous = questions.remember(
 		"Шатахуунд хэд зарцуулсан бэ?",
@@ -268,8 +275,63 @@ def test_a_follow_up_question_carries_the_previous_subject_into_the_call(tmp_pat
 	],
 )
 def test_only_numbers_a_handler_returned_survive(text, expected):
-	trace = (_books_call("spend_by_account", {"amount": "85 000", "vat": "7 727.27", "period": "2026-08"}),)
+	trace = (
+		_books_call(
+			"spend_by_account",
+			{
+				"account_code": "6210",
+				"period": "2026-08",
+				"amount": "85 000",
+				"text": "2026 оны 8-р сар: 6210 - Шатахуун - TST 85 000₮ (НӨАТ 7 727.27₮)",
+			},
+			account_code="6210",
+			period="2026-08",
+		),
+	)
 	assert list(questions.unverified_numbers(text, trace, "Хэд вэ?", NOW)) == expected
+
+
+def test_a_number_the_model_passed_as_an_argument_cannot_verify_itself(tmp_path):
+	"""MAJOR: the allowed set was the JSON dump of the whole result, arguments included.
+
+	Every handler echoes the subject it was handed beside the figures it computed, so a
+	figure the model invented and passed in as an argument came back in the result and was
+	then accepted as "a handler returned it" — the check became one on the model's
+	consistency with itself rather than on the ledger.
+	"""
+	client = MockLlmClient(fixtures_dir=tmp_path)
+	client.add(
+		"question",
+		{
+			"text": "ACC-PINV-2026-1250000 бичилтээр 1 250 000₮ бүртгэгдсэн байна.",
+			"tool_calls": [
+				{
+					"name": "answer_from_books",
+					"arguments": {
+						"query_kind": "explain_entry",
+						"args": {
+							"entry_ref": "1250000",
+							"account_code": None,
+							"period": None,
+							"on_date": None,
+							"supplier": None,
+						},
+					},
+				}
+			],
+		},
+	)
+	handlers = {
+		# What every real handler does: the subject it was given, echoed beside its own text.
+		"answer_from_books": lambda args: {
+			"entry_ref": args["args"]["entry_ref"],
+			"found": False,
+			"text": "Тийм нэртэй бүртгэл олдсонгүй.",
+		}
+	}
+	outcome = questions.answer(client, "Тэр бичилт юу вэ?", handlers, now=NOW)
+	assert outcome.unverified_numbers == ("1250000",)
+	assert outcome.answer.answer_mn == "Тийм нэртэй бүртгэл олдсонгүй."
 
 
 def test_a_number_no_handler_returned_never_reaches_the_user(tmp_path):

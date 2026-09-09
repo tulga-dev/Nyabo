@@ -20,17 +20,19 @@ bench:
    trace, so they can only ever offer a query the books already answered once. The model
    never names a button.
 3. **Number verification** (``unverified_numbers``). Every number in the model's sentence
-   must appear in a handler result, in the question, or in the timestamp. One that does not
-   means the model wrote a figure of its own; the sentence is dropped and the handler's own
-   Mongolian text is sent instead. This is the mechanical form of "the model writes
-   sentences, deterministic code writes numbers".
+   must appear in what a handler *computed* — the Mongolian sentence the handler wrote and
+   its own numeric fields (``NUMERIC_RESULT_FIELDS``) — or in the question, or in the
+   timestamp. Never in the arguments the model chose: a handler echoes the subject it was
+   handed, so accepting the whole result would let a figure the model invented and passed in
+   verify itself. One that does not appear means the model wrote a figure of its own; the
+   sentence is dropped and the handler's own Mongolian text is sent instead. This is the
+   mechanical form of "the model writes sentences, deterministic code writes numbers".
 4. **Read-only widening.** Ten query kinds (§5.7 named four); every one of them is a read.
    Nothing in this path may write to the ledger, and no tool here can.
 """
 
 from __future__ import annotations
 
-import json
 import re
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -360,13 +362,47 @@ def numbers_in(text: str) -> list[set[str]]:
 	return [_variants(raw) for raw in _NUMBER.findall(cleaned)]
 
 
-def _known_numbers(calls: Sequence[ToolCall], question: str, now: datetime) -> set[str]:
-	sources = [question or "", now.isoformat()]
+# The result fields a handler *computes*. Everything else in a result is either an echo of
+# the arguments the model chose (``account_code``, ``period``, ``on_date``, ``entry_ref``) or
+# a list the handler already rendered into ``text`` line by line, so this is the whole of the
+# handler's own arithmetic.
+NUMERIC_RESULT_FIELDS = frozenset(
+	{
+		"amount",
+		"balance",
+		"count",
+		"input_vat",
+		"net",
+		"output_vat",
+		"payments",
+		"purchases",
+		"returns",
+	}
+)
+
+
+def _handler_output(calls: Sequence[ToolCall]) -> list[str]:
+	"""What each handler itself produced: the Mongolian sentence it wrote and its own figures.
+
+	Deliberately not the whole result dict. Every handler echoes the subject it was handed
+	beside the figures it computed, so dumping the result would let a number the *model*
+	invented and passed in as an argument come back and verify itself — the number check
+	would then be a check on the model's consistency with itself, not on the ledger.
+	"""
+	sources: list[str] = []
 	for call in calls:
-		if call.result is not None:
-			sources.append(json.dumps(call.result, ensure_ascii=False, default=str))
+		if call.is_error or not isinstance(call.result, Mapping):
+			continue
+		text = call.result.get("text")
+		if isinstance(text, str):
+			sources.append(text)
+		sources += [str(call.result[f]) for f in NUMERIC_RESULT_FIELDS if call.result.get(f) is not None]
+	return sources
+
+
+def _known_numbers(calls: Sequence[ToolCall], question: str, now: datetime) -> set[str]:
 	known: set[str] = set()
-	for source in sources:
+	for source in [question or "", now.isoformat(), *_handler_output(calls)]:
 		for forms in numbers_in(source):
 			known |= forms
 	return known
