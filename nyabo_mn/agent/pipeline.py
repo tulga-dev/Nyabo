@@ -978,14 +978,18 @@ BOOKS_LIST_LIMIT = 5
 BOOKS_ENTRY_LIMIT = 8
 
 
-def _truncation_note(total: int, shown: int) -> str:
-	"""«… нийт N мөрөөс эхний M-г харууллаа.», or nothing when the whole list is on the card.
+def _truncation_note(total: int, shown: int, template: str = mn.ANSWER_TRUNCATED) -> str:
+	"""«… нийт N мөрөөс хамгийн сүүлийн M мөрийг харууллаа.», or nothing when nothing was cut.
 
 	A list answer that was cut and does not say so is worse than a short one: the accountant
 	reads five of forty unmatched lines under a heading that claims to be the unmatched lines
 	and plans the day around a picture of the books that is not true.
+
+	``template`` is the note, because the note has to name the end of the list that survived:
+	the row lists are ordered newest-first, the account ranking is ordered by amount, and one
+	sentence cannot be true of both (``mn.ANSWER_TRUNCATED_TOP``).
 	"""
-	return mn.ANSWER_TRUNCATED.format(total=total, shown=shown) if total > shown else ""
+	return template.format(total=total, shown=shown) if total > shown else ""
 
 
 TOP_ACCOUNTS_LIMIT = 5

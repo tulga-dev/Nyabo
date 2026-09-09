@@ -932,7 +932,19 @@ ENTRY_NOT_FOUND_ANSWER = "«{name}» нэртэй бүртгэл энэ комп
 # Every list answer shows at most a handful of rows. Saying so is not a nicety: an accountant
 # reading five of forty unmatched lines with no sign of the cut acts on a false picture of the
 # books, so the full count is computed and the cut is named beside the rows.
-ANSWER_TRUNCATED = "\n… нийт {total} мөрөөс эхний {shown}-г харууллаа."
+#
+# Two notes, because the two kinds of list are cut at different ends. The row lists are ordered
+# newest-first, so what is shown is the MOST RECENT rows and what is hidden is the older ones;
+# «эхний {shown}» said "the first N", which named the wrong end and contradicted the supplier
+# card's own «сүүлийн бүртгэлүүд» heading. The account list is ordered by amount, so its note
+# says "the largest N" instead — "most recent" would be a lie about a ranking.
+#
+# WHY the numeral is never given a case suffix: the correct accusative depends on the numeral
+# («тав» -> «тавыг», «найм» -> «наймыг»), and these are formatted with whatever the limit
+# happens to be, so «{shown}-г» could only ever be wrong for some of them. The suffix therefore
+# attaches to the noun that follows the numeral, which does not change.
+ANSWER_TRUNCATED = "\n… нийт {total} мөрөөс хамгийн сүүлийн {shown} мөрийг харууллаа."
+ANSWER_TRUNCATED_TOP = "\n… нийт {total} данснаас хамгийн их дүнтэй {shown} дансыг харууллаа."
 
 # --- explanation templates (LLM fills only the bracketed part) -----------------------------------
 EXPL_EXPENSE = "{what} тул {debit_code} дебетлэж, {credit_name} кредитлэв."

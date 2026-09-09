@@ -924,3 +924,32 @@ def test_a_supplier_that_does_not_exist_is_not_an_answer(books):
 	assert [f.verb for f in reply.follow_ups] == [questions.VERB_ESCALATE, questions.VERB_MENU]
 	assert reply.subject == "", "nothing was resolved, so nothing is named as the subject"
 	assert reply.memory is None, "a name the books do not have is not context for the next question"
+
+
+# --- the words on a cut, an empty supplier and a source document --------------------------------------
+
+
+def test_the_truncation_note_names_the_end_of_the_list_that_survived(books):
+	"""MAJOR: «эхний {shown}» named the first N, and every one of these reads is newest-first.
+
+	The rows on the card are the most recent; the hidden ones are the oldest. On the supplier
+	card the note also contradicted its own «сүүлийн бүртгэлүүд» heading. The numeral is left
+	bare because the accusative depends on it («тав» -> «тавыг», «найм» -> «наймыг») and the
+	note is formatted with whatever the limit happens to be.
+	"""
+	supplier = _supplier()
+	_fuel_entries(books, supplier, pipeline.BOOKS_ENTRY_LIMIT + 2)
+	run = pipeline.books_handlers(books, today=NOW.date())["answer_from_books"]
+	last = run({"query_kind": "last_entries_for_supplier", "args": {"supplier": supplier}})
+
+	shown_dates = [entry["date"] for entry in last["entries"]]
+	assert shown_dates == sorted(shown_dates, reverse=True)
+	assert max(shown_dates) == "2026-09-10", "the newest row the read found is on the card"
+	assert "2026-09-01" not in shown_dates, "the oldest is one of the ones that were cut"
+	assert "эхний" not in last["text"], "the rows shown are the most recent, not the first"
+	assert mn.MSG_LAST_ENTRIES_ANSWER.split("{")[0] in last["text"]
+
+	for template in (mn.ANSWER_TRUNCATED, mn.ANSWER_TRUNCATED_TOP):
+		for numeral in ("5", "8", "40"):
+			rendered = template.format(total=numeral, shown=numeral)
+			assert f"{numeral}-" not in rendered, "no case suffix may hang off a variable numeral"
