@@ -150,6 +150,7 @@ MSG_MENU = (
 	"/бодлого — НББ-ийн бодлогын баримт бичиг\n"
 	"/компани — идэвхтэй компани солих\n"
 	"/эхлэх — компанийн тохиргоо\n"
+	"/дүрэм — баталгаажаагүй дүрэм (админ баталгаажуулна)\n"
 	"/меню (эсвэл /цэс) — энэ цэс\n"
 	"/цуцлах — эхлүүлсэн ажлыг болих\n"
 	"/тусламж — тусламж\n"
@@ -169,6 +170,7 @@ BOT_COMMAND_DESCRIPTIONS = {
 	"company": "Идэвхтэй компани солих (/компани)",
 	"setup": "Компанийн тохиргоо (/эхлэх)",
 	"cancel": "Эхлүүлсэн ажлыг цуцлах (/цуцлах)",
+	"rules": "Баталгаажаагүй дүрэм (/дүрэм) — админ",
 }
 MSG_HELP = (
 	"Нябо хэрхэн ажилладаг вэ?\n"
@@ -182,7 +184,8 @@ MSG_ADMIN_HELP = (
 	"Админ командууд:\n"
 	"/link <нягтлан|эзэмшигч> <компани> — холболтын код олгох\n"
 	"/whoami — Telegram ID харах\n"
-	"/status — системийн төлөв"
+	"/status — системийн төлөв\n"
+	"/дүрэм (/rules) — баталгаажаагүй дүрмийг харах, баталгаажуулах"
 )
 
 # --- onboarding ------------------------------------------------------------------------
@@ -421,6 +424,11 @@ EVENT_PERIOD_DELETED = "period_deleted"
 EVENT_ENTRY_REVERSED = "entry_reversed"
 EVENT_POLICY_GENERATED = "policy_generated"
 EVENT_FX_RATES_IMPORTED = "fx_rates_imported"
+# Marking a rule verified is a human taking responsibility for a legal reading (§1.2), so it
+# is an audit row like a period lock, not a settings edit. The request event is written when
+# somebody who may not verify hits the refusal, so «the request has been recorded» is true.
+EVENT_RULE_VERIFIED = "rule_verified"
+EVENT_RULE_VERIFY_REQUESTED = "rule_verification_requested"
 MSG_FX_RATES_IMPORTED = "Монголбанкны ханш: {count} мөр импортлолоо ({skipped} давхардсан)."
 MSG_FX_FETCH_DISABLED = "Монголбанкны ханш татах тохиргоо идэвхгүй (MONGOLBANK_FETCH_ENABLED)."
 
@@ -1268,6 +1276,85 @@ MSG_CLOSE_CANCELLED = "Сарын хаалтыг цуцаллаа."
 MSG_POSTED_CARD_FOOTER = "✅ Бүртгэлээ: {doc_name} · Баталсан: {approver}"
 MSG_REJECTED_CARD_FOOTER = "❌ Татгалзлаа: {reason}"
 MSG_CORRECTION_STARTED = "Залруулга: {doctype} {name}"
+
+# --- rule verification from the chat (/дүрэм) ---------------------------------------------------
+# MSG_UNVERIFIED_RULE_BLOCKED promises that an admin checks the rule against the primary text.
+# These are the door that promise points at: the list of what is blocking work, the evidence
+# behind one rule, and the two answers an admin may give it.
+BTN_RULE_LEAVE = "Одоохондоо үлдээх"
+BTN_RULE_ROW = "{index}. {label}"
+MSG_RULES_TITLE = "📋 Баталгаажаагүй дүрэм: {count}"
+MSG_RULES_INTRO = (
+	"Эдгээр дүрмээр бодит бичилт хийгдэхгүй. Дүрэм бүрийг эх сурвалжтай нь тулгаж баталгаажуулна уу."
+)
+MSG_RULES_MORE = "…бас {count} дүрэм байна; бүгдийг ERPNext дэсктээс харна."
+MSG_RULES_NONE = "✅ Баталгаажаагүй дүрэм алга байна."
+MSG_RULES_ADMIN_ONLY = (
+	"Дүрмийг зөвхөн Нябо админ баталгаажуулна. Танай Нябо админд хандана уу — "
+	"баталгаажаагүй дүрмээс болж бичилт зогсвол админд мэдэгдэл автоматаар очно."
+)
+# Keyed by ``rules.verify`` kinds ("p", "t"), which are also what the callback datum carries.
+RULE_KIND_LABELS = {"p": "бичилтийн загвар", "t": "татварын үзүүлэлт"}
+# Keyed in ``rules.verify`` (F-12: the regime name itself is spelled only in rules/regime.py).
+RULE_VAT_SCOPE_ANY = "бүх горим"
+RULE_VAT_SCOPE_VAT_PAYER = "НӨАТ төлөгч"
+RULE_VAT_SCOPE_NON_VAT = "НӨАТ төлөгч бус"
+RULE_STATUS_LABELS = {"active": "хүчинтэй", "pending": "хүлээгдэж буй"}
+# What one row is *for*, in the list and at the top of its own card: a pattern by the primary
+# document it books and the regime it applies to, a parameter by the law it was read from.
+RULE_PURPOSE_PATTERN = "{document} · {scope}"
+RULE_PURPOSE_PARAMETER = "{source} · {status}"
+CARD_RULE_ROW = "{index}. {label}\n     {purpose}"
+CARD_RULE_ROW_USES = "{index}. {label}\n     {purpose} · {uses} удаа хэрэглэсэн"
+CARD_RULE_TITLE = "📜 {label}"
+CARD_RULE_CODE = "Код: {rule} · {kind}"
+CARD_RULE_PURPOSE = "Хамрах хүрээ: {purpose}"
+CARD_RULE_USES = "Энэ дүрмээр {uses} санал үүссэн."
+CARD_RULE_ENTRY_TITLE = "Бичилт:"
+CARD_RULE_ENTRY_LINE = "{side} {account} · {amount}"
+CARD_RULE_SIDE_LABELS = {"debit": "Дт", "credit": "Кт"}
+CARD_RULE_AMOUNT_LABELS = {
+	"gross": "нийт дүн",
+	"net": "НӨАТ-гүй дүн",
+	"vat": "НӨАТ-ын дүн",
+	"": "дүн",
+}
+CARD_RULE_LINE_OPTIONAL = "заавал биш"
+CARD_RULE_VALUE = "Утга: {value} · {unit}"
+CARD_RULE_EFFECTIVE = "Хүчинтэй хугацаа: {effective_from} — {effective_to}"
+CARD_RULE_OPEN_ENDED = "хязгааргүй"
+CARD_RULE_CITATION = "📜 Эх сурвалж: {instrument}, {section}"
+CARD_RULE_CITATION_NO_SECTION = "📜 Эх сурвалж: {instrument}"
+CARD_RULE_QUOTE = "«{quote}»"
+CARD_RULE_SOURCE_URL = "🔗 {url}"
+CARD_RULE_NO_CITATION = (
+	"⚠️ Хуулийн тодорхой заалт, ишлэл энэ дүрэмд алга. Баталгаажуулна гэдэг нь дээрх агуулгыг "
+	"эх сурвалжтай нь өөрөө тулгаж, хариуцлагыг нь хүлээж байгаа хэрэг."
+)
+CARD_RULE_RESPONSIBILITY = "Баталгаажуулсан хүн, огноо бүртгэгдэж, аудитын мөр үлдэнэ."
+CARD_RULE_ASK = "Баталгаажуулах уу?"
+MSG_RULE_NOT_FOUND = "Дүрэм олдсонгүй: {rule}"
+MSG_RULE_ALREADY_VERIFIED = "Энэ дүрэм аль хэдийн баталгаажсан: {rule}"
+MSG_RULE_VERIFIED = "✅ Баталгаажлаа: {rule}\nБаталгаажуулсан: {user} · {when}"
+MSG_RULE_VERIFIED_RETRY = (
+	"Энэ дүрмээр бичилт хийх боломжтой боллоо. Хүлээж байсан баримтын карт дээрх «Батлах» "
+	"товчийг дахин дарна уу; зургийг дахин илгээх шаардлагагүй."
+)
+MSG_RULE_LEFT = "Дүрмийг баталгаажуулаагүй үлдээлээ; энэ дүрмээр бичилт хийгдэхгүй хэвээр."
+MSG_RULE_VERIFY_IN_DESK = (
+	"Энэ дүрмийн кодыг товчинд багтаах боломжгүй тул ERPNext дэсктээс баталгаажуулна уу: {rule}"
+)
+# The refusal the accountant already sees (MSG_UNVERIFIED_RULE_BLOCKED) plus the way out, which
+# is different for the two readers: an admin gets the rule card and the buttons, everyone else
+# gets a promise that is actually kept by notify_admins.
+MSG_UNVERIFIED_RULE_ADMIN_CAN_VERIFY = "Та админ эрхтэй тул энэ дүрмийг эндээс баталгаажуулж болно."
+MSG_UNVERIFIED_RULE_ADMIN_ASKED = (
+	"Энэ дүрмийг Нябо админ баталгаажуулна. Хүсэлтийг бүртгэж, админд мэдэгдэл илгээлээ. "
+	"Баталгаажсаны дараа энэ картын «Батлах» товчийг дахин дарахад бичилт хийгдэнэ."
+)
+MSG_ADMIN_RULE_VERIFY_REQUEST = (
+	"🔒 {company}: «{rule}» дүрэм баталгаажаагүй тул бичилт зогслоо. /дүрэм командаар баталгаажуулна уу."
+)
 
 # --- evals + simulator (nyabo_mn.evals, nyabo_mn.simulator) -----------------------------------------
 SIM_TITLE = "🧪 Симуляци · {case}"

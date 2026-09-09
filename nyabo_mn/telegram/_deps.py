@@ -301,3 +301,55 @@ def apply_onboarding(
 
 def set_regime(company: str, regime: str, effective_from: Any) -> Any:
 	return _call("nyabo_mn.rules.regime", "set_regime", company, regime, effective_from)
+
+
+# --- nyabo_mn.rules.verify (the door MSG_UNVERIFIED_RULE_BLOCKED points at) ----------------------
+
+
+def pending_rules(limit: int | None = None) -> list[Any]:
+	"""``rules.verify.PendingRule`` rows: the unverified rules that are blocking real postings."""
+	return _call("nyabo_mn.rules.verify", "pending", limit=limit)
+
+
+def rule_kinds() -> tuple[str, ...]:
+	"""``("p", "t")`` — the kinds that ride in the callback datum, owned by ``rules.verify``."""
+	return _call("nyabo_mn.rules.verify", "kinds")
+
+
+def rule_evidence(kind: str, rule: str) -> Any:
+	"""``rules.verify.RuleEvidence`` for one rule, or None when the row is gone."""
+	return _call("nyabo_mn.rules.verify", "evidence", kind, rule)
+
+
+def verify_rule(kind: str, rule: str, user: str, telegram_id: str | int | None = None) -> dict[str, Any]:
+	return _call("nyabo_mn.rules.verify", "verify", kind, rule, user, telegram_id=telegram_id)
+
+
+def request_rule_verification(
+	rule: str, company: str | None = None, user: str | None = None, telegram_id: str | int | None = None
+) -> str:
+	"""The Nyabo Event behind «the request has been recorded» in the refusal reply."""
+	return _call(
+		"nyabo_mn.rules.verify",
+		"request_verification",
+		rule,
+		company=company,
+		user=user,
+		telegram_id=telegram_id,
+	)
+
+
+def unverified_rule_error() -> type[Exception]:
+	"""``rules.guard.UnverifiedRuleError``, resolved late like ``bank_import_error``.
+
+	No ``ValueError`` fallback: this class is used in an ``except`` clause that turns a refusal
+	into the verification offer, and a stand-in matching a whole family of errors would answer
+	unrelated failures with «an admin must verify this rule». ``_NeverRaised`` keeps the clause
+	inert instead, and the router's generic handler stays in charge.
+	"""
+	try:
+		module = importlib.import_module("nyabo_mn.rules.guard")
+	except ImportError:
+		return _NeverRaised
+	error = getattr(module, "UnverifiedRuleError", None)
+	return error if isinstance(error, type) and issubclass(error, Exception) else _NeverRaised

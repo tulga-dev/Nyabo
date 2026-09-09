@@ -74,6 +74,11 @@ def _commands() -> dict[str, Callable[[Ctx], Any]]:
 		"/setup": onboarding.handle_command,
 		"/link": admin.handle_link,
 		"/status": admin.handle_status,
+		# The door MSG_UNVERIFIED_RULE_BLOCKED points at (§1.2). Unlike /link and /status it *is*
+		# in the ☰ menu: an accountant whose receipt was refused for an unverified rule reads the
+		# rule's name in that refusal, and the command is where they find out who can clear it.
+		"/дүрэм": admin.handle_rules,
+		"/rules": admin.handle_rules,
 	}
 
 
@@ -91,6 +96,7 @@ def is_routable(command: str) -> bool:
 
 def _callback_handlers() -> dict[str, Callable[[Ctx, list[str]], Any]]:
 	from nyabo_mn.telegram.handlers import (
+		admin,
 		approve,
 		bank,
 		close,
@@ -103,6 +109,7 @@ def _callback_handlers() -> dict[str, Callable[[Ctx, list[str]], Any]]:
 	)
 
 	return {
+		keyboards.PREFIX_VERIFY: admin.handle_callback,
 		keyboards.PREFIX_PROPOSAL: approve.handle_callback,
 		keyboards.PREFIX_BANK: bank.handle_callback,
 		keyboards.PREFIX_CLOSE: close.handle_callback,
