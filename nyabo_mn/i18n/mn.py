@@ -911,7 +911,12 @@ def account_label(account: str | None, abbr: str | None = None) -> str:
 
 
 LAST_ENTRY_LINE = "{date} · {doctype} {name} · {amount}₮"
-LAST_ENTRIES_NONE = "{supplier} харилцагчийн бүртгэл олдсонгүй."
+# Two different answers that both used to end «олдсонгүй»: this one is "the supplier is in the
+# register and has nothing posted", the one below is "there is no supplier by that name". An
+# accountant chasing a missing document has to be able to tell a typo in the name from a
+# supplier with an empty period, so the first says the supplier IS registered and the second
+# keeps «олдсонгүй» for the name that is not.
+LAST_ENTRIES_NONE = "{supplier} харилцагч бүртгэлтэй боловч гүйлгээ алга."
 UNMATCHED_ANSWER = "Тулгагдаагүй банкны гүйлгээ: {count}"
 SUPPLIER_NOT_FOUND_ANSWER = "{supplier} нэртэй харилцагч олдсонгүй."
 # The wider read-only answers (§5.7). Every figure in them is computed by the handler.

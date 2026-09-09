@@ -1051,3 +1051,21 @@ def test_an_account_ranking_that_fits_says_nothing_about_a_cut(books):
 	top = run({"query_kind": "top_spend_accounts", "args": {"period": "2026-09"}})
 	assert top["count"] == len(top["accounts"]) == pipeline.TOP_ACCOUNTS_LIMIT - 1
 	assert "…" not in top["text"]
+
+
+def test_a_supplier_with_nothing_posted_does_not_read_like_a_name_that_is_not_there(books):
+	"""MINOR: both answers ended «олдсонгүй», so a typo and an empty period read the same.
+
+	An accountant chasing a missing document has to be able to tell "there is no such
+	supplier" from "that supplier has nothing posted", because the next step differs.
+	"""
+	supplier = _supplier()
+	run = pipeline.books_handlers(books, today=NOW.date())["answer_from_books"]
+	empty = run({"query_kind": "last_entries_for_supplier", "args": {"supplier": supplier}})
+	missing = run({"query_kind": "last_entries_for_supplier", "args": {"supplier": "Хэн ч биш"}})
+
+	assert empty["found"] is True and missing["found"] is False
+	assert empty["text"] == mn.LAST_ENTRIES_NONE.format(supplier=supplier)
+	assert missing["text"] == mn.SUPPLIER_NOT_FOUND_ANSWER.format(supplier="Хэн ч биш")
+	assert "олдсонгүй" in missing["text"], "the name is not in the register"
+	assert "олдсонгүй" not in empty["text"], "this supplier was found; it just has nothing posted"
