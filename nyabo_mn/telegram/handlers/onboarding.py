@@ -68,7 +68,8 @@ def start(ctx: Ctx, force: bool = False) -> Any:
 	ctx.set_state(_state("vat"), {"company": ctx.company, "banks": []})
 	_set_progress(settings, "vat")
 	ctx.reply(mn.ONB_START.format(company=ctx.company))
-	ctx.reply(mn.ONB_ASK_VAT, keyboards.onboarding_yes_no("vat"))
+	# The first question has no step behind it, so it is drawn without Буцах (UX-13).
+	ctx.reply(mn.ONB_ASK_VAT, keyboards.onboarding_yes_no("vat", back=False))
 	return {"step": "vat"}
 
 
@@ -102,11 +103,11 @@ def handle_callback(ctx: Ctx, parts: list[str]) -> Any:
 	_prefix, step, value = parts[0], parts[1], parts[2]
 	state, payload = ctx.get_state()
 	if not state or not state.startswith(PREFIX + ":"):
-		ctx.answer(mn.MSG_CANCELLED)
+		ctx.answer(mn.MSG_ESCAPE_STALE, show_alert=True)
 		return None
 	current = state.split(":", 1)[1]
 	if step != current and not (step == "banks" and current == "banks"):
-		ctx.answer(mn.MSG_CANCELLED)
+		ctx.answer(mn.MSG_ESCAPE_STALE, show_alert=True)
 		return None
 	handler = {
 		"vat": _on_vat,
@@ -193,7 +194,7 @@ def _on_currency(ctx: Ctx, payload: dict[str, Any], value: str) -> Any:
 	selected: list[str] = list(payload.get("cur_selected") or [])
 	if value == "other":
 		_advance(ctx, payload, "cur_other")
-		ctx.reply(mn.ONB_ASK_CURRENCY_CODE)
+		ctx.reply(mn.ONB_ASK_CURRENCY_CODE, keyboards.onboarding_text_step("cur_other"))
 		return None
 	if value != "done":
 		if value in selected:
@@ -256,6 +257,37 @@ def _ask_inventory(ctx: Ctx, payload: dict[str, Any]) -> Any:
 
 
 def _on_inventory(ctx: Ctx, payload: dict[str, Any], value: str) -> Any:
+	"""Тийм/Үгүй on the stock question; «Үгүй» is refused once the opening stock is filed.
+
+	``_back_target`` sends Буцах from ``acc_name`` back here — not to the list — precisely
+	because a posted intake may not be re-taken (principle 5). This step has to hold the same
+	line: «Үгүй» used to write ``has_inventory = False`` and the summary then reported a company
+	with no stock while its opening entry stood in the ledger, an answer about the books that
+	contradicts the books. So it is refused in Mongolian and the question is re-offered rather
+	than the wizard moving on with it (UX-13: the step keeps something to answer).
+
+	«Тийм» is honoured as it always was: it agrees with the ledger, and a company that has more
+	opening stock to file may still send another list. Adding is not undoing.
+	"""
+	if payload.get("inventory_posted") and value != "yes":
+		ctx.bot.edit_message_reply_markup(ctx.chat_id, ctx.callback_message_id, keyboards.empty_markup())
+		ctx.reply(mn.ONB_INVENTORY_ALREADY_POSTED)
+		# The answer stands as the ledger has it.
+		payload["has_inventory"] = True
+		log_event(
+			"telegram.onboarding.inventory_reanswer_refused",
+			level="warning",
+			company=ctx.company,
+			intake=payload.get("posted_intake") or payload.get("intake") or "",
+			answer=value,
+		)
+		_ask_inventory(ctx, payload)
+		return {"refused": "inventory_posted", "has_inventory": True}
+	# Both answers clear the note that the list was skipped, because both re-answer the question
+	# the note hangs off. Only ``_on_inventory_input`` used to pop it, so a walk that came back
+	# here through Буцах and answered Үгүй left it standing and the summary reported a list left
+	# for later on books that hold no stock at all.
+	payload.pop("inventory_skipped", None)
 	payload["has_inventory"] = value == "yes"
 	ctx.edit(
 		ctx.callback_message_id,
@@ -263,15 +295,61 @@ def _on_inventory(ctx: Ctx, payload: dict[str, Any], value: str) -> Any:
 		keyboards.empty_markup(),
 	)
 	if payload["has_inventory"]:
-		_advance(ctx, payload, "inv_wait")
-		ctx.reply(mn.ONB_INVENTORY_HOW)
-		return {"step": "inv_wait"}
+		return _ask_inventory_list(ctx, payload)
 	return _ask_accountant(ctx, payload)
+
+
+def _forget_inventory_list(ctx: Ctx, payload: dict[str, Any]) -> None:
+	"""Drop every trace of a list that was read but never filed, and cancel its draft intake.
+
+	``cards.onboarding_summary`` and ``finish`` read whatever the payload still holds, so a
+	count left behind by a preview the accountant walked away from would be reported as
+	opening stock that exists.
+
+	The Nyabo Inventory Intake was already inserted when the preview card was drawn. Nothing
+	in it can reach the ledger — ``post_intake`` refuses anything that is not confirmed — but a
+	draft nobody explained is a row an auditor has to ask about, so it is cancelled by status
+	rather than deleted (principle 5: this app corrects by reversal and keeps its trail).
+
+	A list that was already filed is left exactly as it is. ``handle_intake_callback`` keeps the
+	intake name in the payload after posting, so the ordinary «confirm the opening stock, then
+	leave the wizard» used to hand a posted intake to ``cancel_intake``, which rightly refuses
+	it — an error line in the log on the happy path. The opening entry is in the ledger and only
+	a reversal takes it back, and the count and total the summary prints are true once posted.
+
+	That exemption is named, not general: it is the intake this payload holds being *the* one
+	that was filed. The guard used to read the ``inventory_posted`` boolean, which says «some
+	intake was filed» — so a second list, drafted after the first was posted (Тийм is still a
+	live answer on the stock question, principle 5 forbids undoing, not adding), inherited the
+	exemption and was left on the desk as a draft nobody could explain.
+	"""
+	intake = payload.get("intake")
+	if intake and intake == payload.get("posted_intake"):
+		return
+	payload.pop("intake", None)
+	for key in ("inventory_count", "inventory_total"):
+		payload.pop(key, None)
+	if not intake:
+		return
+	try:
+		_deps.inventory_cancel_intake(intake, ctx.user)
+	except DependencyMissing as exc:
+		log_event("telegram.onboarding.intake_cancel_missing", level="warning", error=str(exc))
+	except Exception as exc:
+		# Leaving a step must never fail on the clean-up; the draft is inert either way.
+		log_error("telegram.onboarding.intake_cancel_failed", exc, intake=intake, user=ctx.user)
+
+
+def _ask_inventory_list(ctx: Ctx, payload: dict[str, Any]) -> Any:
+	"""The step the founder was trapped in: optional, so it is drawn with Алгасах and Буцах."""
+	_advance(ctx, payload, "inv_wait")
+	ctx.reply(mn.ONB_INVENTORY_HOW, keyboards.onboarding_text_step("inv_wait", back=True, skip=True))
+	return {"step": "inv_wait"}
 
 
 def _ask_accountant(ctx: Ctx, payload: dict[str, Any]) -> Any:
 	_advance(ctx, payload, "acc_name")
-	ctx.reply(mn.ONB_ASK_ACCOUNTANT_NAME)
+	ctx.reply(mn.ONB_ASK_ACCOUNTANT_NAME, keyboards.onboarding_text_step("acc_name", skip=True))
 	return {"step": "acc_name"}
 
 
@@ -304,27 +382,106 @@ def _on_summary(ctx: Ctx, payload: dict[str, Any], value: str) -> Any:
 # --- inventory intake --------------------------------------------------------------------------------
 
 
-def _inventory_from_message(ctx: Ctx) -> tuple[list[dict[str, Any]], str]:
+def _inventory_from_message(ctx: Ctx) -> tuple[list[dict[str, Any]], str, str | None]:
+	"""``(items, source, file_url)``: the rows, and the workbook they were read out of.
+
+	The upload is kept, not thrown away. ``post_intake`` submits an opening Journal Entry (or
+	a Stock Reconciliation) for these numbers, and every posted document must carry the primary
+	document behind it — Law on Accounting art. 13.7, enforced by ``compliance.hooks``. The
+	receipt path is the precedent (``handlers.receipt._intake``): ``files.save_document`` writes
+	a Nyabo Document with the bytes attached as a private File, and the retention date is set by
+	the ``before_insert`` hook on that doctype.
+
+	A typed list has no file and none is invented: the intake's own rows *are* the record, and
+	the opening entry points at the intake (``nyabo_primary_document_ref``).
+	"""
 	if ctx.document:
 		document = ctx.document
-		content, _mime, name = files.download_telegram_file(
+		content, mime, name = files.download_telegram_file(
 			ctx.bot,
 			document.get("file_id"),
 			document.get("mime_type"),
 			document.get("file_name") or "inventory.xlsx",
 		)
-		return _deps.inventory_parse_table(content, name), "excel"
-	return _deps.inventory_parse_text(ctx.text), "text"
+		# Parsed first: an unreadable file is answered with the step's own message and leaves
+		# no Nyabo Document behind for an admin to wonder about.
+		items = _deps.inventory_parse_table(content, name)
+		return items, "excel", _save_inventory_file(ctx, content, name, mime)
+	return _deps.inventory_parse_text(ctx.text), "text", None
+
+
+def _save_inventory_file(ctx: Ctx, content: bytes, name: str, mime: str | None) -> str | None:
+	"""The stock workbook as a Nyabo Document; returns its ``file_url`` for the intake."""
+	try:
+		doc = files.save_document(
+			ctx.company or "",
+			ctx.sender,
+			"inventory",
+			content,
+			name,
+			mime=mime,
+			telegram_file_id=(ctx.document or {}).get("file_id"),
+			chat_id=ctx.chat_id,
+			message_id=ctx.message_id,
+			sender_user=ctx.user,
+		)
+	except files.DuplicateDocument as dup:
+		# The same workbook sent twice (Буцах, then send it again): the first Nyabo Document is
+		# the record, so the intake points at that one rather than storing a second copy.
+		log_event("telegram.onboarding.inventory_file_duplicate", existing=dup.existing_name)
+		return frappe.db.get_value(files.DOCUMENT, dup.existing_name, "file")
+	log_event("telegram.onboarding.inventory_file_saved", document=doc.name, company=ctx.company)
+	return doc.file
+
+
+def _inventory_prompt() -> dict[str, Any]:
+	"""What a refused inventory line is answered with: the shape wanted, and the ways out.
+
+	UX-13: the step used to reply with a bare sentence and leave the state untouched with no
+	keyboard, so a user whose line could not be read had nothing on screen to press.
+	"""
+	return keyboards.onboarding_text_step("inv_wait", back=True, skip=True)
 
 
 def _on_inventory_input(ctx: Ctx, payload: dict[str, Any]) -> Any:
 	if not ctx.document and not ctx.text:
-		ctx.reply(mn.MSG_ONBOARDING_INVENTORY_NEED_FILE)
+		ctx.reply(mn.MSG_ONBOARDING_INVENTORY_NEED_FILE, _inventory_prompt())
 		return None
+	if ctx.document:
+		# "We only recommend using this method when a response from the bot will take a
+		# noticeable amount of time to arrive" (sendChatAction): downloading and parsing a
+		# workbook does, typing a line does not.
+		_typing(ctx)
+	# The guard covers the write, not only the read: ``create_intake`` re-validates the rows
+	# it is handed (``as_rows``) and raises the same IntakeParseError from there, which used to
+	# leave the step through the router's generic apology.
 	try:
-		items, source = _inventory_from_message(ctx)
+		items, source, file_url = _inventory_from_message(ctx)
+		if not items:
+			ctx.reply(
+				mn.ONB_INVENTORY_PARSE_ERROR.format(error=mn.MSG_ONBOARDING_INVENTORY_NEED_FILE),
+				_inventory_prompt(),
+			)
+			return None
+		intake = _deps.inventory_create_intake(
+			ctx.company or payload.get("company") or "", items, source, ctx.user, file_url=file_url
+		)
 	except DependencyMissing:
 		raise
+	except _deps.intake_parse_error() as exc:
+		# Nyabo's own Mongolian sentence about the line it could not read: it says more than the
+		# generic message, and it is safe to show (SEC-09 — the module builds it, not the file).
+		log_event(
+			"telegram.onboarding.inventory_refused",
+			level="warning",
+			company=ctx.company,
+			source="excel" if ctx.document else "text",
+		)
+		ctx.reply(
+			mn.ONB_INVENTORY_PARSE_ERROR.format(error=getattr(exc, "message_mn", "") or str(exc)),
+			_inventory_prompt(),
+		)
+		return None
 	except Exception as exc:
 		# SEC-09: a parser exception carries file paths, sheet names and library internals,
 		# and the file itself is untrusted input. The user gets the Mongolian instruction;
@@ -336,17 +493,15 @@ def _on_inventory_input(ctx: Ctx, payload: dict[str, Any]) -> Any:
 			user=ctx.user,
 			source="excel" if ctx.document else "text",
 		)
-		ctx.reply(mn.ONB_INVENTORY_PARSE_FAILED)
+		# The state stands and the buttons come back with the message: a step that cannot read
+		# the input must still be answerable (UX-13).
+		ctx.reply(mn.ONB_INVENTORY_PARSE_FAILED, _inventory_prompt())
 		return None
-	if not items:
-		ctx.reply(mn.ONB_INVENTORY_PARSE_ERROR.format(error=mn.MSG_ONBOARDING_INVENTORY_NEED_FILE))
-		return None
-	intake = _deps.inventory_create_intake(
-		ctx.company or payload.get("company") or "", items, source, ctx.user
-	)
 	payload["intake"] = intake
 	payload["inventory_count"] = len(items)
 	payload["inventory_total"] = str(cards.inventory_total(items))
+	# A list given after Алгасах (Буцах brings the step back) undoes the skip.
+	payload.pop("inventory_skipped", None)
 	_advance(ctx, payload, "inv_confirm")
 	ctx.reply(cards.inventory_preview(items), keyboards.intake_confirm(intake))
 	return {"intake": intake, "items": len(items)}
@@ -363,8 +518,9 @@ def handle_intake_callback(ctx: Ctx, parts: list[str]) -> Any:
 		return None
 	if action == "cancel":
 		ctx.bot.edit_message_reply_markup(ctx.chat_id, ctx.callback_message_id, keyboards.empty_markup())
-		_advance(ctx, payload, "inv_wait")
-		ctx.reply(mn.ONB_INVENTORY_HOW)
+		# The list itself was refused, so its draft goes with it and the step is asked again.
+		_forget_inventory_list(ctx, payload)
+		_ask_inventory_list(ctx, payload)
 		return {"cancelled": True}
 	result = _deps.inventory_post_intake(intake, ctx.user) or {}
 	docs = result.get("created") or result.get("docs") or list(result.values())
@@ -374,6 +530,13 @@ def handle_intake_callback(ctx: Ctx, parts: list[str]) -> Any:
 		keyboards.empty_markup(),
 	)
 	payload["inventory_posted"] = True
+	# Which intake was filed, not only that one was: ``_forget_inventory_list`` spares this
+	# name and cancels any draft that comes after it.
+	payload["posted_intake"] = intake
+	# And how many rows it filed, because ``inventory_count`` belongs to whatever list the
+	# payload holds now: a later draft overwrites it and being dropped pops it, leaving the
+	# summary to report an opening stock of nothing for books that carry one.
+	payload["posted_count"] = payload.get("inventory_count", 0)
 	return _ask_accountant(ctx, payload)
 
 
@@ -410,9 +573,7 @@ def handle_state(ctx: Ctx, state: str, payload: dict[str, Any]) -> Any:
 		return _on_inventory_input(ctx, payload)
 	if step == "acc_name":
 		payload["accountant_name"] = ctx.text.strip()[:140]
-		_advance(ctx, payload, "micpa")
-		ctx.reply(mn.ONB_ASK_MICPA, keyboards.onboarding_skip("micpa"))
-		return {"step": "micpa"}
+		return _ask_micpa(ctx, payload)
 	if step == "micpa":
 		payload["micpa"] = ctx.text.strip()[:60]
 		return _show_summary(ctx, payload)
@@ -420,9 +581,21 @@ def handle_state(ctx: Ctx, state: str, payload: dict[str, Any]) -> Any:
 	return _repeat(ctx, step, payload)
 
 
+def _ask_micpa(ctx: Ctx, payload: dict[str, Any]) -> Any:
+	_advance(ctx, payload, "micpa")
+	ctx.reply(mn.ONB_ASK_MICPA, keyboards.onboarding_skip("micpa"))
+	return {"step": "micpa"}
+
+
 def _repeat(ctx: Ctx, step: str, payload: dict[str, Any]) -> Any:
+	"""Re-offer the question the chat is on, with its buttons.
+
+	Every waiting step is covered, not only the button ones: this is what Буцах re-draws and
+	what a step answers with when it cannot read what was typed, so a user is never left with
+	a message they have no way to answer (UX-13).
+	"""
 	if step == "vat":
-		ctx.reply(mn.ONB_ASK_VAT, keyboards.onboarding_yes_no("vat"))
+		ctx.reply(mn.ONB_ASK_VAT, keyboards.onboarding_yes_no("vat", back=False))
 	elif step == "400m":
 		ctx.reply(mn.ONB_ASK_UNDER_400M, keyboards.onboarding_yes_no("400m"))
 	elif step == "banks":
@@ -435,15 +608,160 @@ def _repeat(ctx: Ctx, step: str, payload: dict[str, Any]) -> Any:
 				payload.get("cur_selected") or [], payload.get("cur_custom") or []
 			),
 		)
+	elif step == "cur_other":
+		ctx.reply(mn.ONB_ASK_CURRENCY_CODE, keyboards.onboarding_text_step("cur_other"))
+	elif step == "acct":
+		queue: list[str] = payload.get("acct_queue") or []
+		bank = payload["banks"][payload.get("bank_index", 0)]["bank"]
+		ctx.reply(
+			mn.ONB_ASK_ACCOUNT_NUMBER.format(bank=bank, currency=queue[0] if queue else DEFAULT_CURRENCY),
+			keyboards.onboarding_skip("acct"),
+		)
 	elif step == "inv":
 		ctx.reply(mn.ONB_ASK_INVENTORY, keyboards.onboarding_yes_no("inv"))
+	elif step == "inv_wait":
+		ctx.reply(mn.ONB_INVENTORY_HOW, keyboards.onboarding_text_step("inv_wait", back=True, skip=True))
 	elif step == "inv_confirm":
 		ctx.reply(mn.ONB_CONFIRM_SUMMARY, keyboards.intake_confirm(payload.get("intake", "")))
+	elif step == "acc_name":
+		ctx.reply(mn.ONB_ASK_ACCOUNTANT_NAME, keyboards.onboarding_text_step("acc_name", skip=True))
+	elif step == "micpa":
+		ctx.reply(mn.ONB_ASK_MICPA, keyboards.onboarding_skip("micpa"))
 	elif step == "summary":
 		return _show_summary(ctx, payload)
 	else:
 		ctx.clear_state()
 	return None
+
+
+# --- escapes (UX-13) ---------------------------------------------------------------------------------
+
+# Буцах: the question each step goes back to. A step that is not here has nothing to return to
+# (the first question), or sits inside a queue the wizard walks per bank and per currency, where
+# "the previous question" is the one the queue is already re-asking.
+BACK_STEPS = {
+	"400m": "vat",
+	"banks": "400m",
+	"cur": "banks",
+	"cur_other": "cur",
+	"acct": "cur",
+	"inv": "banks",
+	"inv_wait": "inv",
+	"inv_confirm": "inv_wait",
+	"acc_name": "inv",
+	"micpa": "acc_name",
+	"summary": "micpa",
+}
+
+
+def _back_target(step: str, payload: dict[str, Any]) -> str | None:
+	"""The step Буцах returns to, for a wizard whose shape depends on the answers so far.
+
+	``acc_name`` is the one branching step: the accountant's name is reached from the stock
+	list when the company said Тийм and from the Тийм/Үгүй question itself when it said Үгүй,
+	so a static table would send half the users to a question they never saw. It was drawn
+	with Буцах and had no entry at all, which answered «this is the first step» — false, and
+	the reason this walk is now tested button by button.
+
+	A list that has already been posted is not offered again: the opening stock is in the
+	ledger and only a reversal takes it back (principle 5), so Буцах goes to the question.
+	"""
+	if step == "acc_name":
+		if payload.get("has_inventory") and not payload.get("inventory_posted"):
+			return "inv_wait"
+		return "inv"
+	return BACK_STEPS.get(step)
+
+
+def _go_to(ctx: Ctx, payload: dict[str, Any], step: str) -> Any:
+	_advance(ctx, payload, step)
+	return _repeat(ctx, step, payload)
+
+
+def handle_escape(ctx: Ctx, state: str, payload: dict[str, Any], verb: str) -> bool:
+	"""Цуцлах / Буцах / Алгасах inside the wizard; False leaves it to the plain cancel.
+
+	Cancel is still the caller's to announce, but it is not quite free: nothing is written to
+	the *company* until the summary is confirmed, and the one document the wizard inserts
+	before then is the draft Nyabo Inventory Intake behind the confirmation card. Leaving that
+	step cancels it, so the desk does not fill with drafts nobody can explain.
+	"""
+	step = state.split(":", 1)[1] if ":" in state else ""
+	if verb == keyboards.ESCAPE_CANCEL:
+		_forget_inventory_list(ctx, payload)
+		return False
+	if verb == keyboards.ESCAPE_BACK:
+		target = _back_target(step, payload)
+		if not target:
+			return False
+		if step == "inv_confirm":
+			# The list on the card is being replaced by whatever is sent next; its draft does
+			# not outlive the question it was an answer to.
+			_forget_inventory_list(ctx, payload)
+		_go_to(ctx, payload, target)
+		return True
+	if verb == keyboards.ESCAPE_SKIP:
+		return _skip_step(ctx, payload, step)
+	return False
+
+
+def _skip_step(ctx: Ctx, payload: dict[str, Any], step: str) -> bool:
+	"""True when the step is genuinely optional; the VAT regime and the summary never are.
+
+	Nor is the Тийм/Үгүй stock question, which is why ``inv`` is absent while ``inv_wait`` and
+	``inv_confirm`` are here. It used to be honoured, and honouring it wrote ``has_inventory =
+	False`` — a definite answer about the books, and the one that decides whether provisioning
+	opens the inventory accounts — while replying ``ONB_INVENTORY_SKIPPED``, which talks about
+	the list. Nothing drew the button, so this only ever ran for the founder's typed «алгасах»,
+	and it recorded an answer they never gave, silently, under a sentence about something else.
+	Two buttons, no default, no third answer: the word is refused like it is on ``vat``.
+	"""
+	if step == "banks":
+		payload["selected_banks"] = []
+		payload["banks"] = []
+		payload["bank_index"] = 0
+		_ask_inventory(ctx, payload)
+		return True
+	if step == "cur":
+		bank = payload["banks"][payload.get("bank_index", 0)]
+		bank["currencies"] = [DEFAULT_CURRENCY]
+		payload["acct_queue"] = list(bank["currencies"])
+		_ask_account_number(ctx, payload)
+		return True
+	if step == "cur_other":
+		_go_to(ctx, payload, "cur")
+		return True
+	if step == "acct":
+		_store_account_number(ctx, payload, None)
+		return True
+	if step in ("inv_wait", "inv_confirm"):
+		# The founder's case: «алгасах» here leaves the opening stock for later and the wizard
+		# goes on. ``has_inventory`` keeps the answer they gave — the company does hold stock,
+		# it is the list that is missing — so provisioning still sets the inventory accounts up.
+		# The numbers of a list that was parsed but never filed go with it: a summary that
+		# still read them would report an opening stock the company does not have.
+		payload["inventory_skipped"] = True
+		_forget_inventory_list(ctx, payload)
+		ctx.reply(mn.ONB_INVENTORY_SKIPPED)
+		_ask_accountant(ctx, payload)
+		return True
+	if step == "acc_name":
+		payload["accountant_name"] = ""
+		_ask_micpa(ctx, payload)
+		return True
+	if step == "micpa":
+		payload["micpa"] = ""
+		_show_summary(ctx, payload)
+		return True
+	return False
+
+
+def _typing(ctx: Ctx) -> None:
+	"""Best-effort ``sendChatAction``; a missing status line must never cost the answer."""
+	try:
+		ctx.bot.send_chat_action(ctx.chat_id)
+	except Exception as exc:
+		log_event("telegram.chat_action_failed", level="warning", error=type(exc).__name__)
 
 
 # --- finish ------------------------------------------------------------------------------------------

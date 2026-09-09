@@ -78,6 +78,10 @@ class FakeBotApi:
 		)
 		return True
 
+	def send_chat_action(self, chat_id, action="typing"):
+		self._record("send_chat_action", chat_id=chat_id, action=action)
+		return True
+
 	def send_document(self, chat_id, content, filename, caption=None):
 		self._record("send_document", chat_id=chat_id, content=content, filename=filename, caption=caption)
 		self._next_message_id += 1
@@ -178,13 +182,25 @@ def callback_update(
 	chat_id: int | None = None,
 	message_id: int = 101,
 	update_id: int | None = None,
+	reply_markup: dict[str, Any] | None = None,
+	message_date: int = 1_700_000_000,
 ) -> dict[str, Any]:
+	"""``reply_markup`` is what Telegram really sends back on ``CallbackQuery.message``; the
+	escape handler re-sends those rows disabled. ``message_date`` is 0 for an
+	``InaccessibleMessage``, the one case where the message must not be edited."""
+	message: dict[str, Any] = {
+		"message_id": message_id,
+		"date": message_date,
+		"chat": {"id": chat_id or user_id, "type": "private"},
+	}
+	if reply_markup is not None:
+		message["reply_markup"] = reply_markup
 	return {
 		"update_id": update_id or _next_update_id(),
 		"callback_query": {
 			"id": f"cq{update_id or _update_counter[0]}",
 			"from": sender(user_id),
-			"message": {"message_id": message_id, "chat": {"id": chat_id or user_id, "type": "private"}},
+			"message": message,
 			"chat_instance": "1",
 			"data": data,
 		},

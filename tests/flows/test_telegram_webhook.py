@@ -101,7 +101,9 @@ def test_every_registered_command_is_routable_and_the_cyrillic_aliases_still_wor
 
 	routed = router._commands()
 	for name in commands.MENU_COMMANDS:
-		assert f"/{name}" in routed, name
+		# /cancel reaches its handler through the escape step, which runs before the command
+		# table precisely because a command clears the conversation first (UX-13).
+		assert router.is_routable(f"/{name}"), name
 	# The Cyrillic spelling and its Latin twin reach the same handler.
 	for cyrillic, latin in (
 		("/данс", "/bank"),

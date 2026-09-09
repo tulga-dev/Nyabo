@@ -116,7 +116,9 @@ def test_an_unexpected_failure_is_not_leaked_to_the_chat(books, monkeypatch):
 	link_user(9305, "Accountant", books)
 	bot = FakeBotApi(files={"stmt": b"PK\x03\x04 sheet"})
 	_send(bot, 9305, "khan.xlsx")
-	assert bot.last_text == mn.MSG_ERROR_ADMIN_NOTIFIED
+	# The worker has no keyboard to draw and notifies nobody, so it promises neither (UX-13).
+	assert bot.last_text == mn.MSG_ERROR_NO_BUTTON
+	assert not [kw for kw in bot.sent("send_message") if kw.get("reply_markup")]
 	assert "psycopg2" not in "\n".join(bot.texts())  # no stack trace, no driver noise
 	assert frappe.local.error_log[-1].title == "nyabo: telegram.statement.import_failed"
 
@@ -129,7 +131,8 @@ def test_a_missing_matching_module_tells_the_user_the_feature_is_off(books, monk
 	link_user(9306, "Accountant", books)
 	bot = FakeBotApi(files={"stmt": b"PK\x03\x04 sheet"})
 	_send(bot, 9306, "khan.xlsx")
-	assert bot.last_text == mn.MSG_FEATURE_UNAVAILABLE
+	assert bot.last_text == mn.MSG_FEATURE_UNAVAILABLE_NO_BUTTON
+	assert not [kw for kw in bot.sent("send_message") if kw.get("reply_markup")]
 
 
 def test_an_unknown_layout_without_a_header_row_cannot_be_mapped(books, monkeypatch):
@@ -143,3 +146,57 @@ def test_an_unknown_layout_without_a_header_row_cannot_be_mapped(books, monkeypa
 	_send(bot, 9307, "mystery.xlsx")
 	assert bot.last_text == mn.MSG_UNSUPPORTED_FILE
 	assert frappe.db.get_value("Nyabo Chat State", {"chat_id": "9307"}, "state") in (None, "")
+
+
+def _one_column_xlsx() -> bytes:
+	"""A workbook with a single column: a date, and nothing an amount could be read from."""
+	import io as _io
+
+	from openpyxl import Workbook
+
+	wb = Workbook()
+	ws = wb.active
+	ws.title = "Statement"
+	for row in (["Огноо"], ["2026.09.01"], ["2026.09.02"], ["2026.09.03"]):
+		ws.append(row)
+	buf = _io.BytesIO()
+	wb.save(buf)
+	return buf.getvalue()
+
+
+def test_a_statement_with_one_column_is_refused_not_walked_into_a_loop(books):
+	"""MINOR: every role answer produced the same refusal, naming a button that is not drawn.
+
+	``missing_for_import`` wants a date column *and* one of amount/debit/credit, and a column
+	carries one role, so a single column can never satisfy it. ``_ask_column`` draws Буцах only
+	from the second column on, and the refusal names Буцах as the way out — so the accountant
+	was asked a question whose every answer came back to a message pointing at a button that
+	was not there. The file is refused where it is read instead.
+	"""
+	link_user(9308, "Accountant", books)
+	bot = FakeBotApi(files={"stmt": _one_column_xlsx()})
+	_send(bot, 9308, "нэг_багана.xlsx")
+
+	assert bot.last_text == mn.MSG_STATEMENT_LAYOUT_TOO_FEW_COLUMNS
+	# Not «this file type is unsupported»: xlsx is read fine, it simply has no columns to map.
+	assert mn.MSG_UNSUPPORTED_FILE not in bot.texts()
+	assert mn.MSG_STATEMENT_LAYOUT_ASK_COLUMN.format(header="Огноо") not in bot.texts()
+	assert not bot.callback_datas()  # no question, so no roles to answer it with
+	assert frappe.db.get_value("Nyabo Chat State", {"chat_id": "9308"}, "state") in (None, "")
+	assert not frappe.get_all("Nyabo Bank Layout", filters={"layout_id": ["like", "custom-%"]})
+
+
+def test_a_single_header_never_starts_the_mapping_conversation(books):
+	"""The same guard where the headers arrive already picked out, not read off the rows."""
+	from nyabo_mn.telegram.handlers import statement
+
+	link_user(9309, "Accountant", books)
+	bot = FakeBotApi()
+	statement.start_layout_mapping(
+		bot,
+		9309,
+		"NYD-00009",
+		{"headers": ["Огноо", "", ""], "preview": [["2026-08-01"]], "preview_rows": [["Огноо"]]},
+	)
+	assert bot.last_text == mn.MSG_STATEMENT_LAYOUT_TOO_FEW_COLUMNS
+	assert frappe.db.get_value("Nyabo Chat State", {"chat_id": "9309"}, "state") in (None, "")

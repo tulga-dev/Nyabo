@@ -27,6 +27,11 @@ from nyabo_mn.log import log_event
 MENU_COMMANDS: tuple[str, ...] = (
 	"start",
 	"menu",
+	# /cancel is the floor under every form (UX-13): it needs no card on screen, survives
+	# scroll-back, and is the one way out that works when the user has lost their place.
+	# ``router.is_routable`` is what checks it reaches a handler — it runs before the command
+	# table, because every command clears the conversation it would otherwise be cancelling.
+	"cancel",
 	"help",
 	"bank",
 	"close",

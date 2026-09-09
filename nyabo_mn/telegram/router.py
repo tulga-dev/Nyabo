@@ -1,11 +1,16 @@
 """Update dispatch (docs/ARCHITECTURE.md §5.1).
 
-Order: callback query → command → conversation state → content type. Everything runs
+Order: callback query → escape word → command → conversation state → content type. Everything runs
 as the linked Frappe user (``frappe.set_user``) so ERPNext permissions and the audit
 trail name a real person, never Guest. Unlinked senders only get the link flow. A
 handler exception never leaks a traceback into Telegram: the user sees
 ``MSG_ERROR_ADMIN_NOTIFIED`` and the admins get a one-line notice; a callback query is
 always answered so the client stops its spinner.
+
+The escape step comes before the command table and before any conversation state (UX-13):
+«цуцлах», «буцах», «алгасах» and their slash spellings mean the same thing whether they are
+typed or tapped, and the step's own parser must never see them — the founder typed «алгасах»
+to leave the inventory step and got «1-р мөрийг уншиж чадсангүй» back.
 """
 
 from __future__ import annotations
@@ -51,6 +56,7 @@ def _commands() -> dict[str, Callable[[Ctx], Any]]:
 		"/start": start.handle_start,
 		"/whoami": start.handle_whoami,
 		"/меню": menu.handle_menu,
+		"/цэс": menu.handle_menu,
 		"/menu": menu.handle_menu,
 		"/тусламж": menu.handle_help,
 		"/help": menu.handle_help,
@@ -71,8 +77,29 @@ def _commands() -> dict[str, Callable[[Ctx], Any]]:
 	}
 
 
+def is_routable(command: str) -> bool:
+	"""True when ``/name`` reaches a handler — the command table, or an escape word (UX-13).
+
+	``/cancel`` is registered with Telegram's ☰ menu but is not in the table: it must run
+	*before* the table, because every command clears the conversation first and cancelling
+	would then have no step left to cancel.
+	"""
+	from nyabo_mn.telegram.handlers import escape
+
+	return command in _commands() or escape.intent(command) is not None
+
+
 def _callback_handlers() -> dict[str, Callable[[Ctx, list[str]], Any]]:
-	from nyabo_mn.telegram.handlers import approve, bank, close, company, correct, onboarding, statement
+	from nyabo_mn.telegram.handlers import (
+		approve,
+		bank,
+		close,
+		company,
+		correct,
+		escape,
+		onboarding,
+		statement,
+	)
 
 	return {
 		keyboards.PREFIX_PROPOSAL: approve.handle_callback,
@@ -82,6 +109,7 @@ def _callback_handlers() -> dict[str, Callable[[Ctx, list[str]], Any]]:
 		keyboards.PREFIX_ONBOARDING: onboarding.handle_callback,
 		keyboards.PREFIX_INTAKE: onboarding.handle_intake_callback,
 		keyboards.PREFIX_LAYOUT: statement.handle_layout_callback,
+		keyboards.PREFIX_ESCAPE: escape.handle_callback,
 		"k": company.handle_callback,
 	}
 
@@ -119,7 +147,7 @@ def handle_update(update: dict[str, Any]) -> dict[str, Any]:
 		return outcome
 	except DependencyMissing as exc:
 		log_error("telegram.dependency_missing", exc, chat_id=ctx.chat_id)
-		ctx.reply(mn.MSG_FEATURE_UNAVAILABLE)
+		ctx.reply(mn.MSG_FEATURE_UNAVAILABLE, keyboards.menu_markup())
 		notify_admins(
 			bot,
 			settings,
@@ -132,7 +160,10 @@ def handle_update(update: dict[str, Any]) -> dict[str, Any]:
 	except Exception as exc:
 		log_error("telegram.handler_failed", exc, chat_id=ctx.chat_id, telegram_id=ctx.telegram_id)
 		try:
-			ctx.reply(mn.MSG_ERROR_ADMIN_NOTIFIED)
+			# The failure may have left a conversation half-answered, and the user cannot know
+			# which step it is on any more; the [Цэс] button on the apology is the way out that
+			# does not require them to remember a command (UX-13).
+			ctx.reply(mn.MSG_ERROR_ADMIN_NOTIFIED, keyboards.menu_markup())
 		except Exception as reply_exc:  # the bot itself may be down; nothing more to do here
 			log_event("telegram.reply_failed", level="error", error=type(reply_exc).__name__)
 		notify_admins(
@@ -181,6 +212,15 @@ def _dispatch(ctx: Ctx) -> Any:
 			return None
 		return handler(ctx, parts)
 
+	from nyabo_mn.telegram.handlers import escape
+
+	# Before the command table and before the open step's own parser: «алгасах» typed into the
+	# inventory step is a skip, not an unreadable stock line (UX-13). A message carrying a photo
+	# or a file is that file, whatever its caption says, so it is never read as an escape.
+	verb = escape.intent(ctx.text) if not (ctx.photo or ctx.document) else None
+	if verb is not None:
+		return escape.handle_typed(ctx, verb)
+
 	command = ctx.command
 	if command:
 		handler = _commands().get(command)
@@ -188,8 +228,15 @@ def _dispatch(ctx: Ctx) -> Any:
 			ctx.reply(mn.MSG_UNKNOWN_COMMAND)
 			return None
 		# A command always leaves the previous conversation; otherwise /меню mid-onboarding
-		# would be swallowed as an answer to the current question.
+		# would be swallowed as an answer to the current question. Leaving it silently is what
+		# made the bot feel like it lost the founder's place, so the change is announced — and
+		# the flow gets to clean up what it filed first, the way every other way out does
+		# (``escape.leave_open_flow``): a command used to abandon a draft inventory intake.
+		state_name, state_payload = ctx.get_state()
+		announced = escape.leave_open_flow(ctx, state_name, state_payload)
 		ctx.clear_state()
+		if state_name and not announced:
+			ctx.reply(mn.MSG_FLOW_LEFT_FOR_COMMAND)
 		return handler(ctx)
 
 	if not ctx.is_callback and LINK_CODE_RE.match(ctx.text):

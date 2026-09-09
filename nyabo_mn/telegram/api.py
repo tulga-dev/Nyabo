@@ -163,6 +163,18 @@ class BotApi:
 			params["show_alert"] = show_alert
 		return self.call("answerCallbackQuery", params)
 
+	def send_chat_action(self, chat_id: int | str, action: str = "typing") -> Any:
+		"""sendChatAction (Bot API, read 2026-09-09).
+
+		"Use this method when you need to tell the user that something is happening on the bot's
+		side. The status is set for 5 seconds or less (when a message arrives from your bot,
+		Telegram clients clear its typing status)." The docs add: "We only recommend using this
+		method when a response from the bot will take a noticeable amount of time to arrive" —
+		so this is for the two steps that do their work before replying (matching a bank line
+		against the ledger, parsing an uploaded stock list), not for every prompt.
+		"""
+		return self.call("sendChatAction", {"chat_id": chat_id, "action": action})
+
 	def send_document(
 		self, chat_id: int | str, content: bytes, filename: str, caption: str | None = None
 	) -> dict[str, Any]:
@@ -204,6 +216,13 @@ class BotApi:
 	# --- webhook and identity ------------------------------------------------------------------
 
 	def set_webhook(self, url: str, secret_token: str, allowed_updates: list[str] | None = None) -> Any:
+		"""setWebhook. ``allowed_updates`` names ``callback_query`` explicitly and must keep doing so.
+
+		"Specify an empty list to receive all update types except chat_member, message_reaction,
+		and message_reaction_count (default). If not specified, the previous setting will be
+		used." An explicit list that dropped ``callback_query`` would stop every button tap with
+		no error anywhere — the bot would simply never hear a tap again.
+		"""
 		return self.call(
 			"setWebhook",
 			{

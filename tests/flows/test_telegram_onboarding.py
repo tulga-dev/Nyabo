@@ -9,7 +9,7 @@ import frappe
 
 from nyabo_mn.core.money import fmt_mnt
 from nyabo_mn.i18n import mn
-from nyabo_mn.telegram import _deps
+from nyabo_mn.telegram import _deps, keyboards
 from tests.fixtures.telegram.fake_bot import FakeBotApi, callback_update, link_user, message_update, run
 
 
@@ -32,7 +32,9 @@ def test_full_onboarding_stores_settings(company, monkeypatch):
 	monkeypatch.setattr(
 		_deps,
 		"inventory_create_intake",
-		lambda company, items, source, user: intakes.append((company, items, source, user)) or "NYI-00001",
+		lambda company, items, source, user, file_url=None: (
+			intakes.append((company, items, source, user, file_url)) or "NYI-00001"
+		),
 	)
 	posted: list = []
 	monkeypatch.setattr(
@@ -47,7 +49,8 @@ def test_full_onboarding_stores_settings(company, monkeypatch):
 	run(bot, message_update(uid, "/эхлэх"))
 	assert _state(uid) == "onb:vat"
 	assert mn.ONB_ASK_VAT in bot.texts()
-	assert bot.callback_datas() == ["o:vat:yes", "o:vat:no"]
+	# The first question has no step behind it, so Буцах is absent and Цуцлах is not (UX-13).
+	assert bot.callback_datas() == ["o:vat:yes", "o:vat:no", "e:onb:cancel:vat"]
 
 	run(bot, callback_update(uid, "o:vat:no"))
 	assert mn.ONB_VAT_NO_NOTE in bot.texts()
@@ -80,9 +83,16 @@ def test_full_onboarding_stores_settings(company, monkeypatch):
 	run(bot, callback_update(uid, "o:inv:yes"))
 	assert _state(uid) == "onb:inv_wait" and bot.last_text == mn.ONB_INVENTORY_HOW
 	run(bot, message_update(uid, "Принтерийн хор, 5, 45000\nЦаас, 10, 12000"))
-	assert intakes and intakes[0][0] == company and intakes[0][2] == "text"
+	# A typed list has no file behind it; the intake's own rows are the record.
+	assert intakes and intakes[0][0] == company and intakes[0][2] == "text" and intakes[0][4] is None
 	assert bot.last_text == mn.ONB_INVENTORY_PARSED.format(count=2, total=fmt_mnt(345000))
-	assert bot.callback_datas() == ["i:NYI-00001:confirm", "i:NYI-00001:cancel"]
+	# One red word on the card, and it is the escape row's: Буцах is «another list», Цуцлах leaves.
+	assert bot.callback_datas() == [
+		"i:NYI-00001:confirm",
+		"e:onb:back:inv_confirm",
+		"e:onb:skip:inv_confirm",
+		"e:onb:cancel:inv_confirm",
+	]
 	run(bot, callback_update(uid, "i:NYI-00001:confirm"))
 	assert posted == [("NYI-00001", "tg-9001@nyabo.local")]
 	assert mn.ONB_INVENTORY_POSTED.format(docs="MAT-STE-2026-00001") in bot.texts()
@@ -169,7 +179,8 @@ def test_text_during_button_step_repeats_question(company):
 	run(bot, message_update(9003, "/эхлэх"))
 	bot.clear()
 	run(bot, message_update(9003, "тийм"))
-	assert bot.last_text == mn.ONB_ASK_VAT and bot.callback_datas() == ["o:vat:yes", "o:vat:no"]
+	assert bot.last_text == mn.ONB_ASK_VAT
+	assert bot.callback_datas() == ["o:vat:yes", "o:vat:no", "e:onb:cancel:vat"]
 
 
 def test_custom_currency_is_shown_and_can_be_removed(company):
@@ -224,7 +235,10 @@ def test_custom_currency_refuses_a_code_that_is_not_three_latin_letters(company)
 	run(bot, callback_update(uid, "o:cur:other"))
 	run(bot, message_update(uid, "юань:1"))
 	assert mn.ONB_CURRENCY_CODE_INVALID in bot.last_text
-	assert all(":" not in data.split(":", 2)[-1] for data in bot.callback_datas())
+	# Nothing the user typed may reach the data, and no datum grows a field of its own:
+	# an escape carries at most prefix, scope, verb and step.
+	assert all("юань" not in data for data in bot.callback_datas())
+	assert all(len(keyboards.decode(data)) <= 4 for data in bot.callback_datas())
 
 
 def test_onboarding_with_unparseable_inventory(company, monkeypatch, caplog):
@@ -295,3 +309,161 @@ def test_apply_onboarding_is_idempotent(company):
 	settings = frappe.get_doc("Nyabo Company Settings", second["settings"])
 	assert len(settings.bank_accounts) == 1
 	assert settings.accountant_micpa_permit == "MICPA-1"
+
+
+def _posted_intake_deps(monkeypatch, name: str = "NYI-0001") -> dict[str, list]:
+	"""The inventory dependencies stubbed, with a record of what each one was asked to do."""
+	calls: dict[str, list] = {"created": [], "posted": [], "cancelled": []}
+	monkeypatch.setattr(
+		_deps,
+		"inventory_parse_text",
+		lambda text: [{"item_name": text.split(",")[0], "qty": 1, "rate": 10}],
+	)
+	monkeypatch.setattr(
+		_deps,
+		"inventory_create_intake",
+		lambda company, items, source, user, file_url=None: (
+			calls["created"].append(items) or f"{name}-{len(calls['created'])}"
+		),
+	)
+	monkeypatch.setattr(
+		_deps,
+		"inventory_post_intake",
+		lambda intake, user: calls["posted"].append(intake) or {"created": ["MAT-STE-2026-00001"]},
+	)
+	monkeypatch.setattr(
+		_deps, "inventory_cancel_intake", lambda intake, user: calls["cancelled"].append(intake)
+	)
+	return calls
+
+
+def test_posted_opening_stock_cannot_be_answered_away(company, monkeypatch):
+	"""MAJOR: Буцах to the stock question let «Үгүй» contradict a posted opening entry.
+
+	``_back_target`` sends Буцах from the accountant's name back to the Тийм/Үгүй question once
+	the intake is filed, because the list itself may not be re-taken. But the question re-answered
+	itself blind: «Үгүй» wrote ``has_inventory = False`` and the summary reported no stock for a
+	company whose opening entry is in the ledger. Only a reversal takes that back (principle 5).
+	"""
+	calls = _posted_intake_deps(monkeypatch)
+	link_user(9007, "Accountant", company)
+	uid = 9007
+	bot = FakeBotApi()
+	run(bot, message_update(uid, "/эхлэх"))
+	run(bot, callback_update(uid, "o:vat:no"))
+	run(bot, callback_update(uid, "o:400m:yes"))
+	run(bot, callback_update(uid, "o:banks:done"))
+	run(bot, callback_update(uid, "o:inv:yes"))
+	run(bot, message_update(uid, "Принтерийн хор, 1, 10"))
+	run(bot, callback_update(uid, "i:NYI-0001-1:confirm"))
+	assert calls["posted"] == ["NYI-0001-1"]
+	assert _state(uid) == "onb:acc_name"
+
+	# Буцах from the accountant's name lands on the question, not on the list (posted stock).
+	run(bot, callback_update(uid, "e:onb:back:acc_name"))
+	assert _state(uid) == "onb:inv"
+	bot.clear()
+
+	run(bot, callback_update(uid, "o:inv:no"))
+	assert mn.ONB_INVENTORY_ALREADY_POSTED in bot.texts()
+	# The step is re-offered, not walked past: there is still something on screen to answer.
+	assert bot.last_text == mn.ONB_ASK_INVENTORY
+	assert bot.callback_datas() == ["o:inv:yes", "o:inv:no", "e:onb:back:inv", "e:onb:cancel:inv"]
+	assert _state(uid) == "onb:inv"
+	assert calls["cancelled"] == []  # the filed intake is not touched by a refused answer
+
+	# …and the answer the books already carry is what reaches the summary and the settings.
+	run(bot, callback_update(uid, "o:inv:yes"))
+	run(bot, message_update(uid, "Цаас, 1, 10"))
+	run(bot, callback_update(uid, "i:NYI-0001-2:confirm"))
+	run(bot, message_update(uid, "Дорж"))
+	run(bot, callback_update(uid, "o:micpa:skip"))
+	assert mn.ONB_SUMMARY_INVENTORY_NONE not in bot.last_text
+	run(bot, callback_update(uid, "o:summary:confirm"))
+	settings = frappe.get_doc(
+		"Nyabo Company Settings", frappe.db.exists("Nyabo Company Settings", {"company": company})
+	)
+	assert settings.has_inventory == 1
+
+
+def test_a_skip_after_a_posted_list_does_not_report_it_as_unfiled(company, monkeypatch):
+	"""The other door onto the same fault: «Үгүй» is refused, so «алгасах» is the way past.
+
+	Refusing «Үгүй» leaves Тийм as the only answer that moves, and Тийм leads to the list step,
+	whose «алгасах» set ``inventory_skipped``. The summary then read «stock exists, list not
+	entered — register it later» to a founder whose opening entry is already in the ledger, which
+	is an invitation to file it a second time. The ledger outranks the answers given after it.
+	"""
+	calls = _posted_intake_deps(monkeypatch)
+	link_user(9009, "Accountant", company)
+	uid = 9009
+	bot = FakeBotApi()
+	run(bot, message_update(uid, "/эхлэх"))
+	run(bot, callback_update(uid, "o:vat:no"))
+	run(bot, callback_update(uid, "o:400m:yes"))
+	run(bot, callback_update(uid, "o:banks:done"))
+	run(bot, callback_update(uid, "o:inv:yes"))
+	run(bot, message_update(uid, "Принтерийн хор, 1, 10"))
+	run(bot, callback_update(uid, "i:NYI-0001-1:confirm"))
+	assert calls["posted"] == ["NYI-0001-1"]
+
+	run(bot, callback_update(uid, "e:onb:back:acc_name"))
+	run(bot, callback_update(uid, "o:inv:yes"))
+	assert _state(uid) == "onb:inv_wait"
+	run(bot, message_update(uid, "алгасах"))
+	assert _state(uid) == "onb:acc_name"
+	run(bot, message_update(uid, "Дорж"))
+	run(bot, callback_update(uid, "o:micpa:skip"))
+	assert mn.ONB_SUMMARY_INVENTORY_SKIPPED not in bot.last_text
+	assert mn.ONB_SUMMARY_INVENTORY_COUNT.format(count=1) in bot.last_text
+
+	# …and a second list read and then dropped does not take the filed count with it.
+	run(bot, callback_update(uid, "e:onb:back:summary"))
+	run(bot, callback_update(uid, "e:onb:back:micpa"))
+	run(bot, callback_update(uid, "e:onb:back:acc_name"))
+	assert _state(uid) == "onb:inv"
+	run(bot, callback_update(uid, "o:inv:yes"))
+	run(bot, message_update(uid, "Цаас, 1, 10"))
+	assert _state(uid) == "onb:inv_confirm"
+	run(bot, message_update(uid, "алгасах"))
+	assert calls["cancelled"] == ["NYI-0001-2"]
+	run(bot, message_update(uid, "Дорж"))
+	run(bot, callback_update(uid, "o:micpa:skip"))
+	assert mn.ONB_SUMMARY_INVENTORY_COUNT.format(count=1) in bot.last_text
+
+
+def test_a_draft_made_after_a_posted_one_is_still_cancelled_on_leaving(company, monkeypatch):
+	"""MINOR: the posted guard was a boolean, so it covered every later draft as well.
+
+	``inventory_posted`` says «some intake was filed», not «this payload's intake was filed». A
+	second list, drafted after the first was posted, was therefore never cancelled when the
+	accountant left the wizard — a draft nobody can explain, left on the desk.
+	"""
+	calls = _posted_intake_deps(monkeypatch)
+	link_user(9008, "Accountant", company)
+	uid = 9008
+	bot = FakeBotApi()
+	run(bot, message_update(uid, "/эхлэх"))
+	run(bot, callback_update(uid, "o:vat:no"))
+	run(bot, callback_update(uid, "o:400m:yes"))
+	run(bot, callback_update(uid, "o:banks:done"))
+	run(bot, callback_update(uid, "o:inv:yes"))
+	run(bot, message_update(uid, "Принтерийн хор, 1, 10"))
+	run(bot, callback_update(uid, "i:NYI-0001-1:confirm"))
+	assert calls["posted"] == ["NYI-0001-1"]
+
+	# Тийм agrees with the ledger, so it is honoured: more opening stock may still be filed.
+	run(bot, callback_update(uid, "e:onb:back:acc_name"))
+	run(bot, callback_update(uid, "o:inv:yes"))
+	assert _state(uid) == "onb:inv_wait"
+	run(bot, message_update(uid, "Цаас, 1, 10"))
+	assert calls["created"] == [
+		[{"item_name": "Принтерийн хор", "qty": 1, "rate": 10}],
+		[{"item_name": "Цаас", "qty": 1, "rate": 10}],
+	]
+	assert _state(uid) == "onb:inv_confirm"
+
+	run(bot, message_update(uid, "/меню"))
+	assert _state(uid) in (None, "")
+	# The second draft goes; the posted one is left exactly where it is.
+	assert calls["cancelled"] == ["NYI-0001-2"]

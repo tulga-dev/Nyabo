@@ -24,12 +24,15 @@ from nyabo_mn.log import log_error, log_event
 from nyabo_mn.telegram import _deps, api, files, keyboards
 from nyabo_mn.telegram._deps import DependencyMissing
 from nyabo_mn.telegram.context import Ctx
+from nyabo_mn.telegram.handlers import escape
 
 IMPORT_METHOD = "nyabo_mn.telegram.handlers.statement.run_import"
 STATE_PREFIX = "layout"
 BANK_LAYOUT = "Nyabo Bank Layout"
 LAYOUT_BANKS = ("Khan Bank", "TDB", "Golomt Bank", "Trans Bank", "XacBank")
 MAX_PREVIEW_ROWS = 3
+# The money columns: any one of them carries an amount into a BankLine.
+AMOUNT_ROLES = ("amount", "debit", "credit")
 
 
 # --- intake ------------------------------------------------------------------------------------------
@@ -89,23 +92,28 @@ def handle_document(ctx: Ctx) -> Any:
 
 
 def run_import(document_name: str, chat_id: int | str) -> dict[str, Any]:
-	"""Worker: import, then report or start the mapping conversation. Never raises into RQ."""
+	"""Worker: import, then report or start the mapping conversation. Never raises into RQ.
+
+	This runs on the ``long`` queue with no ``Ctx``, so nothing here draws a keyboard and
+	nothing here notifies the admins: the replies are the ``_NO_BUTTON`` variants, which name
+	/меню as a command to type and claim no notification (UX-13).
+	"""
 	bot = api.get_bot()
 	try:
 		summary = _deps.import_statement(document_name) or {}
 	except DependencyMissing as exc:
 		log_error("telegram.statement.dependency_missing", exc, document=document_name)
-		bot.send_message(chat_id, mn.MSG_FEATURE_UNAVAILABLE)
+		bot.send_message(chat_id, mn.MSG_FEATURE_UNAVAILABLE_NO_BUTTON)
 		return {"ok": False}
 	except _deps.bank_import_error() as exc:
 		# The importer's own Mongolian text says what the accountant has to fix.
 		log_event("telegram.statement.import_refused", level="warning", document=document_name)
-		bot.send_message(chat_id, str(exc) or mn.MSG_ERROR_ADMIN_NOTIFIED)
+		bot.send_message(chat_id, str(exc) or mn.MSG_ERROR_NO_BUTTON)
 		return {"ok": False, "refused": str(exc)}
 	except Exception as exc:
 		# BankImportError (no bank account, unreadable file, no lines) carries the card text.
 		log_error("telegram.statement.import_failed", exc, document=document_name)
-		bot.send_message(chat_id, getattr(exc, "message_mn", None) or mn.MSG_ERROR_ADMIN_NOTIFIED)
+		bot.send_message(chat_id, getattr(exc, "message_mn", None) or mn.MSG_ERROR_NO_BUTTON)
 		return {"ok": False}
 	# The importer sets ``unknown_layout`` for both cases, so the more specific one is asked
 	# first: a layout that was mapped once but is not verified must not re-ask the accountant,
@@ -175,8 +183,28 @@ def start_layout_mapping(bot: Any, chat_id: int | str, document_name: str, summa
 			preview = [list(row) for row in rows[index + 1 :]]
 	while headers and not headers[-1].strip():
 		headers.pop()
-	if not headers:
-		bot.send_message(chat_id, mn.MSG_UNSUPPORTED_FILE)
+	if len(headers) < 2:
+		# Refused here, where the file is read, rather than after every column is answered.
+		# ``missing_for_import`` wants a date column *and* one of amount/debit/credit, and a
+		# column carries exactly one role, so a file with fewer than two columns has no answer
+		# that would ever be accepted: each role the accountant picked would come back to the
+		# same refusal — one that names Буцах, which is not drawn on the first column. A loop
+		# with no exit but Цуцлах is not a question, so the question is not asked.
+		#
+		# «The file cannot be read at all» is a different sentence from «the file does not carry
+		# the columns an import needs», and the preview rows are what tells them apart.
+		bot.send_message(
+			chat_id,
+			mn.MSG_STATEMENT_LAYOUT_TOO_FEW_COLUMNS
+			if summary.get("preview_rows")
+			else mn.MSG_UNSUPPORTED_FILE,
+		)
+		log_event(
+			"telegram.layout.too_few_columns",
+			level="warning",
+			document=document_name,
+			headers=len(headers),
+		)
 		return
 	from nyabo_mn.telegram import state as chat_state
 
@@ -199,10 +227,11 @@ def start_layout_mapping(bot: Any, chat_id: int | str, document_name: str, summa
 
 
 def _ask_column(bot: Any, chat_id: int | str, headers: list[str], index: int) -> None:
+	"""Буцах appears from the second column on; the first has nothing behind it (UX-13)."""
 	bot.send_message(
 		chat_id,
 		mn.MSG_STATEMENT_LAYOUT_ASK_COLUMN.format(header=headers[index]),
-		reply_markup=keyboards.layout_column_roles(index),
+		reply_markup=keyboards.layout_column_roles(index, back=index > 0),
 	)
 
 
@@ -223,20 +252,64 @@ def handle_layout_callback(ctx: Ctx, parts: list[str]) -> Any:
 	headers: list[str] = payload.get("headers") or []
 	if index >= len(headers) or role not in mn.COLUMN_ROLES:
 		return None
-	mapping: dict[str, str] = dict(payload.get("mapping") or {})
-	if role != "ignore":
-		mapping[role] = headers[index]
-	payload["mapping"] = mapping
 	ctx.edit(
 		ctx.callback_message_id,
 		mn.MSG_STATEMENT_LAYOUT_ASK_COLUMN.format(header=headers[index]) + " " + mn.COLUMN_ROLES[role],
 		keyboards.empty_markup(),
 	)
+	return _answer_column(ctx, payload, headers, index, role)
+
+
+def missing_for_import(mapping: dict[str, str]) -> list[str]:
+	"""What a mapping still needs before any statement can be read through it, in Mongolian.
+
+	``core.statements.parse_rows`` skips a row whose date cell does not parse ("if date is
+	None: continue") and, for either amount style, a row with no amount in it — so a mapping
+	without a date column, or without one of ``amount``/``debit``/``credit``, produces zero
+	lines from every file. Requiring one money column rather than a debit *and* a credit is
+	deliberate: a statement with only a Зарлага column still imports, and refusing it would
+	trap the accountant in a question with no acceptable answer.
+	"""
+	missing: list[str] = []
+	if "date" not in mapping:
+		missing.append(mn.MSG_STATEMENT_LAYOUT_NEEDS_DATE)
+	if not any(role in mapping for role in AMOUNT_ROLES):
+		missing.append(mn.MSG_STATEMENT_LAYOUT_NEEDS_AMOUNT)
+	return missing
+
+
+def _answer_column(
+	ctx: Ctx, payload: dict[str, Any], headers: list[str], index: int, role: str
+) -> dict[str, Any]:
+	"""Record one column's role and move on; the last column saves the layout (unverified)."""
+	mapping: dict[str, str] = dict(payload.get("mapping") or {})
+	# The header may already hold a role from an answer being re-taken (Буцах, or a refused
+	# last column); it keeps only the role it is being given now.
+	mapping = {r: h for r, h in mapping.items() if h != headers[index]}
+	if role != "ignore":
+		mapping[role] = headers[index]
+	payload["mapping"] = mapping
 	next_index = index + 1
 	if next_index < len(headers):
 		ctx.set_state(f"{STATE_PREFIX}:{next_index}", payload)
 		_ask_column(ctx.bot, ctx.chat_id, headers, next_index)
 		return {"next": next_index}
+	missing = missing_for_import(mapping)
+	if missing:
+		# Every column is answered and the mapping still cannot read a line. Saving it would
+		# key an empty mapping to this bank's header signature and re-use it for every future
+		# import of that format, and would ask an admin to verify a layout that reads nothing.
+		# So the last question stands, with what it is waiting for.
+		ctx.set_state(f"{STATE_PREFIX}:{index}", payload)
+		ctx.reply(mn.MSG_STATEMENT_LAYOUT_INCOMPLETE.format(missing=", ".join(missing)))
+		_ask_column(ctx.bot, ctx.chat_id, headers, index)
+		log_event(
+			"telegram.layout.incomplete",
+			level="warning",
+			document=payload.get("document"),
+			mapped=sorted(mapping),
+		)
+		return {"incomplete": sorted(mapping)}
 	ctx.clear_state()
 	return save_layout(ctx, payload)
 
@@ -244,6 +317,13 @@ def handle_layout_callback(ctx: Ctx, parts: list[str]) -> Any:
 def save_layout(ctx: Ctx, payload: dict[str, Any]) -> Any:
 	headers: list[str] = payload.get("headers") or []
 	mapping: dict[str, str] = payload.get("mapping") or {}
+	missing = missing_for_import(mapping)
+	if missing:
+		# The second lock on the same door: whoever calls this, a layout that reads no lines is
+		# never written and no admin is asked to verify one.
+		ctx.reply(mn.MSG_STATEMENT_LAYOUT_INCOMPLETE.format(missing=", ".join(missing)))
+		log_event("telegram.layout.refused", level="warning", document=payload.get("document"))
+		return {"refused": sorted(mapping)}
 	bank = payload.get("bank") if payload.get("bank") in LAYOUT_BANKS else "Other"
 	digest = hashlib.sha256("|".join(headers).encode("utf-8")).hexdigest()[:8]
 	layout_id = f"custom-{bank.lower().replace(' ', '_')}-{digest}"
@@ -274,12 +354,76 @@ def save_layout(ctx: Ctx, payload: dict[str, Any]) -> Any:
 
 def handle_state(ctx: Ctx, state: str, payload: dict[str, Any]) -> Any:
 	"""Text while mapping: repeat the current column question (buttons are the only answer)."""
-	try:
-		index = int(state.split(":", 1)[1])
-	except (IndexError, ValueError):
+	index = _column_index(state)
+	if index is None:
 		ctx.clear_state()
 		return None
 	headers = payload.get("headers") or []
 	if index < len(headers):
 		_ask_column(ctx.bot, ctx.chat_id, headers, index)
 	return None
+
+
+def _column_index(state: str) -> int | None:
+	try:
+		return int(state.split(":", 1)[1])
+	except (IndexError, ValueError):
+		return None
+
+
+# --- escapes (UX-13) ---------------------------------------------------------------------------------
+
+
+def handle_escape(ctx: Ctx, state: str, payload: dict[str, Any], verb: str) -> bool | str:
+	"""Буцах re-asks the previous column, Алгасах marks this one unused, Цуцлах drops the mapping.
+
+	Cancelling is safe at any point: the layout row is only written once every column has been
+	answered, so nothing was imported on a half-made guess (CORE-08). Skipping every column is
+	not a way to leave — it would write a mapping that reads nothing — and is refused where the
+	mapping is completed, not here.
+
+	Буцах and Алгасах are gated on the accountant the way ``handle_layout_callback``'s own
+	buttons are, because they do the same work: Алгасах *is* the «Ашиглахгүй» answer, and on the
+	last column it saves a Nyabo Bank Layout and asks the admins to verify it. The escape row is
+	drawn beside those buttons and the words are typed into the same step, so an Owner — who may
+	send a statement, and therefore reaches this conversation — used to walk round the check.
+	Цуцлах is deliberately not gated: leaving a step is never a permission, and the owner who
+	opened the question is entitled to close it. Nothing has been written at that point.
+	"""
+	index = _column_index(state)
+	headers: list[str] = payload.get("headers") or []
+	if index is None or index >= len(headers):
+		return False
+	if verb in (keyboards.ESCAPE_BACK, keyboards.ESCAPE_SKIP) and not ctx.is_accountant:
+		escape.refuse(ctx, mn.MSG_NO_PERMISSION)
+		log_event(
+			"telegram.layout.escape_refused",
+			level="warning",
+			verb=verb,
+			user=ctx.user,
+			document=payload.get("document"),
+		)
+		return True
+	if verb == keyboards.ESCAPE_BACK:
+		if index == 0:
+			return False
+		# The answer being re-taken is dropped, or the column would keep the role it was given.
+		mapping = {r: h for r, h in (payload.get("mapping") or {}).items() if h != headers[index - 1]}
+		payload["mapping"] = mapping
+		ctx.set_state(f"{STATE_PREFIX}:{index - 1}", payload)
+		_ask_column(ctx.bot, ctx.chat_id, headers, index - 1)
+		return True
+	if verb == keyboards.ESCAPE_SKIP:
+		# "Ашиглахгүй" is already one of the roles, so skipping a column is simply that answer —
+		# and ``_answer_column`` is where skipping every column is refused, in Mongolian, with
+		# the question left standing.
+		_answer_column(ctx, payload, headers, index, "ignore")
+		return True
+	if verb == keyboards.ESCAPE_CANCEL:
+		ctx.clear_state()
+		# This line is the goodbye — it says the statement was not imported, which the generic
+		# one does not — so the caller is told not to say it again.
+		ctx.reply(mn.MSG_STATEMENT_LAYOUT_CANCELLED)
+		log_event("telegram.layout.cancelled", document=payload.get("document"), column=index)
+		return escape.CANCEL_ANNOUNCED
+	return False

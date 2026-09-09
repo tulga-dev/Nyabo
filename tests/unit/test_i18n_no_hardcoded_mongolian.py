@@ -37,6 +37,7 @@ ALLOWED: dict[str, str] = {
 	"matching/rules.py": "the legal citation carried by a seeded rule",
 	"setup/chart_csv.py": "CSV column header aliases in the accountant's own file",
 	"setup/inventory_intake.py": "inventory column header aliases in the accountant's own file",
+	"telegram/handlers/escape.py": "the Cyrillic escape words a user types (цуцлах, буцах, алгасах)",
 	"telegram/router.py": "the Cyrillic command names a user types",
 	"telegram/state.py": "the role words a user types in /link",
 }
@@ -82,6 +83,76 @@ def test_no_user_facing_mongolian_outside_i18n():
 		"Mongolian text outside nyabo_mn/i18n/mn.py — move it there and refer to it by name "
 		"(add to ALLOWED only when the Cyrillic is input Nyabo reads, never output):\n" + "\n".join(offenders)
 	)
+
+
+# The genitive of «багана» is written one way across the whole app, so the founder — a native
+# speaker — can settle it later with a single sweep. «Баганы» is what is written today: it takes
+# «багана» to have a fleeting final -а, leaving the stem «баган-», and a stem ending in -н takes
+# -ы/-ий (нуруу → нурууны, ширээ → ширээний, хаан → хааны). The competing «Баганын» treats that
+# same -н as an ordinary consonant taking -ын. No authoritative source has been read for either,
+# so nothing here claims the answer — only that there is one spelling to change.
+GENITIVE_OF_BAGANA = "аганы"
+GENITIVE_SOURCES = (ROOT, ROOT.parent / "scripts")
+
+
+def test_the_genitive_of_bagana_is_spelled_one_way():
+	"""MINOR: «Баганын» and «Баганы» sat in the same conversation, three lines apart.
+
+	The column-mapping flow said one thing when it cancelled and another when it finished, and
+	the Nyabo Bank Layout field label said the third — which reads as carelessness in a bot an
+	accountant is being asked to trust with the books. Whichever spelling wins, it wins
+	everywhere: this walks the shipped source, not only ``mn.py``, because the desk label and
+	the spec that generates it are read by the same accountant as the bot's own messages.
+	"""
+	other = "аганын"
+	offenders: list[str] = []
+	for root in GENITIVE_SOURCES:
+		for path in sorted(root.rglob("*")):
+			if not path.is_file() or path.suffix not in (".py", ".json", ".md"):
+				continue
+			for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+				if other in line:
+					offenders.append(f"{path.relative_to(ROOT.parent).as_posix()}:{number}")
+	assert offenders == [], f"«{GENITIVE_OF_BAGANA}», not «{other}», everywhere: {offenders}"
+	assert GENITIVE_OF_BAGANA in (ROOT / "i18n" / "mn.py").read_text(encoding="utf-8")
+
+
+# Every constant that says «доорх» ("below"), and where the keyboard it points at really is.
+# ``ctx.reply(text, markup)`` puts the buttons on the message itself; a line whose keyboard is
+# on the *next* message is still true, because that message is below it in the chat. A line
+# sent with no keyboard at all anywhere below is not, and that is what this list pins.
+BELOW_POINTS_AT: dict[str, str] = {
+	"MSG_ERROR_ADMIN_NOTIFIED": "telegram/router.py sends it with keyboards.menu_markup()",
+	"MSG_FEATURE_UNAVAILABLE": "telegram/router.py sends it with keyboards.menu_markup()",
+	"MSG_STATEMENT_LAYOUT_INCOMPLETE": (
+		"statement._answer_column re-asks the column straight after it, roles keyboard and all"
+	),
+	"ONB_CURRENCY_ADDED": "onboarding._on_currency sends it with keyboards.onboarding_currencies()",
+}
+
+
+def test_every_below_points_at_a_keyboard_that_is_drawn(site):
+	"""MINOR: MSG_STEP_CANNOT_SKIP said «Доорх товчнуудаас сонгоно уу» with nothing below it.
+
+	``escape.refuse`` sends the refusal with ``ctx.reply(text)`` and no markup, so the buttons
+	it meant were the open prompt's, above. A user reading «choose from the buttons below» and
+	finding none is exactly the dead end UX-13 exists to remove, so the wording moved to the
+	question above — and every other «доорх» in the file is pinned here with the keyboard that
+	makes it true. A new one has to be added deliberately; a stale entry fails too.
+	"""
+	from nyabo_mn.i18n import mn
+
+	saying_below = {
+		name
+		for name, value in vars(mn).items()
+		if not name.startswith("_") and isinstance(value, str) and "доорх" in value.lower()
+	}
+	assert saying_below == set(BELOW_POINTS_AT), (
+		"a string says «доорх»: send it with a keyboard (or one on the very next message) and "
+		"name it here, or reword it — the refusals say «Дээрх асуултад хариулна уу» instead"
+	)
+	assert "доорх" not in mn.MSG_STEP_CANNOT_SKIP.lower()
+	assert "доорх" not in mn.MSG_STEP_NO_BACK.lower()
 
 
 @pytest.mark.parametrize("rel", sorted(ALLOWED))

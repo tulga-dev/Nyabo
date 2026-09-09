@@ -43,7 +43,7 @@ SITE_CURRENCIES = (("MNT", "₮", 1), ("USD", "$", 1))
 # in the same commit that deliberately removes tests, never to make a run pass. It exists
 # because every "skip" is silently green: with a real bench on sys.path the ``site`` fixture
 # skips every flow test, and a run of a few dozen would report success having proved nothing.
-MIN_PASSING_TESTS = 689
+MIN_PASSING_TESTS = 940
 
 _executed = {"passed": 0, "skipped": 0}
 

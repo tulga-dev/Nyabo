@@ -89,7 +89,24 @@ MSG_RECEIVED_PROCESSING = "🧾 Хүлээн авлаа, шалгаж байна
 MSG_POSTED = "✅ Бүртгэлээ: {doc_name}"
 MSG_REJECTED = "❌ Татгалзлаа: {reason}"
 MSG_ERROR_GENERIC = "Уучлаарай, алдаа гарлаа. Дахин оролдоно уу."
-MSG_ERROR_ADMIN_NOTIFIED = "Уучлаарай, алдаа гарлаа. Админд мэдэгдлээ."
+# UX-13: the old wording was «Уучлаарай, алдаа гарлаа. Админд мэдэгдлээ.», and the founder
+# read «Админд мэдэгдлээ» as "an administrator has to approve your entry". It must say a
+# technical fault happened, promise no approval step, and name the way out.
+#
+# Two of them, because only one caller can keep both promises. ``telegram.router`` draws the
+# [Цэс] button beside the text and calls ``notify_admins``; everything else (the failed
+# receipt card, the statement worker) has no keyboard and sends nothing, so it names /меню as
+# a command to type and does not claim a notification that was never sent.
+MSG_ERROR_ADMIN_NOTIFIED = (
+	"Уучлаарай, техникийн алдаа гарлаа. Энэ нь таны бичилтийг хэн нэгэн зөвшөөрөх гэж "
+	"хүлээж байна гэсэн үг биш — алдааг Нябо-г хөгжүүлэгч рүү илгээлээ, шалгаж засна. "
+	"Та дахин оролдож болно, эсвэл доорх «Цэс» товч (/меню) дээр дарж эхнээс нь эхэлнэ үү."
+)
+MSG_ERROR_NO_BUTTON = (
+	"Уучлаарай, техникийн алдаа гарлаа. Энэ нь таны бичилтийг хэн нэгэн зөвшөөрөх гэж "
+	"хүлээж байна гэсэн үг биш. Та дахин оролдож болно, эсвэл «/меню» гэж бичээд "
+	"эхнээс нь эхэлнэ үү."
+)
 MSG_ACCOUNTANT_ONLY = "Энэ саналыг зөвхөн нягтлан батлах боломжтой (⚠️ тэмдэглэгээтэй)."
 MSG_NO_PERMISSION = "Танд энэ үйлдлийг хийх эрх байхгүй."
 MSG_UNKNOWN_COMMAND = "Ойлгосонгүй. /тусламж гэж бичнэ үү."
@@ -114,7 +131,8 @@ MSG_MENU = (
 	"/бодлого — НББ-ийн бодлогын баримт бичиг\n"
 	"/компани — идэвхтэй компани солих\n"
 	"/эхлэх — компанийн тохиргоо\n"
-	"/меню — энэ цэс\n"
+	"/меню (эсвэл /цэс) — энэ цэс\n"
+	"/цуцлах — эхлүүлсэн ажлыг болих\n"
 	"/тусламж — тусламж\n"
 	"Telegram-ын команд цэс (☰) кирилл нэр дэмждэггүй тул тэнд латинаар харагдана."
 )
@@ -131,6 +149,7 @@ BOT_COMMAND_DESCRIPTIONS = {
 	"policy": "НББ-ийн бодлогын баримт бичиг (/бодлого)",
 	"company": "Идэвхтэй компани солих (/компани)",
 	"setup": "Компанийн тохиргоо (/эхлэх)",
+	"cancel": "Эхлүүлсэн ажлыг цуцлах (/цуцлах)",
 }
 MSG_HELP = (
 	"Нябо хэрхэн ажилладаг вэ?\n"
@@ -164,6 +183,13 @@ ONB_INVENTORY_HOW = (
 )
 ONB_INVENTORY_PARSED = "📦 {count} бараа · нийт {total}₮. Зөв үү?"
 ONB_INVENTORY_POSTED = "✅ Бараа материалын үлдэгдлийг бүртгэлээ: {docs}"
+# Принцип 5: once the opening stock is in the ledger the Тийм/Үгүй question can no longer be
+# re-answered — «Үгүй» would tell the summary the company holds no stock while the opening
+# entry stands. Only a reversal takes it back, and that is a separate, deliberate job.
+ONB_INVENTORY_ALREADY_POSTED = (
+	"Бараа материалын эхний үлдэгдэл аль хэдийн бүртгэгдсэн тул энэ хариултыг өөрчлөх "
+	"боломжгүй. Буруу бол зөвхөн буцаалт (сторно) хийж залруулна. Тохиргоог үргэлжлүүлье."
+)
 # SEC-09: the reader never sees a raw exception. {error} takes a Mongolian sentence Nyabo
 # itself wrote; a parser or library message goes to the log instead (ONB_INVENTORY_PARSE_FAILED).
 ONB_INVENTORY_PARSE_ERROR = "Жагсаалтыг уншиж чадсангүй: {error}"
@@ -885,6 +911,7 @@ MSG_INTAKE_EMPTY = "Бараа материалын жагсаалт хоосо�
 MSG_INTAKE_HEADER_NOT_FOUND = "Хүснэгтэд нэр, тоо, үнэ баганууд олдсонгүй."
 MSG_INTAKE_NOT_CONFIRMED = "Бараа материалын жагсаалт ({name}) баталгаажаагүй тул бүртгэхгүй."
 MSG_INTAKE_ALREADY_POSTED = "Бараа материалын жагсаалт ({name}) аль хэдийн бүртгэгдсэн."
+MSG_INTAKE_CANCELLED = "Бараа материалын жагсаалтыг ({name}) цуцалсан тул бүртгэхгүй."
 MSG_INTAKE_NO_SETTINGS = (
 	"{company} компанийн Нябо тохиргоо байхгүй тул бараа материал бүртгэхгүй. /эхлэх командаар тохируулна уу."
 )
@@ -909,11 +936,11 @@ MSG_STATEMENT_NOT_A_STATEMENT = "Энэ баримт банкны хуулга �
 MSG_STATEMENT_NO_LINES = "Хуулгаас гүйлгээ олдсонгүй."
 MSG_STATEMENT_BANK_UNKNOWN = "Хуулгын банк тодорхойгүй байна; форматыг зааж өгнө үү."
 MSG_LAYOUT_BAD_JSON = "«{field}» талбар зөв JSON биш байна."
-MSG_LAYOUT_ROLE_UNKNOWN = "«{role}» баганын үүрэг танигдахгүй байна. Зөвшөөрөгдөх: {roles}"
-MSG_LAYOUT_NEEDS_DATE_DESCRIPTION = "Баганын зураглалд огноо болон гүйлгээний утгын багана заавал байна."
-MSG_LAYOUT_AMOUNT_STYLE_MISMATCH = "Дүнгийн хэлбэр «{style}» баганын зураглалтай тохирохгүй байна."
+MSG_LAYOUT_ROLE_UNKNOWN = "«{role}» баганы үүрэг танигдахгүй байна. Зөвшөөрөгдөх: {roles}"
+MSG_LAYOUT_NEEDS_DATE_DESCRIPTION = "Баганы зураглалд огноо болон гүйлгээний утгын багана заавал байна."
+MSG_LAYOUT_AMOUNT_STYLE_MISMATCH = "Дүнгийн хэлбэр «{style}» баганы зураглалтай тохирохгүй байна."
 MSG_LAYOUT_VERIFY_NEEDS_COLUMNS = (
-	"Толгойн гарын үсэг болон баганын зураглалгүй загварыг баталгаажуулж болохгүй."
+	"Толгойн гарын үсэг болон баганы зураглалгүй загварыг баталгаажуулж болохгүй."
 )
 MSG_LAYOUT_BAD_DATE_FORMAT = "Огнооны формат «{fmt}» буруу байна."
 MSG_LAYOUT_LEARNED_NOTE = "{company} компанийн {document} хуулгаас нягтлангийн зааснаар сурсан формат."
@@ -980,8 +1007,79 @@ MSG_LINK_COMPANY_NOT_FOUND = "Компани олдсонгүй: {company}"
 MSG_ADMIN_ONLY = "Энэ команд зөвхөн админд зориулагдсан."
 MSG_ADMIN_ERROR_NOTICE = "⚠️ Нябо алдаа: {event} · chat {chat_id} · {error}"
 MSG_ADMIN_LINK_GUESSING = "🔒 Холбох кодыг олон удаа буруу оруулсан тул chat {chat_id}-ыг түр хаалаа."
-MSG_FEATURE_UNAVAILABLE = "Энэ боломж одоогоор бэлэн болоогүй байна. Админд мэдэгдлээ."
+# Same reading risk as MSG_ERROR_ADMIN_NOTIFIED (UX-13): nobody is approving anything. And
+# the same pair, for the same reason — only the router draws the button and notifies.
+MSG_FEATURE_UNAVAILABLE = (
+	"Энэ боломж одоогоор бэлэн болоогүй байна. Энэ нь таны бичилтийг хэн нэгэн зөвшөөрөх гэж "
+	"хүлээж байна гэсэн үг биш — Нябо-г хөгжүүлэгч рүү мэдэгдэл очлоо, шалгаж засна. "
+	"Та өөр үйлдэл хийж болно — доорх «Цэс» товч (/меню)."
+)
+MSG_FEATURE_UNAVAILABLE_NO_BUTTON = (
+	"Энэ боломж одоогоор бэлэн болоогүй байна. Энэ нь таны бичилтийг хэн нэгэн зөвшөөрөх "
+	"гэж хүлээж байна гэсэн үг биш. Та «/меню» гэж бичээд өөр үйлдэл хийж болно."
+)
 MSG_CANCELLED = "Цуцаллаа."
+
+# --- escape hatches: no waiting step may be a dead end (UX-13) --------------------------------
+# Every state that waits for the user carries Цуцлах, plus Буцах where a previous step exists
+# and Алгасах where the step is genuinely optional; the same words typed by hand mean the same
+# thing (nyabo_mn.telegram.handlers.escape).
+MSG_FLOW_CANCELLED = "Болилоо. Эхлүүлсэн ажлыг хаалаа. Хүссэн үедээ дахин эхлүүлж болно (/меню)."
+MSG_FLOW_NOTHING_TO_CANCEL = "Одоогоор үргэлжилж байгаа ажил алга. /меню — үндсэн цэс."
+MSG_FLOW_LEFT_FOR_COMMAND = "Эхлүүлсэн ажлыг хаалаа."
+# [Цэс] closes whatever was open, so it says what that was: an accountant who tapped it on an
+# error card from this morning is entitled to know which conversation went with it. The keys
+# are the conversation state prefixes (nyabo_mn.telegram.keyboards SCOPE_*).
+MSG_FLOW_LEFT_NAMED = "«{flow}» ажлыг хаалаа."
+FLOW_NAMES = {
+	"onb": "Тохиргоо",
+	"layout": "Хуулгын багана тохируулах",
+	"acc_search": "Данс хайх",
+	"reject_text": "Татгалзсан шалтгаан бичих",
+	"correct": "Залруулга",
+	"bank_find": "Банкны гүйлгээнд баримт хайх",
+}
+# ``escape.refuse`` sends both of these with ``ctx.reply(text)`` and no markup — the buttons
+# they mean are the open prompt's own, which sits *above* (a typed escape never touched it; a
+# tapped one has its keyboard put back by ``_revive_prompt``). So neither may say «доорх»:
+# the first said «Доорх товчнуудаас сонгоно уу» and pointed at an empty space under itself.
+MSG_STEP_CANNOT_SKIP = (
+	"Энэ алхмыг алгасах боломжгүй. Дээрх асуултад хариулна уу, эсвэл «Цуцлах» дарж энэ ажлаас гарна уу."
+)
+MSG_STEP_NO_BACK = (
+	"Энэ бол эхний алхам тул буцах алхам алга. Дээрх асуултад хариулна уу, эсвэл «Цуцлах» "
+	"дарж энэ ажлаас гарна уу."
+)
+MSG_ESCAPE_STALE = "Энэ асуулт аль хэдийн хаагдсан байна. /меню — үндсэн цэс."
+# A mapping with no date column, or none of the money columns, reads zero lines out of every
+# statement in that bank's format for ever after (the row is keyed on the header signature),
+# so it is refused before it is written and the accountant is told what is still missing.
+# …and a file that has fewer than two columns to give roles to can never satisfy that: a column
+# carries one role, and an import needs a date column *and* a money column. The mapping
+# conversation is not started for it at all — every answer would come back to the same refusal,
+# on a first column that is not even drawn with Буцах.
+MSG_STATEMENT_LAYOUT_TOO_FEW_COLUMNS = (
+	"Энэ файлд хуулга оруулахад шаардлагатай багана алга: огнооны багана, мөн «Дүн» эсвэл "
+	"«Зарлага/Орлого» багана хэрэгтэй. Банкнаасаа бүтэн хуулгыг (Excel/CSV) татаж дахин "
+	"илгээнэ үү."
+)
+MSG_STATEMENT_LAYOUT_NEEDS_DATE = "«Огноо» багана"
+MSG_STATEMENT_LAYOUT_NEEDS_AMOUNT = "«Дүн», «Зарлага (дебит)» эсвэл «Орлого (кредит)» багана"
+# The refusal fires on the *last* column, so the role that is missing is almost always an
+# earlier one: «Буцах» is the action that reaches it, and it is named first. «Цуцлах» throws the
+# whole statement away and is what is left when nothing else fits.
+MSG_STATEMENT_LAYOUT_INCOMPLETE = (
+	"Ийм тохиргоогоор хуулгын мөрүүд уншигдахгүй: {missing} дутуу байна. "
+	"«Буцах» дарж тухайн утга байгаа багана руу очиж үүргийг нь зааж өгнө үү. "
+	"Энэ багана тохирох бол доорх үүргээс сонгож болно. "
+	"Өөр арга байхгүй бол «Цуцлах» дарж хуулгыг дахин илгээнэ үү."
+)
+MSG_STATEMENT_LAYOUT_CANCELLED = (
+	"Баганы тохиргоог зогсоолоо. Хуулга бүртгэгдээгүй тул шаардлагатай бол дахин илгээнэ үү."
+)
+ONB_INVENTORY_SKIPPED = (
+	"Бараа материалын жагсаалтыг алгаслаа. Дараа нь «/эхлэх дахин» гэж бичээд бүртгэж болно."
+)
 MSG_STATUS = (
 	"🛠 Нябо төлөв\n"
 	"Компани: {companies} · Холбогдсон хэрэглэгч: {users}\n"
@@ -997,6 +1095,9 @@ MSG_ONBOARDING_ALREADY_DONE = "Тохиргоо аль хэдийн хийгдс
 MSG_ONBOARDING_INVENTORY_NEED_FILE = "Excel/CSV файл эсвэл мөр бүрт `нэр, тоо, үнэ` гэсэн текст илгээнэ үү."
 ONB_SUMMARY_INVENTORY_NONE = "байхгүй"
 ONB_SUMMARY_INVENTORY_COUNT = "{count} бараа"
+# The company holds stock but gave no list. Saying "0 бараа" here told the accountant the
+# count came out empty, which is a different (and false) statement about the books.
+ONB_SUMMARY_INVENTORY_SKIPPED = "байгаа, жагсаалт оруулаагүй — дараа бүртгэнэ"
 ONB_SUMMARY_BANKS_NONE = "сонгоогүй"
 ONB_SUMMARY_ACCOUNTANT_NONE = "тохируулаагүй"
 ONB_BANK_TOGGLE_ON = "✅ {bank}"
