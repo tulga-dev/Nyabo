@@ -626,7 +626,7 @@ doctype(
 			default="%Y-%m-%d\n%Y.%m.%d\n%d.%m.%Y",
 		),
 		F("header_signature_json", "JSON", "Толгойн гарын үсэг (JSON)"),
-		F("column_map_json", "JSON", "Баганын зураглал (JSON)"),
+		F("column_map_json", "JSON", "Баганы зураглал (JSON)"),
 		F("sample_file", "Attach", "Жишээ файл"),
 		F("notes", "Small Text", "Тэмдэглэл"),
 	],

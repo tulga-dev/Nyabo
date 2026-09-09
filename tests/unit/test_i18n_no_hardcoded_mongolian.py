@@ -85,22 +85,36 @@ def test_no_user_facing_mongolian_outside_i18n():
 	)
 
 
-def test_the_genitive_of_bagana_is_spelled_one_way(site):
+# The genitive of «багана» is written one way across the whole app, so the founder — a native
+# speaker — can settle it later with a single sweep. «Баганы» is what is written today: it takes
+# «багана» to have a fleeting final -а, leaving the stem «баган-», and a stem ending in -н takes
+# -ы/-ий (нуруу → нурууны, ширээ → ширээний, хаан → хааны). The competing «Баганын» treats that
+# same -н as an ordinary consonant taking -ын. No authoritative source has been read for either,
+# so nothing here claims the answer — only that there is one spelling to change.
+GENITIVE_OF_BAGANA = "аганы"
+GENITIVE_SOURCES = (ROOT, ROOT.parent / "scripts")
+
+
+def test_the_genitive_of_bagana_is_spelled_one_way():
 	"""MINOR: «Баганын» and «Баганы» sat in the same conversation, three lines apart.
 
-	«Баганы» is the standard genitive of «багана». The column-mapping flow said one thing when
-	it cancelled and another when it finished, which reads as carelessness in a bot an
-	accountant is being asked to trust with the books.
+	The column-mapping flow said one thing when it cancelled and another when it finished, and
+	the Nyabo Bank Layout field label said the third — which reads as carelessness in a bot an
+	accountant is being asked to trust with the books. Whichever spelling wins, it wins
+	everywhere: this walks the shipped source, not only ``mn.py``, because the desk label and
+	the spec that generates it are read by the same accountant as the bot's own messages.
 	"""
-	from nyabo_mn.i18n import mn
-
-	offenders = [
-		name
-		for name, value in vars(mn).items()
-		if not name.startswith("_") and isinstance(value, str) and "аганын" in value
-	]
-	assert offenders == [], f"«баганы», not «баганын»: {offenders}"
-	assert "Баганы" in mn.MSG_STATEMENT_LAYOUT_CANCELLED
+	other = "аганын"
+	offenders: list[str] = []
+	for root in GENITIVE_SOURCES:
+		for path in sorted(root.rglob("*")):
+			if not path.is_file() or path.suffix not in (".py", ".json", ".md"):
+				continue
+			for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+				if other in line:
+					offenders.append(f"{path.relative_to(ROOT.parent).as_posix()}:{number}")
+	assert offenders == [], f"«{GENITIVE_OF_BAGANA}», not «{other}», everywhere: {offenders}"
+	assert GENITIVE_OF_BAGANA in (ROOT / "i18n" / "mn.py").read_text(encoding="utf-8")
 
 
 # Every constant that says «доорх» ("below"), and where the keyboard it points at really is.
