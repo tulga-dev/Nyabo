@@ -491,6 +491,31 @@ def test_a_rule_a_person_verified_names_that_person(rules_site: str):
 	assert "Administrator" in alert and mn.RULE_VERIFIED_SOURCE_SEED not in alert
 
 
+def test_a_verified_rule_can_still_be_read_and_asks_nothing(rules_site: str):
+	"""The scope caveat on the flagship row is only readable here, and only if the card is drawn.
+
+	`purchase_expense_non_vat` and `bank_line_expense` ship verified with a `SCOPE OF THIS
+	CITATION` paragraph saying the quoted sentence is printed for outside services and is being
+	applied more widely (VER-09) — and the list shows unverified rules only, so this tap is the
+	one path in the chat that reaches it. An alert that disappears when it is tapped away is not
+	somewhere a caveat about a legal reading can live.
+	"""
+	cited = "purchase_expense_non_vat"
+	assert frappe.db.get_value(verify.PATTERN, cited, "verified") == 1
+	bot = FakeBotApi()
+	run(
+		bot, callback_update(ADMIN_ID, keyboards.rule_data(keyboards.VERIFY_OPEN, verify.KIND_PATTERN, cited))
+	)
+
+	text = bot.last_text
+	assert "SCOPE OF THIS CITATION" in text and "12.2.2 А" in text
+	# It is read, not decided: no question, no buttons, and the flag names its own provenance.
+	assert mn.CARD_RULE_ASK not in text
+	assert mn.CARD_RULE_BRIEFING_TITLE_VERIFIED in text and mn.CARD_RULE_BRIEFING_TITLE not in text
+	assert mn.CARD_RULE_VERIFIED_BY.format(source=mn.RULE_VERIFIED_SOURCE_SEED) in text
+	assert bot.callback_datas() == []
+
+
 def test_the_verified_counts_split_the_seed_flag_from_a_human_tap(rules_site: str):
 	"""The number an audit view prints: how many rows may post, and how many a person vouched for."""
 	before = verify.verified_counts(verify.PATTERN)

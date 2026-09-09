@@ -1374,6 +1374,14 @@ CARD_RULE_BRIEFING_LANGUAGE = (
 	"эрсдэлтэй тул хэвээр нь тавив. Уншиж ойлгохгүй бол битгий баталгаажуулаарай — "
 	"ERPNext дэск дэх дүрмийн бичлэгээс, эсвэл эх сурвалжийг нь мэддэг хүнээр шалгуулна уу.)"
 )
+# The same two lines on a rule that is already verified, where nothing is being decided: the
+# heading no longer asks what the reader would be accepting, and the note drops the «do not
+# verify» advice, which would be an instruction about a decision that has already been taken.
+CARD_RULE_BRIEFING_TITLE_VERIFIED = "📝 Энэ дүрмийн тайлбар, ишлэлийн хамрах хүрээ:"
+CARD_RULE_BRIEFING_LANGUAGE_VERIFIED = (
+	"(Тайлбарыг эх сурвалж судалсан хүн англиар бичсэн; орчуулбал хуулийн агуулга гуйвах "
+	"эрсдэлтэй тул хэвээр нь тавив. Бүрэн эхийг ERPNext дэск дэх дүрмийн бичлэгээс уншина уу.)"
+)
 CARD_RULE_NOTE_CUT = "✂️ Тайлбар бүтэн багтсангүй; бүрэн эхийг ERPNext дэск дэх дүрмийн бичлэгээс уншина уу."
 CARD_RULE_NO_CITATION = (
 	"⚠️ Хуулийн тодорхой заалт, ишлэл энэ дүрэмд алга. Баталгаажуулна гэдэг нь дээрх агуулгыг "
@@ -1381,6 +1389,10 @@ CARD_RULE_NO_CITATION = (
 )
 CARD_RULE_RESPONSIBILITY = "Баталгаажуулсан хүн, огноо бүртгэгдэж, аудитын мөр үлдэнэ."
 CARD_RULE_ASK = "Баталгаажуулах уу?"
+# The same card for a rule that is already verified: it asks nothing, and it says who vouched
+# for it (cards.rule_verified_source) — the seed's citation and a person's tap are not the same
+# claim (VER-07). This is the only place in the chat where a verified rule can be read at all.
+CARD_RULE_VERIFIED_BY = "✅ Баталгаажсан: {source}"
 MSG_RULE_NOT_FOUND = "Дүрэм олдсонгүй: {rule}"
 # The write itself failed (verified_by is a Link to User: a session user with no User row stops
 # the save). Nothing was verified, so say that, and name the door that still works.

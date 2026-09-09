@@ -1119,17 +1119,27 @@ do. So: the rows stay verified, the quotes stay exactly as printed, and each not
 for, what is being carried across (the mechanics, not the words), and that no sentence printing
 it for expenses in general was found — with an invitation to cite one if it is.
 
-*Where that paragraph is actually readable, stated exactly, because the answer is not "on the
-card".* `SCOPE OF THIS CITATION` is in `rules.verify.BRIEFING_MARKERS`, so `cards.rule_card`
-does render it — but a card is only ever drawn for an **unverified** rule: `/дүрэм` lists
-`verify.pending()`, `admin.show_rule` answers a verified row with «already verified» and sends
-no card, and `admin._rule_evidence_by_name` skips verified rows. Both of these rows ship
-verified, so no admin and no accountant meets the paragraph in Telegram. It reaches its readers
-in three other places, and those are the ones to keep true: the row's own `notes` field in the
-ERPNext desk (`seed._fill_evidence` writes it there on every migrate, VER-06),
-`docs/legal/order116.md` §3, and the seed JSON. The marker is kept because it costs nothing and
-is what would render the paragraph the moment either row is un-verified in the desk — which is
-exactly when somebody is being asked to re-decide it.
+*Where that paragraph is actually readable, stated exactly.* `SCOPE OF THIS CITATION` is in
+`rules.verify.BRIEFING_MARKERS`, so `cards.rule_card` renders it — but the card used to be drawn
+for **unverified** rules only: `/дүрэм` lists `verify.pending()`, `admin.show_rule` answered a
+verified row with an «already verified» alert and no card, and `admin._rule_evidence_by_name`
+skips verified rows. Both of these rows ship verified, so the paragraph reached nobody in
+Telegram at all.
+
+So `show_rule` now sends the card for a verified rule too — buttonless, ending in
+`CARD_RULE_VERIFIED_BY` («who vouched for this») instead of «Баталгаажуулах уу?». Reaching it
+takes a tap on an older list whose rule has been verified since, which is rare; it is also the
+only route in the chat to a rule that is already posting, and a caveat about a legal reading
+cannot live in an alert that vanishes when it is tapped away. The steady readers are still the
+other three, and those are the ones to keep true: the row's own `notes` field in the ERPNext
+desk (`seed._fill_evidence` writes it there on every migrate, VER-06), `docs/legal/order116.md`
+§3, and the seed JSON.
+
+What deliberately does **not** carry the paragraph is the receipt card, which prints the
+citation on every ordinary purchase the founder's company makes. It is 700 characters of
+English and would bury the card it sat on. So an accountant meets the citation on the receipt
+and the caveat in the desk — written here so this section is never read as a claim that they
+meet it on the receipt.
 
 ## the accountant's own reading (skeptic's walk of the merged flow)
 

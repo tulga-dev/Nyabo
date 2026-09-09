@@ -533,8 +533,20 @@ def rule_card(rule: Any) -> str:
 	lines += _rule_citation(rule)
 	lines += _rule_briefing(rule)
 	lines.append("")
-	lines.append(mn.CARD_RULE_RESPONSIBILITY)
-	lines.append(mn.CARD_RULE_ASK)
+	if getattr(rule, "verified", False):
+		# The same evidence, read rather than decided: a verified rule asks nothing, and names
+		# whoever vouched for it. Without this branch the card ended «Баталгаажуулах уу?» on a
+		# rule that already is, and a verified rule could not be read in the chat at all.
+		lines.append(
+			mn.CARD_RULE_VERIFIED_BY.format(
+				source=rule_verified_source(
+					getattr(rule, "verified_by", ""), getattr(rule, "verified_at", "")
+				)
+			)
+		)
+	else:
+		lines.append(mn.CARD_RULE_RESPONSIBILITY)
+		lines.append(mn.CARD_RULE_ASK)
 	return "\n".join(lines)
 
 
@@ -561,7 +573,13 @@ def _rule_briefing(rule: Any) -> list[str]:
 	note = getattr(rule, "note", "")
 	if not note:
 		return []
-	lines = ["", mn.CARD_RULE_BRIEFING_TITLE, mn.CARD_RULE_BRIEFING_LANGUAGE, note]
+	if getattr(rule, "verified", False):
+		# Nothing is being decided on this card, so the heading does not ask what the reader
+		# would be accepting and the note does not tell them not to verify it.
+		heading = [mn.CARD_RULE_BRIEFING_TITLE_VERIFIED, mn.CARD_RULE_BRIEFING_LANGUAGE_VERIFIED]
+	else:
+		heading = [mn.CARD_RULE_BRIEFING_TITLE, mn.CARD_RULE_BRIEFING_LANGUAGE]
+	lines = ["", *heading, note]
 	if getattr(rule, "note_truncated", False):
 		lines.append(mn.CARD_RULE_NOTE_CUT)
 	return lines

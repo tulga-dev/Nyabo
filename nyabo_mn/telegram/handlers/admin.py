@@ -155,6 +155,11 @@ def show_rule(ctx: Ctx, kind: str, rule: str) -> Any:
 		return {"rule": rule, "found": False}
 	if evidence.verified:
 		ctx.answer(_already_verified(rule, evidence.verified_by, evidence.verified_at), show_alert=True)
+		# The card too, with no buttons on it. The alert is gone the moment it is tapped away, and
+		# this is the only path in the chat that reaches a *verified* rule — so it is the only
+		# place an admin can read the citation behind a rule that is already posting, and the
+		# scope caveat under it (VER-09). Nothing is asked; the last line says who vouched.
+		ctx.reply(cards.rule_card(evidence), keyboards.empty_markup())
 		return {"rule": rule, "already": True, "verified_source": evidence.verified_source}
 	# A new message, not an edit: the list above it is what the admin is working through, and
 	# opening one rule must not take the other seven off the screen.
