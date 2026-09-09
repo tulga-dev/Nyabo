@@ -112,6 +112,63 @@ def test_deps_post_confirms_the_intake_the_tap_approved(company_v03):
 		_deps.inventory_post_intake(name, "Administrator")
 
 
+def _at_the_confirmation_card(uid: int, company: str) -> tuple[FakeBotApi, str]:
+	"""A real draft intake, waiting for [Батлах]: what every way out of that step meets."""
+	bot = _to_inventory_step(uid, company)
+	run(bot, message_update(uid, TEXT_LIST))
+	name = bot.callback_datas()[0].split(":")[1]
+	assert frappe.db.get_value(intake.DOCTYPE, name, "status") == "draft"
+	return bot, name
+
+
+@pytest.mark.parametrize("way_out", ["алгасах", "цуцлах", "буцах", "tapped_cancel_button"])
+def test_leaving_the_confirmation_card_cancels_the_draft_it_leaves_behind(company_v03, way_out):
+	"""MINOR: the draft was inserted when the card was drawn and nothing ever closed it.
+
+	It could not reach the ledger — ``post_intake`` refuses anything but a confirmed intake —
+	but the rows piled up in the desk with no explanation. Cancelling is a status, not a
+	delete: this app corrects by reversal and keeps its trail.
+	"""
+	uid = 9310 + len(way_out)
+	bot, name = _at_the_confirmation_card(uid, company_v03)
+
+	if way_out == "tapped_cancel_button":
+		run(bot, callback_update(uid, f"i:{name}:cancel"))
+	else:
+		run(bot, message_update(uid, way_out))
+
+	assert frappe.db.get_value(intake.DOCTYPE, name, "status") == "cancelled"
+	# The row is still there to read, with its rows and its total: cancelled, not deleted.
+	assert frappe.get_doc(intake.DOCTYPE, name).total_amount == 350000.0
+	# …and a cancelled intake can never be talked into the ledger afterwards.
+	with pytest.raises(frappe.ValidationError):
+		intake.confirm_intake(name, "Administrator")
+	with pytest.raises(frappe.ValidationError):
+		intake.post_intake(name, "Administrator")
+
+
+def test_a_posted_intake_is_never_cancelled(company_v03):
+	"""The opening stock is in the ledger; only a reversal takes it out (principle 5)."""
+	items = _deps.inventory_parse_text(TEXT_LIST)
+	name = _deps.inventory_create_intake(company_v03, items, "text", "Administrator")
+	_deps.inventory_post_intake(name, "Administrator")
+
+	with pytest.raises(frappe.ValidationError, match="аль хэдийн"):
+		intake.cancel_intake(name, "Administrator")
+	assert frappe.db.get_value(intake.DOCTYPE, name, "status") == "posted"
+
+
+def test_cancelling_twice_is_not_an_error(company_v03):
+	"""Буцах then Цуцлах reaches the same draft twice; the second time there is nothing to do."""
+	items = _deps.inventory_parse_text(TEXT_LIST)
+	name = _deps.inventory_create_intake(company_v03, items, "text", "Administrator")
+
+	intake.cancel_intake(name, "Administrator")
+	intake.cancel_intake(name, "Administrator")
+
+	assert frappe.db.get_value(intake.DOCTYPE, name, "status") == "cancelled"
+
+
 def test_a_bad_line_still_raises_the_mongolian_parse_error(company_v03):
 	"""The handler turns this into ONB_INVENTORY_PARSE_FAILED; it must not become a TypeError."""
 	with pytest.raises(intake.IntakeParseError):

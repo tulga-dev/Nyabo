@@ -38,6 +38,7 @@ STATUS_DRAFT = "draft"
 STATUS_CONFIRMED = "confirmed"
 STATUS_POSTED = "posted"
 STATUS_FAILED = "failed"
+STATUS_CANCELLED = "cancelled"
 
 INVENTORY_ROLE = "inventory_goods"
 OPENING_ROLE = "temporary_opening"
@@ -257,10 +258,32 @@ def confirm_intake(name: str, user: str) -> Any:
 	doc = frappe.get_doc(DOCTYPE, name)
 	if doc.status == STATUS_POSTED:
 		frappe.throw(mn.MSG_INTAKE_ALREADY_POSTED.format(name=name))
+	if doc.status == STATUS_CANCELLED:
+		frappe.throw(mn.MSG_INTAKE_CANCELLED.format(name=name))
 	doc.status = STATUS_CONFIRMED
 	doc.confirmed_by = user
 	doc.flags.ignore_permissions = True
 	doc.save()
+	return doc
+
+
+def cancel_intake(name: str, user: str) -> Any:
+	"""The accountant walked away from the confirmation card: the draft says so and stops there.
+
+	A status, not a delete. Nothing here could have reached the ledger — ``post_intake`` refuses
+	an intake that is not confirmed — but a draft with no explanation is exactly the kind of row
+	an auditor has to ask about, and this app keeps its trail rather than removing it
+	(ARCHITECTURE principle 5). A posted intake is never touched.
+	"""
+	doc = frappe.get_doc(DOCTYPE, name)
+	if doc.status == STATUS_POSTED:
+		frappe.throw(mn.MSG_INTAKE_ALREADY_POSTED.format(name=name))
+	if doc.status == STATUS_CANCELLED:
+		return doc
+	doc.status = STATUS_CANCELLED
+	doc.flags.ignore_permissions = True
+	doc.save()
+	log_event("inventory_intake.cancelled", intake=name, company=doc.company, user=user)
 	return doc
 
 
@@ -270,6 +293,7 @@ def post_intake(name: str, user: str) -> dict[str, Any]:
 	if doc.status == STATUS_POSTED:
 		frappe.throw(mn.MSG_INTAKE_ALREADY_POSTED.format(name=name))
 	if doc.status != STATUS_CONFIRMED:
+		# Covers a cancelled intake too: the accountant said no to this list.
 		frappe.throw(mn.MSG_INTAKE_NOT_CONFIRMED.format(name=name))
 	if not frappe.db.exists("Nyabo Company Settings", {"company": doc.company}):
 		frappe.throw(mn.MSG_INTAKE_NO_SETTINGS.format(company=doc.company))

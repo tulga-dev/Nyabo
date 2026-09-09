@@ -240,6 +240,11 @@ def inventory_create_intake(
 	return str(getattr(doc, "name", doc))
 
 
+def inventory_cancel_intake(intake_name: str, user: str) -> Any:
+	"""The draft behind a confirmation card the accountant left: cancelled, not deleted."""
+	return _call("nyabo_mn.setup.inventory_intake", "cancel_intake", intake_name, user)
+
+
 def inventory_post_intake(intake_name: str, user: str) -> dict[str, Any]:
 	"""The [Батлах] tap: record the human confirmation, then post the opening documents.
 

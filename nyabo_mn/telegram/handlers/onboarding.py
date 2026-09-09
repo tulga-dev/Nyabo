@@ -268,15 +268,30 @@ def _on_inventory(ctx: Ctx, payload: dict[str, Any], value: str) -> Any:
 	return _ask_accountant(ctx, payload)
 
 
-def _forget_inventory_list(payload: dict[str, Any]) -> None:
-	"""Drop every trace of a list that was read but never filed (the draft intake included).
+def _forget_inventory_list(ctx: Ctx, payload: dict[str, Any]) -> None:
+	"""Drop every trace of a list that was read but never filed, and cancel its draft intake.
 
 	``cards.onboarding_summary`` and ``finish`` read whatever the payload still holds, so a
 	count left behind by a preview the accountant walked away from would be reported as
 	opening stock that exists.
+
+	The Nyabo Inventory Intake was already inserted when the preview card was drawn. Nothing
+	in it can reach the ledger — ``post_intake`` refuses anything that is not confirmed — but a
+	draft nobody explained is a row an auditor has to ask about, so it is cancelled by status
+	rather than deleted (principle 5: this app corrects by reversal and keeps its trail).
 	"""
-	for key in ("intake", "inventory_count", "inventory_total"):
+	intake = payload.pop("intake", None)
+	for key in ("inventory_count", "inventory_total"):
 		payload.pop(key, None)
+	if not intake:
+		return
+	try:
+		_deps.inventory_cancel_intake(intake, ctx.user)
+	except DependencyMissing as exc:
+		log_event("telegram.onboarding.intake_cancel_missing", level="warning", error=str(exc))
+	except Exception as exc:
+		# Leaving a step must never fail on the clean-up; the draft is inert either way.
+		log_error("telegram.onboarding.intake_cancel_failed", exc, intake=intake, user=ctx.user)
 
 
 def _ask_inventory_list(ctx: Ctx, payload: dict[str, Any]) -> Any:
@@ -457,6 +472,8 @@ def handle_intake_callback(ctx: Ctx, parts: list[str]) -> Any:
 		return None
 	if action == "cancel":
 		ctx.bot.edit_message_reply_markup(ctx.chat_id, ctx.callback_message_id, keyboards.empty_markup())
+		# The list itself was refused, so its draft goes with it and the step is asked again.
+		_forget_inventory_list(ctx, payload)
 		_ask_inventory_list(ctx, payload)
 		return {"cancelled": True}
 	result = _deps.inventory_post_intake(intake, ctx.user) or {}
@@ -611,14 +628,23 @@ def _go_to(ctx: Ctx, payload: dict[str, Any], step: str) -> Any:
 def handle_escape(ctx: Ctx, state: str, payload: dict[str, Any], verb: str) -> bool:
 	"""Цуцлах / Буцах / Алгасах inside the wizard; False leaves it to the plain cancel.
 
-	Cancel is left to the caller on purpose: nothing is written to the company until the
-	summary is confirmed, so abandoning the wizard needs no clean-up beyond the chat state.
+	Cancel is still the caller's to announce, but it is not quite free: nothing is written to
+	the *company* until the summary is confirmed, and the one document the wizard inserts
+	before then is the draft Nyabo Inventory Intake behind the confirmation card. Leaving that
+	step cancels it, so the desk does not fill with drafts nobody can explain.
 	"""
 	step = state.split(":", 1)[1] if ":" in state else ""
+	if verb == keyboards.ESCAPE_CANCEL:
+		_forget_inventory_list(ctx, payload)
+		return False
 	if verb == keyboards.ESCAPE_BACK:
 		target = _back_target(step, payload)
 		if not target:
 			return False
+		if step == "inv_confirm":
+			# The list on the card is being replaced by whatever is sent next; its draft does
+			# not outlive the question it was an answer to.
+			_forget_inventory_list(ctx, payload)
 		_go_to(ctx, payload, target)
 		return True
 	if verb == keyboards.ESCAPE_SKIP:
@@ -658,7 +684,7 @@ def _skip_step(ctx: Ctx, payload: dict[str, Any], step: str) -> bool:
 		# The numbers of a list that was parsed but never filed go with it: a summary that
 		# still read them would report an opening stock the company does not have.
 		payload["inventory_skipped"] = True
-		_forget_inventory_list(payload)
+		_forget_inventory_list(ctx, payload)
 		ctx.reply(mn.ONB_INVENTORY_SKIPPED)
 		_ask_accountant(ctx, payload)
 		return True
