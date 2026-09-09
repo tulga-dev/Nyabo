@@ -253,7 +253,27 @@ def rule_blocked(ctx: Ctx, rule: str, company: str | None = None) -> dict[str, A
 			}
 	# Not an admin, or a rule name that is not a row at all (the guard counts an unknown name as
 	# unverified, and that is a configuration fault an admin has to see).
-	_deps.request_rule_verification(rule, company=company, user=ctx.user, telegram_id=ctx.telegram_id)
+	recent = _deps.recent_rule_request(rule, company)
+	if recent is not None:
+		# The same rule, the same company, minutes ago: tapping [Батлах] again is what a person
+		# does when nothing seems to happen, and it must not add a row to an append-only log or
+		# ring every admin a second time. The answer is the one the first tap earned.
+		reached = int(recent.get("admins_notified") or 0)
+		ctx.reply(_request_reply(rule, reached))
+		# ``event`` is log_event's own first parameter; the Nyabo Event name rides under its own key.
+		log_event(
+			"telegram.rules.request_deduped",
+			rule=rule,
+			company=company,
+			nyabo_event=recent.get("event"),
+		)
+		return {
+			"rule": rule,
+			"offered": False,
+			"notified": bool(reached),
+			"admins_notified": reached,
+			"deduped": True,
+		}
 	from nyabo_mn.telegram.router import notify_admins
 
 	reached = notify_admins(
@@ -262,9 +282,12 @@ def rule_blocked(ctx: Ctx, rule: str, company: str | None = None) -> dict[str, A
 		mn.MSG_ADMIN_RULE_VERIFY_REQUEST.format(company=company or mn.VALUE_UNKNOWN, rule=rule),
 		company=company,
 	)
-	ctx.reply(
-		mn.MSG_UNVERIFIED_RULE_ADMIN_ASKED if reached else mn.MSG_UNVERIFIED_RULE_NO_ADMIN.format(rule=rule)
+	# Recorded after the notice so the row carries what really happened, which is what a repeat
+	# within REQUEST_DEDUPE_MINUTES is answered from.
+	_deps.request_rule_verification(
+		rule, company=company, user=ctx.user, telegram_id=ctx.telegram_id, admins_notified=reached
 	)
+	ctx.reply(_request_reply(rule, reached))
 	log_event(
 		"telegram.rules.requested",
 		level="info" if reached else "warning",
@@ -273,7 +296,20 @@ def rule_blocked(ctx: Ctx, rule: str, company: str | None = None) -> dict[str, A
 		user=ctx.user,
 		admins_notified=reached,
 	)
-	return {"rule": rule, "offered": False, "notified": bool(reached), "admins_notified": reached}
+	return {
+		"rule": rule,
+		"offered": False,
+		"notified": bool(reached),
+		"admins_notified": reached,
+		"deduped": False,
+	}
+
+
+def _request_reply(rule: str, admins_notified: int) -> str:
+	"""What the blocked accountant is told: only ever what actually happened (MAJOR 6)."""
+	if admins_notified:
+		return mn.MSG_UNVERIFIED_RULE_ADMIN_ASKED
+	return mn.MSG_UNVERIFIED_RULE_NO_ADMIN.format(rule=rule)
 
 
 def _rule_evidence_by_name(rule: str) -> tuple[str, Any] | None:

@@ -565,6 +565,61 @@ def test_a_blocked_accountant_has_the_request_recorded_and_the_admins_notified(
 	assert [call["chat_id"] for call in bot.sent("send_message") if call["text"] == notice] == [ADMIN_ID]
 
 
+def test_three_taps_on_the_same_blocked_card_write_one_row_and_send_one_notice(
+	rules_site: str, monkeypatch: pytest.MonkeyPatch
+):
+	"""Tapping [Батлах] again is what a person does when nothing seems to happen.
+
+	Each tap used to write a row into an append-only log — which is the one log nobody can tidy
+	up afterwards — and ring every admin again. The accountant still gets an answer every time.
+	"""
+	_refuse_posting(monkeypatch)
+	proposal = make_proposal(rules_site, posting_pattern=BLOCKING)
+	bot = FakeBotApi()
+	outcomes = [run(bot, callback_update(ACCOUNTANT_ID, f"p:{proposal.name}:ap")) for _ in range(3)]
+
+	assert [o["result"]["deduped"] for o in outcomes] == [False, True, True]
+	assert frappe.db.count("Nyabo Event", {"event_type": mn.EVENT_RULE_VERIFY_REQUESTED}) == 1
+	notice = mn.MSG_ADMIN_RULE_VERIFY_REQUEST.format(company=rules_site, rule=BLOCKING)
+	assert len([c for c in bot.sent("send_message") if c["text"] == notice]) == 1
+	# Every tap is still answered, and with the same sentence: silence is what the retry means.
+	assert bot.texts().count(mn.MSG_UNVERIFIED_RULE_ADMIN_ASKED) == 3
+
+
+def test_a_repeat_does_not_start_claiming_admins_were_told_when_none_were(
+	rules_site: str, monkeypatch: pytest.MonkeyPatch
+):
+	"""The deduped answer is the first tap's answer, so it cannot become truer by repetition."""
+	monkeypatch.setitem(frappe.conf, "admin_telegram_ids", "")
+	_refuse_posting(monkeypatch)
+	proposal = make_proposal(rules_site, posting_pattern=BLOCKING)
+	bot = FakeBotApi()
+	first = run(bot, callback_update(ACCOUNTANT_ID, f"p:{proposal.name}:ap"))
+	second = run(bot, callback_update(ACCOUNTANT_ID, f"p:{proposal.name}:ap"))
+
+	assert first["result"]["deduped"] is False and second["result"]["deduped"] is True
+	assert second["result"]["notified"] is False
+	assert bot.texts().count(mn.MSG_UNVERIFIED_RULE_NO_ADMIN.format(rule=BLOCKING)) == 2
+	assert mn.MSG_UNVERIFIED_RULE_ADMIN_ASKED not in bot.texts()
+
+
+def test_a_different_rule_is_not_swallowed_by_the_dedupe(rules_site: str, monkeypatch: pytest.MonkeyPatch):
+	"""The window is per rule and company: a second rule blocking work is its own request."""
+	_refuse_posting(monkeypatch)
+	first = make_proposal(rules_site, posting_pattern=BLOCKING)
+	bot = FakeBotApi()
+	run(bot, callback_update(ACCOUNTANT_ID, f"p:{first.name}:ap"))
+	_refuse_posting(monkeypatch, rule=STILL_BLOCKED)
+	second = make_proposal(rules_site, posting_pattern=STILL_BLOCKED)
+	outcome = run(bot, callback_update(ACCOUNTANT_ID, f"p:{second.name}:ap"))
+
+	assert outcome["result"]["deduped"] is False
+	rules = frappe.get_all(
+		"Nyabo Event", filters={"event_type": mn.EVENT_RULE_VERIFY_REQUESTED}, pluck="reason"
+	)
+	assert sorted(rules) == sorted([BLOCKING, STILL_BLOCKED])
+
+
 def test_the_request_reaches_the_admin_linked_to_the_company_not_only_the_site_config(
 	rules_site: str, monkeypatch: pytest.MonkeyPatch
 ):

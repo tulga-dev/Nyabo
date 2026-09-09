@@ -60,6 +60,12 @@ QUOTE_MAX_CHARS = 400
 #: today (797 characters, ``purchase_expense_non_vat``); past it the card says it was cut.
 NOTE_MAX_CHARS = 1000
 
+#: How long one accountant's request about one rule speaks for the ones that follow it. Tapping
+#: [Батлах] again is what a person does when nothing seems to happen, and each tap used to write
+#: a row into an append-only log and wake every admin again. Long enough to cover the retries of
+#: one sitting, short enough that a real second attempt an hour later is heard.
+REQUEST_DEDUPE_MINUTES = 15
+
 #: Where the part of a seed note written *for the person at the verify button* begins. The
 #: citation pass appends it to `Nyabo Posting Pattern.notes` / `Nyabo Tax Parameter.note`
 #: (DECISIONS CORE-18, CORE-19); everything before the first marker is reader provenance, which
@@ -472,19 +478,65 @@ def verify(kind: str, name: str, user: str, telegram_id: str | int | None = None
 	}
 
 
+def recent_request(
+	rule: str, company: str | None = None, within_minutes: int = REQUEST_DEDUPE_MINUTES
+) -> dict[str, Any] | None:
+	"""The last request about this rule and company, if one is still recent; else ``None``.
+
+	The caller uses it to answer a repeated tap without writing a second row into an append-only
+	log or waking every admin again. It returns the earlier request's own payload, so the second
+	tapper is told exactly what the first one was told — including that nobody was reachable.
+	"""
+	from frappe.utils import add_to_date, now_datetime
+
+	since = add_to_date(now_datetime(), minutes=-int(within_minutes))
+	rows = frappe.get_all(
+		events.EVENT_DOCTYPE,
+		filters={
+			"event_type": mn.EVENT_RULE_VERIFY_REQUESTED,
+			"reason": rule,
+			"creation": [">=", since],
+		},
+		fields=["name", "company", "payload_json"],
+		order_by="creation desc",
+	)
+	for row in rows:
+		# The company is compared here rather than in the filter: it may be None, and "no company"
+		# must not silently match every company's requests.
+		if (row.get("company") or None) != (company or None):
+			continue
+		payload = row.get("payload_json")
+		if isinstance(payload, str):
+			try:
+				payload = json.loads(payload)
+			except ValueError:
+				payload = {}
+		return {"event": row["name"], **(payload or {})}
+	return None
+
+
 def request_verification(
-	rule: str, company: str | None = None, user: str | None = None, telegram_id: str | int | None = None
+	rule: str,
+	company: str | None = None,
+	user: str | None = None,
+	telegram_id: str | int | None = None,
+	admins_notified: int = 0,
 ) -> str:
 	"""Record that somebody who may not verify was stopped by this rule.
 
 	The accountant is told «the request has been recorded»; this is the row that makes that true,
 	so that a rule blocking real work is visible in the audit log even if no admin ever reads the
-	notification chat.
+	notification chat. ``admins_notified`` is how many chats actually heard about it, so a repeat
+	within ``REQUEST_DEDUPE_MINUTES`` can be answered from this row instead of sent again.
 	"""
 	return events.log(
 		mn.EVENT_RULE_VERIFY_REQUESTED,
 		company=company,
 		reason=rule,
-		payload={"rule": rule, "requested_by": user or frappe.session.user},
+		payload={
+			"rule": rule,
+			"requested_by": user or frappe.session.user,
+			"admins_notified": int(admins_notified),
+		},
 		actor_telegram_id=telegram_id,
 	)

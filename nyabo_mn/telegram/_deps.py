@@ -325,8 +325,17 @@ def verify_rule(kind: str, rule: str, user: str, telegram_id: str | int | None =
 	return _call("nyabo_mn.rules.verify", "verify", kind, rule, user, telegram_id=telegram_id)
 
 
+def recent_rule_request(rule: str, company: str | None = None) -> Any:
+	"""An earlier, still-recent request about the same rule and company, or None (dedupe)."""
+	return _call("nyabo_mn.rules.verify", "recent_request", rule, company)
+
+
 def request_rule_verification(
-	rule: str, company: str | None = None, user: str | None = None, telegram_id: str | int | None = None
+	rule: str,
+	company: str | None = None,
+	user: str | None = None,
+	telegram_id: str | int | None = None,
+	admins_notified: int = 0,
 ) -> str:
 	"""The Nyabo Event behind «the request has been recorded» in the refusal reply."""
 	return _call(
@@ -336,6 +345,7 @@ def request_rule_verification(
 		company=company,
 		user=user,
 		telegram_id=telegram_id,
+		admins_notified=admins_notified,
 	)
 
 
