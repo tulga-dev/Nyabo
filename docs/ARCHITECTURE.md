@@ -359,10 +359,15 @@ Schemas come from pydantic v2 models in `agent/schemas.py`
 strict mode). OpenAI: Responses API, `text.format = {"type": "json_schema", "strict":
 true, …}`, image as `input_image` data URL. Anthropic: Messages API with a single forced
 tool whose input schema is the output schema (`tool_choice = {"type": "tool", "name":
-…}`). Model names come from `OPENAI_MODEL` / `ANTHROPIC_MODEL` settings; the defaults
-(`gpt-5.6-terra`, sweep `gpt-5.6-luna`) were given by the founder and are not verified
-against the provider's model list; `agent.cost` prices are a table with `verified =
-false` until the founder confirms. Every call writes a `Nyabo LLM Call`.
+…}`). Model names are per purpose: `get_client` returns a `PurposeRouter` that picks the
+adapter from the `purpose` of each call, so one client can extract on one model and
+classify on another and `Nyabo LLM Call.model` is the model that answered.
+`OPENAI_PURPOSE_MODELS` holds the routing (`extract` → `gpt-5.6-terra`, `classify` and
+`question` → `gpt-6-astra`, `eval` / `other` → `OPENAI_MODEL`) and `resolve_model` the
+precedence: the purpose's own key, then that default, then `OPENAI_MODEL`. The ids were
+given by the founder and are not verified against the provider's model list; `agent.cost`
+prices are a table with `verified = false` until the founder confirms. Every call writes a
+`Nyabo LLM Call`.
 
 `MockLlmClient` returns canned results keyed by purpose + a hash of the user parts; the
 simulator and tests use it.
@@ -372,7 +377,9 @@ returns `(core.models.Receipt, LlmResult)`; `extract_receipt_full(...)` returns 
 `warnings` carry `seller_name_missing`, `line_amount_missing`, `injection_suspected` (the pipeline sets
 `needs_accountant` and writes a `Nyabo Event injection_suspected` with `injection_fragment`).
 `agent.frappe_log.recorder(company=…, proposal=…)` is the `record_call` callback that writes `Nyabo LLM Call`.
-Settings: `OPENAI_MODEL`, `OPENAI_SWEEP_MODEL`, `ANTHROPIC_MODEL`.
+Settings: `OPENAI_MODEL`, `OPENAI_MODEL_EXTRACT`, `OPENAI_MODEL_CLASSIFY`,
+`OPENAI_MODEL_QUESTION`, `OPENAI_SWEEP_MODEL`, `ANTHROPIC_MODEL`;
+`nyabo_mn.api.config_check` answers the routing resolved.
 
 ## 7. Ebarimt contract
 

@@ -40,7 +40,10 @@ Cloud's own key for its internal bot; Nyabo never reads it. The bot token goes i
 | `TELEGRAM_WEBHOOK_SECRET` | any random string of 32+ letters and digits; you make it up |
 | `ADMIN_TELEGRAM_IDS` | your numeric Telegram ID (the bot prints it with `/whoami`) |
 | `OPENAI_API_KEY` | platform.openai.com → API keys |
-| `OPENAI_MODEL` | optional, default `gpt-5.6-terra` |
+| `OPENAI_MODEL` | optional, default `gpt-5.6-terra`; the fallback for a purpose with no model of its own (`eval`, `other`) |
+| `OPENAI_MODEL_EXTRACT` | optional; the model that reads the receipt photo. Unset = `gpt-5.6-terra` |
+| `OPENAI_MODEL_CLASSIFY` | optional; the model that proposes the account and the VAT treatment. Unset = `gpt-6-astra` |
+| `OPENAI_MODEL_QUESTION` | optional; the model that answers free-text questions. Unset = `gpt-6-astra` |
 | `ANTHROPIC_API_KEY` | optional |
 | `EBARIMT_API_BASE` | `https://api.ebarimt.mn` (public registry lookups only) |
 
@@ -60,6 +63,17 @@ frappe.call("nyabo_mn.api.config_check").then(r => console.log(r.message))
 You should see: `missing_by_feature` empty for `telegram` and `llm`, and every secret shown
 as `<set>` rather than its value. `frappe.call("nyabo_mn.api.readiness")` prints the
 compliance readiness table the same way.
+
+The same answer carries `models.by_purpose` — the model each purpose will actually run on,
+resolved, with the `source` that decided it (`OPENAI_MODEL_CLASSIFY`, `purpose default`,
+`OPENAI_MODEL`) and a `warning` when the id is not in the allowlist. Expect
+`extract: gpt-5.6-terra` and `classify` / `question: gpt-6-astra` on a site that sets none
+of the three keys. To move one purpose, add its key (Type **String**) and check here again
+about 30 seconds later; no deploy is involved. The model on the next `Nyabo LLM Call` row
+(desk → **Nyabo LLM Call**, sort by `creation`) is the model that actually answered, so the
+intent and the call can be compared. Note that `OPENAI_MODEL` does **not** move `extract`,
+`classify` or `question` — each of those has a model of its own, so set its key instead
+(docs/DECISIONS.md LLM-01).
 
 ## 3. Telegram webhook
 

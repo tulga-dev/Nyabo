@@ -218,7 +218,10 @@ order, so the accountant maps the columns once and an admin verifies that layout
 | `TELEGRAM_WEBHOOK_SECRET` | Telegram | random string; Telegram returns it on every call |
 | `ADMIN_TELEGRAM_IDS` | Telegram | comma-separated numeric admin IDs |
 | `OPENAI_API_KEY` | the model | vision extraction and classification |
-| `OPENAI_MODEL` | optional | default `gpt-5.6-terra` |
+| `OPENAI_MODEL` | optional | fallback model, default `gpt-5.6-terra`; used by any purpose without a model of its own (`eval`, `other`) |
+| `OPENAI_MODEL_EXTRACT` | optional | model that reads the receipt photo; unset = `gpt-5.6-terra` |
+| `OPENAI_MODEL_CLASSIFY` | optional | model that proposes the account and the VAT treatment; unset = `gpt-6-astra` |
+| `OPENAI_MODEL_QUESTION` | optional | model that answers free-text questions; unset = `gpt-6-astra` |
 | `OPENAI_SWEEP_MODEL` | optional | second model for eval sweeps |
 | `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` | optional | enables the Anthropic adapter |
 | `EBARIMT_API_BASE` | ebarimt | `https://api.ebarimt.mn` (public registry lookups) |
@@ -239,7 +242,8 @@ frappe.call("nyabo_mn.api.config_check").then(r => console.log(r.message))
 ```
 
 You should see: an object whose `missing_by_feature.telegram` and `.llm` are empty, with
-every secret shown as `<set>`.
+every secret shown as `<set>`, and a `models.by_purpose` naming the model each purpose will
+actually run on with what decided it (a key, the purpose default, or `OPENAI_MODEL`).
 
 Secrets are never committed and never logged. A GitHub Actions secret is not visible to
 Frappe Cloud; the key has to be in Site Config.

@@ -26,10 +26,45 @@ def _set(monkeypatch, key: str, value: str) -> None:
 def test_config_check_says_a_secret_is_set_without_echoing_it(site, monkeypatch):
 	_set(monkeypatch, "TELEGRAM_BOT_TOKEN", TOKEN)
 	answer = api.config_check()
-	assert set(answer) == {"missing_by_feature", "values"}
+	assert set(answer) == {"missing_by_feature", "values", "models"}
 	assert answer["values"]["TELEGRAM_BOT_TOKEN"] == "<set>"
 	assert TOKEN not in repr(answer)
 	assert answer["missing_by_feature"]["telegram"] == []
+
+
+def test_config_check_answers_the_model_each_purpose_will_run_on(site, monkeypatch):
+	"""No shell: this is where the founder sees the routing resolved, key or no key."""
+	from nyabo_mn.agent.llm_client import PURPOSES
+
+	_set(monkeypatch, "OPENAI_MODEL", "gpt-5.6-sol")
+	_set(monkeypatch, "OPENAI_MODEL_CLASSIFY", "")
+	models = api.config_check()["models"]
+	assert models["provider"] == "openai"
+	assert set(models["by_purpose"]) == set(PURPOSES)
+	assert models["by_purpose"]["extract"] == {
+		"model": "gpt-5.6-terra",
+		"source": "purpose default",
+		"warning": None,
+	}
+	assert models["by_purpose"]["classify"]["model"] == "gpt-6-astra"
+	assert models["by_purpose"]["question"]["model"] == "gpt-6-astra"
+	# eval and other have no model of their own, so they are what OPENAI_MODEL says.
+	assert models["by_purpose"]["eval"] == {
+		"model": "gpt-5.6-sol",
+		"source": "OPENAI_MODEL",
+		"warning": None,
+	}
+
+
+def test_config_check_shows_a_typo_in_a_per_purpose_key(site, monkeypatch):
+	_set(monkeypatch, "OPENAI_MODEL_QUESTION", "gpt-6-astro")
+	question = api.config_check()["models"]["by_purpose"]["question"]
+	assert question == {
+		"model": "gpt-6-astro",
+		"source": "OPENAI_MODEL_QUESTION",
+		"warning": question["warning"],
+	}
+	assert "not in the allowlist" in question["warning"]
 
 
 def test_config_check_names_the_key_a_feature_still_needs(site, monkeypatch):

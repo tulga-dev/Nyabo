@@ -8,7 +8,12 @@ adapters (``openai_client``, ``anthropic_client``, ``mock_client``) built on
 ``record_call`` hook that writes ``Nyabo LLM Call`` (through ``frappe_log``; this module
 never imports frappe so the simulator and tests can use it).
 
-Model ids are read from settings. The defaults were given by the founder; the small
+Model ids are read from settings, one per purpose: ``get_client`` returns a
+``PurposeRouter`` that picks the model from the ``purpose`` every call already carries
+(``OPENAI_PURPOSE_MODELS`` holds the routing, ``resolve_model`` the precedence), so the
+model written to ``Nyabo LLM Call`` is the one that answered. The defaults were given by
+the founder - extraction reads the photograph on ``gpt-5.6-terra``, classification and the
+question loop reason on ``gpt-6-astra`` - and the small
 allowlist below was checked against the vendors' model pages on ``MODEL_ALLOWLIST_CHECKED_ON``
 (https://developers.openai.com/api/docs/models lists gpt-6-astra, gpt-5.6-sol, gpt-5.6-terra
 and gpt-5.6-luna; https://platform.claude.com/docs/en/docs/about-claude/models/overview lists
@@ -47,6 +52,41 @@ DEFAULT_BACKOFF_BASE_S = 1.0
 DEFAULT_BACKOFF_MAX_S = 20.0
 
 PURPOSES = ("extract", "classify", "question", "eval", "other")
+
+
+@dataclass(frozen=True)
+class PurposeModel:
+	"""How one purpose picks its OpenAI model.
+
+	``key`` is the site-config key that overrides it; ``None`` means the purpose has no key
+	of its own and follows ``OPENAI_MODEL``. ``default`` is the model the founder chose for
+	that purpose, used when the key is unset; ``None`` means "whatever ``OPENAI_MODEL``
+	says". Separate keys rather than one JSON map because Frappe Cloud's Site Config is the
+	only door the founder has (no shell), it edits one key at a time, and a key name greps.
+	"""
+
+	key: str | None
+	default: str | None
+
+
+#: The founder's routing - "Astra for reasoning and chat, terra for receipt parsing" - with
+#: one entry per member of ``PURPOSES``, so a new purpose cannot be added without deciding
+#: which model runs it (tests/unit/test_agent_llm_client.py pins that). ``extract`` reads a
+#: photograph; ``classify`` and ``question`` reason in text, and classify is the judgement
+#: call: see docs/DECISIONS.md LLM-02.
+OPENAI_PURPOSE_MODELS: Mapping[str, PurposeModel] = {
+	"extract": PurposeModel("OPENAI_MODEL_EXTRACT", "gpt-5.6-terra"),
+	"classify": PurposeModel("OPENAI_MODEL_CLASSIFY", "gpt-6-astra"),
+	"question": PurposeModel("OPENAI_MODEL_QUESTION", "gpt-6-astra"),
+	"eval": PurposeModel(None, None),
+	"other": PurposeModel(None, None),
+}
+
+#: The per-purpose keys, in ``PURPOSES`` order. ``nyabo_mn.config.KEY_SPECS`` declares the
+#: same names (a test keeps the two in step) so ``config_check`` lists them.
+PURPOSE_MODEL_KEYS: tuple[str, ...] = tuple(
+	route.key for route in OPENAI_PURPOSE_MODELS.values() if route.key
+)
 
 
 # --- parts and specs -------------------------------------------------------------------
@@ -513,12 +553,205 @@ def _setting(settings: Any, name: str, default: Any = None) -> Any:
 	return value
 
 
-def get_client(settings: Any, provider: str = "auto", *, record_call: RecordCall | None = None) -> LlmClient:
+@dataclass(frozen=True)
+class ModelChoice:
+	"""The model one purpose will actually use, and where the id came from.
+
+	``source`` is the site-config key that supplied the id (``OPENAI_MODEL_CLASSIFY``,
+	``OPENAI_MODEL``, ``ANTHROPIC_MODEL``), ``"purpose default"`` for the founder's routing
+	in ``OPENAI_PURPOSE_MODELS``, or ``"built-in default"`` when nothing is configured at
+	all. ``nyabo_mn.api.config_check`` prints it, so the founder sees *why* a purpose runs
+	the model it runs instead of inferring it from the keys he set; ``warning`` repeats the
+	allowlist warning there too, so a typo shows before the next receipt fails.
+	"""
+
+	purpose: str
+	model: str
+	source: str
+	warning: str | None = None
+
+
+def resolve_model(settings: Any, purpose: str, provider: str = "openai") -> ModelChoice:
+	"""Which model ``purpose`` runs on: its own key, then its routing default, then the fallback.
+
+	The precedence matters (docs/DECISIONS.md LLM-01): a purpose with a default of its own
+	ignores ``OPENAI_MODEL``, because a site that pins ``OPENAI_MODEL`` - as the live one
+	does - would otherwise keep answering questions on the extraction model and the routing
+	would quietly do nothing. ``eval`` and ``other`` have no default, so they are exactly
+	what ``OPENAI_MODEL`` says. An unknown purpose is treated as ``other`` rather than
+	raising: a model call must never fail over its own label. Anthropic is the spare
+	provider and has no per-purpose keys; it answers ``ANTHROPIC_MODEL`` for every purpose.
+	"""
+	if purpose not in OPENAI_PURPOSE_MODELS:
+		purpose = "other"
+	if provider == "anthropic":
+		configured = _setting(settings, "ANTHROPIC_MODEL")
+		model = str(configured) if configured else DEFAULT_ANTHROPIC_MODEL
+		source = "ANTHROPIC_MODEL" if configured else "built-in default"
+		return ModelChoice(purpose, model, source, model_warning("anthropic", model))
+
+	route = OPENAI_PURPOSE_MODELS[purpose]
+	model = ""
+	source = ""
+	if route.key:
+		configured = _setting(settings, route.key)
+		if configured:
+			model, source = str(configured), route.key
+	if not model and route.default:
+		model, source = route.default, "purpose default"
+	if not model:
+		configured = _setting(settings, "OPENAI_MODEL")
+		if configured:
+			model, source = str(configured), "OPENAI_MODEL"
+		else:
+			model, source = DEFAULT_OPENAI_MODEL, "built-in default"
+	return ModelChoice(purpose, model, source, model_warning("openai", model))
+
+
+def resolve_models(settings: Any, provider: str = "openai") -> dict[str, ModelChoice]:
+	"""Every purpose in ``PURPOSES``, resolved. What ``nyabo_mn.api.config_check`` answers."""
+	return {purpose: resolve_model(settings, purpose, provider) for purpose in PURPOSES}
+
+
+def pin_models(values: Mapping[str, Any], provider: str, model: str) -> dict[str, Any]:
+	"""A copy of ``values`` in which every purpose resolves to ``model``.
+
+	For the eval sweep, which asks "how does *this* model do on the golden set". Setting
+	``OPENAI_MODEL`` alone would not do it: the per-purpose defaults outrank it, so the
+	sweep would name one model in its report while extraction and classification quietly
+	ran on the routed ones.
+	"""
+	pinned = dict(values)
+	if provider == "anthropic":
+		pinned["ANTHROPIC_MODEL"] = model
+		return pinned
+	pinned["OPENAI_MODEL"] = model
+	for key in PURPOSE_MODEL_KEYS:
+		pinned[key] = model
+	return pinned
+
+
+class PurposeRouter:
+	"""One adapter per purpose behind the single ``LlmClient`` a caller holds.
+
+	The model cannot be chosen once at construction, because one client serves several
+	purposes in a run: ``agent.pipeline`` extracts and then classifies through the same
+	object. Every caller already says what a call is for (``structured(purpose=...)``), so
+	the router dispatches on that and no caller changes. Adapters are shared by model id,
+	and each one records its own calls, so ``Nyabo LLM Call.model`` is the model that
+	actually answered - the only way to check the routing on a live site.
+	"""
+
+	def __init__(self, provider: str, clients: Mapping[str, LlmClient], *, default_purpose: str = "other"):
+		if default_purpose not in clients:
+			raise ValueError(f"no client for the default purpose {default_purpose!r}")
+		self.provider = provider
+		self._clients = dict(clients)
+		self._default_purpose = default_purpose
+
+	@property
+	def model(self) -> str:
+		"""The fallback purpose's model; a call's own model is ``client_for(purpose).model``."""
+		return self._clients[self._default_purpose].model
+
+	@property
+	def record_call(self) -> RecordCall | None:
+		return getattr(self._clients[self._default_purpose], "record_call", None)
+
+	@record_call.setter
+	def record_call(self, value: RecordCall | None) -> None:
+		"""Callers attach the recorder after construction; every adapter must get it (§6)."""
+		for client in self._clients.values():
+			client.record_call = value  # type: ignore[attr-defined]
+
+	def client_for(self, purpose: str) -> LlmClient:
+		"""The adapter for ``purpose``; an unknown label falls back like ``resolve_model``."""
+		return self._clients.get(purpose, self._clients[self._default_purpose])
+
+	def models(self) -> dict[str, str]:
+		"""purpose -> model id, for a caller that wants to log or show the routing."""
+		return {purpose: client.model for purpose, client in self._clients.items()}
+
+	def structured(
+		self,
+		*,
+		purpose: str,
+		system: str,
+		user: list[Part],
+		schema: dict,
+		schema_name: str,
+		temperature: float = 0,
+		prompt_version: str | None = None,
+	) -> LlmResult:
+		return self.client_for(purpose).structured(
+			purpose=purpose,
+			system=system,
+			user=user,
+			schema=schema,
+			schema_name=schema_name,
+			temperature=temperature,
+			prompt_version=prompt_version,
+		)
+
+	def with_tools(
+		self,
+		*,
+		purpose: str,
+		system: str,
+		user: list[Part],
+		tools: list[ToolSpec],
+		handler: ToolHandler,
+		max_turns: int = 4,
+		prompt_version: str | None = None,
+	) -> LlmResult:
+		return self.client_for(purpose).with_tools(
+			purpose=purpose,
+			system=system,
+			user=user,
+			tools=tools,
+			handler=handler,
+			max_turns=max_turns,
+			prompt_version=prompt_version,
+		)
+
+
+def _one_or_router(
+	settings: Any, provider: str, purpose: str | None, build: Callable[[str], LlmClient]
+) -> LlmClient:
+	"""A single adapter pinned to ``purpose``, or a router over every purpose.
+
+	Adapters are built once per distinct model id, so the founder's routing costs two.
+	"""
+	if purpose is not None:
+		return build(resolve_model(settings, purpose, provider).model)
+	by_model: dict[str, LlmClient] = {}
+	clients: dict[str, LlmClient] = {}
+	for name, choice in resolve_models(settings, provider).items():
+		client = by_model.get(choice.model)
+		if client is None:
+			client = build(choice.model)
+			by_model[choice.model] = client
+		clients[name] = client
+	return PurposeRouter(provider, clients)
+
+
+def get_client(
+	settings: Any,
+	provider: str = "auto",
+	*,
+	purpose: str | None = None,
+	record_call: RecordCall | None = None,
+) -> LlmClient:
 	"""Build the configured client.
 
 	``provider="anthropic"`` uses Anthropic when ``ANTHROPIC_API_KEY`` is set; everything
 	else (including ``"auto"``) uses OpenAI, which is the founder's primary provider.
 	``provider="mock"`` returns the fixture-driven client for the simulator.
+
+	``purpose=None`` - what every existing caller passes - returns a :class:`PurposeRouter`
+	that picks the model per call from the purpose the caller already names. Passing a
+	purpose returns one adapter pinned to that purpose's model, for a caller that makes only
+	one kind of call and wants to hold the model id.
 	"""
 	provider = (provider or "auto").lower()
 	if provider == "mock":
@@ -536,8 +769,10 @@ def get_client(settings: Any, provider: str = "auto", *, record_call: RecordCall
 			)
 		from nyabo_mn.agent.anthropic_client import AnthropicClient
 
-		model = str(_setting(settings, "ANTHROPIC_MODEL", DEFAULT_ANTHROPIC_MODEL))
-		return AnthropicClient(api_key=anthropic_key, model=model, record_call=record_call)
+		def anthropic_adapter(model: str) -> LlmClient:
+			return AnthropicClient(api_key=anthropic_key, model=model, record_call=record_call)
+
+		return _one_or_router(settings, "anthropic", purpose, anthropic_adapter)
 
 	if provider not in ("auto", "openai"):
 		raise ValueError(f"unknown LLM provider {provider!r}; expected auto, openai, anthropic or mock")
@@ -549,8 +784,10 @@ def get_client(settings: Any, provider: str = "auto", *, record_call: RecordCall
 		raise MissingSettingError("Site config is missing OPENAI_API_KEY (needed for the llm feature).")
 	from nyabo_mn.agent.openai_client import OpenAIClient
 
-	model = str(_setting(settings, "OPENAI_MODEL", DEFAULT_OPENAI_MODEL))
-	return OpenAIClient(api_key=openai_key, model=model, record_call=record_call)
+	def openai_adapter(model: str) -> LlmClient:
+		return OpenAIClient(api_key=openai_key, model=model, record_call=record_call)
+
+	return _one_or_router(settings, "openai", purpose, openai_adapter)
 
 
 __all__ = [
@@ -558,7 +795,9 @@ __all__ = [
 	"DEFAULT_OPENAI_MODEL",
 	"MODEL_ALLOWLIST",
 	"MODEL_ALLOWLIST_CHECKED_ON",
+	"OPENAI_PURPOSE_MODELS",
 	"PURPOSES",
+	"PURPOSE_MODEL_KEYS",
 	"BaseClient",
 	"CallRecord",
 	"ImagePart",
@@ -569,7 +808,10 @@ __all__ = [
 	"LlmResult",
 	"LlmSchemaError",
 	"LlmTimeout",
+	"ModelChoice",
 	"Part",
+	"PurposeModel",
+	"PurposeRouter",
 	"RecordCall",
 	"RetryPolicy",
 	"TextPart",
@@ -581,6 +823,9 @@ __all__ = [
 	"hash_parts",
 	"model_warning",
 	"parse_json_object",
+	"pin_models",
+	"resolve_model",
+	"resolve_models",
 	"run_tool_handler",
 	"trace_as_dicts",
 ]

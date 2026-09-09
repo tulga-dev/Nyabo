@@ -7,7 +7,7 @@ section. Agents append to their own section; the integrator merges.
 Identifiers are `<SECTION>-<nn>`, numbered inside the section they belong to — `CORE`
 (core + rules + seed), `INT` (integration), `RULES` (rules on the Frappe side + setup),
 `PIPE` (agent pipeline + posting + ebarimt), `COMP` (compliance + reports), `BANK`
-(parsers + matching), `REV` (review), `TG` (telegram review) — so an identifier names
+(parsers + matching), `REV` (review), `TG` (telegram review), `LLM` (model routing) — so an identifier names
 exactly one decision and a new entry never renumbers an old one. Cite them that way in
 code and in docs (REV-02).
 
@@ -725,3 +725,58 @@ button or by Алгасах) used to save exactly that mapping, keyed on the hea
 ask an admin to verify it — after which every later import of that bank's export would find
 it and read nothing. The last column now refuses to complete the mapping instead, in
 Mongolian, with the question left standing.
+
+## model routing (one model per purpose)
+
+### LLM-01 A purpose's own model outranks `OPENAI_MODEL`
+`resolve_model` reads the purpose's key first (`OPENAI_MODEL_CLASSIFY`), then the model
+chosen for that purpose in `OPENAI_PURPOSE_MODELS`, and only then `OPENAI_MODEL`. The other
+order was tempting — one key that moves everything — but the live site already sets
+`OPENAI_MODEL`, so under it the founder's routing would have applied to nothing until three
+keys were added, and «use Astra for chat» would have shipped as a no-op. `eval` and `other`
+have no model of their own and are exactly what `OPENAI_MODEL` says, so the fallback still
+means something. The cost is that pinning `OPENAI_MODEL` no longer moves extraction,
+classification or questions: `api.config_check` prints each purpose's model *and* the
+`source` that decided it so that is visible without reading code, and `llm_client.pin_models`
+(used by the eval sweep) sets every key at once when a caller really does mean "this model,
+everywhere". Reverse by swapping the two branches in `resolve_model`.
+
+### LLM-02 Classification runs on Astra, not on Terra — the judgement call in this task
+The founder said «Astra for reasoning and chat, terra for receipt parsing». Extraction is
+plainly parsing: a photograph in, the printed fields out, and Terra was picked for exactly
+that. Classification is not parsing. By the time it runs, the receipt is already text; it
+proposes the expense account and the VAT treatment *with a reason*, against a chart of
+accounts and a regime, and its answer is what the accountant taps «Зөв» on. It is the last
+model step before the ledger, and principle 3 (a human taps) is a review of that proposal,
+not a substitute for it: a plausible wrong account with a fluent Mongolian reason is the
+failure this app can least afford. So classification is read as reasoning and routed to
+`gpt-6-astra`. Against it: «receipt parsing» could fairly mean the whole receipt pipeline,
+and Astra is 5× Terra's price ($10/$50 vs $2/$12 per 1M tokens in `agent.cost`) — though
+classification sends text only, while extraction carries the image tokens, so the bill moves
+less than the ratio suggests. If the founder meant the pipeline, one key flips it back:
+`OPENAI_MODEL_CLASSIFY = gpt-5.6-terra` in Site Config, effective in about 30 seconds with
+no deploy. The eval sweep now covers every routed model, so the two can be compared on the
+golden set before deciding.
+
+### LLM-03 Separate keys, not one JSON map
+`OPENAI_MODEL_EXTRACT`, `OPENAI_MODEL_CLASSIFY`, `OPENAI_MODEL_QUESTION` rather than a
+single `OPENAI_MODELS` JSON blob. Frappe Cloud's Site Config is the founder's only door
+(no shell), it adds one key at a time as a String, and a JSON value is edited as a whole —
+a typo in the blob would break every purpose at once instead of one. Separate keys also
+grep, and each appears in `config.check` on its own line with `<missing>` when unset.
+Purposes with no key (`eval`, `other`) are deliberate: they are not something the founder
+tunes. Reverse by parsing one JSON key in `resolve_model`; `KEY_SPECS` and
+`OPENAI_PURPOSE_MODELS` are the only two places that name the keys, and a test keeps them
+in step.
+
+### LLM-04 The model is chosen per call, not once per client
+`get_client` returns a `PurposeRouter` holding one adapter per distinct model id and
+dispatching on the `purpose` every call already carries. A client is built once and used
+for several purposes — `agent.pipeline` extracts and then classifies through the same
+object — so a model fixed at construction could not honour a per-purpose routing without
+rewriting every caller. Routing per call keeps `pipeline`, `matching.rules` and `evals`
+exactly as they were, and each adapter records its own calls, so `Nyabo LLM Call.model` is
+the model that actually answered and the intent in `config_check` can be checked against
+it. `get_client(..., purpose="question")` still returns a single pinned adapter for a caller
+that makes only one kind of call. Reverse by giving the adapters a per-call model argument
+instead, which is a change in all three adapters.

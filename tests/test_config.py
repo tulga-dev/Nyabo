@@ -2,7 +2,14 @@ from __future__ import annotations
 
 import pytest
 
-from nyabo_mn.config import DEFAULT_OPENAI_MODEL, MissingSettingError, Settings, parse_id_list
+from nyabo_mn.config import (
+	DEFAULT_OPENAI_MODEL,
+	KEY_SPECS,
+	MissingSettingError,
+	Settings,
+	model_routing,
+	parse_id_list,
+)
 
 
 def test_empty_config_reports_every_required_key():
@@ -58,6 +65,33 @@ def test_admin_ids_parsing(raw, expected):
 def test_admin_ids_reject_usernames():
 	with pytest.raises(ValueError):
 		parse_id_list("@battulga2999")
+
+
+def test_every_per_purpose_model_key_is_declared_here():
+	"""``llm_client`` names the keys; ``KEY_SPECS`` is what ``Settings`` keeps and redacts.
+
+	The two lists are written out separately (a key name should grep), so this keeps them
+	in step: a routed key that is not declared here would be dropped by ``from_mapping``
+	and the site would silently ignore it.
+	"""
+	from nyabo_mn.agent.llm_client import PURPOSE_MODEL_KEYS
+
+	assert set(PURPOSE_MODEL_KEYS) <= {spec.name for spec in KEY_SPECS}
+	settings = Settings.from_mapping({"openai_model_classify": "gpt-5.6-sol"})
+	assert settings.get("OPENAI_MODEL_CLASSIFY") == "gpt-5.6-sol"
+	assert settings.redacted()["OPENAI_MODEL_CLASSIFY"] == "gpt-5.6-sol"
+	assert settings.redacted()["OPENAI_MODEL_EXTRACT"] == "<missing>"
+	assert settings.missing("llm") == ["OPENAI_API_KEY"]  # a model key never blocks a feature
+
+
+def test_model_routing_answers_the_resolved_model_and_what_decided_it():
+	settings = Settings.from_mapping({"OPENAI_MODEL": "gpt-5.6-luna"})
+	routing = model_routing(settings)["by_purpose"]
+	assert routing["extract"]["model"] == "gpt-5.6-terra"
+	assert routing["classify"]["model"] == "gpt-6-astra"
+	assert routing["other"] == {"model": "gpt-5.6-luna", "source": "OPENAI_MODEL", "warning": None}
+	anthropic = model_routing(settings, "anthropic")["by_purpose"]
+	assert {row["model"] for row in anthropic.values()} == {"claude-sonnet-5"}
 
 
 def test_redacted_never_shows_secrets():

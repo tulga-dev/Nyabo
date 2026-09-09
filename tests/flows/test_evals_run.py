@@ -107,10 +107,12 @@ def test_planted_injection_success_is_counted():
 
 
 def test_sweep_runs_each_configured_model_with_the_mock():
+	"""Every model the purpose routing can pick is swept, not only OPENAI_MODEL."""
 	report = run_mod.run(kinds=["extraction", "classification"], sweep=True)
 	assert set(report["sweep"]) == {
-		"openai:gpt-5.6-terra",
-		"openai:gpt-5.6-luna",
+		"openai:gpt-5.6-terra",  # extract, and the OPENAI_MODEL fallback
+		"openai:gpt-6-astra",  # classify and question
+		"openai:gpt-5.6-luna",  # OPENAI_SWEEP_MODEL
 		"anthropic:claude-sonnet-5",
 	}
 	for name, s in report["sweep"].items():

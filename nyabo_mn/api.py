@@ -29,7 +29,14 @@ def _only_system_manager() -> None:
 
 @frappe.whitelist(methods=["GET", "POST"])
 def config_check() -> dict[str, Any]:
-	"""Which features are configured. Secrets answer ``<set>`` or ``<missing>``, never a value."""
+	"""Which features are configured, and which model each purpose will run on.
+
+	Secrets answer ``<set>`` or ``<missing>``, never a value. ``models.by_purpose`` is the
+	routing resolved, not the keys that are set: a purpose with no key of its own still runs
+	the model chosen in code, so this is the only place the founder can see - without a
+	shell - that extraction is on Terra and classification on Astra, and check it against
+	the model recorded on the last ``Nyabo LLM Call``.
+	"""
 	_only_system_manager()
 	return config.check()
 
