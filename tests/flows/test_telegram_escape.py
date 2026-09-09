@@ -411,8 +411,35 @@ def test_the_escape_on_a_failure_reaches_the_menu_and_clears_a_stuck_step(compan
 
 	run(bot, callback_update(9251, "e:err:menu"))
 	assert _state(9251) in (None, "")
-	assert mn.MSG_FLOW_LEFT_FOR_COMMAND in bot.texts()
+	# The error card has no state of its own, so it may close whatever is open — and says which.
+	assert mn.MSG_FLOW_LEFT_NAMED.format(flow=mn.FLOW_NAMES["onb"]) in bot.texts()
 	assert any(mn.MSG_MENU in text for text in bot.texts())
+
+
+def test_a_menu_button_from_a_finished_step_does_not_close_todays_work(company, monkeypatch):
+	"""MINOR: [Цэс] used to skip the staleness check that the other three verbs go through.
+
+	A flow's own menu button is a button on a question; when that question is over, tapping it
+	must not clear whatever the accountant has open now. Only the error card's [Цэс] is exempt,
+	because a handler that failed may have left any state, or none.
+	"""
+	bot = _at_inventory_list(9252, company, monkeypatch)
+	stale_menu = keyboards.escape_data("onb:inv_wait", keyboards.ESCAPE_MENU)
+	run(bot, callback_update(9252, _escape_datum(bot.last_markup(), keyboards.ESCAPE_SKIP)))
+	assert _state(9252) == "onb:acc_name"
+	bot.clear()
+
+	run(bot, callback_update(9252, stale_menu))
+
+	assert _state(9252) == "onb:acc_name"
+	answers = bot.sent("answer_callback_query")
+	assert answers and answers[-1]["text"] == mn.MSG_ESCAPE_STALE
+	assert not any(mn.MSG_MENU in text for text in bot.texts())
+
+	# …while the menu button of the open step is still a way home, and names what it closed.
+	run(bot, callback_update(9252, keyboards.escape_data("onb:acc_name", keyboards.ESCAPE_MENU)))
+	assert _state(9252) in (None, "")
+	assert mn.MSG_FLOW_LEFT_NAMED.format(flow=mn.FLOW_NAMES["onb"]) in bot.texts()
 
 
 # --- 5. the menu, and the commands that reach it --------------------------------------------------

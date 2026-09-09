@@ -1018,6 +1018,18 @@ MSG_CANCELLED = "Цуцаллаа."
 MSG_FLOW_CANCELLED = "Болилоо. Эхлүүлсэн ажлыг хаалаа. Хүссэн үедээ дахин эхлүүлж болно (/меню)."
 MSG_FLOW_NOTHING_TO_CANCEL = "Одоогоор үргэлжилж байгаа ажил алга. /меню — үндсэн цэс."
 MSG_FLOW_LEFT_FOR_COMMAND = "Эхлүүлсэн ажлыг хаалаа."
+# [Цэс] closes whatever was open, so it says what that was: an accountant who tapped it on an
+# error card from this morning is entitled to know which conversation went with it. The keys
+# are the conversation state prefixes (nyabo_mn.telegram.keyboards SCOPE_*).
+MSG_FLOW_LEFT_NAMED = "«{flow}» ажлыг хаалаа."
+FLOW_NAMES = {
+	"onb": "Тохиргоо",
+	"layout": "Хуулгын багана тохируулах",
+	"acc_search": "Данс хайх",
+	"reject_text": "Татгалзсан шалтгаан бичих",
+	"correct": "Залруулга",
+	"bank_find": "Банкны гүйлгээнд баримт хайх",
+}
 MSG_STEP_CANNOT_SKIP = (
 	"Энэ алхмыг алгасах боломжгүй. Доорх товчнуудаас сонгоно уу, эсвэл «Цуцлах» дарж гарна уу."
 )
