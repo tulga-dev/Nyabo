@@ -12,7 +12,7 @@ import pytest
 
 from nyabo_mn.i18n import mn
 from nyabo_mn.telegram import keyboards
-from nyabo_mn.telegram.handlers import escape
+from nyabo_mn.telegram.handlers import escape, onboarding
 
 
 @pytest.mark.parametrize(
@@ -79,9 +79,13 @@ def test_every_button_label_that_is_an_escape_is_also_understood_typed():
 
 
 def test_escape_row_is_ordered_and_fits_the_callback_budget():
-	row = keyboards.escape_row(keyboards.SCOPE_ONBOARDING, back=True, skip=True)
+	row = keyboards.escape_row("onb:inv_wait", back=True, skip=True)
 	assert [b["text"] for b in row] == [mn.BTN_BACK, mn.BTN_SKIP, mn.BTN_CANCEL]
-	assert [b["callback_data"] for b in row] == ["e:onb:back", "e:onb:skip", "e:onb:cancel"]
+	assert [b["callback_data"] for b in row] == [
+		"e:onb:back:inv_wait",
+		"e:onb:skip:inv_wait",
+		"e:onb:cancel:inv_wait",
+	]
 	assert row[-1]["style"] == keyboards.STYLE_DANGER
 	for scope in (
 		keyboards.SCOPE_ONBOARDING,
@@ -93,8 +97,39 @@ def test_escape_row_is_ordered_and_fits_the_callback_budget():
 		keyboards.SCOPE_ERROR,
 	):
 		for verb in (keyboards.ESCAPE_CANCEL, keyboards.ESCAPE_BACK, keyboards.ESCAPE_SKIP):
-			data = keyboards.encode(keyboards.PREFIX_ESCAPE, scope, verb)
+			data = keyboards.escape_data(scope, verb)
 			assert len(data.encode("utf-8")) <= keyboards.MAX_CALLBACK_DATA_BYTES
+
+
+def test_the_longest_state_name_still_fits_the_64_byte_datum():
+	"""Telegram: callback_data is "1-64 bytes". Every state a prompt can be drawn for is checked.
+
+	The step rides in the datum (UX-13 follow-up), so the budget now depends on the longest
+	state name in the app, not only on the scope.
+	"""
+	states = [
+		f"{keyboards.SCOPE_ONBOARDING}:{step}"
+		for step in (*onboarding.BACK_STEPS, "vat", "inv_wait", "inv_confirm", "acc_name")
+	]
+	states += [
+		keyboards.STATE_CORRECTION_TEXT,
+		keyboards.SCOPE_ACCOUNT_SEARCH,
+		keyboards.SCOPE_REJECT_TEXT,
+		keyboards.SCOPE_BANK_FIND,
+		keyboards.SCOPE_ERROR,
+		f"{keyboards.SCOPE_LAYOUT}:999",
+	]
+	longest = max(states, key=len)
+	for state in states:
+		for verb in (
+			keyboards.ESCAPE_CANCEL,
+			keyboards.ESCAPE_BACK,
+			keyboards.ESCAPE_SKIP,
+			keyboards.ESCAPE_MENU,
+		):
+			data = keyboards.escape_data(state, verb)
+			assert len(data.encode("utf-8")) <= keyboards.MAX_CALLBACK_DATA_BYTES, data
+	assert len(keyboards.escape_data(longest, keyboards.ESCAPE_CANCEL).encode("utf-8")) < 40
 
 
 def test_a_scope_is_the_state_prefix_it_was_drawn_for():
@@ -103,6 +138,18 @@ def test_a_scope_is_the_state_prefix_it_was_drawn_for():
 	assert escape.state_scope("layout:3") == keyboards.SCOPE_LAYOUT
 	assert escape.state_scope("acc_search") == keyboards.SCOPE_ACCOUNT_SEARCH
 	assert escape.state_scope(None) == ""
+	assert escape.state_step("onb:inv_wait") == "inv_wait"
+	assert escape.state_step("acc_search") == ""
+
+
+def test_a_button_is_stale_unless_it_was_drawn_for_the_open_step():
+	"""The comparison the staleness guard makes, without a chat around it."""
+	assert escape.drawn_for_open_step("onb", "inv_wait", "onb:inv_wait") is True
+	assert escape.drawn_for_open_step("onb", "acc_name", "onb:inv_wait") is False
+	assert escape.drawn_for_open_step("onb", "inv_wait", "layout:0") is False
+	assert escape.drawn_for_open_step("acc_search", None, "acc_search") is True
+	# A card drawn before the step rode along: the flow is all there is to compare.
+	assert escape.drawn_for_open_step("onb", None, "onb:acc_name") is True
 
 
 def test_spent_disables_every_button_and_drops_its_data():

@@ -9,7 +9,7 @@ import frappe
 
 from nyabo_mn.core.money import fmt_mnt
 from nyabo_mn.i18n import mn
-from nyabo_mn.telegram import _deps
+from nyabo_mn.telegram import _deps, keyboards
 from tests.fixtures.telegram.fake_bot import FakeBotApi, callback_update, link_user, message_update, run
 
 
@@ -48,7 +48,7 @@ def test_full_onboarding_stores_settings(company, monkeypatch):
 	assert _state(uid) == "onb:vat"
 	assert mn.ONB_ASK_VAT in bot.texts()
 	# The first question has no step behind it, so Буцах is absent and Цуцлах is not (UX-13).
-	assert bot.callback_datas() == ["o:vat:yes", "o:vat:no", "e:onb:cancel"]
+	assert bot.callback_datas() == ["o:vat:yes", "o:vat:no", "e:onb:cancel:vat"]
 
 	run(bot, callback_update(uid, "o:vat:no"))
 	assert mn.ONB_VAT_NO_NOTE in bot.texts()
@@ -86,8 +86,8 @@ def test_full_onboarding_stores_settings(company, monkeypatch):
 	assert bot.callback_datas() == [
 		"i:NYI-00001:confirm",
 		"i:NYI-00001:cancel",
-		"e:onb:back",
-		"e:onb:skip",
+		"e:onb:back:inv_confirm",
+		"e:onb:skip:inv_confirm",
 	]
 	run(bot, callback_update(uid, "i:NYI-00001:confirm"))
 	assert posted == [("NYI-00001", "tg-9001@nyabo.local")]
@@ -176,7 +176,7 @@ def test_text_during_button_step_repeats_question(company):
 	bot.clear()
 	run(bot, message_update(9003, "тийм"))
 	assert bot.last_text == mn.ONB_ASK_VAT
-	assert bot.callback_datas() == ["o:vat:yes", "o:vat:no", "e:onb:cancel"]
+	assert bot.callback_datas() == ["o:vat:yes", "o:vat:no", "e:onb:cancel:vat"]
 
 
 def test_custom_currency_is_shown_and_can_be_removed(company):
@@ -231,7 +231,10 @@ def test_custom_currency_refuses_a_code_that_is_not_three_latin_letters(company)
 	run(bot, callback_update(uid, "o:cur:other"))
 	run(bot, message_update(uid, "юань:1"))
 	assert mn.ONB_CURRENCY_CODE_INVALID in bot.last_text
-	assert all(":" not in data.split(":", 2)[-1] for data in bot.callback_datas())
+	# Nothing the user typed may reach the data, and no datum grows a field of its own:
+	# an escape carries at most prefix, scope, verb and step.
+	assert all("юань" not in data for data in bot.callback_datas())
+	assert all(len(keyboards.decode(data)) <= 4 for data in bot.callback_datas())
 
 
 def test_onboarding_with_unparseable_inventory(company, monkeypatch, caplog):

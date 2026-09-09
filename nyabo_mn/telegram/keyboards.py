@@ -10,8 +10,11 @@ on every phone width.
 
 Every prompt that waits for the user carries an escape row (UX-13): Цуцлах always, Буцах
 where there is a previous step and Алгасах where the step is optional. Those three ride on
-one prefix (``e:<scope>:<verb>``) so that ``handlers.escape`` is the only place that knows
-what leaving a step means, whether the user tapped the button or typed the word.
+one prefix (``e:<scope>:<verb>:<step>``) so that ``handlers.escape`` is the only place that
+knows what leaving a step means, whether the user tapped the button or typed the word. The
+step is the second half of the conversation state the prompt was drawn for, and it is what
+lets a tap on a question that has already been answered be refused instead of moving the
+step the accountant is on now.
 """
 
 from __future__ import annotations
@@ -34,10 +37,11 @@ PREFIX_CORRECTION = "x"
 PREFIX_ONBOARDING = "o"
 PREFIX_INTAKE = "i"
 PREFIX_LAYOUT = "l"  # statement column mapping; not in §5.1, listed in the module report
-PREFIX_ESCAPE = "e"  # e:<scope>:cancel|back|skip|menu — the way out of any waiting step (UX-13)
+PREFIX_ESCAPE = "e"  # e:<scope>:cancel|back|skip|menu:<step> — the way out of a waiting step (UX-13)
 
-# Escape verbs. The scope beside them is the flow the button was drawn for, so a tap on a
-# card scrolled far up can be recognised as stale instead of cancelling today's work.
+# Escape verbs. The scope and step beside them are the conversation state the button was drawn
+# for, so a tap on a card scrolled far up can be recognised as stale instead of moving the step
+# the accountant is on now.
 ESCAPE_CANCEL = "cancel"
 ESCAPE_BACK = "back"
 ESCAPE_SKIP = "skip"
@@ -49,6 +53,8 @@ SCOPE_ONBOARDING = "onb"
 SCOPE_ACCOUNT_SEARCH = "acc_search"
 SCOPE_REJECT_TEXT = "reject_text"
 SCOPE_CORRECTION = "correct"
+# handlers.correct.STATE_TEXT: the free-form reason is the only step of that flow with a name.
+STATE_CORRECTION_TEXT = "correct:text"
 SCOPE_LAYOUT = "layout"
 SCOPE_BANK_FIND = "bank_find"
 SCOPE_ERROR = "err"  # not a state: the escape the router hands out when a handler failed
@@ -93,33 +99,52 @@ def button(text: str, data: str, style: str | None = None) -> dict[str, str]:
 # --- escape hatches (UX-13) --------------------------------------------------------------------
 
 
+def escape_data(state: str, verb: str) -> str:
+	"""``("onb:inv_wait", "back") -> "e:onb:back:inv_wait"``; a bare scope carries no step.
+
+	The whole state name rides on the button because the scope alone cannot tell a tap on the
+	open question from a tap on one answered two questions ago: a step answered by typing never
+	has its prompt edited, so its escape row stays live above the current question and used to
+	move the wizard from a step it was not drawn for.
+	"""
+	scope, _, step = (state or "").partition(SEP)
+	parts = [PREFIX_ESCAPE, scope, verb]
+	if step:
+		parts.append(step)
+	return encode(*parts)
+
+
 def escape_row(
-	scope: str, back: bool = False, skip: bool = False, cancel: bool = True
+	state: str, back: bool = False, skip: bool = False, cancel: bool = True
 ) -> list[dict[str, str]]:
 	"""The [Буцах] [Алгасах] [Цуцлах] row for a step, in that reading order.
 
-	``scope`` is the flow tag (the conversation state's prefix), not the step: the open state
-	decides what leaving means, and the scope only tells ``handlers.escape`` whether the tap
-	came from the flow that is still running.
+	``state`` is the conversation state the prompt is drawn for (``"onb:inv_wait"``), or a bare
+	scope for a card that has no state of its own (the error card's [Цэс]). What leaving means
+	is still the open state's business; the datum only says which question was on screen.
 	"""
 	row: list[dict[str, str]] = []
 	if back:
-		row.append(button(mn.BTN_BACK, encode(PREFIX_ESCAPE, scope, ESCAPE_BACK)))
+		row.append(button(mn.BTN_BACK, escape_data(state, ESCAPE_BACK)))
 	if skip:
-		row.append(button(mn.BTN_SKIP, encode(PREFIX_ESCAPE, scope, ESCAPE_SKIP)))
+		row.append(button(mn.BTN_SKIP, escape_data(state, ESCAPE_SKIP)))
 	if cancel:
-		row.append(button(mn.BTN_CANCEL, encode(PREFIX_ESCAPE, scope, ESCAPE_CANCEL), style=STYLE_DANGER))
+		row.append(button(mn.BTN_CANCEL, escape_data(state, ESCAPE_CANCEL), style=STYLE_DANGER))
 	return row
 
 
-def escape_markup(scope: str, back: bool = False, skip: bool = False) -> dict[str, Any]:
+def escape_markup(state: str, back: bool = False, skip: bool = False) -> dict[str, Any]:
 	"""The whole keyboard for a free-text step: nothing to choose, only ways out."""
-	return markup(escape_row(scope, back=back, skip=skip))
+	return markup(escape_row(state, back=back, skip=skip))
 
 
 def menu_markup(scope: str = SCOPE_ERROR) -> dict[str, Any]:
-	"""One [Цэс] button: the floor under a failure, where re-offering the step is not possible."""
-	return markup([button(mn.BTN_MENU, encode(PREFIX_ESCAPE, scope, ESCAPE_MENU), style=STYLE_PRIMARY)])
+	"""One [Цэс] button: the floor under a failure, where re-offering the step is not possible.
+
+	It carries no step because a failure is not a step: the handler that threw may have left any
+	state or none, and this button's job is to reach the menu from wherever that is.
+	"""
+	return markup([button(mn.BTN_MENU, escape_data(scope, ESCAPE_MENU), style=STYLE_PRIMARY)])
 
 
 def spent(reply_markup: dict[str, Any] | None) -> dict[str, Any]:
@@ -218,7 +243,7 @@ def correction_reasons(posted_name: str) -> dict[str, Any]:
 
 def correction_text() -> dict[str, Any]:
 	"""Typing the free-form reason: Буцах returns to the reason buttons, Цуцлах drops the whole thing."""
-	return escape_markup(SCOPE_CORRECTION, back=True)
+	return escape_markup(STATE_CORRECTION_TEXT, back=True)
 
 
 def account_search_prompt() -> dict[str, Any]:
@@ -313,6 +338,15 @@ def close_confirm(period: str) -> dict[str, Any]:
 
 # --- onboarding ------------------------------------------------------------------------------------
 
+# The confirmation card for a parsed stock list is the one onboarding prompt whose step is not
+# an argument, so the state it belongs to is named here instead of being spelled out twice.
+STEP_INTAKE_CONFIRM = "inv_confirm"
+
+
+def onboarding_state(step: str) -> str:
+	"""``"inv_wait" -> "onb:inv_wait"``: the conversation state an onboarding prompt belongs to."""
+	return f"{SCOPE_ONBOARDING}{SEP}{step}"
+
 
 def onboarding_yes_no(step: str, back: bool = True) -> dict[str, Any]:
 	"""``back`` is off only on the first question, where there is nothing to go back to."""
@@ -321,7 +355,7 @@ def onboarding_yes_no(step: str, back: bool = True) -> dict[str, Any]:
 			button(mn.BTN_YES, encode(PREFIX_ONBOARDING, step, "yes")),
 			button(mn.BTN_NO, encode(PREFIX_ONBOARDING, step, "no")),
 		],
-		escape_row(SCOPE_ONBOARDING, back=back),
+		escape_row(onboarding_state(step), back=back),
 	)
 
 
@@ -334,7 +368,7 @@ def onboarding_banks(selected: Sequence[str]) -> dict[str, Any]:
 	return markup(
 		*rows(buttons, per_row=2),
 		[button(mn.BTN_DONE, encode(PREFIX_ONBOARDING, "banks", "done"), style=STYLE_PRIMARY)],
-		escape_row(SCOPE_ONBOARDING, back=True, skip=True),
+		escape_row(onboarding_state("banks"), back=True, skip=True),
 	)
 
 
@@ -360,7 +394,7 @@ def onboarding_currencies(selected: Sequence[str], custom: Sequence[str] = ()) -
 	return markup(
 		*rows(buttons),
 		[button(mn.BTN_DONE, encode(PREFIX_ONBOARDING, "cur", "done"), style=STYLE_PRIMARY)],
-		escape_row(SCOPE_ONBOARDING, back=True, skip=True),
+		escape_row(onboarding_state("cur"), back=True, skip=True),
 	)
 
 
@@ -372,23 +406,25 @@ def onboarding_skip(step: str, back: bool = True) -> dict[str, Any]:
 	"""
 	return markup(
 		[button(mn.BTN_SKIP, encode(PREFIX_ONBOARDING, step, "skip"))],
-		escape_row(SCOPE_ONBOARDING, back=back, skip=False),
+		escape_row(onboarding_state(step), back=back, skip=False),
 	)
 
 
-def onboarding_text_step(back: bool = True, skip: bool = False) -> dict[str, Any]:
+def onboarding_text_step(step: str, back: bool = True, skip: bool = False) -> dict[str, Any]:
 	"""A typed onboarding answer with no choices of its own: only the ways out.
 
 	The inventory list is the step the founder was trapped in, so it is drawn with all three:
 	Буцах to the Тийм/Үгүй question, Алгасах because the list is optional, Цуцлах to leave.
+	``step`` names the question: a typed step is not edited when it is answered, so its buttons
+	stay on screen above the next one and have to say which question they belong to.
 	"""
-	return escape_markup(SCOPE_ONBOARDING, back=back, skip=skip)
+	return escape_markup(onboarding_state(step), back=back, skip=skip)
 
 
 def onboarding_confirm(step: str) -> dict[str, Any]:
 	return markup(
 		[button(mn.BTN_CONFIRM, encode(PREFIX_ONBOARDING, step, "confirm"), style=STYLE_SUCCESS)],
-		escape_row(SCOPE_ONBOARDING, back=True),
+		escape_row(onboarding_state(step), back=True),
 	)
 
 
@@ -396,7 +432,7 @@ def intake_confirm(intake_name: str) -> dict[str, Any]:
 	return markup(
 		[button(mn.BTN_CONFIRM, encode(PREFIX_INTAKE, intake_name, "confirm"), style=STYLE_SUCCESS)],
 		[button(mn.BTN_CANCEL, encode(PREFIX_INTAKE, intake_name, "cancel"), style=STYLE_DANGER)],
-		escape_row(SCOPE_ONBOARDING, back=True, skip=True, cancel=False),
+		escape_row(onboarding_state(STEP_INTAKE_CONFIRM), back=True, skip=True, cancel=False),
 	)
 
 
@@ -408,7 +444,7 @@ def layout_column_roles(column_index: int, back: bool = False) -> dict[str, Any]
 	buttons = [
 		button(label, encode(PREFIX_LAYOUT, column_index, role)) for role, label in mn.COLUMN_ROLES.items()
 	]
-	return markup(*rows(buttons), escape_row(SCOPE_LAYOUT, back=back))
+	return markup(*rows(buttons), escape_row(f"{SCOPE_LAYOUT}{SEP}{column_index}", back=back))
 
 
 # --- company switch --------------------------------------------------------------------------------

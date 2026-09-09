@@ -72,9 +72,9 @@ def test_typing_skip_in_the_inventory_step_advances_the_wizard(company, monkeypa
 
 def test_tapping_skip_in_the_inventory_step_does_the_same(company, monkeypatch):
 	bot = _at_inventory_list(9202, company, monkeypatch)
-	assert "e:onb:skip" in _datas(bot.last_markup()), "the optional step must offer Алгасах"
+	assert "e:onb:skip:inv_wait" in _datas(bot.last_markup()), "the step must offer Алгасах"
 
-	run(bot, callback_update(9202, "e:onb:skip"))
+	run(bot, callback_update(9202, "e:onb:skip:inv_wait"))
 	assert _state(9202) == "onb:acc_name"
 	assert mn.ONB_INVENTORY_SKIPPED in bot.texts()
 
@@ -90,7 +90,7 @@ def test_skipping_the_stock_list_is_what_the_summary_says(company, monkeypatch):
 	"""BLOCKER: the card used to report «0 бараа», i.e. a stock count that came out empty."""
 	bot = _at_inventory_list(9205, company, monkeypatch)
 
-	run(bot, callback_update(9205, "e:onb:skip"))
+	run(bot, callback_update(9205, "e:onb:skip:inv_wait"))
 	_walk_to_the_summary(bot, 9205)
 
 	assert mn.ONB_SUMMARY_INVENTORY_SKIPPED in bot.last_text
@@ -108,7 +108,7 @@ def test_skipping_after_a_list_was_read_does_not_report_it_as_filed(company, mon
 	run(bot, message_update(9206, "Цаас, 2, 1000"))
 	assert _state(9206) == "onb:inv_confirm"
 
-	run(bot, callback_update(9206, "e:onb:skip"))
+	run(bot, callback_update(9206, "e:onb:skip:inv_confirm"))
 	_walk_to_the_summary(bot, 9206)
 
 	assert mn.ONB_SUMMARY_INVENTORY_SKIPPED in bot.last_text
@@ -235,6 +235,43 @@ def test_a_cancel_tapped_on_a_card_from_a_finished_step_is_refused(company, monk
 	assert answers and answers[-1]["text"] == mn.MSG_ESCAPE_STALE
 
 
+def test_a_typed_step_leaves_its_escape_row_live_and_that_tap_is_refused(company, monkeypatch):
+	"""MAJOR: a step answered by typing is never edited, so its buttons stay above the next one.
+
+	The skeptic's walk: reach onb:acc_name, type the name (the wizard moves to onb:micpa), then
+	tap the [Буцах] still sitting on the earlier card. With only the flow tag in the datum it
+	was indistinguishable from the open step's own button and moved the wizard from a step it
+	was not drawn for.
+	"""
+	bot = _at_inventory_list(9207, company, monkeypatch)
+	run(bot, callback_update(9207, _escape_datum(bot.last_markup(), keyboards.ESCAPE_SKIP)))
+	assert _state(9207) == "onb:acc_name"
+	stale_row = bot.last_markup()  # the escape row of the name prompt, still on screen
+
+	run(bot, message_update(9207, "Дорж"))
+	assert _state(9207) == "onb:micpa"
+	open_row = bot.last_markup()  # the MICPA prompt, the question actually on screen
+	bot.clear()
+
+	run(bot, callback_update(9207, _escape_datum(stale_row, keyboards.ESCAPE_BACK)))
+	assert _state(9207) == "onb:micpa", "a tap from a finished step must not move the open one"
+	answers = bot.sent("answer_callback_query")
+	assert answers and answers[-1]["text"] == mn.MSG_ESCAPE_STALE
+
+	# …while the open step's own row still works.
+	run(bot, callback_update(9207, _escape_datum(open_row, keyboards.ESCAPE_BACK)))
+	assert _state(9207) == "onb:acc_name"
+
+
+def test_a_card_drawn_before_the_step_rode_along_still_works(company, monkeypatch):
+	"""A card lives in the chat across a deploy: ``e:onb:skip`` with no step is the old shape."""
+	bot = _at_inventory_list(9208, company, monkeypatch)
+
+	run(bot, callback_update(9208, "e:onb:skip"))
+	assert _state(9208) == "onb:acc_name"
+	assert mn.ONB_INVENTORY_SKIPPED in bot.texts()
+
+
 # --- 3. a parse failure re-offers the buttons and keeps the user in the step -----------------------
 
 
@@ -255,7 +292,11 @@ def test_an_unreadable_inventory_line_keeps_the_step_and_re_offers_the_buttons(c
 	assert bot.last_text == mn.ONB_INVENTORY_PARSE_FAILED
 	assert "нэр, тоо, үнэ" in bot.last_text, "the step must say what shape it wanted"
 	assert _state(9240) == "onb:inv_wait", "the step stands, so the answer can be given again"
-	assert _datas(bot.last_markup()) == ["e:onb:back", "e:onb:skip", "e:onb:cancel"]
+	assert _datas(bot.last_markup()) == [
+		"e:onb:back:inv_wait",
+		"e:onb:skip:inv_wait",
+		"e:onb:cancel:inv_wait",
+	]
 	# …and the way out still works from there.
 	run(bot, message_update(9240, "алгасах"))
 	assert _state(9240) == "onb:acc_name"
@@ -268,7 +309,7 @@ def test_an_empty_inventory_list_also_re_offers_the_buttons(company, monkeypatch
 
 	run(bot, message_update(9241, "?"))
 	assert _state(9241) == "onb:inv_wait"
-	assert "e:onb:cancel" in _datas(bot.last_markup())
+	assert "e:onb:cancel:inv_wait" in _datas(bot.last_markup())
 
 
 # --- 4. the router's failure path attaches an escape ----------------------------------------------
@@ -531,9 +572,9 @@ def test_skipping_a_statement_column_marks_it_unused_and_moves_on(company):
 	)
 	assert _state(9291) == "layout:0"
 
-	run(bot, callback_update(9291, "e:layout:skip"))
+	run(bot, callback_update(9291, "e:layout:skip:0"))
 	assert _state(9291) == "layout:1"
-	assert "e:layout:back" in _datas(bot.last_markup()), "the second column can re-take the first"
+	assert "e:layout:back:1" in _datas(bot.last_markup()), "the second column can re-take the first"
 	run(bot, callback_update(9291, "l:1:date"))
 	run(bot, callback_update(9291, "l:2:description"))
 	run(bot, callback_update(9291, "l:3:amount"))
@@ -558,7 +599,7 @@ def test_going_back_a_statement_column_forgets_the_answer_it_re_asks(company):
 	run(bot, callback_update(9292, "l:0:reference"))  # the wrong role, on purpose
 	assert _state(9292) == "layout:1"
 
-	run(bot, callback_update(9292, "e:layout:back"))
+	run(bot, callback_update(9292, "e:layout:back:1"))
 	assert _state(9292) == "layout:0"
 	assert bot.last_text == mn.MSG_STATEMENT_LAYOUT_ASK_COLUMN.format(header="Огноо")
 	run(bot, callback_update(9292, "l:0:date"))
@@ -573,5 +614,5 @@ def test_the_free_text_steps_outside_onboarding_offer_an_escape_too(company):
 	"""The account search, the rejection reason, the correction text and the bank-line search."""
 	assert _datas(keyboards.account_search_prompt()) == ["e:acc_search:back", "e:acc_search:cancel"]
 	assert _datas(keyboards.reject_text_prompt()) == ["e:reject_text:back", "e:reject_text:cancel"]
-	assert _datas(keyboards.correction_text()) == ["e:correct:back", "e:correct:cancel"]
+	assert _datas(keyboards.correction_text()) == ["e:correct:back:text", "e:correct:cancel:text"]
 	assert _datas(keyboards.bank_find_prompt()) == ["e:bank_find:back", "e:bank_find:cancel"]

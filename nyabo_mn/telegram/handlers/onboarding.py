@@ -194,7 +194,7 @@ def _on_currency(ctx: Ctx, payload: dict[str, Any], value: str) -> Any:
 	selected: list[str] = list(payload.get("cur_selected") or [])
 	if value == "other":
 		_advance(ctx, payload, "cur_other")
-		ctx.reply(mn.ONB_ASK_CURRENCY_CODE, keyboards.onboarding_text_step())
+		ctx.reply(mn.ONB_ASK_CURRENCY_CODE, keyboards.onboarding_text_step("cur_other"))
 		return None
 	if value != "done":
 		if value in selected:
@@ -282,13 +282,13 @@ def _forget_inventory_list(payload: dict[str, Any]) -> None:
 def _ask_inventory_list(ctx: Ctx, payload: dict[str, Any]) -> Any:
 	"""The step the founder was trapped in: optional, so it is drawn with Алгасах and Буцах."""
 	_advance(ctx, payload, "inv_wait")
-	ctx.reply(mn.ONB_INVENTORY_HOW, keyboards.onboarding_text_step(back=True, skip=True))
+	ctx.reply(mn.ONB_INVENTORY_HOW, keyboards.onboarding_text_step("inv_wait", back=True, skip=True))
 	return {"step": "inv_wait"}
 
 
 def _ask_accountant(ctx: Ctx, payload: dict[str, Any]) -> Any:
 	_advance(ctx, payload, "acc_name")
-	ctx.reply(mn.ONB_ASK_ACCOUNTANT_NAME, keyboards.onboarding_text_step(skip=True))
+	ctx.reply(mn.ONB_ASK_ACCOUNTANT_NAME, keyboards.onboarding_text_step("acc_name", skip=True))
 	return {"step": "acc_name"}
 
 
@@ -340,7 +340,7 @@ def _inventory_prompt() -> dict[str, Any]:
 	UX-13: the step used to reply with a bare sentence and leave the state untouched with no
 	keyboard, so a user whose line could not be read had nothing on screen to press.
 	"""
-	return keyboards.onboarding_text_step(back=True, skip=True)
+	return keyboards.onboarding_text_step("inv_wait", back=True, skip=True)
 
 
 def _on_inventory_input(ctx: Ctx, payload: dict[str, Any]) -> Any:
@@ -483,7 +483,7 @@ def _repeat(ctx: Ctx, step: str, payload: dict[str, Any]) -> Any:
 			),
 		)
 	elif step == "cur_other":
-		ctx.reply(mn.ONB_ASK_CURRENCY_CODE, keyboards.onboarding_text_step())
+		ctx.reply(mn.ONB_ASK_CURRENCY_CODE, keyboards.onboarding_text_step("cur_other"))
 	elif step == "acct":
 		queue: list[str] = payload.get("acct_queue") or []
 		bank = payload["banks"][payload.get("bank_index", 0)]["bank"]
@@ -494,11 +494,11 @@ def _repeat(ctx: Ctx, step: str, payload: dict[str, Any]) -> Any:
 	elif step == "inv":
 		ctx.reply(mn.ONB_ASK_INVENTORY, keyboards.onboarding_yes_no("inv"))
 	elif step == "inv_wait":
-		ctx.reply(mn.ONB_INVENTORY_HOW, keyboards.onboarding_text_step(back=True, skip=True))
+		ctx.reply(mn.ONB_INVENTORY_HOW, keyboards.onboarding_text_step("inv_wait", back=True, skip=True))
 	elif step == "inv_confirm":
 		ctx.reply(mn.ONB_CONFIRM_SUMMARY, keyboards.intake_confirm(payload.get("intake", "")))
 	elif step == "acc_name":
-		ctx.reply(mn.ONB_ASK_ACCOUNTANT_NAME, keyboards.onboarding_text_step(skip=True))
+		ctx.reply(mn.ONB_ASK_ACCOUNTANT_NAME, keyboards.onboarding_text_step("acc_name", skip=True))
 	elif step == "micpa":
 		ctx.reply(mn.ONB_ASK_MICPA, keyboards.onboarding_skip("micpa"))
 	elif step == "summary":

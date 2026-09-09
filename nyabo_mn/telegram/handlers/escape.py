@@ -11,6 +11,11 @@ The verbs are the same on both paths so there is one place that knows what leavi
 means. What it means is the flow's business, so each flow exports ``handle_escape`` and this
 module only decides which flow is open, refuses a tap on a step that has closed, and falls
 back to a plain cancel when a flow has nothing special to say.
+
+"A step that has closed" is compared on the whole state name, not only the flow: the steps
+answered by typing never have their prompt edited, so their escape row stays live above the
+question that came after it, and a tap on it used to move the wizard from a step it was not
+drawn for.
 """
 
 from __future__ import annotations
@@ -120,6 +125,24 @@ def state_scope(state: str | None) -> str:
 	return (state or "").split(":", 1)[0]
 
 
+def state_step(state: str | None) -> str:
+	"""``"onb:inv_wait"`` -> ``"inv_wait"``; "" for a flow whose state is the scope itself."""
+	_scope, _, step = (state or "").partition(":")
+	return step
+
+
+def drawn_for_open_step(scope: str, step: str | None, state: str | None) -> bool:
+	"""Is this button still the open question's own button?
+
+	``step`` is None for a card drawn before the step rode along in the datum (a card lives in
+	the chat across a deploy). There is nothing to compare then, so the old flow-level check is
+	all that can be asked of it.
+	"""
+	if scope != state_scope(state):
+		return False
+	return step is None or step == state_step(state)
+
+
 # --- typed words -------------------------------------------------------------------------------
 
 
@@ -138,15 +161,22 @@ def handle_callback(ctx: Ctx, parts: list[str]) -> Any:
 	if len(parts) < 3:
 		return None
 	scope, verb = parts[1], parts[2]
+	step = parts[3] if len(parts) > 3 else None
 	state, payload = ctx.get_state()
 	if verb == MENU:
 		_retire_prompt(ctx)
 		return _go_home(ctx, state)
-	if scope != state_scope(state):
-		# The step this button belonged to is over; cancelling now would take down whatever the
-		# accountant started since. Say so instead, and leave the open conversation alone.
+	if not drawn_for_open_step(scope, step, state):
+		# The question this button belonged to is answered; acting now would move — or take
+		# down — whatever the accountant has open instead. Say so, and leave that alone.
 		ctx.answer(mn.MSG_ESCAPE_STALE, show_alert=True)
-		log_event("telegram.escape.stale", level="warning", scope=scope, state=state or "")
+		log_event(
+			"telegram.escape.stale",
+			level="warning",
+			scope=scope,
+			step=step or "",
+			state=state or "",
+		)
 		return {"stale": True}
 	if verb == CANCEL:
 		announced = _retire_prompt(ctx, mn.MSG_FLOW_CANCELLED)
@@ -234,4 +264,15 @@ def _go_home(ctx: Ctx, state: str | None) -> Any:
 	return menu.handle_menu(ctx)
 
 
-__all__ = ["BACK", "CANCEL", "MENU", "SKIP", "handle_callback", "handle_typed", "intent", "state_scope"]
+__all__ = [
+	"BACK",
+	"CANCEL",
+	"MENU",
+	"SKIP",
+	"drawn_for_open_step",
+	"handle_callback",
+	"handle_typed",
+	"intent",
+	"state_scope",
+	"state_step",
+]
