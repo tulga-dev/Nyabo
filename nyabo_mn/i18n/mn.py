@@ -781,6 +781,11 @@ READINESS_SOURCE_PENDING = (
 READINESS_DETAIL_OK = "Байна"
 READINESS_DETAIL_MISSING = "Алга: {what}"
 READINESS_DETAIL_COUNT = "{count} мөр"
+# The certification reader must not be able to read "35 rows verified" as 35 human decisions.
+READINESS_DETAIL_RULES_VERIFIED = (
+	"{count} мөр: {by_seed} нь Нябогийн эх сурвалжийн ишлэлээр, "
+	"{by_person} нь нэрлэсэн хүний баталгаажуулалтаар"
+)
 READINESS_DETAIL_ERPNEXT_REPORT = "ERPNext-ийн стандарт тайлан ({report})"
 READINESS_DETAIL_HOOK = "Хук: {handler}"
 READINESS_DETAIL_COMPANIES = "Компани: {ok}/{total} тохируулсан"
@@ -1347,7 +1352,13 @@ CARD_RULE_NO_CITATION = (
 CARD_RULE_RESPONSIBILITY = "Баталгаажуулсан хүн, огноо бүртгэгдэж, аудитын мөр үлдэнэ."
 CARD_RULE_ASK = "Баталгаажуулах уу?"
 MSG_RULE_NOT_FOUND = "Дүрэм олдсонгүй: {rule}"
-MSG_RULE_ALREADY_VERIFIED = "Энэ дүрэм аль хэдийн баталгаажсан: {rule}"
+# Two things wear verified = 1 and they are not the same claim (DECISIONS VER-07): the seed's
+# own citation, which no person on this site signed, and a named human's tap. Never print the
+# first as if it were the second — an accountant reads a name as somebody having taken the
+# responsibility, and there is nobody there.
+RULE_VERIFIED_SOURCE_SEED = "Нябогийн эх сурвалжийн ишлэлээр (энэ сайт дээр хүн баталгаажуулаагүй)"
+RULE_VERIFIED_SOURCE_PERSON = "{user} · {when}"
+MSG_RULE_ALREADY_VERIFIED = "Энэ дүрэм аль хэдийн баталгаажсан: {rule}\nБаталгаажуулсан: {source}"
 MSG_RULE_VERIFIED = "✅ Баталгаажлаа: {rule}\nБаталгаажуулсан: {user} · {when}"
 MSG_RULE_VERIFIED_RETRY = (
 	"Энэ дүрмээр бичилт хийх боломжтой боллоо. Хүлээж байсан баримтын карт дээрх «Батлах» "

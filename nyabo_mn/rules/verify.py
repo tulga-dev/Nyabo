@@ -13,6 +13,12 @@ I take responsibility": the flag, who, when, and a Nyabo Event — no states, no
 and no un-verify from the chat (a mistake is corrected in the desk, where the edit is itself a
 Version row and the row stops posting again the moment the flag comes off).
 
+``verified = 1`` has two provenances and they must never be confused (DECISIONS VER-07). A row
+the seed ships verified carries the repository's own citation — two readers, a reconciler and a
+verbatim quote in ``docs/legal`` — and an empty ``verified_by``. A row a person ticked carries
+their name, the time and a Nyabo Event. ``SOURCE_SEED`` / ``SOURCE_PERSON`` and
+``verified_counts`` exist so no screen ever prints the first as if it were the second.
+
 Bank layouts are guarded by the same rule but are not listed here: a layout is a per-site column
 mapping learned from one accountant's upload, its evidence is that spreadsheet rather than a legal
 text, and ``telegram.handlers.statement`` already names the layout to the admins when it saves one.
@@ -40,6 +46,11 @@ PROPOSAL = "Nyabo Proposal"
 KIND_PATTERN = "p"
 KIND_PARAMETER = "t"
 DOCTYPES: dict[str, str] = {KIND_PATTERN: PATTERN, KIND_PARAMETER: PARAMETER}
+
+#: Who vouched for a verified row. ``verified_by`` is empty exactly when nobody on this site did
+#: and the flag came from the seed, whose evidence is the citation on the row itself.
+SOURCE_SEED = "seed"
+SOURCE_PERSON = "person"
 
 #: How much of a legal reference is worth reading in a chat bubble before it stops being a label.
 PURPOSE_MAX_CHARS = 70
@@ -114,6 +125,8 @@ class RuleEvidence:
 	unit: str = ""
 	effective_from: str = ""
 	effective_to: str = ""
+	verified_by: str = ""
+	verified_at: str = ""
 	instrument: str = ""
 	section: str = ""
 	quote: str = ""
@@ -127,6 +140,11 @@ class RuleEvidence:
 	note_truncated: bool = False
 
 	@property
+	def verified_source(self) -> str:
+		"""``SOURCE_PERSON`` when a named human ticked this row, else ``SOURCE_SEED``."""
+		return SOURCE_PERSON if self.verified_by else SOURCE_SEED
+
+	@property
 	def has_citation(self) -> bool:
 		"""A section or a verbatim quote. The instrument alone is not evidence.
 
@@ -135,6 +153,21 @@ class RuleEvidence:
 		authority for 16 rules that have none and quietly invite a tap on all of them.
 		"""
 		return bool(self.section or self.quote)
+
+
+def verified_counts(doctype: str) -> dict[str, int]:
+	"""``{"verified", "by_person", "by_seed"}`` for one guarded DocType — the audit split.
+
+	A single "35 rows verified" conflates two very different claims, and DECISIONS VER-01 says
+	``verified_by`` names the human who took responsibility. Both can be true only if the rows
+	with no ``verified_by`` are counted, and shown, as what they are: verified by the citation
+	the repository ships, reviewed before release, with nobody on this site named for them.
+	"""
+	if not frappe.db.exists("DocType", doctype):
+		return {"verified": 0, "by_person": 0, "by_seed": 0}
+	rows = frappe.get_all(doctype, filters={"verified": 1}, fields=["name", "verified_by"])
+	by_person = sum(1 for row in rows if (row.get("verified_by") or "").strip())
+	return {"verified": len(rows), "by_person": by_person, "by_seed": len(rows) - by_person}
 
 
 def kinds() -> tuple[str, ...]:
@@ -290,6 +323,8 @@ def _pattern_evidence(doc: Any) -> RuleEvidence:
 			}
 		),
 		verified=bool(int(doc.get("verified") or 0)),
+		verified_by=str(doc.get("verified_by") or ""),
+		verified_at=str(doc.get("verified_at") or ""),
 		uses=_pattern_uses(doc.name),
 		lines=tuple(
 			RuleLine(
@@ -334,6 +369,8 @@ def _parameter_evidence(doc: Any) -> RuleEvidence:
 			}
 		),
 		verified=bool(int(doc.get("verified") or 0)),
+		verified_by=str(doc.get("verified_by") or ""),
+		verified_at=str(doc.get("verified_at") or ""),
 		value=_value_text(doc.get("value_json")),
 		unit=str(doc.get("unit") or ""),
 		effective_from=str(doc.get("effective_from") or ""),
@@ -380,7 +417,16 @@ def verify(kind: str, name: str, user: str, telegram_id: str | int | None = None
 		return {"ok": False, "reason": "not_found", "rule": name}
 	doc = frappe.get_doc(doctype, name)
 	if int(doc.get("verified") or 0):
-		return {"ok": True, "already": True, "rule": name, "doctype": doctype}
+		# Who it was is part of the answer: a second tapper is entitled to know whether a person
+		# took responsibility for this row or whether the seed's citation is all there is.
+		return {
+			"ok": True,
+			"already": True,
+			"rule": name,
+			"doctype": doctype,
+			"verified_by": str(doc.get("verified_by") or ""),
+			"verified_at": str(doc.get("verified_at") or ""),
+		}
 	from frappe.utils import now_datetime
 
 	verified_at = now_datetime()

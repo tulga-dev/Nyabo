@@ -208,8 +208,21 @@ def _check_policy_document() -> dict[str, Any]:
 
 
 def _check_rules_verified() -> dict[str, Any]:
-	verified = _count("Nyabo Posting Pattern", {"verified": 1})
-	return _row("rules_verified", verified > 0, mn.READINESS_DETAIL_COUNT.format(count=verified))
+	"""How many posting patterns may post — and, of those, how many a person actually vouched for.
+
+	A bare count would let a certification reader take 35 verified rows for 35 human decisions,
+	while the flag on most of them came from the seed (DECISIONS VER-07). The split is the row.
+	"""
+	from nyabo_mn.rules import verify
+
+	counts = verify.verified_counts("Nyabo Posting Pattern")
+	return _row(
+		"rules_verified",
+		counts["verified"] > 0,
+		mn.READINESS_DETAIL_RULES_VERIFIED.format(
+			count=counts["verified"], by_seed=counts["by_seed"], by_person=counts["by_person"]
+		),
+	)
 
 
 def checks(site: str | None = None) -> list[dict[str, Any]]:

@@ -488,6 +488,18 @@ def pending_rules_card(rules: Any, total: int | None = None) -> str:
 	return "\n".join(lines)
 
 
+def rule_verified_source(verified_by: Any, verified_at: Any = "") -> str:
+	"""Who vouched for a verified row, in words that do not invent a person who is not there.
+
+	An empty ``verified_by`` is not missing data: it is the seed's own flag, whose evidence is
+	the citation on the row and whose reviewer is the repository, not anybody on this site.
+	"""
+	user = str(verified_by or "").strip()
+	if not user:
+		return mn.RULE_VERIFIED_SOURCE_SEED
+	return mn.RULE_VERIFIED_SOURCE_PERSON.format(user=user, when=str(verified_at or "")[:16])
+
+
 def rule_card(rule: Any) -> str:
 	"""One rule with its mechanics and its citation — or with the plain statement that it has none.
 

@@ -971,8 +971,10 @@ flag comes off, so nothing has to be undone in Nyabo.
 
 The call is idempotent and returns `{"ok", "already"}` instead of raising: a second tap on a
 card someone scrolled back to must not overwrite the first verifier's name, and every caller has
-a sentence to show either way. `seed.sync` already skips a row an admin has verified, so a
-redeploy cannot silently undo the decision.
+a sentence to show either way. `seed.sync` never writes the verification of a row an admin has
+verified, so a redeploy cannot silently undo the decision (it does fill in the citation: VER-06).
+`verified_by` names the human and is empty when the flag came from the seed instead; VER-07 is
+why that distinction is shown rather than smoothed over.
 
 ### VER-02 The instrument alone is not a citation
 `RuleEvidence.has_citation` is true only when the row carries a *section* or a *quote*. All 44
@@ -1030,3 +1032,35 @@ instead of saying it skipped. The seed never blanks a field it has nothing for, 
 somebody typed in the desk survives a deploy that has none; it does correct a stale note, because
 a row whose remarks contradict its citation is worse than one with no remarks. Reverse by
 deleting `_fill_evidence` — and accept that the evidence never reaches a site again.
+
+### VER-07 The seed's `verified` flag means "cited in the repository", and never wears a person's name
+After the citation pass 35 of 44 posting patterns and 46 of 59 tax parameters carry
+`verified = 1` with `verified_by` empty and no `rule_verified` Nyabo Event, while VER-01 says
+`verified_by` records the named human who took responsibility. Both statements cannot describe
+the same flag, and a reader who is not told which one they are looking at reads 35 signatures
+that do not exist.
+
+**Decided: the seed keeps its flag, and the flag means what it really is** — verified by the
+evidence in this repository (two readers, a reconciler, a verbatim quote reproduced in
+`docs/legal/*.md`, reviewed before release), with nobody on this site named for it. The
+alternative, shipping everything unverified so that every rule waits for a person, was
+rejected on what it does to a real site: `rules.guard.require_verified` refuses an unverified
+rule for a real posting, so a fresh install would refuse the first receipt anybody sent and 44
+patterns would be ticked in an afternoon by someone who had read none of them. That produces
+*worse* evidence than the citation, and puts a name on it.
+
+So the two provenances are separated everywhere they are shown, not merged into one count:
+
+- `rules.verify.SOURCE_SEED` / `SOURCE_PERSON`, off `RuleEvidence.verified_source`, which is
+  simply "is `verified_by` set".
+- The Telegram answer on an already-verified rule prints
+  `RULE_VERIFIED_SOURCE_SEED` — «Нябогийн эх сурвалжийн ишлэлээр (энэ сайт дээр хүн
+  баталгаажуулаагүй)» — or the person and the time. `verify()` returns `verified_by` /
+  `verified_at` on its idempotent branch so the second tapper gets the same answer.
+- The readiness checklist's `rules_verified` row (`verify.verified_counts`) prints the split,
+  because that table is written for a certification reader, and "35 rows verified" would be
+  read there as 35 human decisions.
+
+`verified_by` therefore keeps VER-01's meaning exactly: it is the named human, and it is empty
+when there is not one. Reverse by deleting `verified_counts` and the two source constants — and
+then nothing on any screen distinguishes a citation from a signature.

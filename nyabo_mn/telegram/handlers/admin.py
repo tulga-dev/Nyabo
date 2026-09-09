@@ -140,8 +140,8 @@ def show_rule(ctx: Ctx, kind: str, rule: str) -> Any:
 		ctx.answer(mn.MSG_RULE_NOT_FOUND.format(rule=rule), show_alert=True)
 		return {"rule": rule, "found": False}
 	if evidence.verified:
-		ctx.answer(mn.MSG_RULE_ALREADY_VERIFIED.format(rule=rule), show_alert=True)
-		return {"rule": rule, "already": True}
+		ctx.answer(_already_verified(rule, evidence.verified_by, evidence.verified_at), show_alert=True)
+		return {"rule": rule, "already": True, "verified_source": evidence.verified_source}
 	# A new message, not an edit: the list above it is what the admin is working through, and
 	# opening one rule must not take the other seven off the screen.
 	offered = offer_decision(ctx, kind, evidence)
@@ -171,7 +171,9 @@ def confirm_rule(ctx: Ctx, kind: str, rule: str) -> Any:
 		ctx.answer(mn.MSG_RULE_NOT_FOUND.format(rule=rule), show_alert=True)
 		return result
 	if result.get("already"):
-		ctx.answer(mn.MSG_RULE_ALREADY_VERIFIED.format(rule=rule), show_alert=True)
+		ctx.answer(
+			_already_verified(rule, result.get("verified_by"), result.get("verified_at")), show_alert=True
+		)
 		return result
 	ctx.edit(
 		ctx.callback_message_id,
@@ -186,6 +188,13 @@ def confirm_rule(ctx: Ctx, kind: str, rule: str) -> Any:
 	# ``event`` is log_event's own first parameter; the Nyabo Event name rides under its own key.
 	log_event("telegram.rules.verified", rule=rule, kind=kind, user=ctx.user, nyabo_event=result.get("event"))
 	return {"verified": True, "rule": rule, "event": result.get("event")}
+
+
+def _already_verified(rule: str, verified_by: Any, verified_at: Any) -> str:
+	"""«Already verified» plus *by whom* — a seed citation and a person's tap are not the same."""
+	return mn.MSG_RULE_ALREADY_VERIFIED.format(
+		rule=rule, source=cards.rule_verified_source(verified_by, verified_at)
+	)
 
 
 def rule_blocked(ctx: Ctx, rule: str, company: str | None = None) -> dict[str, Any]:

@@ -307,10 +307,75 @@ def test_verifying_writes_the_row_the_event_and_stops_the_guard_refusing(rules_s
 def test_verifying_twice_is_not_a_second_approval(rules_site: str):
 	first = verify.verify(verify.KIND_PATTERN, BLOCKING, "Administrator")
 	again = verify.verify(verify.KIND_PATTERN, BLOCKING, "tg-2001@nyabo.local")
-	assert again == {"ok": True, "already": True, "rule": BLOCKING, "doctype": verify.PATTERN}
+	# The second tapper is told it is done, and by whom: a first verifier's name is the answer,
+	# not a detail. Nothing about the row moves.
+	assert again == {
+		"ok": True,
+		"already": True,
+		"rule": BLOCKING,
+		"doctype": verify.PATTERN,
+		"verified_by": "Administrator",
+		"verified_at": str(first["verified_at"]),
+	}
 	assert frappe.db.get_value(verify.PATTERN, BLOCKING, "verified_by") == "Administrator"
 	assert frappe.db.count("Nyabo Event", {"event_type": mn.EVENT_RULE_VERIFIED}) == 1
 	assert first["event"]
+
+
+def _alerts(bot: FakeBotApi) -> list[str]:
+	"""The pop-ups the admin actually read; the router's own closing answer carries no text."""
+	return [call["text"] for call in bot.sent("answer_callback_query") if call.get("text")]
+
+
+def test_a_rule_the_seed_verified_does_not_claim_a_person_verified_it(rules_site: str):
+	"""35 of the 44 patterns ship verified with verified_by empty, and no Nyabo Event behind them.
+
+	DECISIONS VER-01 says verified_by names the human who took responsibility, so an empty one
+	must be read out loud as what it is — the repository's citation — and never dressed up as a
+	signature. An accountant who sees «already verified» takes it that somebody stood behind it.
+	"""
+	seed_verified = "payable_pay"
+	assert not frappe.db.get_value(verify.PATTERN, seed_verified, "verified_by")
+	bot = FakeBotApi()
+	outcome = run(
+		bot,
+		callback_update(
+			ADMIN_ID, keyboards.rule_data(keyboards.VERIFY_OPEN, verify.KIND_PATTERN, seed_verified)
+		),
+	)
+
+	assert outcome["result"] == {
+		"rule": seed_verified,
+		"already": True,
+		"verified_source": verify.SOURCE_SEED,
+	}
+	assert mn.RULE_VERIFIED_SOURCE_SEED in _alerts(bot)[-1]
+
+
+def test_a_rule_a_person_verified_names_that_person(rules_site: str):
+	"""The other half: a real tap must be attributable, on the card and on the second tap."""
+	verify.verify(verify.KIND_PATTERN, BLOCKING, "Administrator")
+	bot = FakeBotApi()
+	outcome = run(
+		bot,
+		callback_update(ADMIN_ID, keyboards.rule_data(keyboards.VERIFY_OPEN, verify.KIND_PATTERN, BLOCKING)),
+	)
+
+	assert outcome["result"]["verified_source"] == verify.SOURCE_PERSON
+	alert = _alerts(bot)[-1]
+	assert "Administrator" in alert and mn.RULE_VERIFIED_SOURCE_SEED not in alert
+
+
+def test_the_verified_counts_split_the_seed_flag_from_a_human_tap(rules_site: str):
+	"""The number an audit view prints: how many rows may post, and how many a person vouched for."""
+	before = verify.verified_counts(verify.PATTERN)
+	assert before["by_person"] == 0 and before["by_seed"] == before["verified"] > 0
+
+	verify.verify(verify.KIND_PATTERN, BLOCKING, "Administrator")
+
+	after = verify.verified_counts(verify.PATTERN)
+	assert after["verified"] == before["verified"] + 1
+	assert after["by_person"] == 1 and after["by_seed"] == before["by_seed"]
 
 
 def test_leaving_a_rule_changes_nothing(rules_site: str):
