@@ -205,6 +205,27 @@ def test_a_pending_tax_parameter_card_says_what_would_unblock_it(rules_site: str
 	assert "DAILY USE:" in text and "WHAT UNBLOCKS IT" in text
 
 
+def test_the_briefing_says_in_mongolian_that_the_paragraph_under_it_is_english(rules_site: str):
+	"""The card is Mongolian; the seed's briefing is not, and it is the sentence being vouched for.
+
+	It is left in the English it was reviewed in on purpose (VER-10) — a re-worded Mongolian
+	caveat about the law would be a new claim nobody checked. What must not happen is a
+	Mongolian-speaking bookkeeper meeting an unreadable paragraph directly under the verify
+	button with nothing telling them what it is or what to do instead.
+	"""
+	bot = FakeBotApi()
+	run(
+		bot,
+		callback_update(ADMIN_ID, keyboards.rule_data(keyboards.VERIFY_OPEN, verify.KIND_PATTERN, BLOCKING)),
+	)
+
+	text = bot.last_text
+	title = text.index(mn.CARD_RULE_BRIEFING_TITLE)
+	language = text.index(mn.CARD_RULE_BRIEFING_LANGUAGE)
+	briefing = text.index("WHAT AN ADMIN WOULD BE VOUCHING FOR")
+	assert title < language < briefing, "the warning comes before the English it warns about"
+
+
 def test_a_verified_citation_is_quoted_instead(rules_site: str):
 	verified_pattern = "sale_cash_vat_payer"
 	frappe.db.set_value(verify.PATTERN, verified_pattern, "verified", 0)

@@ -1360,6 +1360,15 @@ CARD_RULE_SOURCE_URL = "🔗 {url}"
 # notes in English for the repository's readers. Paraphrasing it here would put a second,
 # unreviewed wording of a legal caveat in front of the person taking responsibility for it.
 CARD_RULE_BRIEFING_TITLE = "📝 Баталгаажуулбал юуг хүлээн зөвшөөрөх вэ:"
+# ...and the card says so, in Mongolian, before the English begins (DECISIONS VER-10). Everything
+# else on this card is Mongolian; a reader who meets a paragraph they cannot read on the screen
+# where they take responsibility either taps blindly or gives up, and both are worse than being
+# told plainly what the paragraph is and what to do instead.
+CARD_RULE_BRIEFING_LANGUAGE = (
+	"(Тайлбарыг эх сурвалж судалсан хүн англиар бичсэн. Орчуулбал хуулийн агуулга гуйвах "
+	"эрсдэлтэй тул хэвээр нь тавив. Уншиж ойлгохгүй бол битгий баталгаажуулаарай — "
+	"ERPNext дэск дэх дүрмийн бичлэгээс, эсвэл эх сурвалжийг нь мэддэг хүнээр шалгуулна уу.)"
+)
 CARD_RULE_NOTE_CUT = "✂️ Тайлбар бүтэн багтсангүй; бүрэн эхийг ERPNext дэск дэх дүрмийн бичлэгээс уншина уу."
 CARD_RULE_NO_CITATION = (
 	"⚠️ Хуулийн тодорхой заалт, ишлэл энэ дүрэмд алга. Баталгаажуулна гэдэг нь дээрх агуулгыг "

@@ -1110,3 +1110,28 @@ for, what is being carried across (the mechanics, not the words), and that no se
 it for expenses in general was found — with an invitation to cite one if it is. The marker is in
 `rules.verify.BRIEFING_MARKERS`, so the paragraph renders on the evidence card, and
 `docs/legal/order116.md` reproduces it for the accountant and the ministry reviewer.
+
+## the accountant's own reading (skeptic's walk of the merged flow)
+
+### VER-10 The briefing stays in the English it was reviewed in, and the card says so in Mongolian
+`_briefing` puts the seed's «what an admin would be vouching for» paragraph on the evidence
+card, which is the whole point of VER-06..VER-09 meeting the `/дүрэм` flow. That paragraph is
+English: the citation pass wrote its notes for the repository's readers, and `docs/legal` quotes
+them as they are. Everything else on the card — the title, the entry, the citation, the warning
+that there is no citation, the question — is Mongolian, because the person at the button is a
+Mongolian bookkeeper.
+
+Translating it was rejected. The paragraph is the caveat on a legal reading («12.2.2 А prints
+this for outside services, and it is being applied to expense purchases generally»); a second,
+unreviewed Mongolian wording of that would be a new claim about the law with nobody's name on
+it, and the reviewer who checked the English one would not have checked the Mongolian. Leaving
+it unlabelled was rejected too: a reader who meets a paragraph they cannot read, on the screen
+where they take responsibility, either taps anyway or gives up, and the card would have offered
+no third option.
+
+So `CARD_RULE_BRIEFING_LANGUAGE` sits between the heading and the body: it says who wrote the
+note and why it was not translated, and it names the two doors that still work — the rule's row
+in the ERPNext desk, and somebody who knows the source. «Do not verify it» is the advice when
+the paragraph cannot be read, which is the safe answer: an unverified rule refuses postings, and
+a wrongly verified one does not. Reverse this when the notes themselves are translated and
+re-reviewed in Mongolian — at which point the line is untrue and must go.

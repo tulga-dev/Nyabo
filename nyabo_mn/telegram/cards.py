@@ -553,11 +553,15 @@ def _rule_briefing(rule: Any) -> list[str]:
 	Without it the nine patterns Order 116 does not print, and the pending tax parameters, offer
 	a verify button with nothing but «no citation» beside it — while the seed has a sentence
 	naming the other instrument, or saying that the entry is plain double-entry mechanics.
+
+	The body is that sentence verbatim, and the seed writes its notes in English, so the card
+	says so in Mongolian first (VER-10): the admin reading this is a Mongolian bookkeeper, and a
+	paragraph they cannot read must not sit unlabelled under a button they are about to press.
 	"""
 	note = getattr(rule, "note", "")
 	if not note:
 		return []
-	lines = ["", mn.CARD_RULE_BRIEFING_TITLE, note]
+	lines = ["", mn.CARD_RULE_BRIEFING_TITLE, mn.CARD_RULE_BRIEFING_LANGUAGE, note]
 	if getattr(rule, "note_truncated", False):
 		lines.append(mn.CARD_RULE_NOTE_CUT)
 	return lines
