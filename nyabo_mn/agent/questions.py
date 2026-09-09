@@ -57,9 +57,13 @@ PURPOSE = "question"
 # a correction after a bad account code, so the loop gets one more round trip, not four more.
 MAX_TURNS = 5
 MAX_QUESTION_CHARS = 2000
-# Errors the dispatcher itself produces (the model asked for something impossible). They
-# mean "no answer", not "the ledger is broken", so the user gets a different sentence.
-MODEL_FAULT_ERRORS = frozenset({"invalid_arguments", "unknown_tool"})
+# Errors that mean "the model asked for something impossible". They mean "no answer", not "the
+# ledger is broken", so the user gets a different sentence. ``unknown_account`` is one of them:
+# a code that is not in this company's chart is the *question* being wrong, and telling an
+# accountant «Дэвтрээс мэдээлэл авахад алдаа гарлаа» over a typo sends them looking for a fault
+# in their books. Every error code ``pipeline.books_handlers`` can return belongs in here —
+# anything it cannot answer raises instead, and an exception is what a broken ledger looks like.
+MODEL_FAULT_ERRORS = frozenset({"invalid_arguments", "unknown_tool", "unknown_account"})
 
 # --- conversation memory -------------------------------------------------------------------------
 # One turn, twenty minutes, one company. A question about the books is answered against a

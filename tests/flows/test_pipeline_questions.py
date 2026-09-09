@@ -521,3 +521,27 @@ def test_the_faq_reaches_the_card_as_plain_text(books):
 	assert pipeline.faq_plain_text("**тод** ба `код`\nүргэлжлэл\n\n- нэг\n- хоёр") == (
 		"тод ба код үргэлжлэл\n\n• нэг\n• хоёр"
 	)
+
+
+def test_every_error_the_books_can_return_is_the_question_being_wrong(books):
+	"""MINOR: an account code that is not in the chart answered «the ledger is broken».
+
+	``unknown_account`` was not in ``MODEL_FAULT_ERRORS``, so a typo in a question produced the
+	sentence Nyabo keeps for a read that failed. Every error code these handlers return is a
+	statement about the question — anything else raises, and an exception is what a broken
+	ledger looks like.
+	"""
+	run = pipeline.books_handlers(books, today=NOW.date())["answer_from_books"]
+	codes = {
+		run({"query_kind": "balance_on_date", "args": {"account_code": "4242"}})["error"],
+		run({"query_kind": "spend_by_account", "args": {"account_code": "6210", "period": "хэзээ"}})["error"],
+		run({"query_kind": "not_a_kind", "args": {}})["error"],
+	}
+	assert codes == {"unknown_account", "invalid_arguments"}
+	assert codes <= questions.MODEL_FAULT_ERRORS
+
+	client = _client("", _books_call("balance_on_date", account_code="4242", on_date="2026-09-30"))
+	reply = pipeline.answer_question(ACCOUNTANT, books, "4242 дансны үлдэгдэл?", client=client, now=NOW)
+	assert reply.text == mn.MSG_QUESTION_CANNOT
+	assert mn.AGENT_ANSWER_TOOL_ERROR not in reply.text
+	assert [f.verb for f in reply.follow_ups] == [questions.VERB_ESCALATE, questions.VERB_MENU]
