@@ -297,6 +297,28 @@ def test_a_tax_parameter_shows_its_value_and_the_article(rules_site: str):
 	assert "18.1" in text
 
 
+def test_a_tax_parameter_names_its_article_once_and_says_it_is_still_pending(rules_site: str):
+	"""Every seeded parameter carries its article twice — in `article` and in `source_text`.
+
+	The citation line is «{instrument}, {section}», so the card read «…, art. 18.5, 18.5»: two
+	provisions where there is one, on the screen where an admin decides whether the citation is
+	real. The line above it is clipped to one card width, and every law title in the seed is
+	longer than that, so «хүлээгдэж буй» — the fact that the row has no value yet — used to fall
+	off the end of it.
+	"""
+	name = "property_tax.rate:2026-01-01"
+	bot = FakeBotApi()
+	run(
+		bot,
+		callback_update(ADMIN_ID, keyboards.rule_data(keyboards.VERIFY_OPEN, verify.KIND_PARAMETER, name)),
+	)
+
+	text = bot.last_text
+	assert "art. 6.1" not in text, "the article is in the tail of source_text; do not print it twice"
+	assert "(2000, consolidated), 6.1" in text, "and it is still cited, once"
+	assert mn.CARD_RULE_PURPOSE_LABELS["t"].format(purpose=mn.RULE_STATUS_LABELS["pending"]) in text
+
+
 # --- 3. verification is recorded like a compliance act ----------------------------------------
 
 

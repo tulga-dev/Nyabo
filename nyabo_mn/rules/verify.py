@@ -249,7 +249,10 @@ def _pattern_purpose(row: dict[str, Any]) -> str:
 
 
 def _parameter_purpose(row: dict[str, Any]) -> str:
-	source = str(row.get("source_text") or "").strip() or str(row.get("article") or "")
+	# The same de-duplication as the citation line below: the article rides in the tail of
+	# source_text, and this line is clipped, so repeating it costs the reader the law's own name.
+	instrument, section = _parameter_source(row.get("source_text"), row.get("article"))
+	source = instrument or section
 	default_status = mn.RULE_STATUS_LABELS["active"]
 	status = mn.RULE_STATUS_LABELS.get(str(row.get("status") or "active"), default_status)
 	return _clip(mn.RULE_PURPOSE_PARAMETER.format(source=source or mn.VALUE_UNKNOWN, status=status))
@@ -361,9 +364,26 @@ def _account_label(line: Any) -> str:
 	return f"{label} ({hint})" if hint else label or mn.VALUE_UNKNOWN
 
 
+def _parameter_source(source_text: Any, article: Any) -> tuple[str, str]:
+	"""``("… хууль (2000, consolidated)", "6.1")`` — the article, printed once.
+
+	Every seeded tax parameter carries its article twice: in ``article`` and again in the tail of
+	``source_text`` («…, art. 6.1»). The card's citation line is «{instrument}, {section}», so it
+	read «…, art. 6.1, 6.1» on all 59 rows — which an accountant reads as two provisions, or as a
+	citation nobody checked, on the screen where they decide whether the citation is real.
+	"""
+	instrument = str(source_text or "").strip()
+	section = str(article or "").strip()
+	for tail in (f", art. {section}", f", {section}"):
+		if section and instrument.endswith(tail):
+			return instrument[: -len(tail)].rstrip(), section
+	return instrument, section
+
+
 def _parameter_evidence(doc: Any) -> RuleEvidence:
 	note, note_cut = _briefing(doc.get("note"))
 	quote, quote_cut = _cut(doc.get("quote_mn"), QUOTE_MAX_CHARS)
+	instrument, section = _parameter_source(doc.get("source_text"), doc.get("article"))
 	return RuleEvidence(
 		kind=KIND_PARAMETER,
 		doctype=PARAMETER,
@@ -383,8 +403,8 @@ def _parameter_evidence(doc: Any) -> RuleEvidence:
 		unit=str(doc.get("unit") or ""),
 		effective_from=str(doc.get("effective_from") or ""),
 		effective_to=str(doc.get("effective_to") or ""),
-		instrument=str(doc.get("source_text") or ""),
-		section=str(doc.get("article") or ""),
+		instrument=instrument,
+		section=section,
 		quote=quote,
 		quote_truncated=quote_cut,
 		url=str(doc.get("source_url") or ""),

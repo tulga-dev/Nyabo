@@ -512,7 +512,7 @@ def rule_card(rule: Any) -> str:
 	lines = [
 		mn.CARD_RULE_TITLE.format(label=rule.label),
 		mn.CARD_RULE_CODE.format(rule=rule.name, kind=kind_label),
-		mn.CARD_RULE_PURPOSE.format(purpose=rule.purpose),
+		mn.CARD_RULE_PURPOSE_LABELS.get(rule.kind, mn.CARD_RULE_PURPOSE).format(purpose=rule.purpose),
 	]
 	if rule.uses:
 		lines.append(mn.CARD_RULE_USES.format(uses=rule.uses))

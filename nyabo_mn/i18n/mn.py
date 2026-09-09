@@ -1314,14 +1314,22 @@ RULE_VAT_SCOPE_VAT_PAYER = "НӨАТ төлөгч"
 RULE_VAT_SCOPE_NON_VAT = "НӨАТ төлөгч бус"
 RULE_STATUS_LABELS = {"active": "хүчинтэй", "pending": "хүлээгдэж буй"}
 # What one row is *for*, in the list and at the top of its own card: a pattern by the primary
-# document it books and the regime it applies to, a parameter by the law it was read from.
+# document it books and the regime it applies to, a parameter by its status and the law it was
+# read from. The parameter's status comes first because the line is clipped to one card width
+# (rules.verify.PURPOSE_MAX_CHARS) and every seeded law title is longer than that on its own —
+# «хүлээгдэж буй» is the half that changes what the admin is looking at, so it must not be the
+# half that is cut off.
 RULE_PURPOSE_PATTERN = "{document} · {scope}"
-RULE_PURPOSE_PARAMETER = "{source} · {status}"
+RULE_PURPOSE_PARAMETER = "{status} · {source}"
 CARD_RULE_ROW = "{index}. {label}\n     {purpose}"
 CARD_RULE_ROW_USES = "{index}. {label}\n     {purpose} · {uses} удаа хэрэглэсэн"
 CARD_RULE_TITLE = "📜 {label}"
 CARD_RULE_CODE = "Код: {rule} · {kind}"
-CARD_RULE_PURPOSE = "Хамрах хүрээ: {purpose}"
+# Keyed by ``rules.verify`` kinds, like RULE_KIND_LABELS: the line under the title says what a
+# pattern is *for* (a document and a regime), and what state a parameter is *in* — calling a law
+# title and «хүлээгдэж буй» a «хамрах хүрээ» told the reader the wrong thing about both.
+CARD_RULE_PURPOSE_LABELS = {"p": "Хамрах хүрээ: {purpose}", "t": "Төлөв: {purpose}"}
+CARD_RULE_PURPOSE = CARD_RULE_PURPOSE_LABELS["p"]
 CARD_RULE_USES = "Энэ дүрмээр {uses} санал үүссэн."
 CARD_RULE_ENTRY_TITLE = "Бичилт:"
 CARD_RULE_ENTRY_LINE = "{side} {account} · {amount}"
