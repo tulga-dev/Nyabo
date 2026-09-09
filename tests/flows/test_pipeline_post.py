@@ -9,6 +9,7 @@ from erpnext.accounts.utils import get_balance_on
 
 from nyabo_mn.agent import pipeline, post
 from nyabo_mn.i18n import mn
+from nyabo_mn.nyabo.seed import load_seed
 from tests.flows.conftest import ACCOUNTANT, NOBODY, OWNER
 
 EXPENSE = "6210 - Шатахуун - TST"
@@ -180,3 +181,28 @@ def test_missing_regime_on_posting_date_is_refused(run_receipt, books):
 	with pytest.raises(MissingRuleError):
 		post.post_proposal(proposal.name, ACCOUNTANT)
 	assert frappe.db.count("Purchase Invoice") == 0
+
+
+def test_the_seeds_own_verified_flags_let_a_non_vat_receipt_post(run_receipt):
+	"""The founder's case, with nothing ticked in the desk — only what `rules.seed.sync` installs.
+
+	`tests/flows/conftest.seed_patterns` force-verifies the purchase patterns for these
+	fixtures, and that is why the suite stayed green while the live bot refused every receipt
+	Тест ХХК sent it: `purchase_expense_non_vat` shipped `verified: false`, so
+	`require_verified` stopped the post the founder was watching. Reset every pattern flag to
+	what the seed actually carries before posting, so a seed that un-verifies the everyday
+	path fails here rather than on his phone.
+	"""
+	proposal = run_receipt("petrovis_fuel", date="2027-01-15")
+	seeded = {row["pattern_id"]: row["verified"] for row in load_seed("posting_patterns")["rows"]}
+	assert seeded["purchase_expense_non_vat"] is True, "the everyday non-VAT receipt is blocked again"
+	for pattern_id, verified in seeded.items():
+		if frappe.db.exists("Nyabo Posting Pattern", pattern_id):
+			frappe.db.set_value("Nyabo Posting Pattern", pattern_id, "verified", 1 if verified else 0)
+
+	result = post.post_proposal(proposal.name, ACCOUNTANT)
+	assert result["posted_doctype"] == "Journal Entry"
+	assert _gl(result["posted_name"]) == {(EXPENSE, 85000.0, 0.0), (PAYABLE, 0.0, 85000.0)}
+	# and the entry names the section it was posted on, not the "заалт тодруулах" placeholder
+	assert proposal.explanation.endswith("12.2.2 А; 9.4.1.1")
+	assert mn.CITATION_SECTION_PENDING not in proposal.explanation

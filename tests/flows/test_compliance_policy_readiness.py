@@ -110,6 +110,14 @@ def test_readiness_returns_every_item_with_honest_results(company, capsys):
 	_settings(company, accountant_of_record_name="Б. Батаа")
 	by_key = {r["key"]: r for r in readiness.checks()}
 	assert by_key["rules_verified"]["passed"] is True and by_key["accountant_of_record"]["passed"] is True
+	# The certification reader must not take a seeded flag for somebody's signature: the row
+	# ships verified with verified_by empty, so the detail says one row, none of it human.
+	assert by_key["rules_verified"]["detail"] == mn.READINESS_DETAIL_RULES_VERIFIED.format(
+		count=1, by_seed=1, by_person=0
+	)
+	frappe.db.set_value("Nyabo Posting Pattern", "p1", "verified_by", "Administrator")
+	detail = {r["key"]: r for r in readiness.checks()}["rules_verified"]["detail"]
+	assert detail == mn.READINESS_DETAIL_RULES_VERIFIED.format(count=1, by_seed=0, by_person=1)
 
 	printed = readiness.run("nyabo.s.frappe.cloud")
 	out = capsys.readouterr().out

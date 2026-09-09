@@ -19,7 +19,10 @@
   "source_url",
   "article",
   "quote_mn",
-  "note"
+  "note",
+  "sb_verification",
+  "verified_by",
+  "verified_at"
  ],
  "fields": [
   {
@@ -104,13 +107,31 @@
    "fieldname": "note",
    "fieldtype": "Small Text",
    "label": "Тэмдэглэл"
+  },
+  {
+   "fieldname": "sb_verification",
+   "fieldtype": "Section Break",
+   "label": "Баталгаажуулалт"
+  },
+  {
+   "fieldname": "verified_by",
+   "fieldtype": "Link",
+   "label": "Баталгаажуулсан хэрэглэгч",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "verified_at",
+   "fieldtype": "Datetime",
+   "label": "Баталгаажуулсан огноо",
+   "read_only": 1
   }
  ],
  "idx": 0,
  "index_web_pages_for_search": 0,
  "istable": 0,
  "links": [],
- "modified": "2026-09-08 17:25:20.303251",
+ "modified": "2026-09-09 16:03:25.415930",
  "modified_by": "Administrator",
  "module": "Nyabo",
  "name": "Nyabo Tax Parameter",

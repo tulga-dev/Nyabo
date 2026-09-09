@@ -52,11 +52,21 @@ class Ctx:
 	@property
 	def is_admin(self) -> bool:
 		"""Admin by link role or by ``ADMIN_TELEGRAM_IDS`` (bootstrap before any link exists)."""
+		return self.role == "Admin" or self.is_site_admin
+
+	@property
+	def is_site_admin(self) -> bool:
+		"""In ``ADMIN_TELEGRAM_IDS``: an admin of the *site*, not of one company (VER-08).
+
+		``is_admin`` is per company, because ``/link admin <company>`` grants the role on that
+		company's books. Anything that is one row for every company on the site — a posting
+		pattern, a tax parameter — needs this stronger check instead.
+		"""
 		try:
 			admin_ids = self.settings.admin_telegram_ids
 		except ValueError:
 			admin_ids = frozenset()
-		return self.role == "Admin" or int(self.telegram_id) in admin_ids
+		return int(self.telegram_id) in admin_ids
 
 	@property
 	def user(self) -> str:

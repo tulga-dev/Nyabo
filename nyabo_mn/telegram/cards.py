@@ -459,4 +459,151 @@ def quality_card(company: str, days: int, metrics: dict[str, Any]) -> str:
 	return mn.MSG_QUALITY_HEADER.format(company=company, days=days) + "\n" + body
 
 
+# --- rule verification (/дүрэм, §1.2) ---------------------------------------------------------------
+
+
+def pending_rules_card(rules: Any, total: int | None = None) -> str:
+	"""The list an admin sees: what is blocking work, most-used first, and what each rule is for.
+
+	``total`` is the number of unverified rules there really are, when the list was cut short:
+	saying "16" and showing eight is honest, showing eight and saying nothing is not.
+	"""
+	rules = list(rules)
+	if not rules:
+		return mn.MSG_RULES_NONE
+	shown = total or len(rules)
+	lines = [mn.MSG_RULES_TITLE.format(count=shown), mn.MSG_RULES_INTRO, ""]
+	for index, rule in enumerate(rules, start=1):
+		row = mn.CARD_RULE_ROW_USES if rule.uses else mn.CARD_RULE_ROW
+		lines.append(
+			row.format(
+				index=index,
+				label=_clip(rule.label, CARD_MAX_LINE_CHARS),
+				purpose=rule.purpose,
+				uses=rule.uses,
+			)
+		)
+	if total and total > len(rules):
+		lines.append(mn.MSG_RULES_MORE.format(count=total - len(rules)))
+	return "\n".join(lines)
+
+
+def rule_verified_source(verified_by: Any, verified_at: Any = "") -> str:
+	"""Who vouched for a verified row, in words that do not invent a person who is not there.
+
+	An empty ``verified_by`` is not missing data: it is the seed's own flag, whose evidence is
+	the citation on the row and whose reviewer is the repository, not anybody on this site.
+	"""
+	user = str(verified_by or "").strip()
+	if not user:
+		return mn.RULE_VERIFIED_SOURCE_SEED
+	return mn.RULE_VERIFIED_SOURCE_PERSON.format(user=user, when=str(verified_at or "")[:16])
+
+
+def rule_card(rule: Any) -> str:
+	"""One rule with its mechanics and its citation — or with the plain statement that it has none.
+
+	The «no citation» line is the whole point of the card: the nine seeded patterns Order 116 does
+	not print carry the instrument «Заавар 116 (2000)» and nothing else, and an admin who is not
+	told that is being invited to tap a button that looks like it is backed by a legal text. The
+	briefing under it is what the seed says they would be vouching for instead.
+	"""
+	kind_label = mn.RULE_KIND_LABELS.get(rule.kind, mn.VALUE_UNKNOWN)
+	lines = [
+		mn.CARD_RULE_TITLE.format(label=rule.label),
+		mn.CARD_RULE_CODE.format(rule=rule.name, kind=kind_label),
+		mn.CARD_RULE_PURPOSE_LABELS.get(rule.kind, mn.CARD_RULE_PURPOSE).format(purpose=rule.purpose),
+	]
+	if rule.uses:
+		lines.append(mn.CARD_RULE_USES.format(uses=rule.uses))
+	if rule.lines:
+		lines.append("")
+		lines.append(mn.CARD_RULE_ENTRY_TITLE)
+		lines += [_rule_line(line) for line in rule.lines]
+	if rule.value:
+		lines.append("")
+		lines.append(mn.CARD_RULE_VALUE.format(value=rule.value, unit=rule.unit or mn.VALUE_UNKNOWN))
+		lines.append(
+			mn.CARD_RULE_EFFECTIVE.format(
+				effective_from=rule.effective_from or mn.VALUE_UNKNOWN,
+				effective_to=rule.effective_to or mn.CARD_RULE_OPEN_ENDED,
+			)
+		)
+	lines.append("")
+	lines += _rule_citation(rule)
+	lines += _rule_briefing(rule)
+	lines.append("")
+	if getattr(rule, "verified", False):
+		# The same evidence, read rather than decided: a verified rule asks nothing, and names
+		# whoever vouched for it. Without this branch the card ended «Баталгаажуулах уу?» on a
+		# rule that already is, and a verified rule could not be read in the chat at all.
+		lines.append(
+			mn.CARD_RULE_VERIFIED_BY.format(
+				source=rule_verified_source(
+					getattr(rule, "verified_by", ""), getattr(rule, "verified_at", "")
+				)
+			)
+		)
+	else:
+		lines.append(mn.CARD_RULE_RESPONSIBILITY)
+		lines.append(mn.CARD_RULE_ASK)
+	return "\n".join(lines)
+
+
+def _rule_line(line: Any) -> str:
+	"""``"Дт 70 Удирдлагын зардал (6210, 6910) · нийт дүн"``."""
+	side = mn.CARD_RULE_SIDE_LABELS.get(line.side, line.side or mn.VALUE_UNKNOWN)
+	amount = mn.CARD_RULE_AMOUNT_LABELS.get(line.amount_kind, mn.CARD_RULE_AMOUNT_LABELS[""])
+	if line.optional:
+		amount = f"{amount} ({mn.CARD_RULE_LINE_OPTIONAL})"
+	return mn.CARD_RULE_ENTRY_LINE.format(side=side, account=line.account, amount=amount)
+
+
+def _rule_briefing(rule: Any) -> list[str]:
+	"""The seed's «what you would be vouching for» sentence, on the screen where it is decided.
+
+	Without it the nine patterns Order 116 does not print, and the pending tax parameters, offer
+	a verify button with nothing but «no citation» beside it — while the seed has a sentence
+	naming the other instrument, or saying that the entry is plain double-entry mechanics.
+
+	The body is that sentence verbatim, and the seed writes its notes in English, so the card
+	says so in Mongolian first (VER-10): the admin reading this is a Mongolian bookkeeper, and a
+	paragraph they cannot read must not sit unlabelled under a button they are about to press.
+	"""
+	note = getattr(rule, "note", "")
+	if not note:
+		return []
+	if getattr(rule, "verified", False):
+		# Nothing is being decided on this card, so the heading does not ask what the reader
+		# would be accepting and the note does not tell them not to verify it.
+		heading = [mn.CARD_RULE_BRIEFING_TITLE_VERIFIED, mn.CARD_RULE_BRIEFING_LANGUAGE_VERIFIED]
+	else:
+		heading = [mn.CARD_RULE_BRIEFING_TITLE, mn.CARD_RULE_BRIEFING_LANGUAGE]
+	lines = ["", *heading, note]
+	if getattr(rule, "note_truncated", False):
+		lines.append(mn.CARD_RULE_NOTE_CUT)
+	return lines
+
+
+def _rule_citation(rule: Any) -> list[str]:
+	if not rule.has_citation:
+		return [mn.CARD_RULE_NO_CITATION]
+	head = (
+		mn.CARD_RULE_CITATION.format(instrument=rule.instrument, section=rule.section)
+		if rule.section
+		else mn.CARD_RULE_CITATION_NO_SECTION.format(instrument=rule.instrument)
+	)
+	lines = [head]
+	if rule.quote and getattr(rule, "quote_truncated", False):
+		# Say it twice, in the punctuation and in words: the reader of a legal quote is deciding
+		# whether it authorises the entry above, and a silent slice answers that question wrongly.
+		lines.append(mn.CARD_RULE_QUOTE_CUT.format(quote=rule.quote))
+		lines.append(mn.CARD_RULE_QUOTE_CUT_NOTE)
+	elif rule.quote:
+		lines.append(mn.CARD_RULE_QUOTE.format(quote=rule.quote))
+	if rule.url:
+		lines.append(mn.CARD_RULE_SOURCE_URL.format(url=rule.url))
+	return lines
+
+
 __all__ = [name for name in dir() if not name.startswith("_")]

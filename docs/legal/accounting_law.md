@@ -38,3 +38,13 @@ art. 28.1 «28.1.Энэ хуулийг 2016 оны 01 дүгээр сарын 01
 Unconfirmed in this instrument: the MoF classification order of 4 Feb 2016 (SME thresholds),
 the software certification procedure. An article numbered «4¹» (Нягтлан бодогчийн ерөнхий
 үүрэг, added 2020) sits between arts. 4 and 5 and renders as «41 дүгээр зүйл» — not art. 41.
+
+## The one seed row this law only points at
+
+`sme.classification` (2026-01-01, open, `{"revenue_lt": 1500000000, "total_assets_lt": 500000000,
+"both_required": true}`) has **no table row above and no `source_url`**, because no primary
+text for it has been read: art. 4.3, quoted in the table, delegates the test to art. 5.1 of
+the SME Law, and the 1.5bn / 0.5bn figures come from the MoF classification order of
+4 Feb 2016 by way of `docs/mn-rules-reference.md` §1.1. The row ships `verified: false` and
+its note says so. Nothing posts through it — it decides which reporting standard the
+entity's statements follow — so it is last in the queue, not first.

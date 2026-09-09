@@ -71,7 +71,14 @@ def receipt_payload(name: str) -> dict[str, Any]:
 
 
 def seed_patterns(verified: bool = True, only: tuple[str, ...] = PURCHASE_PATTERNS) -> list[str]:
-	"""Insert the seed posting patterns as DocType rows (the admin's ``verified`` flag lives there)."""
+	"""Insert the seed posting patterns as DocType rows (the admin's ``verified`` flag lives there).
+
+	``verified=True`` overrides whatever the seed row carries, which is convenient for the
+	fixtures and once hid a real failure: ``purchase_expense_non_vat`` shipped unverified, so
+	the live bot refused every receipt a non-VAT company sent while this suite stayed green.
+	``tests/flows/test_pipeline_post.py::test_the_seeds_own_verified_flags_let_a_non_vat_receipt_post``
+	posts with the seed's own flags instead, and is the test to keep honest.
+	"""
 	import frappe
 
 	from nyabo_mn.nyabo.seed import load_seed

@@ -195,10 +195,129 @@ def test_unverified_patterns_have_no_section_and_name_their_candidates(pattern_r
 		assert re.search(r"Citation:|Not prescribed by Order 116", row["notes"]), pid
 
 
+#: Patterns whose printed sentence is narrower than the work the pattern is selected for. The
+#: quotes are real and were confirmed against the instrument; what is stretched is the *reach*.
+#: 12.2.2 А prints its entry for fees for legal and other professional outside services, and
+#: both rows below are applied to expense purchases and bank outflows generally. That is a
+#: defensible reading of the mechanics, but an accountant must be told it is a reading — so the
+#: note has to carry the scope paragraph, and the card renders it (rules.verify.BRIEFING_MARKERS).
+BROADER_THAN_THEIR_QUOTE = ("purchase_expense_non_vat", "bank_line_expense")
+
+
+def test_a_citation_narrower_than_its_pattern_says_so_in_the_note(pattern_rows):
+	"""Do not unverify these rows and do not stretch the quote: state the scope."""
+	by_id = {r["pattern_id"]: r for r in pattern_rows}
+	for pattern_id in BROADER_THAN_THEIR_QUOTE:
+		row = by_id[pattern_id]
+		notes = row["notes"]
+		assert row["verified"], f"{pattern_id}: the quote is real; the scope note is the fix, not unverifying"
+		assert "SCOPE OF THIS CITATION" in notes, f"{pattern_id}: broader than its quote and silent about it"
+		# It has to name the narrow subject the instrument actually prints, and admit the gap.
+		assert "outside services" in notes, pattern_id
+		assert "was found in the instrument" in notes, pattern_id
+		assert "12.2.2 А" in row["citation"]["section"], pattern_id
+
+
+def test_the_scope_paragraph_is_reproduced_in_the_legal_folder(pattern_rows, order116_doc):
+	"""docs/legal is what the accountant and the ministry reviewer read; it must carry the caveat."""
+	by_id = {r["pattern_id"]: r for r in pattern_rows}
+	for pattern_id in BROADER_THAN_THEIR_QUOTE:
+		scope = by_id[pattern_id]["notes"]
+		scope = scope[scope.index("SCOPE OF THIS CITATION") :]
+		assert _norm(scope) in order116_doc, f"{pattern_id}: scope paragraph missing from order116.md"
+
+
+#: Patterns Order 116 prints no entry for. Whoever ticks one in the desk is vouching for
+#: double-entry mechanics or for another instrument, never for a sentence of this order, so
+#: the note has to say so in as many words (docs/legal/order116.md §3).
+NOT_PRESCRIBED = (
+	"customer_prepayment_recognize_vat_payer",
+	"customer_prepayment_recognize_non_vat",
+	"bank_transfer_internal",
+)
+
+#: Patterns whose entry the instrument prints only in part: a leg of the entry is an
+#: extension of a sentence worded for something else (input VAT on a service or a fixed
+#: asset), or the printed form carries a line this pattern does not have (deferred tax).
+PARTLY_PRINTED = (
+	"purchase_expense_vat_payer",
+	"fixed_asset_acquire_vat_payer",
+	"income_tax_accrue",
+	"vat_settle",
+	"payroll_withhold_employee_si",
+	"simplified_tax_accrue",
+)
+
+
 def test_patterns_the_instrument_does_not_prescribe_stay_unverified(pattern_rows):
 	by_id = {r["pattern_id"]: r for r in pattern_rows}
-	for pid in ("customer_prepayment_recognize_vat_payer", "customer_prepayment_recognize_non_vat"):
+	for pid in NOT_PRESCRIBED:
 		assert by_id[pid]["verified"] is False and "Not prescribed by Order 116" in by_id[pid]["notes"], pid
-	# readings rated only "probable" (composites by extension) and reader disagreements
-	for pid in ("purchase_expense_vat_payer", "purchase_expense_non_vat", "income_tax_accrue"):
+	for pid in PARTLY_PRINTED:
 		assert by_id[pid]["verified"] is False, pid
+
+
+# The day the reading bar was widened, and the marker each row it settled carries. Both are
+# facts about how the citations were produced, so the document and the seed must agree on them.
+SECOND_READING_DATE = "2026-09-09"
+SECOND_READER_MARKER = f"SECOND READER {SECOND_READING_DATE}"
+
+
+def test_the_method_section_states_the_bar_that_was_actually_applied(pattern_rows):
+	"""docs/legal/README.md is evidence about how these citations were made, for a ministry reviewer.
+
+	The bar on 2026-09-08 was *both* independent readers (or the reconciler) rating a section
+	exact. On 2026-09-09 a second reading acted as the second reader for the rows only one
+	person had reached, and seven patterns were verified that way. A README saying only "a
+	reader pair" describes neither process and lets the weaker one pass for the stronger, so
+	require both sentences — and require the rows it names to be exactly the rows whose own
+	notes say a second reader settled them.
+	"""
+	readme = (LEGAL_DIR / "README.md").read_text(encoding="utf-8")
+	assert "both readers" in readme, "the original bar must still be stated, not softened away"
+	assert SECOND_READING_DATE in readme, "a changed bar must say when it changed"
+	settled = {
+		row["pattern_id"]
+		for row in pattern_rows
+		if row["verified"] and SECOND_READER_MARKER in (row["notes"] or "")
+	}
+	assert settled, "no row claims the second reading any more; the README paragraph is stale"
+	for pattern_id in sorted(settled):
+		assert pattern_id in readme, f"{pattern_id} rests on the second reading and is not named"
+
+
+def test_unverifiable_patterns_say_what_an_admin_would_be_vouching_for(pattern_rows):
+	"""The desk's verify button is the only door; an unverifiable row must brief the person at it.
+
+	`rules.guard.require_verified` refuses these rows, so an accountant is asked to tick a
+	box no quote supports. The note is the only place that can tell them whether they are
+	vouching for another instrument or for plain double entry, so require that sentence.
+	"""
+	by_id = {r["pattern_id"]: r for r in pattern_rows}
+	for pid in NOT_PRESCRIBED + PARTLY_PRINTED:
+		assert "VOUCHING FOR" in by_id[pid]["notes"], f"{pid}: unverifiable without a briefing"
+
+
+def test_the_everyday_non_vat_receipt_can_post(pattern_rows):
+	"""A plain expense receipt at a non-VAT company must not need a human to tick anything.
+
+	`Тест ХХК` is not VAT-registered, so every ordinary receipt the founder sends the bot
+	lands on `purchase_expense_non_vat`; while that row was unverified `require_verified`
+	refused it and nothing he sent could post. Order 116 does print the entry (12.2.2 А) and
+	the gross amount rule (9.4.1.1), so the row is verified — pin it, together with the rest
+	of the everyday path (collecting a receivable, paying a supplier, a bank outflow).
+	"""
+	by_id = {r["pattern_id"]: r for r in pattern_rows}
+	for pid in (
+		"purchase_expense_non_vat",
+		"purchase_inventory_non_vat",
+		"sale_cash_non_vat",
+		"sale_credit_non_vat",
+		"receivable_collect",
+		"payable_pay",
+		"bank_line_expense",
+		"bank_fee_expense",
+	):
+		row = by_id[pid]
+		assert row["verified"] is True, f"{pid}: the everyday path is blocked again"
+		assert row["enabled"] is True, pid

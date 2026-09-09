@@ -141,6 +141,51 @@ xlsx fixtures, so a failure shows the input next to the assertion and no binary 
 enter the repo. Real bank exports, once obtained, go under `tests/fixtures/statements/`
 with the layout they verify.
 
+### CORE-17 A composite of two printed sentences can verify a pattern; an extension of one cannot
+The founder's receipt would not post because `purchase_expense_non_vat` had no citation, and
+the first pass had rated it only "probable" for a reason worth keeping: Order 116 prints the
+gross-amount rule for a non-VAT buyer with «Дт Бараа матераил» — the inventory form — so the
+expense debit does not appear in that sentence. The second reading (2026-09-09) resolved it
+by treating the entry and the amount as two separate citations rather than one strained one:
+12.2.2 А prints the entry («Дт Гадны үйлчилгээний зардал Кт Дансны өглөг/Мөнгө») and 9.4.1.1
+supplies the amount, its own wording covering «бараа, ажил үйлчилгээ». That is the same
+construction `sale_cash_vat_payer` was already verified on, so `citation.section` may name
+several labels joined with `; `.
+
+The line this draws — and it is the whole point of the decision — is that a composite is two
+sentences each printed for its own leg, never one sentence stretched to cover a leg it does
+not mention. `purchase_expense_vat_payer` fails that test and stays unverified: the only
+sentence that debits НӨАТатварын авлага is worded for «гаднаас авсан бараа материал», and no
+sentence anywhere in the instrument claims input VAT on a service. Same for
+`fixed_asset_acquire_vat_payer`. Reverse this by re-rating the composites in
+`docs/legal/order116.md` §3; the notes carry both sentences either way.
+
+### CORE-18 An unverifiable pattern must brief the person asked to tick it
+`rules.guard.require_verified` refuses an unverified row and the message sends the accountant
+to a verify button. For the nine patterns Order 116 does not print (or prints only in part),
+that button asks someone to vouch for something the seed cannot cite — so the row's `notes`
+must end with a sentence beginning `WHAT AN ADMIN WOULD BE VOUCHING FOR`, naming either the
+other instrument (VAT Law art. 14 / 14.1.5, MoF order 135/2000, the General Law on Social
+Insurance art. 21.1, IFRS for SMEs s.23) or, where no law prescribes the entry at all,
+saying that it is uncontroversial double-entry mechanics and nothing more —
+`bank_transfer_internal` moves one own bank account to another, `simplified_tax_accrue`
+debits a tax expense and credits a tax payable. `income_tax_accrue` is the interesting case:
+what an admin ticks there is a fact about their own company (no temporary differences this
+period), not a reading of the law. `tests/unit/test_seed_citations.py` pins the sentence, so
+a future pattern cannot ship unverifiable and silent. Reverse by dropping
+`test_unverifiable_patterns_say_what_an_admin_would_be_vouching_for`.
+
+### CORE-19 A tax parameter's note says whether an ordinary SME hits it, and what unblocks it
+The 13 unverified tax parameters are not equal: `emd.employee_rate` / `emd.employer_rate` are
+pending and every payroll walks into them, while `sme.classification` and
+`vat.voluntary_registration_threshold` never touch a posting. Each note now opens its tail
+with `DAILY USE:` and then either `WHAT AN ADMIN WOULD BE VOUCHING FOR` (a derivation — the
+arithmetic, not a printed number) or `WHAT UNBLOCKS IT` (a text nobody has read yet), so the
+desk's pending list can be worked in the order that matters instead of top to bottom. The
+distinction is real: a derived row is safe to leave forever because the engine sums the
+per-fund rows anyway; a pending row raises `PendingRuleError` and stops work. Reverse by
+deleting the appended sentences; nothing computes from them.
+
 ## integration (stage 1 → stage 2)
 
 ### INT-01 One company-level regime for the MVP, two derived axes
@@ -912,3 +957,211 @@ refers to and carries no figures; a figure it did not receive from a tool is rem
 the user sees it; and it must not list next steps in prose, because the buttons under the
 answer already are that list. `tests/unit/test_agent_prompts.py` now pins a version per
 prompt instead of asserting 1 for all of them, so a bump has to be deliberate.
+
+## rule verification from the chat (§1.2 given a door)
+
+### VER-01 Verification is one tap, not a workflow
+`rules.verify.verify(kind, name, user)` sets `verified = 1`, stamps `verified_by` /
+`verified_at` (two new fields on Nyabo Posting Pattern and Nyabo Tax Parameter) and writes a
+`rule_verified` Nyabo Event. Nothing else: no draft/approved states, no second approver, no
+un-verify from Telegram. The brief asks for a human confirmation, and that is what a
+verification is — one named person saying they read the primary text. Un-verifying stays in the
+desk, where the edit is itself a Version row; the guard starts refusing again the moment the
+flag comes off, so nothing has to be undone in Nyabo.
+
+The call is idempotent and returns `{"ok", "already"}` instead of raising: a second tap on a
+card someone scrolled back to must not overwrite the first verifier's name, and every caller has
+a sentence to show either way. `seed.sync` never writes the verification of a row an admin has
+verified, so a redeploy cannot silently undo the decision (it does fill in the citation: VER-06).
+`verified_by` names the human and is empty when the flag came from the seed instead; VER-07 is
+why that distinction is shown rather than smoothed over.
+
+### VER-02 The instrument alone is not a citation
+`RuleEvidence.has_citation` is true only when the row carries a *section* or a *quote*. All 44
+seeded posting patterns name «Заавар 116 (2000)» whether or not anyone has found the entry in
+it, so showing the instrument as the citation would put an authority on the card for the 16
+rules that have none. Those get `CARD_RULE_NO_CITATION` instead, which says in words that
+verifying them means vouching for the mechanics printed above it. The debit and credit lines are
+always shown, because for a rule with no citation they are the entire evidence.
+
+### VER-03 The callback datum carries the action before the rule
+`v:<action>:<kind>:<rule…>`. Everywhere else in `keyboards` the action comes last, but a Nyabo
+Tax Parameter is named `key:effective_from` — the separator is inside the name — so with the
+action last, `v:t:si.employer_rate:2027-01-01:ok` could not be told from a rule whose name ends
+in `:ok`. With it first the rule is "everything after the kind" and `rule_from_parts` puts it
+back exactly. The longest seeded names fit in 46 and 56 of the 64 bytes; a longer one drops the
+button and logs, never the card (`settle_row`'s trade), and the admin is pointed at the desk.
+
+### VER-04 A blocked proposal is retried by tapping [Батлах] again, not re-sent
+When `post_proposal` raises `UnverifiedRuleError`, `approve.refuse_unverified_rule` puts the
+card back exactly as it was — text and keyboard — because the proposal was never touched: it is
+still `proposed`, so once the rule is verified the same card posts on the next tap and the photo
+is never re-sent. The alternative, carrying the proposal name through the verification datum so
+that the verify tap could post it, does not fit in 64 bytes beside a rule name and would have
+one person's tap post another person's document; a retry queue would have to survive the rule
+staying unverified for days. So the accountant is told, in `MSG_RULE_VERIFIED_RETRY` and
+`MSG_UNVERIFIED_RULE_ADMIN_ASKED`, exactly what to press.
+
+Who reads the refusal decides what follows it: an admin gets the rule card and the two buttons
+in the same breath, everyone else gets a `rule_verification_requested` Nyabo Event plus
+`router.notify_admins` — the promise «the request has been recorded» is kept in the audit log,
+not only in the chat.
+
+### VER-05 `/дүрэм` is in everyone's ☰ menu, although only an admin may verify
+`commands.py` keeps `/link` and `/status` out of the menu because they are admin bootstrap. This
+one is different: the accountant is the person who *meets* the refusal, reads a rule id in it,
+and has to find out who can clear it. So `rules` is registered, `MSG_MENU` lists it with «админ
+баталгаажуулна» beside it, and a non-admin who runs it gets `MSG_RULES_ADMIN_ONLY` — who may do
+it and the fact that a blocked posting notifies them automatically — instead of a bare refusal.
+
+## the two branches meeting (citations + the admin door, review of the merge)
+
+### VER-06 A deploy may add the evidence to a hand-verified row; it may never add the verification
+`seed.upsert` used to return `skipped_verified` and write *nothing* to a row with
+`verified = 1`. Half of that rule is right and stays: `verified`, `verified_by` and
+`verified_at` are the record of a named human taking responsibility, and a code push must not
+create, move or revoke one. The other half was a bug with a live victim. The founder was told to
+tick `purchase_expense_non_vat` by hand in the desk so his receipts could post; the citation pass
+then found Order 116 12.2.2 А and 9.4.1.1 for that exact row — and on his site the seed would
+have dropped the quote silently on every migrate, leaving the row verified with no evidence for
+ever. The citation is the part an accountant and a ministry reviewer read.
+
+So `EVIDENCE_FIELDS` (instrument, section, quote, url, remarks — per DocType) are written to a
+verified row and reported as their own outcome, `citation_filled`, so a migrate says what it did
+instead of saying it skipped. The seed never blanks a field it has nothing for, so a section
+somebody typed in the desk survives a deploy that has none; it does correct a stale note, because
+a row whose remarks contradict its citation is worse than one with no remarks. Reverse by
+deleting `_fill_evidence` — and accept that the evidence never reaches a site again.
+
+One thing that write does have to say out loud. Afterwards the founder's row reads «verified by
+<him>, 1 Sep» beside a quote that arrived on a later deploy, and read plainly that says he
+checked the entry against Order 116 12.2.2 А — which he did not; he ticked the box to unblock
+his receipts. So when the row carries a *named* verifier, `_record_citation_filled` writes a
+`rule_citation_filled` Nyabo Event naming the fields, the person and their date: the honest
+sequence is on the record, and an auditor can see which half came from whom. A row the seed
+itself verified gets no such event — nobody's name is on it, its citation's history is git and
+`docs/legal`, and an event per corrected quote per migrate would bury the rows that do name a
+person.
+
+### VER-07 The seed's `verified` flag means "cited in the repository", and never wears a person's name
+After the citation pass 35 of 44 posting patterns and 46 of 59 tax parameters carry
+`verified = 1` with `verified_by` empty and no `rule_verified` Nyabo Event, while VER-01 says
+`verified_by` records the named human who took responsibility. Both statements cannot describe
+the same flag, and a reader who is not told which one they are looking at reads 35 signatures
+that do not exist.
+
+**Decided: the seed keeps its flag, and the flag means what it really is** — verified by the
+evidence in this repository (two readers, a reconciler, a verbatim quote reproduced in
+`docs/legal/*.md`, reviewed before release), with nobody on this site named for it. The
+alternative, shipping everything unverified so that every rule waits for a person, was
+rejected on what it does to a real site: `rules.guard.require_verified` refuses an unverified
+rule for a real posting, so a fresh install would refuse the first receipt anybody sent and 44
+patterns would be ticked in an afternoon by someone who had read none of them. That produces
+*worse* evidence than the citation, and puts a name on it.
+
+So the two provenances are separated everywhere they are shown, not merged into one count:
+
+- `rules.verify.SOURCE_SEED` / `SOURCE_PERSON`, off `RuleEvidence.verified_source`, which is
+  simply "is `verified_by` set".
+- The Telegram answer on an already-verified rule prints
+  `RULE_VERIFIED_SOURCE_SEED` — «Нябогийн эх сурвалжийн ишлэлээр (энэ сайт дээр хүн
+  баталгаажуулаагүй)» — or the person and the time. `verify()` returns `verified_by` /
+  `verified_at` on its idempotent branch so the second tapper gets the same answer.
+- The readiness checklist's `rules_verified` row (`verify.verified_counts`) prints the split,
+  because that table is written for a certification reader, and "35 rows verified" would be
+  read there as 35 human decisions.
+
+`verified_by` therefore keeps VER-01's meaning exactly: it is the named human, and it is empty
+when there is not one. Reverse by deleting `verified_counts` and the two source constants — and
+then nothing on any screen distinguishes a citation from a signature.
+
+### VER-08 A global rule is verified by a site admin, not by an admin of one company
+`Nyabo Posting Pattern` and `Nyabo Tax Parameter` are one row for the whole site, but the Admin
+role is granted per company by `/link admin <company>` and `Ctx.is_admin` resolves against the
+active company (TG-04). So an admin of one client could tick a rule that then posts for every
+other client on the site, with their name on the audit row.
+
+Two ways out were on the table.
+
+*Record the verification per company.* Rejected on both what it costs and what it says. The
+cost: the rows are global, so a per-company verification needs its own DocType, and
+`rules.guard.require_verified` — which takes bare rule names, documents and core objects from
+every posting path — would have to learn a company on all of them. What it says is worse:
+verification is the statement "Order 116 12.2.2 А prints this entry". That has one answer for
+every company in Mongolia. Asking each client's admin the same legal question again invites ten
+different answers to it and makes the audit trail record ten readings that never happened.
+
+*Only a site admin (`ADMIN_TELEGRAM_IDS`) may verify.* Taken. `Ctx.is_site_admin` is the new
+check, and `is_admin` is now "Admin on this company **or** site admin", which is what it always
+meant. A per-company admin keeps everything except the tap: `/дүрэм` lists what is blocking
+their work, the card shows the entry, the citation and the briefing, and `rule_decision` draws
+only [Одоохондоо үлдээх] with `MSG_RULES_SITE_ADMIN_ONLY` under it — a button that could only
+ever answer "you may not" is the dead end this flow exists to remove. The confirm tap re-checks
+anyway, because callback data is attacker-chosen (TG-03). A blocked company admin takes the
+accountant's path: the request is recorded and the site admins are notified (VER-04, MAJOR 6).
+
+The cost of this choice, stated plainly: on a site with `ADMIN_TELEGRAM_IDS` unset nobody can
+verify from Telegram at all, and the ERPNext desk is the only door — which is where it was
+before `/дүрэм` existed. `/status` already reports that key as missing.
+
+### VER-09 A citation narrower than its pattern states the gap; it is neither unverified nor stretched
+`purchase_expense_non_vat` is verified on Заавар 116 12.2.2 А, whose sentence is printed for fees
+for legal and other professional outside services, plus 9.4.1.1 for the gross amount.
+`bank_line_expense` cites the same 12.2.2 А sentence for any statement outflow charged to
+expense. The quotes are verbatim and were confirmed against the instrument; what is wider than
+the printed sentence is the *reach* of the pattern, and that is a reading.
+
+Three answers were possible. Unverifying both would refuse every ordinary receipt a non-VAT
+company sends and every unmatched bank outflow — for a scope question, not a doubt about the
+entry. Widening the quote to make it look general would be the one thing this project must never
+do. So: the rows stay verified, the quotes stay exactly as printed, and each note carries a
+`SCOPE OF THIS CITATION` paragraph saying which named expense the instrument prints the entry
+for, what is being carried across (the mechanics, not the words), and that no sentence printing
+it for expenses in general was found — with an invitation to cite one if it is.
+
+*Where that paragraph is actually readable, stated exactly.* `SCOPE OF THIS CITATION` is in
+`rules.verify.BRIEFING_MARKERS`, so `cards.rule_card` renders it — but the card used to be drawn
+for **unverified** rules only: `/дүрэм` lists `verify.pending()`, `admin.show_rule` answered a
+verified row with an «already verified» alert and no card, and `admin._rule_evidence_by_name`
+skips verified rows. Both of these rows ship verified, so the paragraph reached nobody in
+Telegram at all.
+
+So `show_rule` now sends the card for a verified rule too — buttonless, ending in
+`CARD_RULE_VERIFIED_BY` («who vouched for this») instead of «Баталгаажуулах уу?». Reaching it
+takes a tap on an older list whose rule has been verified since, which is rare; it is also the
+only route in the chat to a rule that is already posting, and a caveat about a legal reading
+cannot live in an alert that vanishes when it is tapped away. The steady readers are still the
+other three, and those are the ones to keep true: the row's own `notes` field in the ERPNext
+desk (`seed._fill_evidence` writes it there on every migrate, VER-06), `docs/legal/order116.md`
+§3, and the seed JSON.
+
+What deliberately does **not** carry the paragraph is the receipt card, which prints the
+citation on every ordinary purchase the founder's company makes. It is 700 characters of
+English and would bury the card it sat on. So an accountant meets the citation on the receipt
+and the caveat in the desk — written here so this section is never read as a claim that they
+meet it on the receipt.
+
+## the accountant's own reading (skeptic's walk of the merged flow)
+
+### VER-10 The briefing stays in the English it was reviewed in, and the card says so in Mongolian
+`_briefing` puts the seed's «what an admin would be vouching for» paragraph on the evidence
+card, which is the whole point of VER-06..VER-09 meeting the `/дүрэм` flow. That paragraph is
+English: the citation pass wrote its notes for the repository's readers, and `docs/legal` quotes
+them as they are. Everything else on the card — the title, the entry, the citation, the warning
+that there is no citation, the question — is Mongolian, because the person at the button is a
+Mongolian bookkeeper.
+
+Translating it was rejected. The paragraph is the caveat on a legal reading («12.2.2 А prints
+this for outside services, and it is being applied to expense purchases generally»); a second,
+unreviewed Mongolian wording of that would be a new claim about the law with nobody's name on
+it, and the reviewer who checked the English one would not have checked the Mongolian. Leaving
+it unlabelled was rejected too: a reader who meets a paragraph they cannot read, on the screen
+where they take responsibility, either taps anyway or gives up, and the card would have offered
+no third option.
+
+So `CARD_RULE_BRIEFING_LANGUAGE` sits between the heading and the body: it says who wrote the
+note and why it was not translated, and it names the two doors that still work — the rule's row
+in the ERPNext desk, and somebody who knows the source. «Do not verify it» is the advice when
+the paragraph cannot be read, which is the safe answer: an unverified rule refuses postings, and
+a wrongly verified one does not. Reverse this when the notes themselves are translated and
+re-reviewed in Mongolian — at which point the line is untrue and must go.

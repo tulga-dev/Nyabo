@@ -83,6 +83,16 @@ def bank_fee_rule(company: str) -> dict[str, Any] | None:
 
 	The seed fallback exists so a site whose rules were not synced still proposes the
 	fee to the ``bank_fee`` role account instead of the default expense.
+
+	WHY the order has two keys. Provisioning already writes a `bank_fee` rule from
+	`rules_default.json`, so the accountant's own rule is the *second* row on the company and
+	"latest wins" is what picks it. On a tie in `modified` — two writes inside one clock tick,
+	which the Windows test clock produces easily and a bulk update can produce anywhere — the
+	comparison was undecided, and the row that won depended on insertion order. That is the
+	whole of the `test_bank_fee_rule_prefers_the_company_rule_row` flake, and it is not only a
+	test problem: undecided here means one statement line is booked to a different account than
+	the next. `Nyabo Rule` is named `NYR-.#####`, so `name desc` is "most recently created
+	first" — the same intent as `modified desc`, and always decided.
 	"""
 	import frappe
 
@@ -90,7 +100,7 @@ def bank_fee_rule(company: str) -> dict[str, Any] | None:
 		RULE_DOCTYPE,
 		filters={"company": company, "match_type": "bank_fee", "status": "active"},
 		fields=["name", "match_value", "target_account_code", "posting_pattern", "hit_count"],
-		order_by="modified desc",
+		order_by="modified desc, name desc",
 		limit=1,
 	)
 	if rows:

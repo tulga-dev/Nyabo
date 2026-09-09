@@ -145,15 +145,15 @@
       "citation": {
         "instrument": "Заавар 116 (2000)",
         "instrument_full": "Аж ахуйн нэгж, байгууллагад мөрдөх нягтлан бодох бүртгэлийн дансны үлгэрчилсэн заавар (Сангийн сайдын 2000 оны 116 дугаар тушаал)",
-        "section": null,
-        "verified": false,
+        "section": "3.4.1 а); 9.4.1.1",
+        "verified": true,
         "url": "https://legalinfo.mn/mn/detail?lawId=205201",
-        "quote": null
+        "quote": "а) Зээлээр борлуулсан бүтээгдэхүүн, бараа, ажил үйлчилгээг : Дт Дансны авлага Кт Борлуулалт — Гадагш худалдсан бараа материал, үзүүлсэн ажил үйлчилгээнд ногдох нэмэгдсэн өртгийн албан татварын хэмжээгээр: Дт Мөнгөн хөрөнгө/Дансны авлага Кт НӨАТатварын өглөг"
       },
-      "verified": false,
+      "verified": true,
       "enabled": true,
       "reference_bullet": "§3 'Cash sale / credit sale'",
-      "notes": "Дт Дансны авлага — Кт Борлуулалт, Кт НӨАТ өглөг. Credit variant; the settlement is receivable_collect. Citation: both mappers rate 3.4.1 а) («Дт Дансны авлага Кт Борлуулалт») + 9.4.1.1 (output VAT «Дт Мөнгөн хөрөнгө/Дансны авлага Кт НӨАТатварын өглөг») as probable only — the instrument prints the two entries separately, never a single three-line credit sale with VAT; the reconciler did not rule on this id. Section left null until a human confirms the composite."
+      "notes": "Дт Дансны авлага — Кт Борлуулалт, Кт НӨАТ өглөг. Credit variant; the settlement is receivable_collect. Citation: SECOND READER 2026-09-09; verified is now true. The earlier pass rated the composite only probable because the instrument prints the sale and the VAT as two entries — but so does sale_cash_vat_payer, which is verified on exactly that basis, and here BOTH printed sentences name Дансны авлага: 3.4.1 а) debits it for a credit sale of «бүтээгдэхүүн, бараа, ажил үйлчилгээ» and the 9.4.1.1 output-VAT sentence prints «Дт Мөнгөн хөрөнгө/Дансны авлага Кт НӨАТатварын өглөг», the receivable branch being the credit-sale form. The VAT line stays optional so a zero-rated or exempt sale drops it. Second reading 2026-09-09: legalinfo.mn lawId=205201 re-fetched with curl; the instrument body is byte-identical to the 2026-09-08 copy (only the site chrome differs), and every sentence below was cut out of that fetch by offset, not retyped."
     },
     {
       "pattern_id": "sale_cash_non_vat",
@@ -353,7 +353,7 @@
       "verified": false,
       "enabled": true,
       "reference_bullet": "§3 'Purchase of goods/services (VAT payer)'",
-      "notes": "Дт Зардал, Дт НӨАТ авлага — Кт Мөнгө / Дансны өглөг. The class-70 line has no role: the resolver returns the classified expense account. README Phase 0 check expects GL 6210 Dr 100 000, 1810 Dr 10 000, 2110 Cr 110 000 — exactly this pattern. Which expense categories are non-deductible for VAT (reference §1.3, widened from 2027, VERIFY) is not in the reference: see tax parameter vat.input_deduction_categories (pending). Citation: candidates 12.2.2 А (expense debit «Дт Гадны үйлчилгээний зардал Кт Дансны өглөг/Мөнгө», «Дт Ашиглалтын зардал Кт Дансны өглөг») + 9.4.1.1 (input VAT «Дт НӨАТатварын авлага Кт Мөнгөн хөрөнгө/Дансны өглөг»); both mappers and the reconciler: probable. The VAT-receivable sentence is worded for «гаднаас авсан бараа материал» only; no sentence in Order 116 debits НӨАТатварын авлага against a service/expense purchase, so that leg is an application of 9.4.1.1 with the VAT Law art. 14 as the authority for deductibility."
+      "notes": "Дт Зардал, Дт НӨАТ авлага — Кт Мөнгө / Дансны өглөг. The class-70 line has no role: the resolver returns the classified expense account. README Phase 0 check expects GL 6210 Dr 100 000, 1810 Dr 10 000, 2110 Cr 110 000 — exactly this pattern. Which expense categories are non-deductible for VAT (reference §1.3, widened from 2027, VERIFY) is not in the reference: see tax parameter vat.input_deduction_categories (pending). Citation: STILL UNVERIFIED after the second reading of 2026-09-09, and this is a real gap, not an oversight. The expense leg is printed (12.2.2 А «Хуулийн болон бусад мэргэжлийн байгууллагаар үйлчлүүлсний хөлс, гадны үйлчилгээний зардлын дүнгээр: Дт Гадны үйлчилгээний зардал Кт Дансны өглөг/Мөнгө»), and purchase_expense_non_vat is verified on it. The input-VAT leg is NOT: the only sentence in Order 116 that debits НӨАТатварын авлага is worded for goods — «гаднаас авсан бараа материалд ногдох НӨАТ-ын дүнгээр: Дт НӨАТатварын авлага Кт Мөнгөн хөрөнгө/Дансны өглөг» — and the instrument nowhere debits it against a service or an expense. Deductibility for services rests on the VAT Law (art. 14), which is a different instrument from the one this citation field names, so the row cannot be verified without bending the quote. WHAT AN ADMIN WOULD BE VOUCHING FOR if they tick it: that a VAT payer may take input VAT on an expense purchase, i.e. a reading of the VAT Law, not of Order 116. A non-VAT company never reaches this pattern — purchase_expense_non_vat is the one that posts."
     },
     {
       "pattern_id": "purchase_inventory_vat_payer",
@@ -496,15 +496,15 @@
       "citation": {
         "instrument": "Заавар 116 (2000)",
         "instrument_full": "Аж ахуйн нэгж, байгууллагад мөрдөх нягтлан бодох бүртгэлийн дансны үлгэрчилсэн заавар (Сангийн сайдын 2000 оны 116 дугаар тушаал)",
-        "section": null,
-        "verified": false,
+        "section": "12.2.2 А; 9.4.1.1",
+        "verified": true,
         "url": "https://legalinfo.mn/mn/detail?lawId=205201",
-        "quote": null
+        "quote": "Хуулийн болон бусад мэргэжлийн байгууллагаар үйлчлүүлсний хөлс, гадны үйлчилгээний зардлын дүнгээр: Дт Гадны үйлчилгээний зардал Кт Дансны өглөг/Мөнгө — Нэмэгдсэн өртгийн албан татвар төлөгчөөр бүртгэгдээгүй аж ахуйн нэгж, байгууллага импортоор болон бусад байгууллагаас авсан бараа, ажил үйлчилгээнд ногдох нэмэгдсэн өртгийн татварыг уг бараа, ажил үйлчилгээний өртөгт оруулан: Дт Бараа матераил Кт Мөнгөн хөрөнгө/Өглөг гэж бичнэ."
       },
-      "verified": false,
+      "verified": true,
       "enabled": true,
       "reference_bullet": "§3 'Purchase (not VAT-registered)'",
-      "notes": "VAT is included in cost: Дт Зардал (gross) — Кт Мөнгө / Өглөг. 'This is the default for simplified-regime clients.' README Phase 0: 'Non-VAT company: purchase VAT stays in the expense, no template is default.' Citation: candidates 9.4.1.1 (VAT-in-cost rule, whose wording covers «бараа, ажил үйлчилгээ» but whose printed debit is «Бараа матераил» only) + 12.2.2 А (expense debit); both mappers and the reconciler: probable. The gross expense debit is an application of the rule, not a printed entry."
+      "notes": "VAT is included in cost: Дт Зардал (gross) — Кт Мөнгө / Өглөг. 'This is the default for simplified-regime clients.' README Phase 0: 'Non-VAT company: purchase VAT stays in the expense, no template is default.' Citation: SECOND READER 2026-09-09; verified is now true as a composite of two printed sentences, the shape sale_cash_vat_payer already uses. 12.2.2 А prints the entry — an expense debited by type against Дансны өглөг or Мөнгө, which is this pattern's class-70 debit and its class-31/10/11 credit; 12.2.2 Б prints the same for selling expenses, the class-71 alternative. 9.4.1.1 supplies the AMOUNT: for an entity not registered as a VAT payer the VAT on «бараа, ажил үйлчилгээ» acquired is put into «уг бараа, ажил үйлчилгээний өртөг», so the debit is gross and no input-VAT line exists. The printed debit in that second sentence reads «Бараа матераил» [sic] because it is the inventory form (purchase_inventory_non_vat cites it for that); what is taken from it here is the gross-amount rule, whose own wording names services. Second reading 2026-09-09: legalinfo.mn lawId=205201 re-fetched with curl; the instrument body is byte-identical to the 2026-09-08 copy (only the site chrome differs), and every sentence below was cut out of that fetch by offset, not retyped. SCOPE OF THIS CITATION, read before relying on it: the 12.2.2 А sentence quoted above is printed for one named expense — fees for legal and other professional outside services — while this pattern is selected for ANY expense purchase at a non-VAT company. What is carried across is the entry's mechanics (an expense debited by its own class against Дансны өглөг or Мөнгө), not the words of that sentence; 12.2.2 Б prints the same shape for other expense types, which is why the class-71 alternative exists. No sentence printing this entry for expense purchases in general was found in the instrument — if one is found, cite it and delete this paragraph. The 9.4.1.1 half is not narrowed this way: its own wording is «бараа, ажил үйлчилгээ», so the gross-amount rule covers the pattern as written."
     },
     {
       "pattern_id": "purchase_inventory_non_vat",
@@ -620,15 +620,15 @@
       "citation": {
         "instrument": "Заавар 116 (2000)",
         "instrument_full": "Аж ахуйн нэгж, байгууллагад мөрдөх нягтлан бодох бүртгэлийн дансны үлгэрчилсэн заавар (Сангийн сайдын 2000 оны 116 дугаар тушаал)",
-        "section": null,
-        "verified": false,
+        "section": "3.4.1 в)",
+        "verified": true,
         "url": "https://legalinfo.mn/mn/detail?lawId=205201",
-        "quote": null
+        "quote": "в) Худалдан авагчаас төлсөн төлбөрийн хэмжээгээр : Дт Мөнгөн хөрөнгө Кт Дансны авлага"
       },
-      "verified": false,
+      "verified": true,
       "enabled": true,
       "reference_bullet": "§3 'Cash sale / credit sale' (collection implied) and 'Payroll' payment bullet 'Дт өглөг — Кт Мөнгө'",
-      "notes": "Added per reviewer: the most frequent bank-statement inflow. The credit-sale bullet 'Дт Дансны авлага — Кт Борлуулалт' implies its collection; the reference gives no separate bullet, hence verified=false. Citation: not in either mapper's list (added per reviewer after the mapping). Integrator's candidate: 3.4.1 в) «Худалдан авагчаас төлсөн төлбөрийн хэмжээгээр : Дт Мөнгөн хөрөнгө Кт Дансны авлага» — verbatim in the saved text, but single-reader; a second reader must confirm before verified is set."
+      "notes": "Added per reviewer: the most frequent bank-statement inflow. The instrument does give it its own entry, in the receivables chapter rather than next to the credit sale. Citation: SECOND READER 2026-09-09 confirms the integrator's candidate, so verified is now true. 3.4.1 в) is the receivables chapter's own entry for a customer settling an invoice and its two accounts are exactly this pattern's two lines. «Мөнгөн хөрөнгө» covers both lines of the debit: 1.1 «Байгууллагын касс болон харилцах дансанд байгаа төгрөг, гадаад валют, тусгай зориулалт бүхий мөнгөн сан, мөнгөтэй адилтгах бусад зүйлсийг мөнгөн хөрөнгөнд хамааруулна.» — the bank account (class 11) and the cash box (class 10 alternative). Second reading 2026-09-09: legalinfo.mn lawId=205201 re-fetched with curl; the instrument body is byte-identical to the 2026-09-08 copy (only the site chrome differs), and every sentence below was cut out of that fetch by offset, not retyped."
     },
     {
       "pattern_id": "payable_pay",
@@ -676,15 +676,15 @@
       "citation": {
         "instrument": "Заавар 116 (2000)",
         "instrument_full": "Аж ахуйн нэгж, байгууллагад мөрдөх нягтлан бодох бүртгэлийн дансны үлгэрчилсэн заавар (Сангийн сайдын 2000 оны 116 дугаар тушаал)",
-        "section": null,
-        "verified": false,
+        "section": "1.4",
+        "verified": true,
         "url": "https://legalinfo.mn/mn/detail?lawId=205201",
-        "quote": null
+        "quote": "Мөнгөн зарлагын үндсэн хэлбэр нь бараа, материал худалдан авсан болон бусад байгууллага, хүмүүсээс авсан төрөл бүрийн үйлчилгээний төлбөр байна. Үүнийг : Дт Хөрөнгө/ (Зардал)/ Дансны өглөг Кт Мөнгөн хөрөнгө гэж бичнэ."
       },
-      "verified": false,
+      "verified": true,
       "enabled": true,
       "reference_bullet": "§3 'Payroll' payment bullet 'Дт өглөг — Кт Мөнгө' (generalised)",
-      "notes": "Added per reviewer: the most frequent bank-statement outflow. payroll_pay and income_tax_pay are specialisations for tax and payroll payables. Citation: not in either mapper's list. Integrator's candidate: 1.4 «Мөнгөн зарлагын үндсэн хэлбэр нь бараа, материал худалдан авсан болон бусад байгууллага, хүмүүсээс авсан төрөл бүрийн үйлчилгээний төлбөр байна. Үүнийг : Дт Хөрөнгө/ (Зардал)/ Дансны өглөг Кт Мөнгөн хөрөнгө гэж бичнэ.» (single-reader; confirm before verified is set)."
+      "notes": "Added per reviewer: the most frequent bank-statement outflow. payroll_pay and income_tax_pay are specialisations for tax and payroll payables. Citation: SECOND READER 2026-09-09 confirms the integrator's candidate, so verified is now true. The 1.4 sentence prints three debit alternatives — Хөрөнгө / (Зардал) / Дансны өглөг — against Кт Мөнгөн хөрөнгө; this pattern takes the third, a supplier payable settled in cash (bank_line_expense and bank_fee_expense take the «(Зардал)» branch of the same sentence). «Мөнгөн хөрөнгө» covers the bank account and the cash box per 1.1. Second reading 2026-09-09: legalinfo.mn lawId=205201 re-fetched with curl; the instrument body is byte-identical to the 2026-09-08 copy (only the site chrome differs), and every sentence below was cut out of that fetch by offset, not retyped."
     },
     {
       "pattern_id": "vat_settle",
@@ -745,7 +745,7 @@
       "verified": false,
       "enabled": true,
       "reference_bullet": "§3 'Payroll' payment bullet 'Дт өглөг — Кт Мөнгө' (generalised); VAT accounts from §2 classes 12 and 31",
-      "notes": "Added per reviewer. Filing: tax parameter filing.vat (monthly by the 10th, VERIFY); 2027 payment deferral in vat.payment_timing. Citation: not in either mapper's list, and Order 116 prints no VAT settlement entry (9.4.1.1 only creates НӨАТатварын өглөг / НӨАТатварын авлага). Integrator's candidate for the payment leg: 1.4 «Татвар цалин гэх мэт бусад мөнгөн зарлага гарсан тохиолдолд: Дт Татварын өглөг/ ... Кт Мөнгөн хөрөнгө»; the offset of input against output VAT is VAT Law art. 14, not Order 116."
+      "notes": "Added per reviewer. Filing: tax parameter filing.vat (monthly by the 10th, VERIFY); 2027 payment deferral in vat.payment_timing. Citation: STILL UNVERIFIED after the second reading of 2026-09-09, and Order 116 cannot supply one. 9.4.1.1 only creates the two balances (Дт НӨАТатварын авлага on purchases, Кт НӨАТатварын өглөг on sales); no sentence in the instrument sets one off against the other, and the payment leg is only the generic 1.4 «Татвар цалин гэх мэт бусад мөнгөн зарлага гарсан тохиолдолд: Дт Татварын өглөг/ Цалингийн өглөг/ бусад холбогдох дансад Кт Мөнгөн хөрөнгө гэж тус тус бүртгэнэ.». The offset itself is VAT Law art. 14 (тооцоолол), a different instrument. WHAT AN ADMIN WOULD BE VOUCHING FOR if they tick it: that the month's input VAT is deducted from output VAT and only the difference is paid — the VAT Law's netting rule and their own return, not a posting the order prints. A non-VAT company never reaches this pattern."
     },
     {
       "pattern_id": "income_tax_pay",
@@ -793,15 +793,15 @@
       "citation": {
         "instrument": "Заавар 116 (2000)",
         "instrument_full": "Аж ахуйн нэгж, байгууллагад мөрдөх нягтлан бодох бүртгэлийн дансны үлгэрчилсэн заавар (Сангийн сайдын 2000 оны 116 дугаар тушаал)",
-        "section": null,
-        "verified": false,
+        "section": "9.4.1.1",
+        "verified": true,
         "url": "https://legalinfo.mn/mn/detail?lawId=205201",
-        "quote": null
+        "quote": "Төлсөн татварын дүнгээр: Дт Орлогын татварын өглөг Кт Мөнгөн хөрөнгө"
       },
-      "verified": false,
+      "verified": true,
       "enabled": true,
       "reference_bullet": "§3 'Income tax' (payment implied) and 'Payroll' payment bullet 'Дт өглөг — Кт Мөнгө'",
-      "notes": "Added per reviewer (CIT payment was absent). Citation: not in either mapper's list. Integrator's candidate: 9.4.1.1 «Төлсөн татварын дүнгээр: Дт Орлогын татварын өглөг Кт Мөнгөн хөрөнгө» — verbatim in the saved text (the reconciler quotes it under payroll_pay as the entity's own income-tax payment), single-reader; confirm before verified is set."
+      "notes": "Added per reviewer (CIT payment was absent). Citation: SECOND READER 2026-09-09 confirms the integrator's candidate, so verified is now true: 9.4.1.1 prints this payment entry account for account. The «other_tax» alternative on the debit line rests on 1.4 «Татвар цалин гэх мэт бусад мөнгөн зарлага гарсан тохиолдолд: Дт Татварын өглөг/ Цалингийн өглөг/ бусад холбогдох дансад Кт Мөнгөн хөрөнгө гэж тус тус бүртгэнэ.», the same sentence payroll_pay is verified on. Second reading 2026-09-09: legalinfo.mn lawId=205201 re-fetched with curl; the instrument body is byte-identical to the 2026-09-08 copy (only the site chrome differs), and every sentence below was cut out of that fetch by offset, not retyped."
     },
     {
       "pattern_id": "petty_cash_establish",
@@ -1077,7 +1077,7 @@
       "verified": false,
       "enabled": true,
       "reference_bullet": "§3 'Payroll' 'social insurance Дт зардал — Кт НДШ өглөг' with §1.3 employee 11.5%",
-      "notes": "Added per reviewer: without it net pay and Цалингийн өглөг are overstated by the employee share every month. Citation: not in either mapper's list, and Order 116 prints no employee-share withholding entry — 9.4.1.1 has only the employer-side «Нийгмийн даатгалын байгууллагад өгөх даатгалын өглөгийг: Дт Зардлын холбогдох дансад Кт Холбогдох даатгалын өглөг». The employee withholding is required by the General Law on Social Insurance art. 21.1 («сар бүр тооцон суутгаж»), not by this instrument. Whether the SI deduction reduces the PIT base is UNCONFIRMED."
+      "notes": "Added per reviewer: without it net pay and Цалингийн өглөг are overstated by the employee share every month. Citation: STILL UNVERIFIED after the second reading of 2026-09-09. Order 116 prints only the employer side — 9.4.1.1 «Нийгмийн даатгалын байгууллагад өгөх даатгалын өглөгийг: Дт Зардлын холбогдох дансад Кт Холбогдох даатгалын өглөг», which payroll_employer_si is verified on — and no sentence anywhere in the instrument debits Цалингийн өглөг for the employee's own contribution. The obligation to withhold it is in the General Law on Social Insurance (see docs/legal/social_insurance_law.md), a different instrument from the one this citation field names. WHAT AN ADMIN WOULD BE VOUCHING FOR if they tick it: UNCONTROVERSIAL DOUBLE-ENTRY MECHANICS — the withheld amount moves out of the salary payable and into the social-insurance payable, exactly as payroll_withhold_pit does for PIT (which IS printed, in 9.4.1.1). Separately UNCONFIRMED and NOT part of this pattern: whether the SI deduction reduces the PIT base."
     },
     {
       "pattern_id": "payroll_employer_si",
@@ -1443,7 +1443,7 @@
       "verified": false,
       "enabled": true,
       "reference_bullet": "§3 'Customer prepayment' entry 2 of 2 ('recognise on delivery')",
-      "notes": "Not prescribed by Order 116: both mappers found no entry debiting Урьдчилж төлөгдсөн орлого against Борлуулалт (only the receipt in 9.4.1.1 and the refund in 9.4.1.2 «Дт Урьдчилж төлөгдсөн орлого Кт Дансны өглөг»); revenue timing is stated only as a principle in 11.1. Needs another authority (IFRS for SMEs s.23 or the entity's accounting policy). The Кт 51 / Кт 31 split is taken from the sale patterns; if VAT was accounted for on receipt of the advance (open question) this must not double-count it."
+      "notes": "Not prescribed by Order 116, re-checked 2026-09-09: the instrument prints the receipt of an advance (9.4.1.1 «Дт Мөнгөн хөрөнгө Кт Урьдчилж төлөгдсөн орлого») and its refund (9.4.1.2 «Дт Урьдчилж төлөгдсөн орлого Кт Дансны өглөг») but no entry that turns the advance into revenue; revenue timing appears only as a principle in 11.1. The Кт 51 / Кт 31 split is copied from the sale patterns. WHAT AN ADMIN WOULD BE VOUCHING FOR if they tick it: the revenue-recognition rule of IFRS for SMEs s.23 (or the entity's own accounting policy) and, for the VAT line, that VAT was NOT already accounted for when the advance was received — otherwise this double-counts it. That open question is why this variant is riskier than the non-VAT one."
     },
     {
       "pattern_id": "customer_prepayment_recognize_non_vat",
@@ -1499,7 +1499,7 @@
       "verified": false,
       "enabled": true,
       "reference_bullet": "§3 'Customer prepayment' entry 2 of 2",
-      "notes": "Not prescribed by Order 116 (see customer_prepayment_recognize_vat_payer): no «Дт Урьдчилж төлөгдсөн орлого Кт Борлуулалт» entry anywhere in the instrument. Non-VAT variant."
+      "notes": "Not prescribed by Order 116, re-checked 2026-09-09: see customer_prepayment_recognize_vat_payer — the instrument prints the receipt of an advance and its refund but no entry turning it into revenue. Non-VAT variant, so the double-count risk on the VAT line does not arise. WHAT AN ADMIN WOULD BE VOUCHING FOR if they tick it: the revenue-recognition rule of IFRS for SMEs s.23 (or the entity's own accounting policy) — that the goods or services the advance paid for have been delivered in this period. The entry itself is uncontroversial double entry: the advance liability is cleared to sales."
     },
     {
       "pattern_id": "fixed_asset_acquire_vat_payer",
@@ -1579,7 +1579,7 @@
       "verified": false,
       "enabled": true,
       "reference_bullet": "§3 'Fixed asset purchase' entry 1 of 3, VAT line from 'Purchase of goods/services (VAT payer)'",
-      "notes": "Split per reviewer from a single regime-agnostic pattern. Deductibility of input VAT on fixed assets in 2026 is UNCONFIRMED (reference §1.3 lists fixed-asset purchases among deductions widened from 2027, VERIFY): the vat line is optional so the accountant can capitalise the VAT by passing vat=0 and net=gross. The purchase tax template posts to the input VAT account regardless (setup/taxes.py). Citation: candidates 6.9 А («Үндсэн хөрөнгийг мөнгөөр буюу дараа тооцоогоор худалдан авах үед : Дт Үндсэн хөрөнгө Кт Мөнгөн хөрөнгө/ Дансны өглөг», both mappers exact for the regime-agnostic entry) + 9.4.1.1 for the input-VAT line, which is worded for «бараа материал» and never printed for a fixed asset — a composite by extension, so verified stays false. Deductibility of input VAT on fixed assets: VAT Law art. 14.1.5 (pro rata over 10 years for buildings, 5 years for equipment, immediately for other assets; unchanged by the 2026 package) — the vat line is optional so the accountant can capitalise the VAT by passing vat=0 and net=gross."
+      "notes": "Split per reviewer from a single regime-agnostic pattern. Deductibility of input VAT on fixed assets in 2026 is UNCONFIRMED (reference §1.3 lists fixed-asset purchases among deductions widened from 2027, VERIFY): the vat line is optional so the accountant can capitalise the VAT by passing vat=0 and net=gross. The purchase tax template posts to the input VAT account regardless (setup/taxes.py). Citation: STILL UNVERIFIED after the second reading of 2026-09-09, for the same reason as purchase_expense_vat_payer. The acquisition leg is printed in 6.9 А («Үндсэн хөрөнгийг мөнгөөр буюу дараа тооцоогоор худалдан авах үед : Дт Үндсэн хөрөнгө Кт Мөнгөн хөрөнгө/ Дансны өглөг») and fixed_asset_acquire_non_vat is verified on it; cost composition is 6.2. The input-VAT leg is NOT printed for a fixed asset anywhere in the instrument (the 9.4.1.1 sentence covers «гаднаас авсан бараа материал»), and the VAT Law art. 14.1.5 spreads that deduction over 10 years for buildings and 5 for equipment — a rule Order 116 does not carry and this pattern does not model. WHAT AN ADMIN WOULD BE VOUCHING FOR if they tick it: the immediate input-VAT claim on a fixed asset under the VAT Law. Until then the accountant can post the asset by passing vat=0 and net=gross, which capitalises the VAT and lands on the verified fixed_asset_acquire_non_vat shape."
     },
     {
       "pattern_id": "fixed_asset_acquire_non_vat",
@@ -2315,7 +2315,7 @@
       "verified": false,
       "enabled": true,
       "reference_bullet": "§3 'Income tax'",
-      "notes": "Дт Орлогын татварын зардал — Кт Орлогын татварын өглөг. Deferred tax per MoF order 135/2000 is NOT seeded (no accounts or method in the reference). Citation: mappers disagree on confidence — A probable, B exact — for 9.4.1.1 «Аж ахуйн нэгж байгууллагын орлогын татварын зардлын хэмжээгээр: Дт Орлогын татварын зардал Кт Орлогын татварын өглөг Кт Хойшлуулсан татварын өглөг» (also 12.2.4 «Дт Орлогын албан татварын зардал Кт Орлогын татварын өглөг Кт Дараа тооцох татварын өглөг»). Every printed entry carries a deferred-tax credit line; this two-line pattern is the zero-deferred special case. Deferred tax per MoF order 135/2000 is NOT seeded (not fetched)."
+      "notes": "Дт Орлогын татварын зардал — Кт Орлогын татварын өглөг. Deferred tax per MoF order 135/2000 is NOT seeded (no accounts or method in the reference). Citation: STILL UNVERIFIED after the second reading of 2026-09-09, and the reason is precise. Both printed accrual forms carry a THIRD line for deferred tax — 9.4.1.1 «Аж ахуйн нэгж байгууллагын орлогын татварын зардлын хэмжээгээр: Дт Орлогын татварын зардал Кт Орлогын татварын өглөг Кт Хойшлуулсан татварын өглөг» and 12.2.4 «Дт Орлогын албан татварын зардал Кт Орлогын татварын өглөг Кт Дараа тооцох татварын өглөг», where 12.2.4 says in words that the debit is the SUM of the two credits. This pattern has two lines, so the quote supports it only in the special case where the deferred amount is zero, and the instrument prints no such variant. Deferred tax is MoF order 135/2000, which has not been fetched and is not seeded. WHAT AN ADMIN WOULD BE VOUCHING FOR if they tick it: that this company has no temporary differences in the period, so the third line would be zero. That is a fact about the company, not about the law — it is a defensible tick for a micro SME, and it is why the row is left for a human."
     },
     {
       "pattern_id": "simplified_tax_accrue",
@@ -2364,7 +2364,7 @@
       "verified": false,
       "enabled": true,
       "reference_bullet": "§3 'Income tax' (applied to the 1% regime, class assumed)",
-      "notes": "Keyed on applies_to_cit only (reviewer): the CIT regime, not the VAT status, decides this. Citation: not in either mapper's list — the 1% simplified regime (CIT Law art. 29, 2019) post-dates Order 116 (2000), which knows only the general income-tax entry in 9.4.1.1 / 12.2.4. The rate is CIT Law art. 29.9 (tax parameter simplified.rate). Keyed on applies_to_cit only (reviewer): the CIT regime, not the VAT status, decides this."
+      "notes": "Keyed on applies_to_cit only (reviewer): the CIT regime, not the VAT status, decides this. Citation: STILL UNVERIFIED after the second reading of 2026-09-09, and no primary source can cover it as written. The 1% simplified regime is CIT Law art. 29 (2019); Order 116 (2000) predates it and knows only the general income-tax accrual of 9.4.1.1 / 12.2.4, which carries a deferred-tax line the simplified regime has no use for. The rate lives in the tax parameter simplified.rate; booking the 1% tax in class 91 rather than as a turnover levy is Nyabo's assumption and the reference does not settle it. WHAT AN ADMIN WOULD BE VOUCHING FOR if they tick it: UNCONTROVERSIAL DOUBLE-ENTRY MECHANICS ONLY — a tax expense debited and a tax payable credited for the same amount — plus the choice of class 91 for the expense. No law prescribes this entry and none contradicts it."
     },
     {
       "pattern_id": "property_tax_accrue",
@@ -2578,15 +2578,15 @@
       "citation": {
         "instrument": "Заавар 116 (2000)",
         "instrument_full": "Аж ахуйн нэгж, байгууллагад мөрдөх нягтлан бодох бүртгэлийн дансны үлгэрчилсэн заавар (Сангийн сайдын 2000 оны 116 дугаар тушаал)",
-        "section": null,
-        "verified": false,
+        "section": "1.4; 12.2.2 А",
+        "verified": true,
         "url": "https://legalinfo.mn/mn/detail?lawId=205201",
-        "quote": null
+        "quote": "Мөнгөн зарлагын үндсэн хэлбэр нь бараа, материал худалдан авсан болон бусад байгууллага, хүмүүсээс авсан төрөл бүрийн үйлчилгээний төлбөр байна. Үүнийг : Дт Хөрөнгө/ (Зардал)/ Дансны өглөг Кт Мөнгөн хөрөнгө гэж бичнэ. — Хуулийн болон бусад мэргэжлийн байгууллагаар үйлчлүүлсний хөлс, гадны үйлчилгээний зардлын дүнгээр: Дт Гадны үйлчилгээний зардал Кт Дансны өглөг/Мөнгө"
       },
-      "verified": false,
+      "verified": true,
       "enabled": true,
       "reference_bullet": "§3 'Purchase (not VAT-registered)' shape (expense — cash); bank charges are VAT-exempt in the V1 chart flags (UNCONFIRMED in law)",
-      "notes": "Needed by the bank statement flow (ARCHITECTURE §5.4: fee lines -> rule bank_fee auto-proposal). No VAT line: the V1 chart lists 6810 among VAT-exempt accounts; the VAT Law exemption article is not cited in the reference. Citation: not in either mapper's list; Order 116 prints no bank-fee entry. Integrator's candidate: the generic 1.4 cash-outflow entry «Дт Хөрөнгө/ (Зардал)/ Дансны өглөг Кт Мөнгөн хөрөнгө». Needed by the bank statement flow (ARCHITECTURE §5.4). No VAT line: the V1 chart lists 6810 among VAT-exempt accounts; the VAT Law exemption article is not cited in the reference."
+      "notes": "Needed by the bank statement flow (ARCHITECTURE §5.4: fee lines -> rule bank_fee auto-proposal). No VAT line: the V1 chart lists 6810 among VAT-exempt accounts; the VAT Law exemption article is not cited in the reference. Citation: SECOND READER 2026-09-09; verified is now true on the same two sentences as bank_line_expense. A bank charge is «бусад байгууллага... -аас авсан төрөл бүрийн үйлчилгээний төлбөр» in 1.4's own words, booked to expense against the bank account, and 12.2.2 А prints that entry for a fee paid to an outside service organisation («Дт Гадны үйлчилгээний зардал Кт Дансны өглөг/Мөнгө»). Still NOT cited: the absence of a VAT line — the V1 chart lists 6810 among VAT-exempt accounts but the VAT Law exemption article has not been read, so an accountant who reclaims input VAT on bank charges must change this pattern. Second reading 2026-09-09: legalinfo.mn lawId=205201 re-fetched with curl; the instrument body is byte-identical to the 2026-09-08 copy (only the site chrome differs), and every sentence below was cut out of that fetch by offset, not retyped."
     },
     {
       "pattern_id": "bank_line_expense",
@@ -2638,15 +2638,15 @@
       "citation": {
         "instrument": "Заавар 116 (2000)",
         "instrument_full": "Аж ахуйн нэгж, байгууллагад мөрдөх нягтлан бодох бүртгэлийн дансны үлгэрчилсэн заавар (Сангийн сайдын 2000 оны 116 дугаар тушаал)",
-        "section": null,
-        "verified": false,
+        "section": "1.4; 12.2.2 А",
+        "verified": true,
         "url": "https://legalinfo.mn/mn/detail?lawId=205201",
-        "quote": null
+        "quote": "Мөнгөн зарлагын үндсэн хэлбэр нь бараа, материал худалдан авсан болон бусад байгууллага, хүмүүсээс авсан төрөл бүрийн үйлчилгээний төлбөр байна. Үүнийг : Дт Хөрөнгө/ (Зардал)/ Дансны өглөг Кт Мөнгөн хөрөнгө гэж бичнэ. — Хуулийн болон бусад мэргэжлийн байгууллагаар үйлчлүүлсний хөлс, гадны үйлчилгээний зардлын дүнгээр: Дт Гадны үйлчилгээний зардал Кт Дансны өглөг/Мөнгө"
       },
-      "verified": false,
+      "verified": true,
       "enabled": true,
       "reference_bullet": "§3 'Purchase (not VAT-registered)' shape (expense — cash), on a statement line",
-      "notes": "Needed by the bank statement flow (ARCHITECTURE §5.4: an unmatched outflow gets [Зардал бүртгэх] or the model's classification). Without this row the proposal cited a pattern id that existed nowhere, so approval failed with «загвар олдсонгүй» before the unverified-rule guard could speak and no admin had a row to verify. Citation: not in either mapper's list; Order 116 prints no entry for a bank statement line. Integrator's candidate: the generic 1.4 cash-outflow entry «Дт Хөрөнгө/ (Зардал)/ Дансны өглөг Кт Мөнгөн хөрөнгө» (single-reader; confirm before verified is set)."
+      "notes": "Needed by the bank statement flow (ARCHITECTURE §5.4: an unmatched outflow gets [Зардал бүртгэх] or the model's classification). Without this row the proposal cited a pattern id that existed nowhere, so approval failed with «загвар олдсонгүй» before the unverified-rule guard could speak and no admin had a row to verify. Citation: SECOND READER 2026-09-09; verified is now true as a composite of two printed sentences (the shape sale_cash_vat_payer already uses). 1.4 gives the entry itself for a cash outflow charged straight to expense — the «(Зардал)» branch of «Дт Хөрөнгө/ (Зардал)/ Дансны өглөг Кт Мөнгөн хөрөнгө» — and 12.2.2 А gives the class-70 debit («Дт Гадны үйлчилгээний зардал Кт Дансны өглөг/Мөнгө»), expenses being booked «тухайн зардлын ангиллаар» per the 12.2.2 lead-in. The class-71 alternative is the same entry in 12.2.2 Б («Дт Бичиг хэргийн зардал Дт Түлш шатахууны зардал Дт Бусад хангамжийн материалын зардал Кт Материал/Мөнгө/Дансны өглөг»). What the citation does NOT cover is which expense account the line lands in: that is the accountant's tap or the model's classification, and no instrument prescribes it. Second reading 2026-09-09: legalinfo.mn lawId=205201 re-fetched with curl; the instrument body is byte-identical to the 2026-09-08 copy (only the site chrome differs), and every sentence below was cut out of that fetch by offset, not retyped. SCOPE OF THIS CITATION, read before relying on it: the 12.2.2 А sentence quoted above is printed for fees for legal and other professional outside services, while this pattern is selected for ANY unmatched statement outflow charged to expense. The 1.4 half is the general one and it carries the entry — its own wording is payment for goods, materials and «төрөл бүрийн үйлчилгээний төлбөр» to other organisations and people, which is what a bank outflow usually is. 12.2.2 А is cited for the class-70 debit, and the expense it names is an example of that class rather than its limit. No sentence printing this entry for every kind of outflow was found in the instrument — if one is found, cite it and delete this paragraph."
     },
     {
       "pattern_id": "bank_transfer_internal",
@@ -2695,7 +2695,7 @@
       "verified": false,
       "enabled": true,
       "reference_bullet": "§3 — none; the reference prints no transfer between two own accounts",
-      "notes": "Needed by the bank statement flow (ARCHITECTURE §5.4: transfers between own accounts are paired into one proposal). Not prescribed by Order 116: the instrument prints no entry moving money between two bank accounts of the same entity, and 1.2 only says that bank accounts are classified per bank and per currency. Citation: not in either mapper's list; until a reader confirms one, the row stays unverified and require_verified refuses to post it."
+      "notes": "Needed by the bank statement flow (ARCHITECTURE §5.4: transfers between own accounts are paired into one proposal). Not prescribed by Order 116, re-checked 2026-09-09: the instrument prints no entry moving money between two bank accounts of the same entity; the only place the instrument says anything about a second bank account is the model chart table, whose guidance for code 11 reads «Данс нээсэн банк тус бүрээр төгрөгийн, валютын гэж ангилна.» (1.2 is valuation, not classification). The 1.4 cash-outflow sentence the bank patterns are verified on does not reach this case — it is worded for payments for goods and services to other parties, and an own transfer is neither income nor expense. WHAT AN ADMIN WOULD BE VOUCHING FOR if they tick it: UNCONTROVERSIAL DOUBLE-ENTRY MECHANICS ONLY — one class-11 account debited and another class-11 account of the same company credited for the same amount, so the pair of statement lines nets to zero. No law prescribes this entry and none contradicts it; what the accountant is really confirming is that the two statement lines really are the same company's own accounts."
     }
   ]
 }

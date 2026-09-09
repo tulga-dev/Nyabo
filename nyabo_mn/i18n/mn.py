@@ -150,6 +150,7 @@ MSG_MENU = (
 	"/бодлого — НББ-ийн бодлогын баримт бичиг\n"
 	"/компани — идэвхтэй компани солих\n"
 	"/эхлэх — компанийн тохиргоо\n"
+	"/дүрэм — баталгаажаагүй дүрэм (админ баталгаажуулна)\n"
 	"/меню (эсвэл /цэс) — энэ цэс\n"
 	"/цуцлах — эхлүүлсэн ажлыг болих\n"
 	"/тусламж — тусламж\n"
@@ -169,6 +170,7 @@ BOT_COMMAND_DESCRIPTIONS = {
 	"company": "Идэвхтэй компани солих (/компани)",
 	"setup": "Компанийн тохиргоо (/эхлэх)",
 	"cancel": "Эхлүүлсэн ажлыг цуцлах (/цуцлах)",
+	"rules": "Баталгаажаагүй дүрэм (/дүрэм) — админ",
 }
 MSG_HELP = (
 	"Нябо хэрхэн ажилладаг вэ?\n"
@@ -182,7 +184,8 @@ MSG_ADMIN_HELP = (
 	"Админ командууд:\n"
 	"/link <нягтлан|эзэмшигч> <компани> — холболтын код олгох\n"
 	"/whoami — Telegram ID харах\n"
-	"/status — системийн төлөв"
+	"/status — системийн төлөв\n"
+	"/дүрэм (/rules) — баталгаажаагүй дүрмийг харах, баталгаажуулах"
 )
 
 # --- onboarding ------------------------------------------------------------------------
@@ -421,6 +424,16 @@ EVENT_PERIOD_DELETED = "period_deleted"
 EVENT_ENTRY_REVERSED = "entry_reversed"
 EVENT_POLICY_GENERATED = "policy_generated"
 EVENT_FX_RATES_IMPORTED = "fx_rates_imported"
+# Marking a rule verified is a human taking responsibility for a legal reading (§1.2), so it
+# is an audit row like a period lock, not a settings edit. The request event is written when
+# somebody who may not verify hits the refusal, so «the request has been recorded» is true.
+EVENT_RULE_VERIFIED = "rule_verified"
+EVENT_RULE_VERIFY_REQUESTED = "rule_verification_requested"
+# A deploy added the repository's citation to a row a *person* had already ticked (VER-06). The
+# row then reads «verified by Ганбат» next to a quote Ганбат never saw, and only this event says
+# so: it is the difference between what the human took responsibility for and what is on the row
+# now. A seeded flag needs no such row — the repository's own history is git.
+EVENT_RULE_CITATION_FILLED = "rule_citation_filled"
 MSG_FX_RATES_IMPORTED = "Монголбанкны ханш: {count} мөр импортлолоо ({skipped} давхардсан)."
 MSG_FX_FETCH_DISABLED = "Монголбанкны ханш татах тохиргоо идэвхгүй (MONGOLBANK_FETCH_ENABLED)."
 
@@ -773,6 +786,11 @@ READINESS_SOURCE_PENDING = (
 READINESS_DETAIL_OK = "Байна"
 READINESS_DETAIL_MISSING = "Алга: {what}"
 READINESS_DETAIL_COUNT = "{count} мөр"
+# The certification reader must not be able to read "35 rows verified" as 35 human decisions.
+READINESS_DETAIL_RULES_VERIFIED = (
+	"{count} мөр: {by_seed} нь Нябогийн эх сурвалжийн ишлэлээр, "
+	"{by_person} нь нэрлэсэн хүний баталгаажуулалтаар"
+)
 READINESS_DETAIL_ERPNEXT_REPORT = "ERPNext-ийн стандарт тайлан ({report})"
 READINESS_DETAIL_HOOK = "Хук: {handler}"
 READINESS_DETAIL_COMPANIES = "Компани: {ok}/{total} тохируулсан"
@@ -1268,6 +1286,172 @@ MSG_CLOSE_CANCELLED = "Сарын хаалтыг цуцаллаа."
 MSG_POSTED_CARD_FOOTER = "✅ Бүртгэлээ: {doc_name} · Баталсан: {approver}"
 MSG_REJECTED_CARD_FOOTER = "❌ Татгалзлаа: {reason}"
 MSG_CORRECTION_STARTED = "Залруулга: {doctype} {name}"
+
+# --- rule verification from the chat (/дүрэм) ---------------------------------------------------
+# MSG_UNVERIFIED_RULE_BLOCKED promises that an admin checks the rule against the primary text.
+# These are the door that promise points at: the list of what is blocking work, the evidence
+# behind one rule, and the two answers an admin may give it.
+BTN_RULE_LEAVE = "Одоохондоо үлдээх"
+BTN_RULE_ROW = "{index}. {label}"
+MSG_RULES_TITLE = "📋 Баталгаажаагүй дүрэм: {count}"
+MSG_RULES_INTRO = (
+	"Эдгээр дүрмээр бодит бичилт хийгдэхгүй. Дүрэм бүрийг эх сурвалжтай нь тулгаж баталгаажуулна уу."
+)
+MSG_RULES_MORE = "…бас {count} дүрэм байна; бүгдийг ERPNext дэсктээс харна."
+MSG_RULES_NONE = "✅ Баталгаажаагүй дүрэм алга байна."
+MSG_RULES_ADMIN_ONLY = (
+	"Дүрмийг зөвхөн Нябо админ баталгаажуулна. Танай Нябо админд хандана уу — "
+	"баталгаажаагүй дүрмээс болж бичилт зогсвол админд мэдэгдэл автоматаар очно."
+)
+# Keyed by ``rules.verify`` kinds ("p", "t"), which are also what the callback datum carries.
+# A posting pattern and a tax parameter are one row for the whole site, so verifying one is a
+# decision for every company on it — not a decision an admin of a single company may take
+# (DECISIONS VER-08). They still see the list and the evidence: it is their work being blocked.
+MSG_RULES_SITE_ADMIN_ONLY = (
+	"Энэ дүрэм сайт дээрх бүх компанид нэгэн адил хамаарна. Тиймээс нэг компанийн "
+	"админ биш, зөвхөн сайтын админ баталгаажуулна. Сайтын админд хандана уу — "
+	"баталгаажаагүй дүрмээс болж бичилт зогсвол түүнд мэдэгдэл очно."
+)
+RULE_KIND_LABELS = {"p": "бичилтийн загвар", "t": "татварын үзүүлэлт"}
+# Keyed in ``rules.verify`` (F-12: the regime name itself is spelled only in rules/regime.py).
+RULE_VAT_SCOPE_ANY = "бүх горим"
+RULE_VAT_SCOPE_VAT_PAYER = "НӨАТ төлөгч"
+RULE_VAT_SCOPE_NON_VAT = "НӨАТ төлөгч бус"
+RULE_STATUS_LABELS = {"active": "хүчинтэй", "pending": "хүлээгдэж буй"}
+# What one row is *for*, in the list and at the top of its own card: a pattern by the primary
+# document it books and the regime it applies to, a parameter by its status and the law it was
+# read from. The parameter's status comes first because the line is clipped to one card width
+# (rules.verify.PURPOSE_MAX_CHARS) and every seeded law title is longer than that on its own —
+# «хүлээгдэж буй» is the half that changes what the admin is looking at, so it must not be the
+# half that is cut off.
+RULE_PURPOSE_PATTERN = "{document} · {scope}"
+RULE_PURPOSE_PARAMETER = "{status} · {source}"
+CARD_RULE_ROW = "{index}. {label}\n     {purpose}"
+CARD_RULE_ROW_USES = "{index}. {label}\n     {purpose} · {uses} удаа хэрэглэсэн"
+CARD_RULE_TITLE = "📜 {label}"
+CARD_RULE_CODE = "Код: {rule} · {kind}"
+# Keyed by ``rules.verify`` kinds, like RULE_KIND_LABELS: the line under the title says what a
+# pattern is *for* (a document and a regime), and what state a parameter is *in* — calling a law
+# title and «хүлээгдэж буй» a «хамрах хүрээ» told the reader the wrong thing about both.
+CARD_RULE_PURPOSE_LABELS = {"p": "Хамрах хүрээ: {purpose}", "t": "Төлөв: {purpose}"}
+CARD_RULE_PURPOSE = CARD_RULE_PURPOSE_LABELS["p"]
+CARD_RULE_USES = "Энэ дүрмээр {uses} санал үүссэн."
+CARD_RULE_ENTRY_TITLE = "Бичилт:"
+CARD_RULE_ENTRY_LINE = "{side} {account} · {amount}"
+CARD_RULE_SIDE_LABELS = {"debit": "Дт", "credit": "Кт"}
+CARD_RULE_AMOUNT_LABELS = {
+	"gross": "нийт дүн",
+	"net": "НӨАТ-гүй дүн",
+	"vat": "НӨАТ-ын дүн",
+	"": "дүн",
+}
+CARD_RULE_LINE_OPTIONAL = "заавал биш"
+CARD_RULE_VALUE = "Утга: {value} · {unit}"
+CARD_RULE_EFFECTIVE = "Хүчинтэй хугацаа: {effective_from} — {effective_to}"
+CARD_RULE_OPEN_ENDED = "хязгааргүй"
+CARD_RULE_CITATION = "📜 Эх сурвалж: {instrument}, {section}"
+CARD_RULE_CITATION_NO_SECTION = "📜 Эх сурвалж: {instrument}"
+CARD_RULE_QUOTE = "«{quote}»"
+# A quote too long for one bubble. The ellipsis sits inside the guillemets so the fragment can
+# never be read as the whole provision, and the line under it says where the rest is.
+CARD_RULE_QUOTE_CUT = "«{quote}…»"
+CARD_RULE_QUOTE_CUT_NOTE = (
+	"✂️ Ишлэл бүтэн багтсангүй. Бүрэн эхийг эх сурвалжийн холбоосоор, "
+	"эсвэл ERPNext дэск дэх дүрмийн бичлэгээс уншина уу."
+)
+CARD_RULE_SOURCE_URL = "🔗 {url}"
+# The seed's own briefing for whoever is at the verify button (DECISIONS CORE-18, CORE-19).
+# Only the heading is translated: the body is the seed note verbatim, and the seed writes its
+# notes in English for the repository's readers. Paraphrasing it here would put a second,
+# unreviewed wording of a legal caveat in front of the person taking responsibility for it.
+CARD_RULE_BRIEFING_TITLE = "📝 Баталгаажуулбал юуг хүлээн зөвшөөрөх вэ:"
+# ...and the card says so, in Mongolian, before the English begins (DECISIONS VER-10). Everything
+# else on this card is Mongolian; a reader who meets a paragraph they cannot read on the screen
+# where they take responsibility either taps blindly or gives up, and both are worse than being
+# told plainly what the paragraph is and what to do instead.
+CARD_RULE_BRIEFING_LANGUAGE = (
+	"(Тайлбарыг эх сурвалж судалсан хүн англиар бичсэн. Орчуулбал хуулийн агуулга гуйвах "
+	"эрсдэлтэй тул хэвээр нь тавив. Уншиж ойлгохгүй бол битгий баталгаажуулаарай — "
+	"ERPNext дэск дэх дүрмийн бичлэгээс, эсвэл эх сурвалжийг нь мэддэг хүнээр шалгуулна уу.)"
+)
+# The same two lines on a rule that is already verified, where nothing is being decided: the
+# heading no longer asks what the reader would be accepting, and the note drops the «do not
+# verify» advice, which would be an instruction about a decision that has already been taken.
+CARD_RULE_BRIEFING_TITLE_VERIFIED = "📝 Энэ дүрмийн тайлбар, ишлэлийн хамрах хүрээ:"
+CARD_RULE_BRIEFING_LANGUAGE_VERIFIED = (
+	"(Тайлбарыг эх сурвалж судалсан хүн англиар бичсэн; орчуулбал хуулийн агуулга гуйвах "
+	"эрсдэлтэй тул хэвээр нь тавив. Бүрэн эхийг ERPNext дэск дэх дүрмийн бичлэгээс уншина уу.)"
+)
+CARD_RULE_NOTE_CUT = "✂️ Тайлбар бүтэн багтсангүй; бүрэн эхийг ERPNext дэск дэх дүрмийн бичлэгээс уншина уу."
+CARD_RULE_NO_CITATION = (
+	"⚠️ Хуулийн тодорхой заалт, ишлэл энэ дүрэмд алга. Баталгаажуулна гэдэг нь дээрх агуулгыг "
+	"эх сурвалжтай нь өөрөө тулгаж, хариуцлагыг нь хүлээж байгаа хэрэг."
+)
+CARD_RULE_RESPONSIBILITY = "Баталгаажуулсан хүн, огноо бүртгэгдэж, аудитын мөр үлдэнэ."
+CARD_RULE_ASK = "Баталгаажуулах уу?"
+# The same card for a rule that is already verified: it asks nothing, and it says who vouched
+# for it (cards.rule_verified_source) — the seed's citation and a person's tap are not the same
+# claim (VER-07). This is the only place in the chat where a verified rule can be read at all.
+CARD_RULE_VERIFIED_BY = "✅ Баталгаажсан: {source}"
+MSG_RULE_NOT_FOUND = "Дүрэм олдсонгүй: {rule}"
+# The write itself failed (verified_by is a Link to User: a session user with no User row stops
+# the save). Nothing was verified, so say that, and name the door that still works.
+MSG_RULE_VERIFY_FAILED = (
+	"«{rule}» дүрмийг баталгаажуулах үед алдаа гарлаа. Дүрэм баталгаажаагүй хэвээр байна. "
+	"ERPNext дэсктээс баталгаажуулж үзнэ үү; дахин давтагдвал сайтын админд хандана уу."
+)
+# Two things wear verified = 1 and they are not the same claim (DECISIONS VER-07): the seed's
+# own citation, which no person on this site signed, and a named human's tap. Never print the
+# first as if it were the second — an accountant reads a name as somebody having taken the
+# responsibility, and there is nobody there.
+RULE_VERIFIED_SOURCE_SEED = "Нябогийн эх сурвалжийн ишлэлээр (энэ сайт дээр хүн баталгаажуулаагүй)"
+RULE_VERIFIED_SOURCE_PERSON = "{user} · {when}"
+MSG_RULE_ALREADY_VERIFIED = "Энэ дүрэм аль хэдийн баталгаажсан: {rule}\nБаталгаажуулсан: {source}"
+MSG_RULE_VERIFIED = "✅ Баталгаажлаа: {rule}\nБаталгаажуулсан: {user} · {when}"
+MSG_RULE_VERIFIED_RETRY = (
+	"Энэ дүрмээр бичилт хийх боломжтой боллоо. Хүлээж байсан баримтын карт дээрх «Батлах» "
+	"товчийг дахин дарна уу; зургийг дахин илгээх шаардлагагүй."
+)
+# The same news, sent to the person whose posting the rule refused — who is not in this chat and
+# has been waiting since. MSG_UNVERIFIED_RULE_ADMIN_ASKED promised them exactly this moment, so
+# the message names the rule (they may have hit more than one) and repeats the one tap that is left.
+MSG_RULE_VERIFIED_FOR_REQUESTER = (
+	"✅ «{rule}» дүрэм баталгаажлаа. Энэ дүрмээс болж зогссон баримтынхаа карт дээрх «Батлах» "
+	"товчийг дахин дарна уу; зургийг дахин илгээх шаардлагагүй."
+)
+MSG_RULE_LEFT = "Дүрмийг баталгаажуулаагүй үлдээлээ; энэ дүрмээр бичилт хийгдэхгүй хэвээр."
+MSG_RULE_VERIFY_IN_DESK = (
+	"Энэ дүрмийн кодыг товчинд багтаах боломжгүй тул ERPNext дэсктээс баталгаажуулна уу: {rule}"
+)
+# The refusal the accountant already sees (MSG_UNVERIFIED_RULE_BLOCKED) plus the way out, which
+# is different for the two readers: an admin gets the rule card and the buttons, everyone else
+# gets a promise that is actually kept by notify_admins.
+MSG_UNVERIFIED_RULE_ADMIN_CAN_VERIFY = "Та админ эрхтэй тул энэ дүрмийг эндээс баталгаажуулж болно."
+MSG_UNVERIFIED_RULE_ADMIN_ASKED = (
+	"Энэ дүрмийг Нябо админ баталгаажуулна. Хүсэлтийг бүртгэж, админд мэдэгдэл илгээлээ. "
+	"Баталгаажсаны дараа энэ картын «Батлах» товчийг дахин дарахад бичилт хийгдэнэ."
+)
+# When there is nobody to notify at all — no ADMIN_TELEGRAM_IDS and no Admin linked to this
+# company — the accountant must not be told a message was sent. They are a bookkeeper, so the
+# next step is named for them: the request is on record, and who to go to.
+MSG_UNVERIFIED_RULE_NO_ADMIN = (
+	"Энэ дүрмийг баталгаажуулах админ Нябод бүртгэгдээгүй байна. Хүсэлтийг бүртгэлээ, гэхдээ "
+	"мэдэгдэл очих хүн алга. Нябог тохируулсан хүнд хандаж, «{rule}» дүрмийг ERPNext дэсктээс "
+	"баталгаажуулах, эсвэл админаа Нябод холбуулна уу. Тэгсний дараа энэ картын «Батлах» "
+	"товчийг дахин дарахад бичилт хийгдэнэ."
+)
+MSG_ADMIN_RULE_VERIFY_REQUEST = (
+	"🔒 {company}: «{rule}» дүрэм баталгаажаагүй тул бичилт зогслоо. /дүрэм командаар баталгаажуулна уу."
+)
+# The same news for the other kind of admin. A rule row belongs to the whole site, so an admin
+# linked to one company may read the evidence but not tick it (VER-08) — telling them to verify
+# it with /дүрэм would send them to a card that refuses them. They are still worth telling: they
+# are admins of these books and can clear the row in the ERPNext desk.
+MSG_ADMIN_RULE_VERIFY_REQUEST_COMPANY = (
+	"🔒 {company}: «{rule}» дүрэм баталгаажаагүй тул бичилт зогслоо. Энэ дүрэм сайт дээрх бүх "
+	"компанид хамаарах тул чатнаас сайтын админ баталгаажуулна; та /дүрэм командаар нотлох "
+	"баримтыг нь харах, эсвэл ERPNext дэсктээс өөрөө баталгаажуулах боломжтой."
+)
 
 # --- evals + simulator (nyabo_mn.evals, nyabo_mn.simulator) -----------------------------------------
 SIM_TITLE = "🧪 Симуляци · {case}"

@@ -16,11 +16,12 @@ to leave the inventory step and got «1-р мөрийг уншиж чадсан�
 from __future__ import annotations
 
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from typing import Any
 
 import frappe
 
+from nyabo_mn import access
 from nyabo_mn.config import get_settings
 from nyabo_mn.i18n import mn
 from nyabo_mn.log import log_error, log_event, scrub
@@ -74,6 +75,11 @@ def _commands() -> dict[str, Callable[[Ctx], Any]]:
 		"/setup": onboarding.handle_command,
 		"/link": admin.handle_link,
 		"/status": admin.handle_status,
+		# The door MSG_UNVERIFIED_RULE_BLOCKED points at (§1.2). Unlike /link and /status it *is*
+		# in the ☰ menu: an accountant whose receipt was refused for an unverified rule reads the
+		# rule's name in that refusal, and the command is where they find out who can clear it.
+		"/дүрэм": admin.handle_rules,
+		"/rules": admin.handle_rules,
 	}
 
 
@@ -91,6 +97,7 @@ def is_routable(command: str) -> bool:
 
 def _callback_handlers() -> dict[str, Callable[[Ctx, list[str]], Any]]:
 	from nyabo_mn.telegram.handlers import (
+		admin,
 		approve,
 		bank,
 		close,
@@ -103,6 +110,7 @@ def _callback_handlers() -> dict[str, Callable[[Ctx, list[str]], Any]]:
 	)
 
 	return {
+		keyboards.PREFIX_VERIFY: admin.handle_callback,
 		keyboards.PREFIX_PROPOSAL: approve.handle_callback,
 		keyboards.PREFIX_BANK: bank.handle_callback,
 		keyboards.PREFIX_CLOSE: close.handle_callback,
@@ -269,15 +277,85 @@ def _dispatch(ctx: Ctx) -> Any:
 	return None
 
 
-def notify_admins(bot: Any, settings: Any, text: str) -> None:
-	"""Short plain-text notice to every ADMIN_TELEGRAM_IDS chat; failures are logged, not raised."""
+def admin_chat_ids(settings: Any, company: str | None = None) -> list[int]:
+	"""Every Telegram chat that should hear an admin notice, site admins first.
+
+	``ADMIN_TELEGRAM_IDS`` is the site's own list — the founder, before any link row exists.
+	It is not the whole answer: ``/link admin <company>`` grants the Admin role per company
+	(TG-04), and such a person is an admin of that company's books while appearing nowhere in
+	the site config. A notice about one company's blocked work has to reach them too, or the
+	sentence the accountant was shown («a notification has gone to the admins») is false.
+	"""
+	ids = site_admin_ids(settings)
+	if company:
+		ids |= company_admin_ids(company)
+	return sorted(ids)
+
+
+def site_admin_ids(settings: Any) -> set[int]:
+	"""``ADMIN_TELEGRAM_IDS``: the admins of the *site*, who may decide a row every company shares.
+
+	Separated from the company list because the two groups cannot be told the same thing about a
+	global rule (VER-08): one of them can clear it from the chat and the other cannot.
+	"""
 	try:
-		admin_ids = settings.admin_telegram_ids
+		return set(settings.admin_telegram_ids)
 	except ValueError as exc:
 		log_event("telegram.admin_ids_invalid", level="warning", error=str(exc))
-		return
-	for admin_id in sorted(admin_ids):
+		return set()
+
+
+def company_admin_ids(company: str) -> set[int]:
+	"""Telegram ids of the active links whose role *on this company* is Admin (access.role_for)."""
+	rows = frappe.get_all(
+		access.LINK_COMPANY_DOCTYPE,
+		filters={"parenttype": access.LINK_DOCTYPE, "company": company},
+		fields=["parent", "role"],
+	)
+	if not rows:
+		return set()
+	links = {
+		link["name"]: link
+		for link in frappe.get_all(
+			access.LINK_DOCTYPE,
+			filters={"name": ["in", sorted({row["parent"] for row in rows})], "status": "active"},
+			fields=["name", "telegram_id", "role"],
+		)
+	}
+	ids: set[int] = set()
+	for row in rows:
+		link = links.get(row["parent"])
+		if link is None or (row.get("role") or link.get("role")) != "Admin":
+			continue
+		try:
+			ids.add(int(link["telegram_id"]))
+		except (TypeError, ValueError):
+			log_event("telegram.admin_link_id_invalid", level="warning", link=link["name"])
+	return ids
+
+
+def notify_admins(bot: Any, settings: Any, text: str, company: str | None = None) -> int:
+	"""Short plain-text notice to every admin chat; returns how many were actually reached.
+
+	The count is the point: a caller that tells a user «the admins have been told» may only say
+	so when somebody was. Failures are logged and do not count, and never raise — a notification
+	must not take down the handler that was doing the user's real work.
+	"""
+	return notify_chats(bot, admin_chat_ids(settings, company), text)
+
+
+def notify_chats(bot: Any, chat_ids: Iterable[int | str], text: str) -> int:
+	"""Send one notice to an explicit list of chats; returns how many were actually reached.
+
+	The explicit list is what lets a caller say something different to two groups of admins and
+	still count both honestly — see ``handlers.admin.rule_blocked``, where a site admin is told
+	to clear the rule and a company admin is told who can.
+	"""
+	reached = 0
+	for admin_id in chat_ids:
 		try:
 			bot.send_message(admin_id, text)
+			reached += 1
 		except Exception as exc:
 			log_event("telegram.notify_admin_failed", level="warning", admin=admin_id, error=repr(exc))
+	return reached

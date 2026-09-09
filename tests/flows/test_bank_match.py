@@ -80,7 +80,7 @@ def test_fee_line_yields_a_bank_fee_proposal_that_is_not_posted(books, banks):
 	fee_code = load_seed("code_roles")["schemes"]["v1"]["bank_fee"]
 	assert proposal.kind == "bank_line" and proposal.status == "proposed"
 	assert proposal.account_code == fee_code and proposal.account.startswith(fee_code)
-	assert proposal.needs_accountant == 1  # the pattern citation is unverified
+	assert proposal.needs_accountant == 0  # the pattern citation is verified (Заавар 116, 1.4; 12.2.2 А)
 	assert proposal.bank_transaction == bt.name and proposal.vat_treatment == "none"
 	entry = json.loads(proposal.entry_json)
 	assert entry["pattern_id"] == "bank_fee_expense" and entry["document_kind"] == "journal_entry"
@@ -88,8 +88,8 @@ def test_fee_line_yields_a_bank_fee_proposal_that_is_not_posted(books, banks):
 		(fee_code, "1500.00", "0.00"),
 		("1120", "0.00", "1500.00"),
 	]
-	assert mn.WARN_UNVERIFIED_RULE in json.loads(proposal.warnings_json)
-	assert proposal.explanation.endswith(mn.CITATION_SECTION_PENDING)
+	assert mn.WARN_UNVERIFIED_RULE not in json.loads(proposal.warnings_json)
+	assert proposal.explanation.endswith("1.4; 12.2.2 А")
 	assert proposal.document == frappe.db.get_value("Nyabo Document", {"doc_type": "bank_statement"}, "name")
 	assert frappe.db.count("Journal Entry") == 0
 	assert bt.status == "Unreconciled"
@@ -266,6 +266,40 @@ def test_bank_line_patterns_exist_and_stop_at_the_unverified_gate(books, banks):
 	# The admin verifies the row in the desk and the same tap posts.
 	frappe.db.set_value("Nyabo Posting Pattern", rules.EXPENSE_PATTERN_ID, "verified", 1)
 	assert post.post_proposal(expense, "Administrator")["posted_doctype"] == "Journal Entry"
+
+
+def test_the_bank_fee_rule_is_decided_even_when_two_rules_share_a_timestamp(books):
+	"""The flake behind test_bank_fee_rule_prefers_the_company_rule_row, pinned as a rule.
+
+	Provisioning writes a `bank_fee` rule from `rules_default.json`, so the accountant's own
+	rule is the second row on the company and `order_by="modified desc"` is what prefers it.
+	Two writes inside one clock tick — ordinary on the Windows test clock, possible anywhere
+	after a bulk update — left that comparison undecided, and which rule won then depended on
+	the order rows had been inserted in. In the books that is one statement line booked to a
+	different account than the next.
+	"""
+	import frappe
+
+	seeded = frappe.get_all(
+		"Nyabo Rule", filters={"company": books, "match_type": "bank_fee"}, fields=["name"]
+	)
+	assert len(seeded) == 1, "provisioning seeds one bank_fee rule; the test's own makes two"
+	rule = frappe.get_doc(
+		{
+			"doctype": "Nyabo Rule",
+			"company": books,
+			"match_type": "bank_fee",
+			"match_value": "хураамж|шимтгэл",
+			"target_account_code": "6810",
+			"vat_treatment": "none",
+			"source": "accountant",
+			"status": "active",
+		}
+	).insert()
+	stamp = frappe.db.get_value("Nyabo Rule", rule.name, "modified")
+	frappe.db.set_value("Nyabo Rule", seeded[0]["name"], "match_value", "шимтгэл", modified=stamp)
+
+	assert rules.bank_fee_rule(books)["name"] == rule.name
 
 
 def test_bank_fee_rule_prefers_the_company_rule_row(books, banks):

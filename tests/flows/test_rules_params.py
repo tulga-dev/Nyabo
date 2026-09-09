@@ -44,24 +44,24 @@ def test_guard_refuses_unverified_rules_with_the_mongolian_message(seeded, frapp
 	assert str(excinfo.value) == mn.MSG_UNVERIFIED_RULE_BLOCKED.format(rule="si.employee_rate")
 	assert isinstance(excinfo.value, frappe.ValidationError)
 
-	with pytest.raises(guard.UnverifiedRuleError, match="bank_fee_expense"):
-		guard.require_verified("bank_fee_expense")
+	with pytest.raises(guard.UnverifiedRuleError, match="bank_transfer_internal"):
+		guard.require_verified("bank_transfer_internal")
 	with pytest.raises(guard.UnverifiedRuleError):
 		guard.require_verified(("Nyabo Bank Layout", "generic_mn"))
 	with pytest.raises(guard.UnverifiedRuleError):
-		guard.require_verified(patterns.load("payable_pay"))
+		guard.require_verified(patterns.load("vat_settle"))
 	with pytest.raises(guard.UnverifiedRuleError, match="no-such-rule"):
 		guard.require_verified("no-such-rule")  # unknown names count as unverified
-	assert guard.is_verified("retention.years:2016-01-01") and not guard.is_verified("bank_fee_expense")
+	assert guard.is_verified("retention.years:2016-01-01") and not guard.is_verified("bank_transfer_internal")
 
-	frappe.db.set_value("Nyabo Posting Pattern", "bank_fee_expense", "verified", 1)
+	frappe.db.set_value("Nyabo Posting Pattern", "bank_transfer_internal", "verified", 1)
 	guard.require_verified(
-		"bank_fee_expense", frappe.get_doc("Nyabo Tax Parameter", "retention.years:2016-01-01")
+		"bank_transfer_internal", frappe.get_doc("Nyabo Tax Parameter", "retention.years:2016-01-01")
 	)
 
 	with frappe_flags(nyabo_simulation=True):
 		assert guard.is_simulation()
-		guard.require_verified("payable_pay", ("Nyabo Bank Layout", "generic_mn"))
+		guard.require_verified("vat_settle", ("Nyabo Bank Layout", "generic_mn"))
 		assert params.get("si.employee_rate", dt.date(2026, 3, 1)).as_decimal() == Decimal("0.095")
 	assert not guard.is_simulation()
 
