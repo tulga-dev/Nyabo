@@ -47,13 +47,20 @@ def test_sync_never_overwrites_a_verified_row_unless_forced(site):
 	assert not seed_rows["bank_transfer_internal"]["verified"] and not seed_rows["vat_settle"]["verified"]
 	doc = frappe.get_doc("Nyabo Posting Pattern", "bank_transfer_internal")
 	doc.verified = 1
+	doc.verified_by = "Administrator"
 	doc.citation_section = "5.3"
 	doc.notes = "checked against the instrument"
 	doc.save()
 	counts = seed.sync()
-	assert counts["Nyabo Posting Pattern"]["skipped_verified"] == seed_verified + 1
+	# The hand-typed note is brought back to the seed's, so the row's remarks and its citation
+	# cannot disagree; the section the seed has nothing for is left exactly as it was typed.
+	assert counts["Nyabo Posting Pattern"]["citation_filled"] == 1
+	assert counts["Nyabo Posting Pattern"]["skipped_verified"] == seed_verified
 	kept = frappe.get_doc("Nyabo Posting Pattern", "bank_transfer_internal")
-	assert kept.verified == 1 and kept.citation_section == "5.3"
+	assert kept.verified == 1 and kept.verified_by == "Administrator"
+	assert kept.citation_section == "5.3" and kept.notes == seed_rows["bank_transfer_internal"]["notes"]
+	# Nothing left to add: the second run has no evidence the row does not already carry.
+	assert seed.sync()["Nyabo Posting Pattern"]["skipped_verified"] == seed_verified + 1
 
 	# a drifted unverified row is brought back to the seed value
 	other = frappe.get_doc("Nyabo Posting Pattern", "vat_settle")
@@ -66,6 +73,62 @@ def test_sync_never_overwrites_a_verified_row_unless_forced(site):
 	assert "skipped_verified" not in forced["Nyabo Posting Pattern"]
 	reset = frappe.get_doc("Nyabo Posting Pattern", "bank_transfer_internal")
 	assert reset.verified == 0 and not reset.citation_section
+
+
+def test_a_hand_verified_row_gains_the_citation_and_keeps_its_verifier(site):
+	"""The founder ticked a row in the desk to unblock himself; the deploy owes it the evidence.
+
+	He was told to do exactly that for `purchase_expense_non_vat` while it had no citation. If
+	`sync` refused to write anything to a verified row, his row would stay verified with no
+	instrument, no section and no quote for ever, and the seed's new evidence would be dropped
+	on every migrate — the citation would never reach the site it was written for.
+	"""
+	seed.sync()
+	cited = next(
+		r for r in load_seed("posting_patterns")["rows"] if r["pattern_id"] == "purchase_expense_non_vat"
+	)
+	assert cited["verified"] and cited["citation"]["section"], "the flagship row must ship cited"
+	# The site as the founder left it: ticked by hand, with nothing behind the tick.
+	doc = frappe.get_doc("Nyabo Posting Pattern", "purchase_expense_non_vat")
+	doc.verified = 1
+	doc.verified_by = "Administrator"
+	doc.verified_at = "2026-09-01 09:00:00"
+	doc.citation_section = ""
+	doc.citation_quote = ""
+	doc.citation_url = ""
+	doc.notes = ""
+	doc.save()
+
+	counts = seed.sync()
+
+	assert counts["Nyabo Posting Pattern"]["citation_filled"] == 1
+	row = frappe.get_doc("Nyabo Posting Pattern", "purchase_expense_non_vat")
+	assert row.citation_section == cited["citation"]["section"]
+	assert row.citation_quote == cited["citation"]["quote"]
+	assert row.citation_url == cited["citation"]["url"]
+	assert row.notes == cited["notes"]
+	# The human's verification is untouched: a deploy neither grants nor re-attributes one.
+	assert row.verified == 1 and row.verified_by == "Administrator"
+	assert str(row.verified_at).startswith("2026-09-01 09:00")
+
+
+def test_an_unverified_row_is_still_updated_whole(site):
+	"""The other direction: nothing about `citation_filled` narrows the ordinary update path."""
+	seed.sync()
+	wanted = next(r for r in load_seed("posting_patterns")["rows"] if r["pattern_id"] == "vat_settle")
+	doc = frappe.get_doc("Nyabo Posting Pattern", "vat_settle")
+	doc.name_mn = "хуучин нэр"
+	doc.conditions = "drifted"
+	doc.citation_url = ""
+	doc.save()
+
+	counts = seed.sync()
+
+	assert counts["Nyabo Posting Pattern"].get("updated") == 1
+	assert "citation_filled" not in counts["Nyabo Posting Pattern"]
+	row = frappe.get_doc("Nyabo Posting Pattern", "vat_settle")
+	assert row.name_mn == wanted["name_mn"] and row.conditions == wanted["conditions"]
+	assert row.citation_url == wanted["citation"]["url"] and row.verified == 0
 
 
 def test_sync_maps_the_citations_into_the_doctype_fields(site):

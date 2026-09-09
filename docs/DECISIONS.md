@@ -1011,3 +1011,22 @@ one is different: the accountant is the person who *meets* the refusal, reads a 
 and has to find out who can clear it. So `rules` is registered, `MSG_MENU` lists it with «админ
 баталгаажуулна» beside it, and a non-admin who runs it gets `MSG_RULES_ADMIN_ONLY` — who may do
 it and the fact that a blocked posting notifies them automatically — instead of a bare refusal.
+
+## the two branches meeting (citations + the admin door, review of the merge)
+
+### VER-06 A deploy may add the evidence to a hand-verified row; it may never add the verification
+`seed.upsert` used to return `skipped_verified` and write *nothing* to a row with
+`verified = 1`. Half of that rule is right and stays: `verified`, `verified_by` and
+`verified_at` are the record of a named human taking responsibility, and a code push must not
+create, move or revoke one. The other half was a bug with a live victim. The founder was told to
+tick `purchase_expense_non_vat` by hand in the desk so his receipts could post; the citation pass
+then found Order 116 12.2.2 А and 9.4.1.1 for that exact row — and on his site the seed would
+have dropped the quote silently on every migrate, leaving the row verified with no evidence for
+ever. The citation is the part an accountant and a ministry reviewer read.
+
+So `EVIDENCE_FIELDS` (instrument, section, quote, url, remarks — per DocType) are written to a
+verified row and reported as their own outcome, `citation_filled`, so a migrate says what it did
+instead of saying it skipped. The seed never blanks a field it has nothing for, so a section
+somebody typed in the desk survives a deploy that has none; it does correct a stale note, because
+a row whose remarks contradict its citation is worse than one with no remarks. Reverse by
+deleting `_fill_evidence` — and accept that the evidence never reaches a site again.

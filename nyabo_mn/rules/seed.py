@@ -1,9 +1,18 @@
 """Load the JSON seed into the rules DocTypes (docs/ARCHITECTURE.md §9, docs/seed/README.md).
 
 `sync()` runs on install and after every migrate. It upserts by name so a redeploy
-brings new rows and corrected values, and it never touches a row an admin has marked
-`verified = 1`: that flag records a human comparison with the primary legal text, and
-a code push must not silently undo it. `force=True` is the explicit way to reseed.
+brings new rows and corrected values, and it never touches the verification of a row an
+admin has marked `verified = 1`: that flag records a human comparison with the primary
+legal text, and a code push must not silently undo it. `force=True` is the explicit way
+to reseed.
+
+On such a row the seed still writes the *evidence* (`EVIDENCE_FIELDS`), reporting it as
+`citation_filled`. WHY the two are separated: a rule may be ticked by hand in the desk to
+unblock work long before anyone finds the printed sentence behind it — that is exactly how
+`purchase_expense_non_vat` came to be verified on the founder's site. Withholding the
+citation from those rows would leave them verified with no evidence for ever, and the
+citation is the thing an accountant, and one day a ministry reviewer, actually reads. The
+seed never blanks a field it has nothing for, so a section typed in the desk survives.
 
 Company-scoped seed (`rules_default.json`, `aliases_v1_to_v03.json`) is applied at
 provisioning by `seed_default_rules` / `rules.aliases.seed_v1_aliases`, because those
@@ -25,6 +34,23 @@ TAX_PARAMETER = "Nyabo Tax Parameter"
 POSTING_PATTERN = "Nyabo Posting Pattern"
 BANK_LAYOUT = "Nyabo Bank Layout"
 RULE = "Nyabo Rule"
+
+#: The fields that carry a row's *evidence* rather than its behaviour: where the rule was read,
+#: which section, the verbatim sentence, the page, and the remarks. These are the only fields the
+#: seed writes onto a row a human has already verified (see the module docstring). A bank layout's
+#: evidence is the accountant's own spreadsheet, so it has only the remarks.
+EVIDENCE_FIELDS: dict[str, tuple[str, ...]] = {
+	POSTING_PATTERN: (
+		"citation_instrument",
+		"citation_instrument_full",
+		"citation_section",
+		"citation_quote",
+		"citation_url",
+		"notes",
+	),
+	TAX_PARAMETER: ("source_text", "source_url", "article", "quote_mn", "note"),
+	BANK_LAYOUT: ("notes",),
+}
 
 PATTERN_LINE_FIELDS = (
 	"side",
@@ -166,7 +192,10 @@ def _json_value(value: Any) -> Any:
 def upsert(
 	doctype: str, name: str, values: Mapping[str, Any], *, force: bool, child_field: str | None = None
 ) -> str:
-	"""Insert or update one row; returns inserted / updated / unchanged / skipped_verified."""
+	"""Insert or update one row.
+
+	Returns inserted / updated / unchanged / citation_filled / skipped_verified.
+	"""
 	if not frappe.db.exists(doctype, name):
 		doc = frappe.get_doc({"doctype": doctype, **values})
 		doc.flags.ignore_permissions = True
@@ -174,13 +203,37 @@ def upsert(
 		return "inserted"
 	doc = frappe.get_doc(doctype, name)
 	if int(doc.get("verified") or 0) and not force:
-		return "skipped_verified"
+		return _fill_evidence(doc, values)
 	if _same(doc, values, child_field):
 		return "unchanged"
 	doc.update(dict(values))
 	doc.flags.ignore_permissions = True
 	doc.save()
 	return "updated"
+
+
+def _fill_evidence(doc: Any, values: Mapping[str, Any]) -> str:
+	"""Write the seed's citation onto a row somebody has already verified, and nothing else.
+
+	`verified`, `verified_by` and `verified_at` are never in `EVIDENCE_FIELDS`, so the human who
+	took responsibility keeps their name on the row and a deploy can never grant or revoke a
+	verification. A field the seed has nothing for is left alone rather than blanked: the seed
+	adds evidence to a hand-verified row, it does not overwrite the desk with silence.
+	"""
+	changed = {}
+	for field in EVIDENCE_FIELDS.get(doc.doctype, ()):
+		wanted = values.get(field)
+		if wanted in (None, ""):
+			continue
+		if not _equal(doc.get(field), wanted, doc.meta.get_field(field)):
+			changed[field] = wanted
+	if not changed:
+		return "skipped_verified"
+	doc.update(changed)
+	doc.flags.ignore_permissions = True
+	doc.save()
+	log_event("rules.seed.citation_filled", doctype=doc.doctype, rule=doc.name, fields=sorted(changed))
+	return "citation_filled"
 
 
 def sync(force: bool = False) -> dict[str, dict[str, int]]:
