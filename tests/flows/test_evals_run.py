@@ -12,7 +12,9 @@ from decimal import Decimal
 
 import pytest
 
+from nyabo_mn.agent.llm_client import resolve_models
 from nyabo_mn.agent.mock_client import MockLlmClient
+from nyabo_mn.config import Settings
 from nyabo_mn.evals import harness, loader, metrics
 from nyabo_mn.evals import run as run_mod
 from nyabo_mn.evals.runners import RunContext, run_case
@@ -121,6 +123,31 @@ def test_sweep_runs_each_configured_model_with_the_mock():
 	luna = report["sweep"]["openai:gpt-5.6-luna"]["llm"]["cost_per_document_usd"]
 	terra = report["sweep"]["openai:gpt-5.6-terra"]["llm"]["cost_per_document_usd"]
 	assert luna < terra  # the price table, not the mock, decides the cost
+
+
+def test_the_graded_run_uses_the_sites_routing_and_only_the_sweep_pins(monkeypatch):
+	"""MAJOR: run() built the primary client through the sweep's factory, which pins.
+
+	Every purpose was therefore forced onto one model id for the run whose metrics and
+	verdict decide whether the app ships — a configuration nothing uses. The sweep still
+	pins, because a sweep row is the question "how does *this* model do".
+	"""
+	seen: list[dict] = []
+
+	def fake_get_client(settings, provider="auto", *, purpose=None, record_call=None):
+		seen.append(dict(settings.values))
+		return MockLlmClient(record_call=record_call)
+
+	monkeypatch.setattr(run_mod, "get_client", fake_get_client)
+	report = run_mod.run(kinds=["classification"], sweep=True, simulation=False)
+
+	def routed(values: dict) -> set[str]:
+		return {choice.model for choice in resolve_models(Settings.from_mapping(values)).values()}
+
+	assert len(routed(seen[0])) > 1, "the graded run must route per purpose, not run one pinned model"
+	assert routed(seen[0]) == set(report["routing"].values())
+	assert all(len(routed(values)) == 1 for values in seen[1:]), "each sweep entry is one model"
+	assert report["routing"]["extract"] != report["routing"]["question"]
 
 
 def test_custom_model_list_and_client_factory():
