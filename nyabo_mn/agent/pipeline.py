@@ -26,7 +26,7 @@ from collections.abc import Callable, Iterable, Mapping
 from decimal import Decimal
 from typing import Any
 
-from nyabo_mn.agent import classify, extract, frappe_log
+from nyabo_mn.agent import classify, extract, frappe_log, questions
 from nyabo_mn.agent.llm_client import CallRecord, LlmClient, get_client
 from nyabo_mn.core import rules_engine
 from nyabo_mn.core.models import (
@@ -974,10 +974,32 @@ def _find_supplier(name: str) -> str | None:
 	return best[1] if best else None
 
 
+BOOKS_LIST_LIMIT = 5
+BOOKS_ENTRY_LIMIT = 8
+TOP_ACCOUNTS_LIMIT = 5
+UNMATCHED_STATUSES = ("Unreconciled", "Pending")
+# What ``explain_entry`` will open, and the field on each that carries the amount a reader
+# recognises. Every lookup is filtered by ``company``, so a name from another client's books
+# comes back "not found" rather than "not permitted" (SEC-06: existence is information too).
+EXPLAINABLE_DOCTYPES: Mapping[str, str] = {
+	"Purchase Invoice": "grand_total",
+	"Journal Entry": "total_debit",
+	"Payment Entry": "paid_amount",
+}
+
+
 def books_handlers(
 	company: str, *, today: dt.date | None = None
 ) -> dict[str, Callable[[dict[str, Any]], dict[str, Any]]]:
-	"""Read-only handlers for ``agent.questions``; every number is formatted here, never by the model."""
+	"""Read-only handlers for ``agent.questions``; every number is formatted here, never by the model.
+
+	Ten query kinds, all reads (§5.7 named four). Each answer carries the subject it resolved
+	(``account_code``, ``period``, ``supplier``, ``on_date``, ``entry_ref``) beside the figures,
+	because that is what the follow-up buttons and the next turn's memory are built from: the
+	model writes «Петровис», the ledger knows «Петровис ХХК», and the button has to carry the
+	second. Every query is filtered by ``company``, so a document name typed into a question or
+	arriving in callback data can only ever reach the books the caller is linked to.
+	"""
 	import frappe
 	from erpnext.accounts.utils import get_balance_on
 
@@ -992,106 +1014,377 @@ def books_handlers(
 			raise ChartError("account_code required")
 		return account_for_code(company, str(code).strip(), leaf=False)
 
+	def _code(value: Any) -> str:
+		return str(value or "").strip()
+
+	def _period(value: Any) -> str:
+		"""The month asked for, else the one the clock is in; a typo raises rather than meaning today."""
+		text = str(value or "").strip()
+		if not text:
+			return dates.period_of(today)
+		dates.parse_period(text)  # ValueError -> {"error": "invalid_arguments"}
+		return text
+
+	def _gl(**filters: Any) -> list[Any]:
+		order = filters.pop("order_by", "posting_date desc, name desc")
+		limit = filters.pop("limit", None)
+		return frappe.get_all(
+			"GL Entry",
+			filters={"company": company, "is_cancelled": 0, **filters},
+			fields=["posting_date", "voucher_type", "voucher_no", "account", "debit", "credit"],
+			order_by=order,
+			limit=limit,
+		)
+
+	def _net_debit(rows: Iterable[Any]) -> Decimal:
+		return quantize(sum((Decimal(str(r.debit or 0)) - Decimal(str(r.credit or 0)) for r in rows), ZERO))
+
+	# --- the ten reads -------------------------------------------------------------------------
+
+	def _balance_on_date(inner: dict[str, Any]) -> dict[str, Any]:
+		account = _account(inner.get("account_code"))
+		on = dt.date.fromisoformat(inner["on_date"]) if inner.get("on_date") else today
+		balance = Decimal(str(get_balance_on(account, on, company=company) or 0))
+		return {
+			"account": account,
+			"account_code": _code(inner.get("account_code")),
+			"date": on.isoformat(),
+			"on_date": on.isoformat(),
+			"balance": fmt_mnt(balance),
+			"text": mn.MSG_BALANCE_ANSWER.format(
+				account=account, date=on.isoformat(), balance=fmt_mnt(balance)
+			),
+		}
+
+	def _spend_by_account(inner: dict[str, Any]) -> dict[str, Any]:
+		account = _account(inner.get("account_code"))
+		period = _period(inner.get("period"))
+		start, end = dates.period_bounds(period)
+		amount = _net_debit(
+			_gl(account=account, posting_date=["between", [start, end]], order_by="posting_date asc")
+		)
+		return {
+			"account": account,
+			"account_code": _code(inner.get("account_code")),
+			"period": period,
+			"amount": fmt_mnt(amount),
+			"text": mn.MSG_SPEND_ANSWER.format(
+				period=dates.period_label(period), account=account, amount=fmt_mnt(amount)
+			),
+		}
+
+	def _account_entries(inner: dict[str, Any]) -> dict[str, Any]:
+		"""The entries behind a figure — what «Юунаас бүрдэв?» under a spend answer asks for."""
+		account = _account(inner.get("account_code"))
+		period = _period(inner.get("period"))
+		start, end = dates.period_bounds(period)
+		rows = _gl(account=account, posting_date=["between", [start, end]], limit=BOOKS_ENTRY_LIMIT)
+		label = dates.period_label(period)
+		entries = [
+			{"date": str(row.posting_date), "voucher": row.voucher_no, "amount": fmt_mnt(_net_debit([row]))}
+			for row in rows
+		]
+		if entries:
+			text = mn.MSG_ACCOUNT_ENTRIES_ANSWER.format(
+				period=label,
+				account=account,
+				entries="\n".join(mn.ACCOUNT_ENTRY_LINE.format(**e) for e in entries),
+			)
+		else:
+			text = mn.ACCOUNT_ENTRIES_NONE.format(period=label, account=account)
+		return {
+			"account": account,
+			"account_code": _code(inner.get("account_code")),
+			"period": period,
+			"entries": entries,
+			"text": text,
+		}
+
+	def _last_entries_for_supplier(inner: dict[str, Any]) -> dict[str, Any]:
+		wanted = str(inner.get("supplier") or "").strip()
+		supplier = _find_supplier(wanted) if wanted else None
+		if not supplier:
+			return {
+				"supplier": wanted,
+				"entries": [],
+				"text": mn.SUPPLIER_NOT_FOUND_ANSWER.format(supplier=wanted),
+			}
+		seen: dict[str, dict[str, Any]] = {}
+		for row in _gl(party_type="Supplier", party=supplier):
+			key = f"{row.voucher_type}:{row.voucher_no}"
+			if key in seen:
+				continue
+			amount = max(Decimal(str(row.debit or 0)), Decimal(str(row.credit or 0)))
+			seen[key] = {
+				"doctype": row.voucher_type,
+				"name": row.voucher_no,
+				"date": str(row.posting_date),
+				"amount": fmt_mnt(amount),
+			}
+			if len(seen) >= BOOKS_LIST_LIMIT:
+				break
+		entries = list(seen.values())
+		if not entries:
+			return {
+				"supplier": supplier,
+				"entries": [],
+				"text": mn.LAST_ENTRIES_NONE.format(supplier=supplier),
+			}
+		lines = "\n".join(mn.LAST_ENTRY_LINE.format(**e) for e in entries)
+		return {
+			"supplier": supplier,
+			"entries": entries,
+			"text": mn.MSG_LAST_ENTRIES_ANSWER.format(supplier=supplier, entries=lines),
+		}
+
+	def _supplier_total(inner: dict[str, Any]) -> dict[str, Any]:
+		"""Purchases and payments on the supplier's party rows, kept apart on purpose.
+
+		Netting them answers «how much do we still owe them», which is a different question
+		from «how much did we buy from them»; an accountant asking the second must not be
+		handed the first under the same words.
+		"""
+		wanted = str(inner.get("supplier") or "").strip()
+		supplier = _find_supplier(wanted) if wanted else None
+		period = _period(inner.get("period"))
+		if not supplier:
+			return {
+				"supplier": wanted,
+				"period": period,
+				"text": mn.SUPPLIER_NOT_FOUND_ANSWER.format(supplier=wanted),
+			}
+		start, end = dates.period_bounds(period)
+		rows = _gl(
+			party_type="Supplier",
+			party=supplier,
+			posting_date=["between", [start, end]],
+			order_by="posting_date asc",
+		)
+		purchases = quantize(sum((Decimal(str(r.credit or 0)) for r in rows), ZERO))
+		payments = quantize(sum((Decimal(str(r.debit or 0)) for r in rows), ZERO))
+		label = dates.period_label(period)
+		if rows:
+			text = mn.MSG_SUPPLIER_TOTAL_ANSWER.format(
+				period=label,
+				supplier=supplier,
+				purchases=fmt_mnt(purchases),
+				payments=fmt_mnt(payments),
+			)
+		else:
+			text = mn.SUPPLIER_TOTAL_NONE.format(period=label, supplier=supplier)
+		return {
+			"supplier": supplier,
+			"period": period,
+			"purchases": fmt_mnt(purchases),
+			"payments": fmt_mnt(payments),
+			"text": text,
+		}
+
+	def _vat_position(inner: dict[str, Any]) -> dict[str, Any]:
+		from nyabo_mn.reports import vat_summary
+
+		period = _period(inner.get("period"))
+		start, end = dates.period_bounds(period)
+		label = dates.period_label(period)
+		try:
+			vat_payer = regime_context(company, end).is_vat_payer
+		except rules_engine.RuleError:
+			vat_payer = True  # unknown regime: let the accounts answer rather than claim a regime
+		if not vat_payer:
+			# A simplified-regime company has no output/input VAT accounts to read, and "0₮"
+			# would read as "nothing to declare" rather than "this does not apply to you".
+			return {"period": period, "text": mn.MSG_VAT_NOT_PAYER_ANSWER.format(period=label)}
+		summary = vat_summary.compute(company, (start, end))
+		return {
+			"period": period,
+			"output_vat": fmt_mnt(summary["output_vat"]),
+			"input_vat": fmt_mnt(summary["input_vat"]),
+			"net": fmt_mnt(summary["net"]),
+			"text": mn.MSG_VAT_POSITION_ANSWER.format(
+				period=label,
+				output=fmt_mnt(summary["output_vat"]),
+				input=fmt_mnt(summary["input_vat"]),
+				net=fmt_mnt(summary["net"]),
+			),
+		}
+
+	def _top_spend_accounts(inner: dict[str, Any]) -> dict[str, Any]:
+		from nyabo_mn.reports import accounts as report_accounts
+
+		period = _period(inner.get("period"))
+		start, end = dates.period_bounds(period)
+		label = dates.period_label(period)
+		expense_accounts = report_accounts.accounts_by_root_type(company, ("Expense",))
+		totals: dict[str, Decimal] = {}
+		if expense_accounts:
+			for row in _gl(
+				account=["in", expense_accounts],
+				posting_date=["between", [start, end]],
+				order_by="posting_date asc",
+			):
+				totals[row.account] = totals.get(row.account, ZERO) + _net_debit([row])
+		numbers = report_accounts.account_numbers(company)
+		ranked = sorted(
+			((account, amount) for account, amount in totals.items() if amount > ZERO),
+			key=lambda pair: pair[1],
+			reverse=True,
+		)[:TOP_ACCOUNTS_LIMIT]
+		accounts_out = [
+			{"code": numbers.get(account, ""), "account": account, "amount": fmt_mnt(amount)}
+			for account, amount in ranked
+		]
+		if accounts_out:
+			text = mn.MSG_TOP_ACCOUNTS_ANSWER.format(
+				period=label, accounts="\n".join(mn.TOP_ACCOUNT_LINE.format(**a) for a in accounts_out)
+			)
+		else:
+			text = mn.TOP_ACCOUNTS_NONE.format(period=label)
+		return {"period": period, "accounts": accounts_out, "text": text}
+
+	def _unmatched_count(inner: dict[str, Any]) -> dict[str, Any]:
+		count = frappe.db.count(
+			"Bank Transaction",
+			{"company": company, "docstatus": 1, "status": ["in", list(UNMATCHED_STATUSES)]},
+		)
+		return {"count": count, "text": mn.UNMATCHED_ANSWER.format(count=count)}
+
+	def _unmatched_lines(inner: dict[str, Any]) -> dict[str, Any]:
+		rows = frappe.get_all(
+			"Bank Transaction",
+			filters={"company": company, "docstatus": 1, "status": ["in", list(UNMATCHED_STATUSES)]},
+			fields=["name", "date", "deposit", "withdrawal", "description"],
+			order_by="date desc, name desc",
+			limit=BOOKS_LIST_LIMIT,
+		)
+		lines = [
+			{
+				"date": str(row.date),
+				"amount": fmt_mnt(Decimal(str(row.deposit or 0)) - Decimal(str(row.withdrawal or 0))),
+				"description": (row.description or "")[:60],
+			}
+			for row in rows
+		]
+		if not lines:
+			return {"lines": [], "text": mn.UNMATCHED_LINES_NONE}
+		return {
+			"lines": lines,
+			"text": mn.MSG_UNMATCHED_LINES_ANSWER.format(
+				lines="\n".join(mn.UNMATCHED_LINE.format(**line) for line in lines)
+			),
+		}
+
+	def _posted_document(ref: str) -> tuple[str, dict[str, Any]] | None:
+		"""The named document, only when it belongs to this company."""
+		for doctype, amount_field in EXPLAINABLE_DOCTYPES.items():
+			if not frappe.db.exists("DocType", doctype):
+				continue
+			row = frappe.db.get_value(
+				doctype,
+				{"name": ref, "company": company},
+				["name", "posting_date", amount_field],
+				as_dict=True,
+			)
+			if row:
+				return doctype, {"date": str(row.posting_date), "amount": row.get(amount_field)}
+		return None
+
+	def _explain_entry(inner: dict[str, Any]) -> dict[str, Any]:
+		"""What a posted entry was and why: the proposal's explanation, citation and source.
+
+		The Nyabo Proposal is the record of the decision (§1.4), so this reads it rather than
+		re-deriving anything. A document Nyabo did not propose is still answered — with its own
+		figures and a plain statement that there is no Nyabo explanation — because writing one
+		after the fact is exactly what principle 4 forbids.
+		"""
+		ref = str(inner.get("entry_ref") or "").strip()
+		if not ref:
+			raise ValueError("entry_ref required")
+		name = frappe.db.exists("Nyabo Proposal", {"name": ref, "company": company}) or frappe.db.exists(
+			"Nyabo Proposal", {"posted_name": ref, "company": company}
+		)
+		posted = _posted_document(ref)
+		if not name and posted is None:
+			return {"entry_ref": ref, "found": False, "text": mn.ENTRY_NOT_FOUND_ANSWER.format(name=ref)}
+		if not name:
+			doctype, facts = posted
+			return {
+				"entry_ref": ref,
+				"found": True,
+				"text": mn.MSG_ENTRY_EXPLAIN_ANSWER.format(
+					doctype=doctype,
+					name=ref,
+					date=facts["date"],
+					amount=fmt_mnt(Decimal(str(facts["amount"] or 0))),
+					explanation=mn.ENTRY_EXPLAIN_NO_PROPOSAL,
+				),
+			}
+		proposal = frappe.get_doc("Nyabo Proposal", name)
+		parts = [
+			mn.MSG_ENTRY_EXPLAIN_ANSWER.format(
+				doctype=proposal.posted_doctype or proposal.doctype,
+				name=proposal.posted_name or proposal.name,
+				date=str(proposal.posting_date or ""),
+				amount=fmt_mnt(Decimal(str(proposal.total or 0))),
+				explanation=(proposal.explanation or "").strip() or mn.ENTRY_EXPLAIN_NO_PROPOSAL,
+			)
+		]
+		if proposal.citation:
+			parts.append(mn.SIM_CITATION.format(citation=proposal.citation))
+		if proposal.document:
+			parts.append(mn.ENTRY_EXPLAIN_SOURCE.format(document=proposal.document))
+		return {
+			"entry_ref": proposal.posted_name or proposal.name,
+			"found": True,
+			"supplier": proposal.supplier or "",
+			"account_code": proposal.account_code or "",
+			"citation": proposal.citation or "",
+			"text": "\n".join(parts),
+		}
+
+	kinds: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
+		"balance_on_date": _balance_on_date,
+		"spend_by_account": _spend_by_account,
+		"account_entries": _account_entries,
+		"last_entries_for_supplier": _last_entries_for_supplier,
+		"supplier_total": _supplier_total,
+		"vat_position": _vat_position,
+		"top_spend_accounts": _top_spend_accounts,
+		"unmatched_count": _unmatched_count,
+		"unmatched_lines": _unmatched_lines,
+		"explain_entry": _explain_entry,
+	}
+
 	def _books(args: dict[str, Any]) -> dict[str, Any]:
 		kind = args.get("query_kind")
 		inner = dict(args.get("args") or {})
-		try:
-			if kind == "balance_on_date":
-				account = _account(inner.get("account_code"))
-				on = dt.date.fromisoformat(inner["on_date"]) if inner.get("on_date") else today
-				balance = Decimal(str(get_balance_on(account, on, company=company) or 0))
-				return {
-					"account": account,
-					"date": on.isoformat(),
-					"balance": fmt_mnt(balance),
-					"text": mn.MSG_BALANCE_ANSWER.format(
-						account=account, date=on.isoformat(), balance=fmt_mnt(balance)
-					),
-				}
-			if kind == "spend_by_account":
-				account = _account(inner.get("account_code"))
-				period = inner.get("period") or dates.period_of(today)
-				start, end = dates.period_bounds(period)
-				rows = frappe.get_all(
-					"GL Entry",
-					filters={
-						"company": company,
-						"account": account,
-						"is_cancelled": 0,
-						"posting_date": ["between", [start, end]],
-					},
-					fields=["debit", "credit"],
-				)
-				amount = quantize(
-					sum((Decimal(str(r.debit or 0)) - Decimal(str(r.credit or 0)) for r in rows), ZERO)
-				)
-				label = dates.period_label(period)
-				return {
-					"account": account,
-					"period": period,
-					"amount": fmt_mnt(amount),
-					"text": mn.MSG_SPEND_ANSWER.format(period=label, account=account, amount=fmt_mnt(amount)),
-				}
-			if kind == "last_entries_for_supplier":
-				wanted = str(inner.get("supplier") or "").strip()
-				supplier = _find_supplier(wanted) if wanted else None
-				if not supplier:
-					return {
-						"supplier": wanted,
-						"entries": [],
-						"text": mn.SUPPLIER_NOT_FOUND_ANSWER.format(supplier=wanted),
-					}
-				rows = frappe.get_all(
-					"GL Entry",
-					filters={
-						"company": company,
-						"party_type": "Supplier",
-						"party": supplier,
-						"is_cancelled": 0,
-					},
-					fields=["voucher_type", "voucher_no", "posting_date", "debit", "credit"],
-					order_by="posting_date desc",
-				)
-				seen: dict[str, dict[str, Any]] = {}
-				for row in rows:
-					key = f"{row.voucher_type}:{row.voucher_no}"
-					if key in seen:
-						continue
-					amount = max(Decimal(str(row.debit or 0)), Decimal(str(row.credit or 0)))
-					seen[key] = {
-						"doctype": row.voucher_type,
-						"name": row.voucher_no,
-						"date": str(row.posting_date),
-						"amount": fmt_mnt(amount),
-					}
-					if len(seen) >= 5:
-						break
-				entries = list(seen.values())
-				if not entries:
-					return {
-						"supplier": supplier,
-						"entries": [],
-						"text": mn.LAST_ENTRIES_NONE.format(supplier=supplier),
-					}
-				lines = "\n".join(mn.LAST_ENTRY_LINE.format(**e) for e in entries)
-				return {
-					"supplier": supplier,
-					"entries": entries,
-					"text": mn.MSG_LAST_ENTRIES_ANSWER.format(supplier=supplier, entries=lines),
-				}
-			if kind == "unmatched_count":
-				count = frappe.db.count(
-					"Bank Transaction",
-					{"company": company, "docstatus": 1, "status": ["in", ["Unreconciled", "Pending"]]},
-				)
-				return {"count": count, "text": mn.UNMATCHED_ANSWER.format(count=count)}
+		run = kinds.get(str(kind))
+		if run is None:
 			return {"error": "invalid_arguments", "detail": [f"unknown query_kind {kind!r}"]}
+		try:
+			return run(inner)
 		except ChartError as exc:
 			return {"error": "unknown_account", "detail": [str(exc)]}
 		except ValueError as exc:
 			return {"error": "invalid_arguments", "detail": [str(exc)]}
 
 	return {"answer_from_books": _books}
+
+
+def books_answer(
+	company: str, query_kind: str, args: Mapping[str, Any] | None = None, *, now: dt.datetime | None = None
+) -> dict[str, Any]:
+	"""One read-only query run without a model: what a follow-up button under an answer does.
+
+	The tap already carries the query kind and its arguments, so there is nothing left for a
+	model to decide and a call would only risk a sentence the handler did not write. It goes
+	through the same dispatcher the model's tool calls go through, so the arguments are
+	validated by the same pydantic model and an impossible one is refused the same way.
+	"""
+	now = now or dt.datetime.now(dt.timezone.utc)
+	full: dict[str, Any] = dict.fromkeys(questions.BooksArgs.model_fields)
+	full.update({key: value for key, value in (args or {}).items() if key in full})
+	dispatch = questions.make_dispatcher(books_handlers(company, today=now.date()))
+	return dispatch("answer_from_books", {"query_kind": query_kind, "args": full})
 
 
 def load_faq() -> list[tuple[str, str]]:
@@ -1174,12 +1467,16 @@ def answer_question(
 	company: str,
 	text: str,
 	*,
+	memory: Mapping[str, Any] | None = None,
 	client: LlmClient | None = None,
 	now: dt.datetime | None = None,
-) -> str:
-	"""One read-only, tool-using model call; returns the Mongolian sentence for the chat."""
-	from nyabo_mn.agent import questions
+) -> questions.Reply:
+	"""One read-only, tool-using model call; returns the sentence, its buttons and its memory.
 
+	``memory`` is whatever the chat stored after the previous question. It is passed through
+	``questions.recall`` here rather than in the Telegram layer so every caller — the bot, the
+	simulator, an eval — gets the same expiry and the same company check.
+	"""
 	now = now or dt.datetime.now(dt.timezone.utc)
 	recorder = frappe_log.recorder(company=company)
 	if client is None:
@@ -1201,6 +1498,8 @@ def answer_question(
 		text,
 		handlers,
 		company_context=f"company: {company}\nregime: {regime}\nuser: {user}",
+		company=company,
+		memory=questions.recall(memory, company=company, now=now),
 		now=now,
 	)
 	if outcome.injection_suspected:
@@ -1211,7 +1510,29 @@ def answer_question(
 			reason=(outcome.injection_fragment or "")[:200],
 			payload={"source": "question"},
 		)
-	return outcome.answer.answer_mn
+	if outcome.unverified_numbers:
+		# The model wrote a figure no handler returned; ``questions.answer`` already replaced
+		# the sentence. The event is what makes a model or prompt regression visible instead
+		# of it quietly degrading into round numbers nobody checks.
+		write_event(
+			"question_number_unverified",
+			company=company,
+			actor_user=user,
+			reason=", ".join(outcome.unverified_numbers)[:200],
+			payload={"tools": list(outcome.tools_used)},
+		)
+	return questions.reply_of(outcome)
+
+
+def escalate_question(user: str, company: str, question: str, summary: str) -> dict[str, Any]:
+	"""[Админаас асуух] under an answer: the same escalation the model's tool performs.
+
+	The button exists because ``needs_escalation`` is built from the tool trace and never
+	claimed by the model (§5.7); when the model could not answer, the *user* gets to make the
+	call, and it goes through the same handler so the Nyabo Event and the admin notice are
+	identical either way.
+	"""
+	return escalate_handler(user, company, question)({"summary": summary})
 
 
 __all__ = [
@@ -1225,6 +1546,7 @@ __all__ = [
 	"PipelineError",
 	"UnverifiedRuleError",
 	"answer_question",
+	"books_answer",
 	"books_handlers",
 	"build_amounts",
 	"build_explanation",
@@ -1235,6 +1557,7 @@ __all__ = [
 	"decide_vat_treatment",
 	"dumps",
 	"escalate_handler",
+	"escalate_question",
 	"faq_handler",
 	"family_for_code",
 	"load_faq",
