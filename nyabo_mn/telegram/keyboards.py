@@ -1,5 +1,9 @@
 """Inline keyboards and callback data (docs/ARCHITECTURE.md §5.1).
 
+These keyboards need Bot API 10.3 or later on the deployment: ``style`` arrived in 9.4
+(2026-02-09) and ``DisabledButton``/``disabled``, which ``spent()`` sends on every retired
+prompt, in 10.3 (2026-08-24). The later of the two is the floor.
+
 Buttons carry state, the model never writes them (principle 7). Callback data is a
 colon-separated tuple no longer than 64 bytes (Telegram's limit); ``encode`` asserts it so
 a long account code fails in a test, not in production. The one datum built from a document
@@ -59,9 +63,13 @@ SCOPE_LAYOUT = "layout"
 SCOPE_BANK_FIND = "bank_find"
 SCOPE_ERROR = "err"  # not a state: the escape the router hands out when a handler failed
 
-# InlineKeyboardButton.style, Bot API 10.3: "Optional. Style of the button. Must be one of
-# “danger” (red), “success” (green) or “primary” (blue). If omitted, then an app-specific
-# style is used." It carries the meaning of a button without an emoji in the Mongolian label.
+# InlineKeyboardButton.style: "Optional. Style of the button. Must be one of “danger” (red),
+# “success” (green) or “primary” (blue). If omitted, then an app-specific style is used." It
+# carries the meaning of a button without an emoji in the Mongolian label.
+#
+# Bot API 9.4 (2026-02-09) is where it came from: "Added the field style to the classes
+# KeyboardButton and InlineKeyboardButton, allowing bots to change the color of buttons."
+# (api-changelog). The disabled field ``spent()`` uses is a later, separate entry.
 STYLE_DANGER = "danger"
 STYLE_SUCCESS = "success"
 STYLE_PRIMARY = "primary"
@@ -150,7 +158,9 @@ def menu_markup(scope: str = SCOPE_ERROR) -> dict[str, Any]:
 def spent(reply_markup: dict[str, Any] | None) -> dict[str, Any]:
 	"""The same rows, every button disabled: a prompt that has been answered keeps its shape.
 
-	Bot API 10.3 ``InlineKeyboardButton.disabled`` is a ``DisabledButton`` — "If set, then the
+	Bot API 10.3 (2026-08-24): "Added the class DisabledButton and the field disabled to the
+	class InlineKeyboardButton" (api-changelog). ``InlineKeyboardButton.disabled`` is a
+	``DisabledButton`` — "If set, then the
 	button is disabled and does nothing"; the class "represents a disabled button which does
 	nothing. Currently holds no information", so ``{}`` is the whole value. ``callback_data`` is
 	dropped with it, because "Exactly one of the fields other than text, icon_custom_emoji_id,

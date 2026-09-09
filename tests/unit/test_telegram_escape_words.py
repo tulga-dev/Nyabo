@@ -8,6 +8,9 @@ keyboard adds by itself.
 
 from __future__ import annotations
 
+import inspect
+from pathlib import Path
+
 import pytest
 
 from nyabo_mn.i18n import mn
@@ -150,6 +153,25 @@ def test_a_button_is_stale_unless_it_was_drawn_for_the_open_step():
 	assert escape.drawn_for_open_step("acc_search", None, "acc_search") is True
 	# A card drawn before the step rode along: the flow is all there is to compare.
 	assert escape.drawn_for_open_step("onb", None, "onb:acc_name") is True
+
+
+def test_the_bot_api_versions_the_buttons_are_credited_to_are_the_right_ones():
+	"""A quoted source has to be correct, and these two fields are the deployment's floor.
+
+	api-changelog, Bot API 9.4 (2026-02-09): "Added the field style to the classes
+	KeyboardButton and InlineKeyboardButton, allowing bots to change the color of buttons."
+	Bot API 10.3 (2026-08-24): "Added the class DisabledButton and the field disabled to the
+	class InlineKeyboardButton." The style field was credited to 10.3, which is neither where
+	it came from nor the reason the deployment needs 10.3.
+	"""
+	source = Path(keyboards.__file__).read_text(encoding="utf-8")
+	style_note = source.split("STYLE_DANGER")[0].split("InlineKeyboardButton.style")[1]
+	assert "9.4" in style_note and "10.3" not in style_note
+	spent_note = inspect.getdoc(keyboards.spent) or ""
+	assert "10.3" in spent_note and "DisabledButton" in spent_note
+	assert "9.4" not in spent_note
+	# The module says what the two fields cost the deployment.
+	assert "10.3" in (keyboards.__doc__ or "") and "9.4" in (keyboards.__doc__ or "")
 
 
 def test_spent_disables_every_button_and_drops_its_data():
