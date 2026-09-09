@@ -23,8 +23,9 @@ ERPNext 16.34 and `nyabo_mn`, site `nyabo.s.frappe.cloud`, and the test company 
 provisioned on the v0.3 chart (114 accounts, `verify()` clean). The seed is loaded: 59 tax
 parameters, 44 posting patterns, 6 bank layouts.
 
-What remains before real books: add the five Site Config keys, point the bot at the site,
-verify the seed rules in the desk, and walk `docs/BETA_CHECKLIST.md`.
+The five Site Config keys are set, the Telegram webhook is registered and the ☰ command
+menu is published. What remains before real books: link an accountant, verify the seed
+rules in the desk, and walk `docs/BETA_CHECKLIST.md`.
 
 ## What is in the repo
 
@@ -157,7 +158,8 @@ record.
 
 ## Verify it yourself
 
-1. Send `/start` to the bot. You should see: the welcome message and your Telegram ID.
+1. Send `/start` to the bot. You should see: the welcome message. Send `/whoami` for the
+   numeric Telegram ID that `ADMIN_TELEGRAM_IDS` needs (a `@username` there will not work).
 2. In your admin chat run `/link нягтлан Тест ХХК`. You should see: a 6-digit code. Send that
    code from the accountant's Telegram. You should see: `✅ Холбогдлоо`.
 3. Run `/эхлэх` and answer the questions. You should see: `✅ Тохиргоо дууслаа` and a

@@ -18,6 +18,8 @@ marked with the reason.
 - [x] `EBARIMT_API_BASE` = `https://api.ebarimt.mn`.
 - [ ] The four secret keys: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`,
       `ADMIN_TELEGRAM_IDS`, `OPENAI_API_KEY`. Only the founder adds these.
+      `ADMIN_TELEGRAM_IDS` is the **numeric** id `/whoami` prints, never an `@username`;
+      add it last, once the webhook is live and the bot can tell you the number.
       Frappe Cloud → the site → **Site Config** → **Add Config**, then per key:
       1. **Config Name** → choose **Custom Key** (the first entry in the list). Until you
          pick it the Key and Type fields stay greyed out, which is what makes the dialog

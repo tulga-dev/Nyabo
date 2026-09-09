@@ -73,7 +73,10 @@ frappe.call("nyabo_mn.api.setup_webhook").then(r => console.log(r.message))
 where a shell exists.)
 
 You should see: an object whose `url` is `https://nyabo.s.frappe.cloud/api/method/nyabo_mn.telegram.webhook.webhook`.
-Then send `/start` to the bot. You should see: the welcome message and your Telegram ID.
+Then send `/start` to the bot. You should see: the welcome message.
+Send `/whoami`. You should see: `Таны Telegram ID: <number>`. That number, not your
+`@username`, is what `ADMIN_TELEGRAM_IDS` wants; a username there makes every admin
+command fail. `/whoami` is not in the ☰ menu on purpose (it is a diagnostic), so type it.
 
 Register the command menu (the ☰ button next to the message box) at the same time, and
 again whenever a command is added or renamed:
