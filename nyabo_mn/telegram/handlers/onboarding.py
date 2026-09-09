@@ -284,7 +284,15 @@ def _forget_inventory_list(ctx: Ctx, payload: dict[str, Any]) -> None:
 	in it can reach the ledger — ``post_intake`` refuses anything that is not confirmed — but a
 	draft nobody explained is a row an auditor has to ask about, so it is cancelled by status
 	rather than deleted (principle 5: this app corrects by reversal and keeps its trail).
+
+	A list that was already filed is left exactly as it is. ``handle_intake_callback`` keeps the
+	intake name in the payload after posting, so the ordinary «confirm the opening stock, then
+	leave the wizard» used to hand a posted intake to ``cancel_intake``, which rightly refuses
+	it — an error line in the log on the happy path. The opening entry is in the ledger and only
+	a reversal takes it back, and the count and total the summary prints are true once posted.
 	"""
+	if payload.get("inventory_posted"):
+		return
 	intake = payload.pop("intake", None)
 	for key in ("inventory_count", "inventory_total"):
 		payload.pop(key, None)

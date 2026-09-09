@@ -112,6 +112,10 @@ def test_deps_post_confirms_the_intake_the_tap_approved(company_v03):
 		_deps.inventory_post_intake(name, "Administrator")
 
 
+def _state(chat_id: int) -> str | None:
+	return frappe.db.get_value("Nyabo Chat State", {"chat_id": str(chat_id)}, "state")
+
+
 def _at_the_confirmation_card(uid: int, company: str) -> tuple[FakeBotApi, str]:
 	"""A real draft intake, waiting for [Батлах]: what every way out of that step meets."""
 	bot = _to_inventory_step(uid, company)
@@ -145,6 +149,30 @@ def test_leaving_the_confirmation_card_cancels_the_draft_it_leaves_behind(compan
 		intake.confirm_intake(name, "Administrator")
 	with pytest.raises(frappe.ValidationError):
 		intake.post_intake(name, "Administrator")
+
+
+def test_leaving_the_wizard_after_the_post_cancels_nothing(company_v03, caplog):
+	"""MINOR: the ordinary «confirm the stock, then leave» handed a posted intake to cancel.
+
+	``handle_intake_callback`` sets ``inventory_posted`` but leaves ``payload["intake"]``, and
+	``_forget_inventory_list`` popped the key and cancelled whatever it found. The opening entry
+	is in the ledger and only a reversal takes it back (principle 5), so the refusal was correct
+	and the call was the mistake — an error line in the log on the happy path.
+	"""
+	import logging
+
+	uid = 9309
+	bot, name = _at_the_confirmation_card(uid, company_v03)
+	run(bot, callback_update(uid, f"i:{name}:confirm"))
+	assert frappe.db.get_value(intake.DOCTYPE, name, "status") == "posted"
+	assert _state(uid) == "onb:acc_name"
+
+	with caplog.at_level(logging.ERROR, logger="frappe.nyabo"):
+		run(bot, message_update(uid, "цуцлах"))
+
+	assert _state(uid) in (None, "")
+	assert frappe.db.get_value(intake.DOCTYPE, name, "status") == "posted"
+	assert "intake_cancel_failed" not in caplog.text, "a filed list has no draft to cancel"
 
 
 def test_a_posted_intake_is_never_cancelled(company_v03):
