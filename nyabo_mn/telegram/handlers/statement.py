@@ -30,6 +30,8 @@ STATE_PREFIX = "layout"
 BANK_LAYOUT = "Nyabo Bank Layout"
 LAYOUT_BANKS = ("Khan Bank", "TDB", "Golomt Bank", "Trans Bank", "XacBank")
 MAX_PREVIEW_ROWS = 3
+# The money columns: any one of them carries an amount into a BankLine.
+AMOUNT_ROLES = ("amount", "debit", "credit")
 
 
 # --- intake ------------------------------------------------------------------------------------------
@@ -232,11 +234,32 @@ def handle_layout_callback(ctx: Ctx, parts: list[str]) -> Any:
 	return _answer_column(ctx, payload, headers, index, role)
 
 
+def missing_for_import(mapping: dict[str, str]) -> list[str]:
+	"""What a mapping still needs before any statement can be read through it, in Mongolian.
+
+	``core.statements.parse_rows`` skips a row whose date cell does not parse ("if date is
+	None: continue") and, for either amount style, a row with no amount in it — so a mapping
+	without a date column, or without one of ``amount``/``debit``/``credit``, produces zero
+	lines from every file. Requiring one money column rather than a debit *and* a credit is
+	deliberate: a statement with only a Зарлага column still imports, and refusing it would
+	trap the accountant in a question with no acceptable answer.
+	"""
+	missing: list[str] = []
+	if "date" not in mapping:
+		missing.append(mn.MSG_STATEMENT_LAYOUT_NEEDS_DATE)
+	if not any(role in mapping for role in AMOUNT_ROLES):
+		missing.append(mn.MSG_STATEMENT_LAYOUT_NEEDS_AMOUNT)
+	return missing
+
+
 def _answer_column(
 	ctx: Ctx, payload: dict[str, Any], headers: list[str], index: int, role: str
 ) -> dict[str, Any]:
 	"""Record one column's role and move on; the last column saves the layout (unverified)."""
 	mapping: dict[str, str] = dict(payload.get("mapping") or {})
+	# The header may already hold a role from an answer being re-taken (Буцах, or a refused
+	# last column); it keeps only the role it is being given now.
+	mapping = {r: h for r, h in mapping.items() if h != headers[index]}
 	if role != "ignore":
 		mapping[role] = headers[index]
 	payload["mapping"] = mapping
@@ -245,6 +268,22 @@ def _answer_column(
 		ctx.set_state(f"{STATE_PREFIX}:{next_index}", payload)
 		_ask_column(ctx.bot, ctx.chat_id, headers, next_index)
 		return {"next": next_index}
+	missing = missing_for_import(mapping)
+	if missing:
+		# Every column is answered and the mapping still cannot read a line. Saving it would
+		# key an empty mapping to this bank's header signature and re-use it for every future
+		# import of that format, and would ask an admin to verify a layout that reads nothing.
+		# So the last question stands, with what it is waiting for.
+		ctx.set_state(f"{STATE_PREFIX}:{index}", payload)
+		ctx.reply(mn.MSG_STATEMENT_LAYOUT_INCOMPLETE.format(missing=", ".join(missing)))
+		_ask_column(ctx.bot, ctx.chat_id, headers, index)
+		log_event(
+			"telegram.layout.incomplete",
+			level="warning",
+			document=payload.get("document"),
+			mapped=sorted(mapping),
+		)
+		return {"incomplete": sorted(mapping)}
 	ctx.clear_state()
 	return save_layout(ctx, payload)
 
@@ -252,6 +291,13 @@ def _answer_column(
 def save_layout(ctx: Ctx, payload: dict[str, Any]) -> Any:
 	headers: list[str] = payload.get("headers") or []
 	mapping: dict[str, str] = payload.get("mapping") or {}
+	missing = missing_for_import(mapping)
+	if missing:
+		# The second lock on the same door: whoever calls this, a layout that reads no lines is
+		# never written and no admin is asked to verify one.
+		ctx.reply(mn.MSG_STATEMENT_LAYOUT_INCOMPLETE.format(missing=", ".join(missing)))
+		log_event("telegram.layout.refused", level="warning", document=payload.get("document"))
+		return {"refused": sorted(mapping)}
 	bank = payload.get("bank") if payload.get("bank") in LAYOUT_BANKS else "Other"
 	digest = hashlib.sha256("|".join(headers).encode("utf-8")).hexdigest()[:8]
 	layout_id = f"custom-{bank.lower().replace(' ', '_')}-{digest}"
@@ -306,7 +352,9 @@ def handle_escape(ctx: Ctx, state: str, payload: dict[str, Any], verb: str) -> b
 	"""Буцах re-asks the previous column, Алгасах marks this one unused, Цуцлах drops the mapping.
 
 	Cancelling is safe at any point: the layout row is only written once every column has been
-	answered, so nothing was imported on a half-made guess (CORE-08).
+	answered, so nothing was imported on a half-made guess (CORE-08). Skipping every column is
+	not a way to leave — it would write a mapping that reads nothing — and is refused where the
+	mapping is completed, not here.
 	"""
 	index = _column_index(state)
 	headers: list[str] = payload.get("headers") or []
@@ -322,7 +370,9 @@ def handle_escape(ctx: Ctx, state: str, payload: dict[str, Any], verb: str) -> b
 		_ask_column(ctx.bot, ctx.chat_id, headers, index - 1)
 		return True
 	if verb == keyboards.ESCAPE_SKIP:
-		# "Ашиглахгүй" is already one of the roles, so skipping a column is simply that answer.
+		# "Ашиглахгүй" is already one of the roles, so skipping a column is simply that answer —
+		# and ``_answer_column`` is where skipping every column is refused, in Mongolian, with
+		# the question left standing.
 		_answer_column(ctx, payload, headers, index, "ignore")
 		return True
 	if verb == keyboards.ESCAPE_CANCEL:

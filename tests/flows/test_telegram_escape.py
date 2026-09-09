@@ -584,6 +584,82 @@ def test_skipping_a_statement_column_marks_it_unused_and_moves_on(company):
 	assert "Дугаар" not in layout.column_map_json
 
 
+def test_skipping_every_statement_column_saves_no_layout_and_says_why(company):
+	"""MAJOR: an empty mapping reads nothing, and would be re-used for that bank's format for ever.
+
+	``save_layout`` keys the row on the header signature, so a mapping with no date and no
+	amount would be found again by every later import of the same export and would send the
+	admins a card asking them to verify a layout that imports zero lines.
+	"""
+	from nyabo_mn.telegram.handlers import statement
+
+	link_user(9293, "Accountant", company)
+	bot = FakeBotApi()
+	statement.start_layout_mapping(
+		bot,
+		9293,
+		"NYD-00004",
+		{"headers": ["Огноо", "Утга", "Дүн"], "preview": [["2026-08-01", "Түлш", "50000"]]},
+	)
+	for index in (0, 1):
+		run(bot, callback_update(9293, f"e:layout:skip:{index}"))
+	assert _state(9293) == "layout:2"
+	bot.clear()
+
+	run(bot, callback_update(9293, "e:layout:skip:2"))
+
+	assert not frappe.get_all("Nyabo Bank Layout", filters={"layout_id": ["like", "custom-%"]})
+	assert _state(9293) == "layout:2", "the last question stands until the mapping can be used"
+	said = " ".join(bot.texts())
+	assert mn.MSG_STATEMENT_LAYOUT_NEEDS_DATE in said and mn.MSG_STATEMENT_LAYOUT_NEEDS_AMOUNT in said
+	assert not [kw for kw in bot.sent("send_message") if mn.MSG_STATEMENT_ADMIN_VERIFY[:20] in kw["text"]]
+
+	# The way out of it is an answer, not a loop: Буцах to the columns that carry the data.
+	run(bot, callback_update(9293, "l:2:amount"))
+	assert _state(9293) == "layout:2", "still no date column"
+	run(bot, callback_update(9293, "e:layout:back:2"))
+	run(bot, callback_update(9293, "e:layout:back:1"))
+	assert _state(9293) == "layout:0"
+	run(bot, callback_update(9293, "l:0:date"))
+	run(bot, callback_update(9293, "l:1:description"))
+	run(bot, callback_update(9293, "l:2:amount"))
+	assert _state(9293) in (None, "")
+	layouts = frappe.get_all("Nyabo Bank Layout", filters={"layout_id": ["like", "custom-%"]}, pluck="name")
+	assert len(layouts) == 1
+	assert "amount" in frappe.get_doc("Nyabo Bank Layout", layouts[0]).column_map_json
+
+
+def test_ignoring_every_statement_column_by_button_is_refused_too(company):
+	"""«Ашиглахгүй» on every column is the same empty mapping, reached without the escape row."""
+	from nyabo_mn.telegram.handlers import statement
+
+	link_user(9294, "Accountant", company)
+	bot = FakeBotApi()
+	statement.start_layout_mapping(bot, 9294, "NYD-00005", {"headers": ["A", "B"], "preview": [["1", "2"]]})
+	run(bot, callback_update(9294, "l:0:ignore"))
+	run(bot, callback_update(9294, "l:1:ignore"))
+
+	assert not frappe.get_all("Nyabo Bank Layout", filters={"layout_id": ["like", "custom-%"]})
+	assert _state(9294) == "layout:1"
+
+
+def test_a_mapping_says_what_it_still_needs(site):
+	"""The check itself: a date and one money column are what parse_rows reads."""
+	from nyabo_mn.telegram.handlers import statement
+
+	assert statement.missing_for_import({"date": "Огноо", "amount": "Дүн"}) == []
+	assert statement.missing_for_import({"date": "Огноо", "debit": "Зарлага"}) == []
+	assert statement.missing_for_import({"date": "Огноо", "credit": "Орлого"}) == []
+	assert statement.missing_for_import({}) == [
+		mn.MSG_STATEMENT_LAYOUT_NEEDS_DATE,
+		mn.MSG_STATEMENT_LAYOUT_NEEDS_AMOUNT,
+	]
+	assert statement.missing_for_import({"amount": "Дүн"}) == [mn.MSG_STATEMENT_LAYOUT_NEEDS_DATE]
+	assert statement.missing_for_import({"date": "Огноо", "balance": "Үлдэгдэл"}) == [
+		mn.MSG_STATEMENT_LAYOUT_NEEDS_AMOUNT
+	]
+
+
 def test_going_back_a_statement_column_forgets_the_answer_it_re_asks(company):
 	"""Otherwise the column keeps the role it was given and Буцах changes nothing."""
 	from nyabo_mn.telegram.handlers import statement

@@ -1008,6 +1008,15 @@ MSG_STEP_CANNOT_SKIP = (
 )
 MSG_STEP_NO_BACK = "Энэ бол эхний алхам тул буцах алхам алга. «Цуцлах» дарвал энэ ажлаас бүрмөсөн гарна."
 MSG_ESCAPE_STALE = "Энэ асуулт аль хэдийн хаагдсан байна. /меню — үндсэн цэс."
+# A mapping with no date column, or none of the money columns, reads zero lines out of every
+# statement in that bank's format for ever after (the row is keyed on the header signature),
+# so it is refused before it is written and the accountant is told what is still missing.
+MSG_STATEMENT_LAYOUT_NEEDS_DATE = "«Огноо» багана"
+MSG_STATEMENT_LAYOUT_NEEDS_AMOUNT = "«Дүн», «Зарлага (дебит)» эсвэл «Орлого (кредит)» багана"
+MSG_STATEMENT_LAYOUT_INCOMPLETE = (
+	"Ийм тохиргоогоор хуулгын мөрүүд уншигдахгүй: {missing} дутуу байна. "
+	"Энэ баганад тохирох үүргийг сонгоно уу, эсвэл «Цуцлах» дарж хуулгыг дахин илгээнэ үү."
+)
 MSG_STATEMENT_LAYOUT_CANCELLED = (
 	"Баганын тохиргоог зогсоолоо. Хуулга бүртгэгдээгүй тул шаардлагатай бол дахин илгээнэ үү."
 )
