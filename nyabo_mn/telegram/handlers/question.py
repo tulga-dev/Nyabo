@@ -134,7 +134,7 @@ def handle_callback(ctx: Ctx, parts: list[str]) -> Any:
 	reply = questions.Reply(
 		text=str(result.get("text") or mn.MSG_QUESTION_CANNOT),
 		follow_ups=questions.follow_ups(trace, now=now, answered=bool(result.get("text"))),
-		memory=questions.remember(_question_of(ctx), trace, company=company, now=now),
+		memory=questions.remember(_question_of(ctx, company), trace, company=company, now=now),
 		subject=questions.subject_label(subject),
 	)
 	chat_state.set_question_memory(ctx.chat_id, reply.memory, telegram_id=ctx.telegram_id)
@@ -143,19 +143,29 @@ def handle_callback(ctx: Ctx, parts: list[str]) -> Any:
 
 def _escalate(ctx: Ctx, company: str) -> Any:
 	"""Hand the question to a human, quoting what the user actually asked."""
-	question = _question_of(ctx)
+	question = _question_of(ctx, company)
 	summary = mn.MSG_QUESTION_ESCALATE_SUMMARY.format(button=mn.BTN_Q_ASK_ADMIN, question=question)
 	_deps.escalate_question(ctx.user, company, question, summary)
 	ctx.edit(ctx.callback_message_id, mn.MSG_ESCALATED, keyboards.menu_markup())
 	return {"escalated": True}
 
 
-def _question_of(ctx: Ctx) -> str:
+def _question_of(ctx: Ctx, company: str) -> str:
 	"""The remembered question this card answers, else the card's own text.
+
+	Through ``questions.recall``, not straight off the chat state: this was the one read of
+	the memory with no TTL, no version and no company check, and ``_escalate`` quotes the
+	result to an admin — so a question typed about another client, or twenty minutes and one
+	/компани ago, could be sent out under this company's name.
 
 	Never the callback datum: what an admin is asked to act on has to be what a person wrote.
 	"""
-	stored = str(chat_state.get_question_memory(ctx.chat_id).get("question") or "").strip()
+	memory = questions.recall(
+		chat_state.get_question_memory(ctx.chat_id),
+		company=company,
+		now=dt.datetime.now(dt.timezone.utc),
+	)
+	stored = str((memory or {}).get("question") or "").strip()
 	if stored:
 		return stored
 	return (((ctx.callback or {}).get("message") or {}).get("text") or "").strip()[:200]

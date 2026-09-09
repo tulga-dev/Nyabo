@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
 import frappe
 import pytest
 
@@ -34,11 +36,18 @@ def _spend_reply(memory: dict | None = None) -> questions.Reply:
 	)
 
 
-def _memory(company: str, **subject: str) -> dict:
+def _memory(company: str, *, minutes_old: int = 0, **subject: str) -> dict:
+	"""A memory as ``questions.remember`` would have just written it.
+
+	Stamped against the clock rather than a fixed string, because the reads of this memory go
+	through ``questions.recall`` and a fixed timestamp is stale within the hour — which is the
+	TTL doing its job, not a fixture that still describes the flow.
+	"""
+	at = datetime.now(timezone.utc) - timedelta(minutes=minutes_old)
 	return {
 		"v": questions.MEMORY_VERSION,
 		"company": company,
-		"at": "2026-09-09T00:00:00+00:00",
+		"at": at.isoformat(timespec="seconds"),
 		"question": "Шатахуунд хэд зарцуулсан бэ?",
 		"query_kind": "spend_by_account",
 		"subject": subject or {"account_code": "6210", "period": "2026-09"},
@@ -177,6 +186,47 @@ def test_the_ask_admin_button_escalates_with_the_question_the_user_typed(company
 	)
 	assert len(events) == 1 and events[0].company == company
 	assert "Шатахуунд хэд зарцуулсан бэ?" in events[0].reason
+
+
+def test_the_escalation_never_quotes_a_memory_from_another_company(company, company_v03, monkeypatch):
+	"""MINOR: ``_question_of`` read the chat state directly — no TTL, no version, no company.
+
+	It is the one read that skipped every check, and ``_escalate`` quotes its text to an
+	admin, so a question typed about another client could be sent out under this company's
+	name. It goes through ``questions.recall`` like every other read of that memory.
+	"""
+	monkeypatch.setattr(
+		_deps, "answer_question", lambda user, comp, text, memory=None: _spend_reply(memory=_memory(comp))
+	)
+	link_user(9014, "Accountant", company)
+	bot = FakeBotApi()
+
+	def _reasons() -> list[str]:
+		rows = frappe.get_all(
+			"Nyabo Event",
+			filters={"event_type": "question_escalated", "company": company},
+			fields=["reason"],
+			order_by="creation asc, name asc",
+		)
+		return [row.reason for row in rows]
+
+	foreign = _memory(company_v03)
+	foreign["question"] = "Гурав ХХК-д шатахуунд хэд зарцуулсан бэ?"
+	chat_state.set_question_memory(9014, foreign, telegram_id=9014)
+
+	run(bot, callback_update(9014, f"q:{questions.VERB_ESCALATE}"))
+	assert len(_reasons()) == 1 and "Гурав ХХК" not in _reasons()[0]
+
+	# nor one of this company that the TTL has since expired
+	stale = _memory(company, minutes_old=questions.MEMORY_TTL_MINUTES + 1)
+	chat_state.set_question_memory(9014, stale, telegram_id=9014)
+	run(bot, callback_update(9014, f"q:{questions.VERB_ESCALATE}"))
+	assert "Шатахуунд хэд зарцуулсан бэ?" not in _reasons()[-1]
+
+	# a memory of this company, still fresh, is quoted as before
+	chat_state.set_question_memory(9014, _memory(company), telegram_id=9014)
+	run(bot, callback_update(9014, f"q:{questions.VERB_ESCALATE}"))
+	assert "Шатахуунд хэд зарцуулсан бэ?" in _reasons()[-1]
 
 
 def test_the_menu_button_reaches_the_menu(company):
