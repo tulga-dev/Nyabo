@@ -68,7 +68,8 @@ def start(ctx: Ctx, force: bool = False) -> Any:
 	ctx.set_state(_state("vat"), {"company": ctx.company, "banks": []})
 	_set_progress(settings, "vat")
 	ctx.reply(mn.ONB_START.format(company=ctx.company))
-	ctx.reply(mn.ONB_ASK_VAT, keyboards.onboarding_yes_no("vat"))
+	# The first question has no step behind it, so it is drawn without Буцах (UX-13).
+	ctx.reply(mn.ONB_ASK_VAT, keyboards.onboarding_yes_no("vat", back=False))
 	return {"step": "vat"}
 
 
@@ -102,11 +103,11 @@ def handle_callback(ctx: Ctx, parts: list[str]) -> Any:
 	_prefix, step, value = parts[0], parts[1], parts[2]
 	state, payload = ctx.get_state()
 	if not state or not state.startswith(PREFIX + ":"):
-		ctx.answer(mn.MSG_CANCELLED)
+		ctx.answer(mn.MSG_ESCAPE_STALE, show_alert=True)
 		return None
 	current = state.split(":", 1)[1]
 	if step != current and not (step == "banks" and current == "banks"):
-		ctx.answer(mn.MSG_CANCELLED)
+		ctx.answer(mn.MSG_ESCAPE_STALE, show_alert=True)
 		return None
 	handler = {
 		"vat": _on_vat,
@@ -193,7 +194,7 @@ def _on_currency(ctx: Ctx, payload: dict[str, Any], value: str) -> Any:
 	selected: list[str] = list(payload.get("cur_selected") or [])
 	if value == "other":
 		_advance(ctx, payload, "cur_other")
-		ctx.reply(mn.ONB_ASK_CURRENCY_CODE)
+		ctx.reply(mn.ONB_ASK_CURRENCY_CODE, keyboards.onboarding_text_step())
 		return None
 	if value != "done":
 		if value in selected:
@@ -263,15 +264,20 @@ def _on_inventory(ctx: Ctx, payload: dict[str, Any], value: str) -> Any:
 		keyboards.empty_markup(),
 	)
 	if payload["has_inventory"]:
-		_advance(ctx, payload, "inv_wait")
-		ctx.reply(mn.ONB_INVENTORY_HOW)
-		return {"step": "inv_wait"}
+		return _ask_inventory_list(ctx, payload)
 	return _ask_accountant(ctx, payload)
+
+
+def _ask_inventory_list(ctx: Ctx, payload: dict[str, Any]) -> Any:
+	"""The step the founder was trapped in: optional, so it is drawn with Алгасах and Буцах."""
+	_advance(ctx, payload, "inv_wait")
+	ctx.reply(mn.ONB_INVENTORY_HOW, keyboards.onboarding_text_step(back=True, skip=True))
+	return {"step": "inv_wait"}
 
 
 def _ask_accountant(ctx: Ctx, payload: dict[str, Any]) -> Any:
 	_advance(ctx, payload, "acc_name")
-	ctx.reply(mn.ONB_ASK_ACCOUNTANT_NAME)
+	ctx.reply(mn.ONB_ASK_ACCOUNTANT_NAME, keyboards.onboarding_text_step(skip=True))
 	return {"step": "acc_name"}
 
 
@@ -317,10 +323,24 @@ def _inventory_from_message(ctx: Ctx) -> tuple[list[dict[str, Any]], str]:
 	return _deps.inventory_parse_text(ctx.text), "text"
 
 
+def _inventory_prompt() -> dict[str, Any]:
+	"""What a refused inventory line is answered with: the shape wanted, and the ways out.
+
+	UX-13: the step used to reply with a bare sentence and leave the state untouched with no
+	keyboard, so a user whose line could not be read had nothing on screen to press.
+	"""
+	return keyboards.onboarding_text_step(back=True, skip=True)
+
+
 def _on_inventory_input(ctx: Ctx, payload: dict[str, Any]) -> Any:
 	if not ctx.document and not ctx.text:
-		ctx.reply(mn.MSG_ONBOARDING_INVENTORY_NEED_FILE)
+		ctx.reply(mn.MSG_ONBOARDING_INVENTORY_NEED_FILE, _inventory_prompt())
 		return None
+	if ctx.document:
+		# "We only recommend using this method when a response from the bot will take a
+		# noticeable amount of time to arrive" (sendChatAction): downloading and parsing a
+		# workbook does, typing a line does not.
+		_typing(ctx)
 	try:
 		items, source = _inventory_from_message(ctx)
 	except DependencyMissing:
@@ -336,10 +356,15 @@ def _on_inventory_input(ctx: Ctx, payload: dict[str, Any]) -> Any:
 			user=ctx.user,
 			source="excel" if ctx.document else "text",
 		)
-		ctx.reply(mn.ONB_INVENTORY_PARSE_FAILED)
+		# The state stands and the buttons come back with the message: a step that cannot read
+		# the input must still be answerable (UX-13).
+		ctx.reply(mn.ONB_INVENTORY_PARSE_FAILED, _inventory_prompt())
 		return None
 	if not items:
-		ctx.reply(mn.ONB_INVENTORY_PARSE_ERROR.format(error=mn.MSG_ONBOARDING_INVENTORY_NEED_FILE))
+		ctx.reply(
+			mn.ONB_INVENTORY_PARSE_ERROR.format(error=mn.MSG_ONBOARDING_INVENTORY_NEED_FILE),
+			_inventory_prompt(),
+		)
 		return None
 	intake = _deps.inventory_create_intake(
 		ctx.company or payload.get("company") or "", items, source, ctx.user
@@ -363,8 +388,7 @@ def handle_intake_callback(ctx: Ctx, parts: list[str]) -> Any:
 		return None
 	if action == "cancel":
 		ctx.bot.edit_message_reply_markup(ctx.chat_id, ctx.callback_message_id, keyboards.empty_markup())
-		_advance(ctx, payload, "inv_wait")
-		ctx.reply(mn.ONB_INVENTORY_HOW)
+		_ask_inventory_list(ctx, payload)
 		return {"cancelled": True}
 	result = _deps.inventory_post_intake(intake, ctx.user) or {}
 	docs = result.get("created") or result.get("docs") or list(result.values())
@@ -410,9 +434,7 @@ def handle_state(ctx: Ctx, state: str, payload: dict[str, Any]) -> Any:
 		return _on_inventory_input(ctx, payload)
 	if step == "acc_name":
 		payload["accountant_name"] = ctx.text.strip()[:140]
-		_advance(ctx, payload, "micpa")
-		ctx.reply(mn.ONB_ASK_MICPA, keyboards.onboarding_skip("micpa"))
-		return {"step": "micpa"}
+		return _ask_micpa(ctx, payload)
 	if step == "micpa":
 		payload["micpa"] = ctx.text.strip()[:60]
 		return _show_summary(ctx, payload)
@@ -420,9 +442,21 @@ def handle_state(ctx: Ctx, state: str, payload: dict[str, Any]) -> Any:
 	return _repeat(ctx, step, payload)
 
 
+def _ask_micpa(ctx: Ctx, payload: dict[str, Any]) -> Any:
+	_advance(ctx, payload, "micpa")
+	ctx.reply(mn.ONB_ASK_MICPA, keyboards.onboarding_skip("micpa"))
+	return {"step": "micpa"}
+
+
 def _repeat(ctx: Ctx, step: str, payload: dict[str, Any]) -> Any:
+	"""Re-offer the question the chat is on, with its buttons.
+
+	Every waiting step is covered, not only the button ones: this is what Буцах re-draws and
+	what a step answers with when it cannot read what was typed, so a user is never left with
+	a message they have no way to answer (UX-13).
+	"""
 	if step == "vat":
-		ctx.reply(mn.ONB_ASK_VAT, keyboards.onboarding_yes_no("vat"))
+		ctx.reply(mn.ONB_ASK_VAT, keyboards.onboarding_yes_no("vat", back=False))
 	elif step == "400m":
 		ctx.reply(mn.ONB_ASK_UNDER_400M, keyboards.onboarding_yes_no("400m"))
 	elif step == "banks":
@@ -435,15 +469,125 @@ def _repeat(ctx: Ctx, step: str, payload: dict[str, Any]) -> Any:
 				payload.get("cur_selected") or [], payload.get("cur_custom") or []
 			),
 		)
+	elif step == "cur_other":
+		ctx.reply(mn.ONB_ASK_CURRENCY_CODE, keyboards.onboarding_text_step())
+	elif step == "acct":
+		queue: list[str] = payload.get("acct_queue") or []
+		bank = payload["banks"][payload.get("bank_index", 0)]["bank"]
+		ctx.reply(
+			mn.ONB_ASK_ACCOUNT_NUMBER.format(bank=bank, currency=queue[0] if queue else DEFAULT_CURRENCY),
+			keyboards.onboarding_skip("acct"),
+		)
 	elif step == "inv":
 		ctx.reply(mn.ONB_ASK_INVENTORY, keyboards.onboarding_yes_no("inv"))
+	elif step == "inv_wait":
+		ctx.reply(mn.ONB_INVENTORY_HOW, keyboards.onboarding_text_step(back=True, skip=True))
 	elif step == "inv_confirm":
 		ctx.reply(mn.ONB_CONFIRM_SUMMARY, keyboards.intake_confirm(payload.get("intake", "")))
+	elif step == "acc_name":
+		ctx.reply(mn.ONB_ASK_ACCOUNTANT_NAME, keyboards.onboarding_text_step(skip=True))
+	elif step == "micpa":
+		ctx.reply(mn.ONB_ASK_MICPA, keyboards.onboarding_skip("micpa"))
 	elif step == "summary":
 		return _show_summary(ctx, payload)
 	else:
 		ctx.clear_state()
 	return None
+
+
+# --- escapes (UX-13) ---------------------------------------------------------------------------------
+
+# Буцах: the question each step goes back to. A step that is not here has nothing to return to
+# (the first question), or sits inside a queue the wizard walks per bank and per currency, where
+# "the previous question" is the one the queue is already re-asking.
+BACK_STEPS = {
+	"400m": "vat",
+	"banks": "400m",
+	"cur": "banks",
+	"cur_other": "cur",
+	"acct": "cur",
+	"inv": "banks",
+	"inv_wait": "inv",
+	"inv_confirm": "inv_wait",
+	"micpa": "acc_name",
+	"summary": "micpa",
+}
+
+
+def _go_to(ctx: Ctx, payload: dict[str, Any], step: str) -> Any:
+	_advance(ctx, payload, step)
+	return _repeat(ctx, step, payload)
+
+
+def handle_escape(ctx: Ctx, state: str, payload: dict[str, Any], verb: str) -> bool:
+	"""Цуцлах / Буцах / Алгасах inside the wizard; False leaves it to the plain cancel.
+
+	Cancel is left to the caller on purpose: nothing is written to the company until the
+	summary is confirmed, so abandoning the wizard needs no clean-up beyond the chat state.
+	"""
+	step = state.split(":", 1)[1] if ":" in state else ""
+	if verb == keyboards.ESCAPE_BACK:
+		target = BACK_STEPS.get(step)
+		if not target:
+			return False
+		_go_to(ctx, payload, target)
+		return True
+	if verb == keyboards.ESCAPE_SKIP:
+		return _skip_step(ctx, payload, step)
+	return False
+
+
+def _skip_step(ctx: Ctx, payload: dict[str, Any], step: str) -> bool:
+	"""True when the step is genuinely optional; the VAT regime and the summary never are."""
+	if step == "banks":
+		payload["selected_banks"] = []
+		payload["banks"] = []
+		payload["bank_index"] = 0
+		_ask_inventory(ctx, payload)
+		return True
+	if step == "cur":
+		bank = payload["banks"][payload.get("bank_index", 0)]
+		bank["currencies"] = [DEFAULT_CURRENCY]
+		payload["acct_queue"] = list(bank["currencies"])
+		_ask_account_number(ctx, payload)
+		return True
+	if step == "cur_other":
+		_go_to(ctx, payload, "cur")
+		return True
+	if step == "acct":
+		_store_account_number(ctx, payload, None)
+		return True
+	if step == "inv":
+		payload["has_inventory"] = False
+		ctx.reply(mn.ONB_INVENTORY_SKIPPED)
+		_ask_accountant(ctx, payload)
+		return True
+	if step in ("inv_wait", "inv_confirm"):
+		# The founder's case: «алгасах» here leaves the opening stock for later and the wizard
+		# goes on. ``has_inventory`` keeps the answer they gave — the company does hold stock,
+		# it is the list that is missing — so provisioning still sets the inventory accounts up.
+		payload["inventory_skipped"] = True
+		payload.pop("intake", None)
+		ctx.reply(mn.ONB_INVENTORY_SKIPPED)
+		_ask_accountant(ctx, payload)
+		return True
+	if step == "acc_name":
+		payload["accountant_name"] = ""
+		_ask_micpa(ctx, payload)
+		return True
+	if step == "micpa":
+		payload["micpa"] = ""
+		_show_summary(ctx, payload)
+		return True
+	return False
+
+
+def _typing(ctx: Ctx) -> None:
+	"""Best-effort ``sendChatAction``; a missing status line must never cost the answer."""
+	try:
+		ctx.bot.send_chat_action(ctx.chat_id)
+	except Exception as exc:
+		log_event("telegram.chat_action_failed", level="warning", error=type(exc).__name__)
 
 
 # --- finish ------------------------------------------------------------------------------------------

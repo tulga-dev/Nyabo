@@ -121,7 +121,7 @@ def handle_callback(ctx: Ctx, parts: list[str]) -> Any:
 		return None
 	if action == "find":
 		ctx.set_state(STATE_FIND, {"bank_transaction": name, "message_id": ctx.callback_message_id})
-		ctx.reply(mn.MSG_BANK_FIND_ASK)
+		ctx.reply(mn.MSG_BANK_FIND_ASK, keyboards.bank_find_prompt())
 		return None
 	if action == "st":
 		# The only button on this card that posts (a Payment Entry), so it needs the same
@@ -195,14 +195,40 @@ def handle_state(ctx: Ctx, state: str, payload: dict[str, Any]) -> Any:
 		ctx.clear_state()
 		ctx.reply(mn.MSG_NO_PERMISSION)
 		return None
+	# Searching the ledger for a matching voucher is the one step in this flow that keeps the
+	# accountant waiting, which is exactly what sendChatAction is for ("We only recommend using
+	# this method when a response from the bot will take a noticeable amount of time to arrive").
+	try:
+		ctx.bot.send_chat_action(ctx.chat_id)
+	except Exception as exc:
+		log_event("telegram.chat_action_failed", level="warning", error=type(exc).__name__)
 	candidates = [_candidate_dict(c) for c in (_deps.find_candidates(name, ctx.text.strip()) or [])][:9]
 	if not candidates:
-		ctx.reply(mn.MSG_BANK_FIND_NONE)
+		# The search failed, not the flow: the same prompt comes back with its ways out.
+		ctx.reply(mn.MSG_BANK_FIND_NONE, keyboards.bank_find_prompt())
 		return {"candidates": []}
 	payload["candidates"] = candidates
 	ctx.set_state(STATE_FIND, payload)
 	ctx.reply(cards.bank_candidates_text(candidates), keyboards.bank_candidates(name, len(candidates)))
 	return {"candidates": candidates}
+
+
+def handle_escape(ctx: Ctx, state: str, payload: dict[str, Any], verb: str) -> bool | str:
+	"""Every way out of the document search is [Дараа]: the line stays unmatched, nothing posts.
+
+	The card is restored with its own buttons so the line can be picked up again later — an
+	unmatched line the accountant can no longer act on would come back at month end as an
+	item on the checklist with no way to clear it.
+	"""
+	name = payload.get("bank_transaction")
+	message_id = payload.get("message_id")
+	if name and message_id:
+		try:
+			ctx.bot.edit_message_reply_markup(ctx.chat_id, message_id, keyboards.bank_line_keyboard(name))
+		except Exception as exc:  # the card may be gone; the state is cleared either way
+			log_event("telegram.escape.card_restore_failed", level="warning", error=type(exc).__name__)
+	ctx.reply(mn.MSG_BANK_LATER)
+	return keyboards.ESCAPE_CANCEL
 
 
 def match_chosen(ctx: Ctx, name: str, index_text: str) -> Any:

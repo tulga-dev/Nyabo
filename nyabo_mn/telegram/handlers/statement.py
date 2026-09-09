@@ -199,10 +199,11 @@ def start_layout_mapping(bot: Any, chat_id: int | str, document_name: str, summa
 
 
 def _ask_column(bot: Any, chat_id: int | str, headers: list[str], index: int) -> None:
+	"""Буцах appears from the second column on; the first has nothing behind it (UX-13)."""
 	bot.send_message(
 		chat_id,
 		mn.MSG_STATEMENT_LAYOUT_ASK_COLUMN.format(header=headers[index]),
-		reply_markup=keyboards.layout_column_roles(index),
+		reply_markup=keyboards.layout_column_roles(index, back=index > 0),
 	)
 
 
@@ -223,15 +224,22 @@ def handle_layout_callback(ctx: Ctx, parts: list[str]) -> Any:
 	headers: list[str] = payload.get("headers") or []
 	if index >= len(headers) or role not in mn.COLUMN_ROLES:
 		return None
-	mapping: dict[str, str] = dict(payload.get("mapping") or {})
-	if role != "ignore":
-		mapping[role] = headers[index]
-	payload["mapping"] = mapping
 	ctx.edit(
 		ctx.callback_message_id,
 		mn.MSG_STATEMENT_LAYOUT_ASK_COLUMN.format(header=headers[index]) + " " + mn.COLUMN_ROLES[role],
 		keyboards.empty_markup(),
 	)
+	return _answer_column(ctx, payload, headers, index, role)
+
+
+def _answer_column(
+	ctx: Ctx, payload: dict[str, Any], headers: list[str], index: int, role: str
+) -> dict[str, Any]:
+	"""Record one column's role and move on; the last column saves the layout (unverified)."""
+	mapping: dict[str, str] = dict(payload.get("mapping") or {})
+	if role != "ignore":
+		mapping[role] = headers[index]
+	payload["mapping"] = mapping
 	next_index = index + 1
 	if next_index < len(headers):
 		ctx.set_state(f"{STATE_PREFIX}:{next_index}", payload)
@@ -274,12 +282,52 @@ def save_layout(ctx: Ctx, payload: dict[str, Any]) -> Any:
 
 def handle_state(ctx: Ctx, state: str, payload: dict[str, Any]) -> Any:
 	"""Text while mapping: repeat the current column question (buttons are the only answer)."""
-	try:
-		index = int(state.split(":", 1)[1])
-	except (IndexError, ValueError):
+	index = _column_index(state)
+	if index is None:
 		ctx.clear_state()
 		return None
 	headers = payload.get("headers") or []
 	if index < len(headers):
 		_ask_column(ctx.bot, ctx.chat_id, headers, index)
 	return None
+
+
+def _column_index(state: str) -> int | None:
+	try:
+		return int(state.split(":", 1)[1])
+	except (IndexError, ValueError):
+		return None
+
+
+# --- escapes (UX-13) ---------------------------------------------------------------------------------
+
+
+def handle_escape(ctx: Ctx, state: str, payload: dict[str, Any], verb: str) -> bool | str:
+	"""Буцах re-asks the previous column, Алгасах marks this one unused, Цуцлах drops the mapping.
+
+	Cancelling is safe at any point: the layout row is only written once every column has been
+	answered, so nothing was imported on a half-made guess (CORE-08).
+	"""
+	index = _column_index(state)
+	headers: list[str] = payload.get("headers") or []
+	if index is None or index >= len(headers):
+		return False
+	if verb == keyboards.ESCAPE_BACK:
+		if index == 0:
+			return False
+		# The answer being re-taken is dropped, or the column would keep the role it was given.
+		mapping = {r: h for r, h in (payload.get("mapping") or {}).items() if h != headers[index - 1]}
+		payload["mapping"] = mapping
+		ctx.set_state(f"{STATE_PREFIX}:{index - 1}", payload)
+		_ask_column(ctx.bot, ctx.chat_id, headers, index - 1)
+		return True
+	if verb == keyboards.ESCAPE_SKIP:
+		# "Ашиглахгүй" is already one of the roles, so skipping a column is simply that answer.
+		_answer_column(ctx, payload, headers, index, "ignore")
+		return True
+	if verb == keyboards.ESCAPE_CANCEL:
+		ctx.clear_state()
+		ctx.reply(mn.MSG_STATEMENT_LAYOUT_CANCELLED)
+		log_event("telegram.layout.cancelled", document=payload.get("document"), column=index)
+		return True
+	return False

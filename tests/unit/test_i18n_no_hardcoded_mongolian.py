@@ -37,6 +37,7 @@ ALLOWED: dict[str, str] = {
 	"matching/rules.py": "the legal citation carried by a seeded rule",
 	"setup/chart_csv.py": "CSV column header aliases in the accountant's own file",
 	"setup/inventory_intake.py": "inventory column header aliases in the accountant's own file",
+	"telegram/handlers/escape.py": "the Cyrillic escape words a user types (цуцлах, буцах, алгасах)",
 	"telegram/router.py": "the Cyrillic command names a user types",
 	"telegram/state.py": "the role words a user types in /link",
 }

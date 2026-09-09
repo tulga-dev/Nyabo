@@ -108,7 +108,7 @@ def reason_chosen(ctx: Ctx, name: str, code: str) -> Any:
 	doctype, name = pending
 	if code == "other":
 		ctx.set_state(STATE_TEXT, {"doctype": doctype, "name": name, "message_id": ctx.callback_message_id})
-		ctx.reply(mn.MSG_CORRECTION_ASK_TEXT)
+		ctx.reply(mn.MSG_CORRECTION_ASK_TEXT, keyboards.correction_text())
 		return None
 	ctx.bot.edit_message_reply_markup(ctx.chat_id, ctx.callback_message_id, keyboards.empty_markup())
 	return do_reverse(ctx, doctype, name, code, mn.CORRECT_REASONS.get(code, code))
@@ -149,3 +149,20 @@ def handle_state(ctx: Ctx, state: str, payload: dict[str, Any]) -> Any:
 		ctx.reply(mn.MSG_CORRECTION_ASK_REASON, keyboards.correction_reasons(name))
 		return None
 	return do_reverse(ctx, doctype, name, "other", ctx.text.strip()[:200])
+
+
+# --- escapes (UX-13) ---------------------------------------------------------------------------------
+
+
+def handle_escape(ctx: Ctx, state: str, payload: dict[str, Any], verb: str) -> bool | str:
+	"""Буцах from the free-text reason returns to the reason buttons; nothing here is skippable.
+
+	A reversal is a book entry with a legally required reason (Law on Accounting art. 15), so
+	there is no default reason to skip to — leaving is the only other way out.
+	"""
+	name = payload.get("name")
+	if verb == keyboards.ESCAPE_BACK and state == STATE_TEXT and name:
+		ctx.set_state(STATE_REASON, {k: v for k, v in payload.items() if k != "message_id"})
+		ctx.reply(mn.MSG_CORRECTION_ASK_REASON, keyboards.correction_reasons(name))
+		return True
+	return False
