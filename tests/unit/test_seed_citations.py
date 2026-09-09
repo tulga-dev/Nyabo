@@ -195,10 +195,68 @@ def test_unverified_patterns_have_no_section_and_name_their_candidates(pattern_r
 		assert re.search(r"Citation:|Not prescribed by Order 116", row["notes"]), pid
 
 
+#: Patterns Order 116 prints no entry for. Whoever ticks one in the desk is vouching for
+#: double-entry mechanics or for another instrument, never for a sentence of this order, so
+#: the note has to say so in as many words (docs/legal/order116.md §3).
+NOT_PRESCRIBED = (
+	"customer_prepayment_recognize_vat_payer",
+	"customer_prepayment_recognize_non_vat",
+	"bank_transfer_internal",
+)
+
+#: Patterns whose entry the instrument prints only in part: a leg of the entry is an
+#: extension of a sentence worded for something else (input VAT on a service or a fixed
+#: asset), or the printed form carries a line this pattern does not have (deferred tax).
+PARTLY_PRINTED = (
+	"purchase_expense_vat_payer",
+	"fixed_asset_acquire_vat_payer",
+	"income_tax_accrue",
+	"vat_settle",
+	"payroll_withhold_employee_si",
+	"simplified_tax_accrue",
+)
+
+
 def test_patterns_the_instrument_does_not_prescribe_stay_unverified(pattern_rows):
 	by_id = {r["pattern_id"]: r for r in pattern_rows}
-	for pid in ("customer_prepayment_recognize_vat_payer", "customer_prepayment_recognize_non_vat"):
+	for pid in NOT_PRESCRIBED:
 		assert by_id[pid]["verified"] is False and "Not prescribed by Order 116" in by_id[pid]["notes"], pid
-	# readings rated only "probable" (composites by extension) and reader disagreements
-	for pid in ("purchase_expense_vat_payer", "purchase_expense_non_vat", "income_tax_accrue"):
+	for pid in PARTLY_PRINTED:
 		assert by_id[pid]["verified"] is False, pid
+
+
+def test_unverifiable_patterns_say_what_an_admin_would_be_vouching_for(pattern_rows):
+	"""The desk's verify button is the only door; an unverifiable row must brief the person at it.
+
+	`rules.guard.require_verified` refuses these rows, so an accountant is asked to tick a
+	box no quote supports. The note is the only place that can tell them whether they are
+	vouching for another instrument or for plain double entry, so require that sentence.
+	"""
+	by_id = {r["pattern_id"]: r for r in pattern_rows}
+	for pid in NOT_PRESCRIBED + PARTLY_PRINTED:
+		assert "VOUCHING FOR" in by_id[pid]["notes"], f"{pid}: unverifiable without a briefing"
+
+
+def test_the_everyday_non_vat_receipt_can_post(pattern_rows):
+	"""A plain expense receipt at a non-VAT company must not need a human to tick anything.
+
+	`Тест ХХК` is not VAT-registered, so every ordinary receipt the founder sends the bot
+	lands on `purchase_expense_non_vat`; while that row was unverified `require_verified`
+	refused it and nothing he sent could post. Order 116 does print the entry (12.2.2 А) and
+	the gross amount rule (9.4.1.1), so the row is verified — pin it, together with the rest
+	of the everyday path (collecting a receivable, paying a supplier, a bank outflow).
+	"""
+	by_id = {r["pattern_id"]: r for r in pattern_rows}
+	for pid in (
+		"purchase_expense_non_vat",
+		"purchase_inventory_non_vat",
+		"sale_cash_non_vat",
+		"sale_credit_non_vat",
+		"receivable_collect",
+		"payable_pay",
+		"bank_line_expense",
+		"bank_fee_expense",
+	):
+		row = by_id[pid]
+		assert row["verified"] is True, f"{pid}: the everyday path is blocked again"
+		assert row["enabled"] is True, pid

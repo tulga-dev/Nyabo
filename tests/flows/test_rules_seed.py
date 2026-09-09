@@ -43,16 +43,16 @@ def test_sync_never_overwrites_a_verified_row_unless_forced(site):
 	seed.sync()
 	seed_rows = {r["pattern_id"]: r for r in load_seed("posting_patterns")["rows"]}
 	seed_verified = sum(1 for r in seed_rows.values() if r["verified"])
-	# both rows below ship unverified (Заавар 116 section not settled, docs/seed/README.md open items)
-	assert not seed_rows["bank_fee_expense"]["verified"] and not seed_rows["vat_settle"]["verified"]
-	doc = frappe.get_doc("Nyabo Posting Pattern", "bank_fee_expense")
+	# both rows below ship unverified (Order 116 prints no entry for either, docs/seed/README.md open items)
+	assert not seed_rows["bank_transfer_internal"]["verified"] and not seed_rows["vat_settle"]["verified"]
+	doc = frappe.get_doc("Nyabo Posting Pattern", "bank_transfer_internal")
 	doc.verified = 1
 	doc.citation_section = "5.3"
 	doc.notes = "checked against the instrument"
 	doc.save()
 	counts = seed.sync()
 	assert counts["Nyabo Posting Pattern"]["skipped_verified"] == seed_verified + 1
-	kept = frappe.get_doc("Nyabo Posting Pattern", "bank_fee_expense")
+	kept = frappe.get_doc("Nyabo Posting Pattern", "bank_transfer_internal")
 	assert kept.verified == 1 and kept.citation_section == "5.3"
 
 	# a drifted unverified row is brought back to the seed value
@@ -64,7 +64,7 @@ def test_sync_never_overwrites_a_verified_row_unless_forced(site):
 
 	forced = seed.sync(force=True)
 	assert "skipped_verified" not in forced["Nyabo Posting Pattern"]
-	reset = frappe.get_doc("Nyabo Posting Pattern", "bank_fee_expense")
+	reset = frappe.get_doc("Nyabo Posting Pattern", "bank_transfer_internal")
 	assert reset.verified == 0 and not reset.citation_section
 
 
