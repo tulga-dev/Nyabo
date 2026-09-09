@@ -28,7 +28,18 @@ def scrub(name: str) -> str:
 
 
 def class_name(name: str) -> str:
-	return "".join(part.capitalize() for part in re.split(r"[\s_-]+", name))
+	"""Frappe's own rule, which is not a title-case: ``doctype.replace(" ", "").replace("-", "")``.
+
+	frappe/model/base_document.py (version-16) builds the controller class name that way and
+	raises ImportError when no class of that name is in the module, so a DocType whose
+	controller is named any other way cannot be loaded — and a DocType that cannot be loaded
+	is skipped by migrate and never created on the site. Capitalising each word broke exactly
+	one name, "Nyabo LLM Call": the generator wrote ``NyaboLlmCall`` where Frappe looks for
+	``NyaboLLMCall``, so the site ran with 20 of the 21 DocTypes and every attempt to record
+	an LLM call — including the one on the accountant's Батлах tap — died with
+	"DocType Nyabo LLM Call not found".
+	"""
+	return name.replace(" ", "").replace("-", "")
 
 
 def build_json(name: str, spec: dict) -> dict:

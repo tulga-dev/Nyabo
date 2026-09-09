@@ -50,8 +50,14 @@ def scrub(name: str) -> str:
 
 
 def class_name(name: str) -> str:
-	"""Same rule as scripts/gen_doctypes.py: 'Nyabo LLM Call' -> 'NyaboLlmCall'."""
-	return "".join(part.capitalize() for part in re.split(r"[\s_-]+", name))
+	"""Frappe's rule verbatim: ``doctype.replace(" ", "").replace("-", "")``.
+
+	frappe/model/base_document.py (version-16) builds the controller class name this way.
+	The stub used to title-case each word instead, which is a different answer for any name
+	holding an acronym - "Nyabo LLM Call" - so the stub happily loaded a controller a real
+	bench cannot, and the DocType went missing from the live site with every test green.
+	"""
+	return name.replace(" ", "").replace("-", "")
 
 
 def _import_attr(path: str) -> type:
@@ -80,16 +86,9 @@ def get_controller(doctype: str) -> type[Document]:
 				raise
 		if module is not None:
 			wanted = class_name(doctype)
+			# No "any Document subclass in the module" fallback: real Frappe raises ImportError
+			# when the exact name is absent, and a stub that is kinder hides the failure.
 			found = getattr(module, wanted, None)
-			if found is None:
-				for value in vars(module).values():
-					if (
-						isinstance(value, type)
-						and issubclass(value, Document)
-						and value.__module__ == module_name
-					):
-						found = value
-						break
 			if found is None:
 				raise ImportError(f"frappe stub: {module_name} defines no Document subclass named {wanted}")
 			controller = found
