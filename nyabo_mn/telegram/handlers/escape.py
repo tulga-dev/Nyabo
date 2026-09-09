@@ -149,8 +149,8 @@ def handle_callback(ctx: Ctx, parts: list[str]) -> Any:
 		log_event("telegram.escape.stale", level="warning", scope=scope, state=state or "")
 		return {"stale": True}
 	if verb == CANCEL:
-		_retire_prompt(ctx, mn.MSG_FLOW_CANCELLED)
-		return _apply(ctx, state, payload, verb, announced=True)
+		announced = _retire_prompt(ctx, mn.MSG_FLOW_CANCELLED)
+		return _apply(ctx, state, payload, verb, announced=announced)
 	_retire_prompt(ctx)
 	return _apply(ctx, state, payload, verb)
 
@@ -163,28 +163,30 @@ def _message_is_accessible(ctx: Ctx) -> bool:
 	return bool(message) and message.get("date") != 0
 
 
-def _retire_prompt(ctx: Ctx, text: str | None = None) -> None:
-	"""Take the answered prompt out of service in place, rather than leaving a wall of dead cards.
+def _retire_prompt(ctx: Ctx, text: str | None = None) -> bool:
+	"""Take the answered prompt out of service in place; True when ``text`` reached the user.
 
 	The buttons are re-sent disabled (``keyboards.spent``) so the card keeps its shape and the
 	user can still read what they walked away from; ``CallbackQuery.message`` carries the
-	original ``reply_markup``, so nothing has to be reconstructed.
+	original ``reply_markup``, so nothing has to be reconstructed. The return value is what
+	stops a tapped cancel from saying the same thing twice — and, when there was no message to
+	edit, what makes sure it gets said at all.
 	"""
-	if not ctx.is_callback or ctx.callback_message_id is None:
-		return
-	message = (ctx.callback or {}).get("message") or {}
-	markup = keyboards.spent(message.get("reply_markup"))
-	if not _message_is_accessible(ctx):
+	if not ctx.is_callback or ctx.callback_message_id is None or not _message_is_accessible(ctx):
 		if text:
 			ctx.reply(text)
-		return
+			return True
+		return False
+	message = (ctx.callback or {}).get("message") or {}
+	markup = keyboards.spent(message.get("reply_markup"))
 	if text:
 		ctx.edit(ctx.callback_message_id, text, markup)
-		return
+		return True
 	try:
 		ctx.bot.edit_message_reply_markup(ctx.chat_id, ctx.callback_message_id, markup)
 	except Exception as exc:  # a spent keyboard is cosmetic; the step still has to move on
 		log_event("telegram.escape.retire_failed", level="warning", error=type(exc).__name__)
+	return False
 
 
 # --- what an escape does -----------------------------------------------------------------------

@@ -163,6 +163,18 @@ def test_a_tapped_cancel_retires_the_prompt_in_place(company, monkeypatch):
 	assert bot.sent("answer_callback_query"), "the spinner must be stopped"
 
 
+def test_a_cancel_on_an_inaccessible_message_is_sent_not_edited(company, monkeypatch):
+	"""``InaccessibleMessage.date`` is "Always 0" — there is nothing there to edit, so we send."""
+	bot = _at_inventory_list(9234, company, monkeypatch)
+	bot.clear()
+
+	run(bot, callback_update(9234, "e:onb:cancel", message_id=777, message_date=0))
+
+	assert not bot.sent("edit_message_text")
+	assert bot.last_text == mn.MSG_FLOW_CANCELLED
+	assert _state(9234) in (None, "")
+
+
 def test_a_cancel_tapped_on_a_card_from_a_finished_step_is_refused(company, monkeypatch):
 	"""A stale tap must not take down whatever the accountant started since."""
 	bot = _at_inventory_list(9233, company, monkeypatch)
