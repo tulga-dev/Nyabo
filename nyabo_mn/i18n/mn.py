@@ -873,6 +873,9 @@ ACCOUNT_ENTRY_LINE = "{date} · {voucher} · {amount}₮"
 MSG_ACCOUNT_ENTRIES_ANSWER = "{period}: {account} дансны бичилтүүд:\n{entries}"
 ACCOUNT_ENTRIES_NONE = "{period}: {account} дансанд бичилт алга."
 MSG_SUPPLIER_TOTAL_ANSWER = "{period}: {supplier} — худалдан авалт {purchases}₮, төлсөн {payments}₮"
+# Appended when a debit note nets out of the purchases: «худалдан авалт 0₮» after an invoice
+# was corrected reads like a lost document unless the correction is named beside it.
+SUPPLIER_TOTAL_RETURNS = "\nҮүнээс буцаалт/залруулга: {returns}₮"
 SUPPLIER_TOTAL_NONE = "{period}: {supplier} харилцагчтай холбоотой гүйлгээ алга."
 MSG_VAT_POSITION_ANSWER = (
 	"{period}: борлуулалтын НӨАТ {output}₮, худалдан авалтын НӨАТ {input}₮, төлөх НӨАТ {net}₮"

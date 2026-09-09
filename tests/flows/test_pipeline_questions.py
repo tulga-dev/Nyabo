@@ -9,6 +9,7 @@ import frappe
 
 from nyabo_mn.agent import pipeline, post, questions
 from nyabo_mn.agent.mock_client import MockLlmClient
+from nyabo_mn.compliance import reversal
 from nyabo_mn.core.money import fmt_mnt
 from nyabo_mn.i18n import mn
 from nyabo_mn.telegram import api
@@ -131,6 +132,31 @@ def test_the_widened_reads_answer_from_the_same_ledger(run_receipt, books):
 		"found": False,
 		"text": mn.ENTRY_NOT_FOUND_ANSWER.format(name="NYP-99999"),
 	}
+
+
+def test_a_corrected_invoice_is_not_reported_to_the_accountant_as_a_payment(run_receipt, books):
+	"""BLOCKER: a correction in this app is a reversal (§1.5), and a debit note DEBITS the payable.
+
+	Split by side alone, the debit note lands on the same side as a payment, so after one
+	correction the bot stated money that never left the company. The reversal has to net out
+	of the purchases instead, and the payment side must stay at zero.
+	"""
+	proposal = run_receipt("petrovis_fuel")
+	posted = post.post_proposal(proposal.name, ACCOUNTANT)
+	reversal.reverse("Purchase Invoice", posted["posted_name"], "dup", "давхар илгээсэн", "Administrator")
+	run = pipeline.books_handlers(books, today=NOW.date())["answer_from_books"]
+
+	total = run({"query_kind": "supplier_total", "args": {"supplier": "Петровис", "period": "2026-09"}})
+	assert total["payments"] == "0", "a debit note is not money that left the company"
+	assert total["purchases"] == "0", "the reversal nets out of what was bought"
+	assert total["returns"] == fmt_mnt(85000)
+	assert mn.SUPPLIER_TOTAL_RETURNS.format(returns=fmt_mnt(85000)) in total["text"]
+	assert fmt_mnt(85000) not in mn.MSG_SUPPLIER_TOTAL_ANSWER.format(
+		period=mn.PERIOD_LABEL.format(year=2026, month=mn.MONTHS[8]),
+		supplier="Петровис ХХК",
+		purchases=total["purchases"],
+		payments=total["payments"],
+	)
 
 
 def test_a_simplified_regime_company_is_told_vat_does_not_apply(books):

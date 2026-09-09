@@ -1137,12 +1137,36 @@ def books_handlers(
 			"text": mn.MSG_LAST_ENTRIES_ANSWER.format(supplier=supplier, entries=lines),
 		}
 
+	def _return_vouchers(rows: Iterable[Any]) -> set[str]:
+		"""The Purchase Invoices among ``rows`` that are returns (debit notes).
+
+		Asked of the voucher rather than guessed from the amount, because a debit note and a
+		payment land on the same side of the payable: both DEBIT it. This app's own correction
+		path is a reversal (§1.5) and a Purchase Invoice reversal is a debit note, so without
+		this the first correction turns into a payment the bot then states, about a real
+		supplier, to an accountant.
+		"""
+		names = sorted({r.voucher_no for r in rows if r.voucher_type == "Purchase Invoice" and r.voucher_no})
+		if not names:
+			return set()
+		return {
+			row.name
+			for row in frappe.get_all(
+				"Purchase Invoice",
+				filters={"name": ["in", names], "company": company, "is_return": 1},
+				fields=["name"],
+			)
+		}
+
 	def _supplier_total(inner: dict[str, Any]) -> dict[str, Any]:
 		"""Purchases and payments on the supplier's party rows, kept apart on purpose.
 
 		Netting them answers «how much do we still owe them», which is a different question
 		from «how much did we buy from them»; an accountant asking the second must not be
 		handed the first under the same words.
+
+		Returns are a third thing again: a debit note nets out of what was bought, and is
+		never money that left the company — see ``_return_vouchers``.
 		"""
 		wanted = str(inner.get("supplier") or "").strip()
 		supplier = _find_supplier(wanted) if wanted else None
@@ -1160,8 +1184,15 @@ def books_handlers(
 			posting_date=["between", [start, end]],
 			order_by="posting_date asc",
 		)
-		purchases = quantize(sum((Decimal(str(r.credit or 0)) for r in rows), ZERO))
-		payments = quantize(sum((Decimal(str(r.debit or 0)) for r in rows), ZERO))
+		returned = _return_vouchers(rows)
+		reversals: list[Any] = []
+		straight: list[Any] = []
+		for row in rows:
+			is_reversal = row.voucher_type == "Purchase Invoice" and row.voucher_no in returned
+			(reversals if is_reversal else straight).append(row)
+		returns = _net_debit(reversals)
+		purchases = quantize(sum((Decimal(str(r.credit or 0)) for r in straight), ZERO) - returns)
+		payments = quantize(sum((Decimal(str(r.debit or 0)) for r in straight), ZERO))
 		label = dates.period_label(period)
 		if rows:
 			text = mn.MSG_SUPPLIER_TOTAL_ANSWER.format(
@@ -1170,6 +1201,10 @@ def books_handlers(
 				purchases=fmt_mnt(purchases),
 				payments=fmt_mnt(payments),
 			)
+			if returns:
+				# Say it out loud: 0₮ bought from a supplier whose invoice was reversed reads
+				# like a lost document unless the correction is named beside it.
+				text += mn.SUPPLIER_TOTAL_RETURNS.format(returns=fmt_mnt(returns))
 		else:
 			text = mn.SUPPLIER_TOTAL_NONE.format(period=label, supplier=supplier)
 		return {
@@ -1177,6 +1212,7 @@ def books_handlers(
 			"period": period,
 			"purchases": fmt_mnt(purchases),
 			"payments": fmt_mnt(payments),
+			"returns": fmt_mnt(returns),
 			"text": text,
 		}
 
