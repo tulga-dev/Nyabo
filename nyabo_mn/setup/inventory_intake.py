@@ -20,7 +20,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 import re
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
@@ -207,10 +207,29 @@ def total_of(rows: Iterable[IntakeRow]) -> Decimal:
 # --- documents ---------------------------------------------------------------------------------
 
 
+def as_rows(items: Iterable[IntakeRow | Mapping[str, Any]]) -> list[IntakeRow]:
+	"""Accept what the caller has: parsed rows, or the dicts a chat layer carried between turns.
+
+	The Telegram flow shows a preview card and only creates the document on the next tap, so by
+	then the rows have been through ``as_child()``; re-reading them here keeps the same
+	validation (a non-positive qty or rate is refused) instead of trusting the round trip.
+	"""
+	out: list[IntakeRow] = []
+	for index, item in enumerate(items, start=1):
+		if isinstance(item, IntakeRow):
+			out.append(item)
+			continue
+		row = _row(item.get("item_name"), item.get("qty"), item.get("rate"), item.get("uom"))
+		if row is None:
+			raise IntakeParseError(mn.MSG_INTAKE_LINE_UNREADABLE.format(line=index, text=item))
+		out.append(row)
+	return out
+
+
 def create_intake(
 	company: str,
 	source: str,
-	rows: Sequence[IntakeRow],
+	rows: Sequence[IntakeRow | Mapping[str, Any]],
 	posting_date: dt.date | str,
 	file_url: str | None = None,
 ) -> Any:
@@ -225,7 +244,7 @@ def create_intake(
 			"file": file_url,
 			"posting_date": getdate(posting_date),
 			"status": STATUS_DRAFT,
-			"items": [r.as_child() for r in rows],
+			"items": [r.as_child() for r in as_rows(rows)],
 		}
 	)
 	doc.flags.ignore_permissions = True
