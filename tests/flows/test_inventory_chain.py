@@ -23,7 +23,7 @@ from frappe.utils import getdate, today
 from nyabo_mn.core.money import fmt_mnt
 from nyabo_mn.i18n import mn
 from nyabo_mn.setup import inventory_intake as intake
-from nyabo_mn.telegram import _deps
+from nyabo_mn.telegram import _deps, keyboards
 from tests.fixtures.telegram.fake_bot import FakeBotApi, callback_update, link_user, message_update, run
 
 TEXT_LIST = "Хор, 5, 45 000\nЦаас А4, 10, 12 500"
@@ -134,8 +134,10 @@ def test_owner_types_a_list_and_taps_confirm(company_v03):
 	run(bot, message_update(uid, TEXT_LIST))
 
 	assert bot.last_text == mn.ONB_INVENTORY_PARSED.format(count=2, total=fmt_mnt(350000))
-	data = bot.callback_datas()
-	assert len(data) == 2 and data[0].endswith(":confirm")
+	# The card also carries the wizard's escape row, so match the intake's own pair rather
+	# than counting buttons: this test is about the chain underneath, not the keyboard.
+	data = [d for d in bot.callback_datas() if d.startswith(f"{keyboards.PREFIX_INTAKE}:")]
+	assert [d.rsplit(":", 1)[1] for d in data] == ["confirm", "cancel"]
 	name = data[0].split(":")[1]
 	assert frappe.db.get_value(intake.DOCTYPE, name, "status") == "draft"
 
