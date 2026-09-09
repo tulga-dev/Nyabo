@@ -815,9 +815,15 @@ particular not a result's rendered `text`, which is where two leaks lived: `answ
 returns product prose quoting worked examples («85 000₮-ийн шатахууны и-баримт»), and every
 not-found answer renders the model's own argument (`SUPPLIER_NOT_FOUND_ANSWER.format(...)`),
 so a figure the model invented came home through the sentence saying the books never found
-it. A rendered string is not a computation, whoever wrote it. The year of a period is not
-vouched for either: the read runs for whatever month it is given, so the year comes from the
-clock (`_clock_years`) and a model cannot ask about «9999 оны 12-р сар» to license «9 999₮».
+it. A rendered string is not a computation, whoever wrote it.
+
+The year of a period is vouched for only inside the window these books cover. The read runs
+for whatever month it is given, so an unbounded year would let a model ask about «9999 оны
+12-р сар» and license «9 999₮» — any four-digit figure, chosen by choosing the question. The
+year therefore comes from the clock (`_clock_years`) and, for a period a *handler* resolved,
+from `_resolved_years` bounded to `LEDGER_YEARS_BACK` (ten years, Law on Accounting art.
+11.1) around it. Without that second source a correct answer about 2024 — the ordinary
+question when an auditor calls — had its sentence replaced and was logged as an invention.
 
 The check runs over the model's sentence and over nothing else. When the model spends its
 turns on tools and writes no closing sentence the user reads the *handler's* Mongolian text,

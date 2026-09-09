@@ -518,6 +518,55 @@ def test_nyabo_does_not_log_an_invented_number_alarm_about_its_own_sentence(tmp_
 	)
 
 
+def test_a_question_about_a_past_year_keeps_the_sentence_the_model_wrote(tmp_path):
+	"""MINOR: the year came only from the clock, so a correct answer about 2024 was replaced.
+
+	«2024 оны 7-р сард …» is the ordinary question when an auditor calls. The year of a period a
+	*handler* resolved is a value the read ran on, so it verifies — bounded to the span of books
+	a company keeps, because an unbounded year is a four-digit figure the model chose.
+	"""
+	trace = (
+		_books_call(
+			"spend_by_account",
+			{**_computed("85 000", "07"), "period": "2024-07", "amount": "85 000"},
+			account_code="6210",
+			period="2024-07",
+		),
+	)
+	assert questions.unverified_numbers("2024 оны 7-р сард 85 000₮ зарцуулсан.", trace, NOW) == ()
+	# the far-future month the model may also ask about buys it nothing: «9 999₮» still fails
+	far = (
+		_books_call(
+			"spend_by_account",
+			{**_computed("0"), "period": "9999-12", "amount": "0"},
+			account_code="6210",
+			period="9999-12",
+		),
+	)
+	assert questions.unverified_numbers("Шатахуунд 9 999₮ зарцуулсан.", far, NOW) == ("9999",)
+	# and so does a year older than the books a company has to keep (art. 11.1)
+	old_year = f"{NOW.year - questions.LEDGER_YEARS_BACK - 1:04d}"
+	older = (
+		_books_call(
+			"spend_by_account",
+			{**_computed("0", "07"), "period": f"{old_year}-07", "amount": "0"},
+			account_code="6210",
+			period=f"{old_year}-07",
+		),
+	)
+	assert questions.unverified_numbers(f"{old_year} оны 7-р сард 0₮.", older, NOW) == (old_year,)
+	# a period the model merely asked for and the handler did not resolve vouches for nothing
+	unresolved = (
+		_books_call(
+			"supplier_total",
+			{"found": False, "period": "2024-07", "text": "олдсонгүй"},
+			supplier="Хэн ч биш",
+			period="2024-07",
+		),
+	)
+	assert questions.unverified_numbers("2024 онд …", unresolved, NOW) == ("2024",)
+
+
 def test_a_derived_figure_is_logged_as_derived_not_as_a_fabrication(tmp_path):
 	"""MINOR: an average or a difference failed the check and was logged as an invention.
 

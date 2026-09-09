@@ -459,6 +459,13 @@ def _computed_numbers(calls: Sequence[ToolCall]) -> list[str]:
 	return numbers
 
 
+# How far back a resolved period may reach and still have its year vouched for. The books a
+# company must keep run ten years (Law on Accounting art. 11.1), so a question about an older
+# year is not a question about these books — and the bound is what keeps ``_resolved_years``
+# from handing a model an arbitrary four-digit figure. See ``_resolved_years``.
+LEDGER_YEARS_BACK = 10
+
+
 def _clock_years(now: datetime) -> list[str]:
 	"""This year and the ones either side of it, because an answer names the year it is about.
 
@@ -470,16 +477,53 @@ def _clock_years(now: datetime) -> list[str]:
 	return [str(now.year - 1), str(now.year), str(now.year + 1)]
 
 
-def _known_numbers(calls: Sequence[ToolCall], now: datetime) -> set[str]:
-	"""Every figure the model may state: what the handlers computed, plus today's calendar date.
+def _resolved_years(calls: Sequence[ToolCall], now: datetime) -> list[str]:
+	"""The year of every period a read *resolved*, within the window these books cover.
 
-	Two sources, and the shortness of that list is the guarantee. The user's question is not
+	A question about 2024 is an ordinary question — «2024 оны 7-р сард хэд зарцуулсан бэ?» is
+	what an accountant asks when the auditor calls — and the clock's own three years could not
+	vouch for that 2024, so the correct answer lost its sentence and was logged as an invention.
+	The year is read off the handler's own ``period``, never off the model's argument, because
+	the handler is what decides which month the read ran on.
+
+	Bounded on purpose, and this is the whole care of the function. A period is still a
+	coordinate the model may name, and a year is the one part of a date wide enough to double
+	as a tögrög figure: unbounded, «9999-12» would license «9 999₮» and a model could reach any
+	four-digit amount by choosing the month it asks about. Inside ``LEDGER_YEARS_BACK`` of the
+	clock the choice buys nothing that is not already a year — the same trade ``_clock_years``
+	makes, over the span of books a company actually keeps.
+	"""
+	years: list[str] = []
+	for call in calls:
+		if call.is_error or not isinstance(call.result, Mapping) or not resolved(call.result):
+			continue
+		try:
+			year, _month = dates.parse_period(str(call.result.get("period") or ""))
+		except ValueError:
+			continue  # no period, or something that is not one: the read resolved no year
+		if now.year - LEDGER_YEARS_BACK <= year <= now.year + 1:
+			years.append(str(year))
+	return years
+
+
+def _known_numbers(calls: Sequence[ToolCall], now: datetime) -> set[str]:
+	"""Every figure the model may state: what the handlers computed, plus the calendar.
+
+	Three sources, and the shortness of that list is the guarantee. The user's question is not
 	one of them — a figure a user typed is a figure the books have not confirmed — and the
 	clock contributes ``now.date()``, never ``now``: an answer about the books names days,
-	so «14», «23» and «59» off a wall clock are not tögrög.
+	so «14», «23» and «59» off a wall clock are not tögrög. The calendar half is the clock's
+	own date and years (``_clock_years``) plus the year of each period a handler resolved
+	(``_resolved_years``), which is how an answer about a past year keeps its sentence.
 	"""
 	known: set[str] = set()
-	for source in [now.date().isoformat(), *_clock_years(now), *_computed_numbers(calls)]:
+	sources = [
+		now.date().isoformat(),
+		*_clock_years(now),
+		*_resolved_years(calls, now),
+		*_computed_numbers(calls),
+	]
+	for source in sources:
 		for forms in numbers_in(source):
 			known |= forms
 	return known
@@ -923,6 +967,7 @@ def _handler_text(calls: Sequence[ToolCall]) -> str | None:
 
 __all__ = [
 	"COMPUTED_NUMBERS_FIELD",
+	"LEDGER_YEARS_BACK",
 	"MAX_FOLLOW_UPS",
 	"MAX_TURNS",
 	"MEMORY_QUESTION_CHARS",
