@@ -704,7 +704,7 @@ def test_a_button_is_dropped_rather_than_half_formed():
 
 
 def test_an_unanswered_question_offers_a_person_and_the_menu():
-	assert [f.verb for f in questions.follow_ups((), now=NOW)] == [
+	assert [f.verb for f in questions.follow_ups((), now=NOW, answered=False)] == [
 		questions.VERB_ESCALATE,
 		questions.VERB_MENU,
 	]
@@ -829,3 +829,40 @@ def test_the_clock_licenses_a_calendar_date_and_never_a_time_of_day(tmp_path):
 	outcome = questions.answer(client, "Тулгаагүй гүйлгээ хэд вэ?", handlers, now=at)
 	assert outcome.unverified_numbers == ("59",)
 	assert outcome.answer.answer_mn == mn.UNMATCHED_ANSWER.format(count=0)
+
+
+def test_a_complete_faq_answer_is_not_offered_the_stuck_buttons(tmp_path):
+	"""MINOR: the [Админаас асуух][Цэс] pair was drawn whenever no ledger read was in the trace.
+
+	Every successful FAQ answer is in that set, so the card that had just answered the question
+	offered the two buttons that mean "I could not help you". A complete answer with no next
+	query to offer gets the way back, and nothing that reads as a failure.
+	"""
+	faq = ToolCall(
+		name="answer_faq",
+		arguments={"question": "нябо гэж юу вэ"},
+		result={"found": True, "text": "Нябо бол..."},
+		is_error=False,
+	)
+	assert [f.verb for f in questions.follow_ups((faq,), now=NOW)] == [questions.VERB_MENU]
+	# a read that failed still offers a person: this is about complete answers only
+	assert [f.verb for f in questions.follow_ups((faq,), now=NOW, answered=False)] == [
+		questions.VERB_ESCALATE,
+		questions.VERB_MENU,
+	]
+
+	client = MockLlmClient(fixtures_dir=tmp_path)
+	client.add(
+		"question",
+		{
+			"text": "Нябо и-баримтыг уншиж бичилт санал болгодог.",
+			"tool_calls": [{"name": "answer_faq", "arguments": {"question": "нябо гэж юу вэ"}}],
+		},
+	)
+	outcome = questions.answer(
+		client,
+		"Нябо гэж юу вэ?",
+		{"answer_faq": lambda args: {"found": True, "text": "Нябо бол..."}},
+		now=NOW,
+	)
+	assert [f.verb for f in outcome.follow_ups] == [questions.VERB_MENU]

@@ -630,13 +630,19 @@ def follow_ups(calls: Sequence[ToolCall], *, now: datetime, answered: bool = Tru
 	``answered`` is False when the sentence the user is about to read is one of ours ("could
 	not answer from the books"): the way forward is then a person or the menu, not another
 	query that will fail the same way (§5, "when it does not know").
+
+	An answered question with no ledger read behind it — an FAQ lookup — has no next query to
+	offer, but it is a complete answer, so it gets the way back and nothing else. [Админаас
+	асуух] under it tells the accountant Nyabo failed at the moment it had just answered them.
 	"""
 	call = _last_books_call(calls)
-	if call is None or not answered:
+	if not answered:
 		return (
 			FollowUp(VERB_ESCALATE, mn.BTN_Q_ASK_ADMIN),
 			FollowUp(VERB_MENU, mn.BTN_MENU),
 		)
+	if call is None:
+		return (FollowUp(VERB_MENU, mn.BTN_MENU),)
 	kind = str((call.arguments or {}).get("query_kind") or "")
 	# A query with no period of its own (a balance, a supplier's entries) still has a month
 	# its follow-up can be about; ``_default_period`` says which, and it is not always the
