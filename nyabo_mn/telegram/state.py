@@ -56,6 +56,14 @@ class LinkCodeInvalid(ValueError):
 
 # --- chat state ------------------------------------------------------------------------------------
 
+# The question layer's short conversation memory (§5.7). It rides in the same JSON payload as
+# the conversation steps, under one reserved key, because Nyabo Chat State is one row per chat
+# and a second store for two facts would be a migration for nothing. It is deliberately *not*
+# preserved by ``set_state`` / ``clear_state``: starting or leaving a flow (a receipt, a
+# month-end, an onboarding step) means the accountant has moved on, and a follow-up like «мөн
+# өнгөрсөн сард?» typed after that should be re-established out loud rather than assumed.
+QUESTION_MEMORY_KEY = "question_memory"
+
 
 def _chat_doc(chat_id: int | str, create: bool = False) -> Any | None:
 	name = frappe.db.exists(CHAT_STATE, {"chat_id": str(chat_id)})
@@ -69,18 +77,25 @@ def _chat_doc(chat_id: int | str, create: bool = False) -> Any | None:
 	return doc
 
 
-def get_state(chat_id: int | str) -> tuple[str | None, dict[str, Any]]:
-	"""``(state, payload)``; ``(None, {})`` when the chat has no open conversation."""
-	doc = _chat_doc(chat_id)
-	if doc is None or not doc.state:
-		return None, {}
+def _payload_of(doc: Any) -> dict[str, Any]:
+	"""``payload_json`` as a dict; it arrives as text from the DB and as a dict from a fresh doc."""
 	payload = doc.payload_json
 	if isinstance(payload, str):
 		try:
 			payload = json.loads(payload) if payload else {}
 		except ValueError:
 			payload = {}
-	return doc.state, dict(payload or {})
+	return dict(payload or {})
+
+
+def get_state(chat_id: int | str) -> tuple[str | None, dict[str, Any]]:
+	"""``(state, payload)``; ``(None, {})`` when the chat has no open conversation."""
+	doc = _chat_doc(chat_id)
+	if doc is None or not doc.state:
+		return None, {}
+	payload = _payload_of(doc)
+	payload.pop(QUESTION_MEMORY_KEY, None)  # a flow's payload is its own; see the key's comment
+	return doc.state, payload
 
 
 def set_state(
@@ -111,6 +126,39 @@ def clear_state(chat_id: int | str) -> None:
 	doc.state = None
 	doc.payload_json = None
 	doc.updated_at = now_datetime()
+	doc.flags.ignore_permissions = True
+	doc.save()
+
+
+def get_question_memory(chat_id: int | str) -> dict[str, Any]:
+	"""The stored question memory, unfiltered; ``questions.recall`` decides whether to use it."""
+	doc = _chat_doc(chat_id)
+	if doc is None:
+		return {}
+	memory = _payload_of(doc).get(QUESTION_MEMORY_KEY)
+	return dict(memory) if isinstance(memory, dict) else {}
+
+
+def set_question_memory(chat_id: int | str, memory: dict[str, Any] | None, telegram_id: Any = None) -> None:
+	"""Write (or drop) the question memory without touching the conversation step.
+
+	The step is left alone on purpose: a question is answered *outside* any state, so writing
+	one here must never make the router think a flow is open.
+	"""
+	doc = _chat_doc(chat_id, create=memory is not None)
+	if doc is None:
+		return
+	payload = _payload_of(doc)
+	if memory:
+		payload[QUESTION_MEMORY_KEY] = memory
+	elif QUESTION_MEMORY_KEY not in payload:
+		return
+	else:
+		payload.pop(QUESTION_MEMORY_KEY)
+	doc.payload_json = json.dumps(payload, ensure_ascii=False, default=str)
+	doc.updated_at = now_datetime()
+	if telegram_id is not None:
+		doc.telegram_id = str(telegram_id)
 	doc.flags.ignore_permissions = True
 	doc.save()
 

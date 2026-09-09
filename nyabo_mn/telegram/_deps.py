@@ -69,8 +69,18 @@ def make_correction_proposal(original_doctype: str, original_name: str, reason_c
 	)
 
 
-def answer_question(user: str, company: str, text: str) -> str:
-	return _call("nyabo_mn.agent.pipeline", "answer_question", user, company, text)
+def answer_question(user: str, company: str, text: str, memory: dict[str, Any] | None = None) -> Any:
+	"""``agent.questions.Reply``: the sentence, its follow-up buttons and the memory to store."""
+	return _call("nyabo_mn.agent.pipeline", "answer_question", user, company, text, memory=memory)
+
+
+def books_answer(company: str, query_kind: str, args: dict[str, Any] | None = None) -> dict[str, Any]:
+	"""One read-only query with no model in the loop: what a follow-up button under an answer runs."""
+	return _call("nyabo_mn.agent.pipeline", "books_answer", company, query_kind, args)
+
+
+def escalate_question(user: str, company: str, question: str, summary: str) -> dict[str, Any]:
+	return _call("nyabo_mn.agent.pipeline", "escalate_question", user, company, question, summary)
 
 
 # --- nyabo_mn.matching -------------------------------------------------------------------------
