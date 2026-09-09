@@ -42,6 +42,7 @@ PREFIX_ONBOARDING = "o"
 PREFIX_INTAKE = "i"
 PREFIX_LAYOUT = "l"  # statement column mapping; not in §5.1, listed in the module report
 PREFIX_QUESTION = "q"  # q:<verb>[:<arg>…] — the next read offered under an answer (§5.7)
+PREFIX_VERIFY = "v"  # v:<action>:<kind>:<rule…> — the admin's door onto an unverified rule (§1.2)
 PREFIX_ESCAPE = "e"  # e:<scope>:cancel|back|skip|menu:<step> — the way out of a waiting step (UX-13)
 
 # Escape verbs. The scope and step beside them are the conversation state the button was drawn
@@ -367,6 +368,61 @@ def question_keyboard(follow_ups: Sequence[Any]) -> dict[str, Any]:
 			continue
 		buttons.append(button(follow_up.label[:40], data))
 	return markup(*rows(buttons, per_row=2))
+
+
+# --- rule verification (§1.2) ------------------------------------------------------------------------
+
+# The action comes *before* the rule, unlike every other prefix here, because a Nyabo Tax Parameter
+# is named ``key:effective_from`` — the separator is inside the name. With the action first the rule
+# is simply "everything after the kind" and can be put back together unambiguously; with it last,
+# ``v:<kind>:si.employer_rate:2027-01-01:ok`` could not be told from a rule whose name ends in ":ok".
+VERIFY_OPEN = "op"
+VERIFY_CONFIRM = "ok"
+VERIFY_LEAVE = "no"
+
+
+def rule_data(action: str, kind: str, rule: str) -> str:
+	"""``("ok", "t", "si.employer_rate:2027-01-01") -> "v:ok:t:si.employer_rate:2027-01-01"``.
+
+	Raises ``CallbackDataTooLong`` past 64 bytes; the keyboards below catch it and drop the
+	button rather than the card, the trade ``settle_row`` documents.
+	"""
+	return encode(PREFIX_VERIFY, action, kind, *str(rule).split(SEP))
+
+
+def rule_from_parts(parts: Sequence[str]) -> str:
+	"""``["v", "ok", "t", "si.employer_rate", "2027-01-01"] -> "si.employer_rate:2027-01-01"``."""
+	return SEP.join(str(part) for part in parts[3:])
+
+
+def _rule_button(
+	text: str, action: str, kind: str, rule: str, style: str | None = None
+) -> dict[str, str] | None:
+	try:
+		return button(text, rule_data(action, kind, rule), style=style)
+	except (CallbackDataTooLong, ValueError) as exc:
+		# A rule this long is verified in the desk (mn.MSG_RULE_VERIFY_IN_DESK); losing the
+		# button must never lose the list, which is the only place the rule is even named.
+		log_event("telegram.rule_button_dropped", level="warning", rule=rule, error=type(exc).__name__)
+		return None
+
+
+def pending_rules_keyboard(rules: Sequence[Any]) -> dict[str, Any]:
+	"""One button per unverified rule, numbered to match the lines of the card above it."""
+	buttons = []
+	for index, rule in enumerate(rules, start=1):
+		label = mn.BTN_RULE_ROW.format(index=index, label=rule.label)[:40]
+		drawn = _rule_button(label, VERIFY_OPEN, rule.kind, rule.name)
+		if drawn is not None:
+			buttons.append(drawn)
+	return markup(*rows(buttons, per_row=1))
+
+
+def rule_decision(kind: str, rule: str) -> dict[str, Any]:
+	"""[Баталгаажуулах] alone on top, [Одоохондоо үлдээх] under it: verify, or leave it."""
+	confirm = _rule_button(mn.BTN_CONFIRM, VERIFY_CONFIRM, kind, rule, style=STYLE_SUCCESS)
+	leave = _rule_button(mn.BTN_RULE_LEAVE, VERIFY_LEAVE, kind, rule)
+	return markup([confirm] if confirm else [], [leave] if leave else [])
 
 
 # --- month-end -------------------------------------------------------------------------------------

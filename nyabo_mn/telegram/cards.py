@@ -459,4 +459,94 @@ def quality_card(company: str, days: int, metrics: dict[str, Any]) -> str:
 	return mn.MSG_QUALITY_HEADER.format(company=company, days=days) + "\n" + body
 
 
+# --- rule verification (/дүрэм, §1.2) ---------------------------------------------------------------
+
+
+def pending_rules_card(rules: Any, total: int | None = None) -> str:
+	"""The list an admin sees: what is blocking work, most-used first, and what each rule is for.
+
+	``total`` is the number of unverified rules there really are, when the list was cut short:
+	saying "16" and showing eight is honest, showing eight and saying nothing is not.
+	"""
+	rules = list(rules)
+	if not rules:
+		return mn.MSG_RULES_NONE
+	shown = total or len(rules)
+	lines = [mn.MSG_RULES_TITLE.format(count=shown), mn.MSG_RULES_INTRO, ""]
+	for index, rule in enumerate(rules, start=1):
+		row = mn.CARD_RULE_ROW_USES if rule.uses else mn.CARD_RULE_ROW
+		lines.append(
+			row.format(
+				index=index,
+				label=_clip(rule.label, CARD_MAX_LINE_CHARS),
+				purpose=rule.purpose,
+				uses=rule.uses,
+			)
+		)
+	if total and total > len(rules):
+		lines.append(mn.MSG_RULES_MORE.format(count=total - len(rules)))
+	return "\n".join(lines)
+
+
+def rule_card(rule: Any) -> str:
+	"""One rule with its mechanics and its citation — or with the plain statement that it has none.
+
+	The «no citation» line is the whole point of the card: 16 of the 44 seeded patterns carry the
+	instrument «Заавар 116 (2000)» and nothing else, and an admin who is not told that is being
+	invited to tap a button that looks like it is backed by a legal text.
+	"""
+	kind_label = mn.RULE_KIND_LABELS.get(rule.kind, mn.VALUE_UNKNOWN)
+	lines = [
+		mn.CARD_RULE_TITLE.format(label=rule.label),
+		mn.CARD_RULE_CODE.format(rule=rule.name, kind=kind_label),
+		mn.CARD_RULE_PURPOSE.format(purpose=rule.purpose),
+	]
+	if rule.uses:
+		lines.append(mn.CARD_RULE_USES.format(uses=rule.uses))
+	if rule.lines:
+		lines.append("")
+		lines.append(mn.CARD_RULE_ENTRY_TITLE)
+		lines += [_rule_line(line) for line in rule.lines]
+	if rule.value:
+		lines.append("")
+		lines.append(mn.CARD_RULE_VALUE.format(value=rule.value, unit=rule.unit or mn.VALUE_UNKNOWN))
+		lines.append(
+			mn.CARD_RULE_EFFECTIVE.format(
+				effective_from=rule.effective_from or mn.VALUE_UNKNOWN,
+				effective_to=rule.effective_to or mn.CARD_RULE_OPEN_ENDED,
+			)
+		)
+	lines.append("")
+	lines += _rule_citation(rule)
+	lines.append("")
+	lines.append(mn.CARD_RULE_RESPONSIBILITY)
+	lines.append(mn.CARD_RULE_ASK)
+	return "\n".join(lines)
+
+
+def _rule_line(line: Any) -> str:
+	"""``"Дт 70 Удирдлагын зардал (6210, 6910) · нийт дүн"``."""
+	side = mn.CARD_RULE_SIDE_LABELS.get(line.side, line.side or mn.VALUE_UNKNOWN)
+	amount = mn.CARD_RULE_AMOUNT_LABELS.get(line.amount_kind, mn.CARD_RULE_AMOUNT_LABELS[""])
+	if line.optional:
+		amount = f"{amount} ({mn.CARD_RULE_LINE_OPTIONAL})"
+	return mn.CARD_RULE_ENTRY_LINE.format(side=side, account=line.account, amount=amount)
+
+
+def _rule_citation(rule: Any) -> list[str]:
+	if not rule.has_citation:
+		return [mn.CARD_RULE_NO_CITATION]
+	head = (
+		mn.CARD_RULE_CITATION.format(instrument=rule.instrument, section=rule.section)
+		if rule.section
+		else mn.CARD_RULE_CITATION_NO_SECTION.format(instrument=rule.instrument)
+	)
+	lines = [head]
+	if rule.quote:
+		lines.append(mn.CARD_RULE_QUOTE.format(quote=rule.quote))
+	if rule.url:
+		lines.append(mn.CARD_RULE_SOURCE_URL.format(url=rule.url))
+	return lines
+
+
 __all__ = [name for name in dir() if not name.startswith("_")]
