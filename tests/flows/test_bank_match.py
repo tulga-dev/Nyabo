@@ -80,7 +80,7 @@ def test_fee_line_yields_a_bank_fee_proposal_that_is_not_posted(books, banks):
 	fee_code = load_seed("code_roles")["schemes"]["v1"]["bank_fee"]
 	assert proposal.kind == "bank_line" and proposal.status == "proposed"
 	assert proposal.account_code == fee_code and proposal.account.startswith(fee_code)
-	assert proposal.needs_accountant == 1  # the pattern citation is unverified
+	assert proposal.needs_accountant == 0  # the pattern citation is verified (Заавар 116, 1.4; 12.2.2 А)
 	assert proposal.bank_transaction == bt.name and proposal.vat_treatment == "none"
 	entry = json.loads(proposal.entry_json)
 	assert entry["pattern_id"] == "bank_fee_expense" and entry["document_kind"] == "journal_entry"
@@ -88,8 +88,8 @@ def test_fee_line_yields_a_bank_fee_proposal_that_is_not_posted(books, banks):
 		(fee_code, "1500.00", "0.00"),
 		("1120", "0.00", "1500.00"),
 	]
-	assert mn.WARN_UNVERIFIED_RULE in json.loads(proposal.warnings_json)
-	assert proposal.explanation.endswith(mn.CITATION_SECTION_PENDING)
+	assert mn.WARN_UNVERIFIED_RULE not in json.loads(proposal.warnings_json)
+	assert proposal.explanation.endswith("1.4; 12.2.2 А")
 	assert proposal.document == frappe.db.get_value("Nyabo Document", {"doc_type": "bank_statement"}, "name")
 	assert frappe.db.count("Journal Entry") == 0
 	assert bt.status == "Unreconciled"

@@ -141,6 +141,51 @@ xlsx fixtures, so a failure shows the input next to the assertion and no binary 
 enter the repo. Real bank exports, once obtained, go under `tests/fixtures/statements/`
 with the layout they verify.
 
+### CORE-17 A composite of two printed sentences can verify a pattern; an extension of one cannot
+The founder's receipt would not post because `purchase_expense_non_vat` had no citation, and
+the first pass had rated it only "probable" for a reason worth keeping: Order 116 prints the
+gross-amount rule for a non-VAT buyer with «Дт Бараа матераил» — the inventory form — so the
+expense debit does not appear in that sentence. The second reading (2026-09-09) resolved it
+by treating the entry and the amount as two separate citations rather than one strained one:
+12.2.2 А prints the entry («Дт Гадны үйлчилгээний зардал Кт Дансны өглөг/Мөнгө») and 9.4.1.1
+supplies the amount, its own wording covering «бараа, ажил үйлчилгээ». That is the same
+construction `sale_cash_vat_payer` was already verified on, so `citation.section` may name
+several labels joined with `; `.
+
+The line this draws — and it is the whole point of the decision — is that a composite is two
+sentences each printed for its own leg, never one sentence stretched to cover a leg it does
+not mention. `purchase_expense_vat_payer` fails that test and stays unverified: the only
+sentence that debits НӨАТатварын авлага is worded for «гаднаас авсан бараа материал», and no
+sentence anywhere in the instrument claims input VAT on a service. Same for
+`fixed_asset_acquire_vat_payer`. Reverse this by re-rating the composites in
+`docs/legal/order116.md` §3; the notes carry both sentences either way.
+
+### CORE-18 An unverifiable pattern must brief the person asked to tick it
+`rules.guard.require_verified` refuses an unverified row and the message sends the accountant
+to a verify button. For the nine patterns Order 116 does not print (or prints only in part),
+that button asks someone to vouch for something the seed cannot cite — so the row's `notes`
+must end with a sentence beginning `WHAT AN ADMIN WOULD BE VOUCHING FOR`, naming either the
+other instrument (VAT Law art. 14 / 14.1.5, MoF order 135/2000, the General Law on Social
+Insurance art. 21.1, IFRS for SMEs s.23) or, where no law prescribes the entry at all,
+saying that it is uncontroversial double-entry mechanics and nothing more —
+`bank_transfer_internal` moves one own bank account to another, `simplified_tax_accrue`
+debits a tax expense and credits a tax payable. `income_tax_accrue` is the interesting case:
+what an admin ticks there is a fact about their own company (no temporary differences this
+period), not a reading of the law. `tests/unit/test_seed_citations.py` pins the sentence, so
+a future pattern cannot ship unverifiable and silent. Reverse by dropping
+`test_unverifiable_patterns_say_what_an_admin_would_be_vouching_for`.
+
+### CORE-19 A tax parameter's note says whether an ordinary SME hits it, and what unblocks it
+The 13 unverified tax parameters are not equal: `emd.employee_rate` / `emd.employer_rate` are
+pending and every payroll walks into them, while `sme.classification` and
+`vat.voluntary_registration_threshold` never touch a posting. Each note now opens its tail
+with `DAILY USE:` and then either `WHAT AN ADMIN WOULD BE VOUCHING FOR` (a derivation — the
+arithmetic, not a printed number) or `WHAT UNBLOCKS IT` (a text nobody has read yet), so the
+desk's pending list can be worked in the order that matters instead of top to bottom. The
+distinction is real: a derived row is safe to leave forever because the engine sums the
+per-fund rows anyway; a pending row raises `PendingRuleError` and stops work. Reverse by
+deleting the appended sentences; nothing computes from them.
+
 ## integration (stage 1 → stage 2)
 
 ### INT-01 One company-level regime for the MVP, two derived axes
