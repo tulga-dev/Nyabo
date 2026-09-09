@@ -1365,6 +1365,15 @@ MSG_UNVERIFIED_RULE_ADMIN_ASKED = (
 	"Энэ дүрмийг Нябо админ баталгаажуулна. Хүсэлтийг бүртгэж, админд мэдэгдэл илгээлээ. "
 	"Баталгаажсаны дараа энэ картын «Батлах» товчийг дахин дарахад бичилт хийгдэнэ."
 )
+# When there is nobody to notify at all — no ADMIN_TELEGRAM_IDS and no Admin linked to this
+# company — the accountant must not be told a message was sent. They are a bookkeeper, so the
+# next step is named for them: the request is on record, and who to go to.
+MSG_UNVERIFIED_RULE_NO_ADMIN = (
+	"Энэ дүрмийг баталгаажуулах админ Нябод бүртгэгдээгүй байна. Хүсэлтийг бүртгэлээ, гэхдээ "
+	"мэдэгдэл очих хүн алга. Нябог тохируулсан хүнд хандаж, «{rule}» дүрмийг ERPNext дэсктээс "
+	"баталгаажуулах, эсвэл админаа Нябод холбуулна уу. Тэгсний дараа энэ картын «Батлах» "
+	"товчийг дахин дарахад бичилт хийгдэнэ."
+)
 MSG_ADMIN_RULE_VERIFY_REQUEST = (
 	"🔒 {company}: «{rule}» дүрэм баталгаажаагүй тул бичилт зогслоо. /дүрэм командаар баталгаажуулна уу."
 )

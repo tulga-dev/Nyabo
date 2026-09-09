@@ -194,6 +194,12 @@ def rule_blocked(ctx: Ctx, rule: str, company: str | None = None) -> dict[str, A
 	An admin gets the rule's evidence and the two buttons in the same breath as the refusal. Anyone
 	else is told an admin must do it — and that sentence is made true here rather than hoped for:
 	a Nyabo Event records the request and ``router.notify_admins`` puts it in the admins' chats.
+
+	«The admins have been told» is only said when somebody was actually told, which is why the
+	notice goes out *before* the reply and its count decides the wording. The recipients are the
+	site's ``ADMIN_TELEGRAM_IDS`` **and** the Admins linked to this company, who are admins of
+	these books and are in no site config file. If there is no one at all, the accountant is told
+	that plainly, with the step that still works — the request is on record either way.
 	"""
 	company = company or ctx.company
 	if ctx.is_admin:
@@ -209,16 +215,26 @@ def rule_blocked(ctx: Ctx, rule: str, company: str | None = None) -> dict[str, A
 	# Not an admin, or a rule name that is not a row at all (the guard counts an unknown name as
 	# unverified, and that is a configuration fault an admin has to see).
 	_deps.request_rule_verification(rule, company=company, user=ctx.user, telegram_id=ctx.telegram_id)
-	ctx.reply(mn.MSG_UNVERIFIED_RULE_ADMIN_ASKED)
 	from nyabo_mn.telegram.router import notify_admins
 
-	notify_admins(
+	reached = notify_admins(
 		ctx.bot,
 		ctx.settings,
 		mn.MSG_ADMIN_RULE_VERIFY_REQUEST.format(company=company or mn.VALUE_UNKNOWN, rule=rule),
+		company=company,
 	)
-	log_event("telegram.rules.requested", rule=rule, company=company, user=ctx.user)
-	return {"rule": rule, "offered": False, "notified": True}
+	ctx.reply(
+		mn.MSG_UNVERIFIED_RULE_ADMIN_ASKED if reached else mn.MSG_UNVERIFIED_RULE_NO_ADMIN.format(rule=rule)
+	)
+	log_event(
+		"telegram.rules.requested",
+		level="info" if reached else "warning",
+		rule=rule,
+		company=company,
+		user=ctx.user,
+		admins_notified=reached,
+	)
+	return {"rule": rule, "offered": False, "notified": bool(reached), "admins_notified": reached}
 
 
 def _rule_evidence_by_name(rule: str) -> tuple[str, Any] | None:

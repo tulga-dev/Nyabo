@@ -35,6 +35,9 @@ from tests.fixtures.telegram.fake_bot import (
 )
 
 ADMIN_ID = 1001  # tests/fixtures/site/site_config.json admin_telegram_ids
+#: An admin created by ``/link admin <company>``: an admin of these books who appears in no
+#: site config file, and whom a notice about this company's blocked work has to reach.
+COMPANY_ADMIN_ID = 3001
 ACCOUNTANT_ID = 2001
 
 #: The rule these tests verify. Order 116 prints no entry that turns a customer advance into
@@ -387,6 +390,65 @@ def test_a_blocked_accountant_has_the_request_recorded_and_the_admins_notified(
 	assert [(row["reason"], row["company"]) for row in requested] == [(BLOCKING, rules_site)]
 	notice = mn.MSG_ADMIN_RULE_VERIFY_REQUEST.format(company=rules_site, rule=BLOCKING)
 	assert [call["chat_id"] for call in bot.sent("send_message") if call["text"] == notice] == [ADMIN_ID]
+
+
+def test_the_request_reaches_the_admin_linked_to_the_company_not_only_the_site_config(
+	rules_site: str, monkeypatch: pytest.MonkeyPatch
+):
+	"""«A notification has gone to the admins» must mean every admin who can act on these books.
+
+	`/link admin <company>` is how a client's own admin is created, and that person is in no
+	site config file. Notifying only ADMIN_TELEGRAM_IDS told the accountant something that was
+	not true for the person actually responsible for their company.
+	"""
+	link_user(COMPANY_ADMIN_ID, "Admin", rules_site)
+	_refuse_posting(monkeypatch)
+	proposal = make_proposal(rules_site, posting_pattern=BLOCKING)
+	bot = FakeBotApi()
+	outcome = run(bot, callback_update(ACCOUNTANT_ID, f"p:{proposal.name}:ap"))
+
+	assert outcome["result"]["notified"] is True and outcome["result"]["admins_notified"] == 2
+	notice = mn.MSG_ADMIN_RULE_VERIFY_REQUEST.format(company=rules_site, rule=BLOCKING)
+	told = [call["chat_id"] for call in bot.sent("send_message") if call["text"] == notice]
+	assert sorted(told) == [ADMIN_ID, COMPANY_ADMIN_ID]
+	assert mn.MSG_UNVERIFIED_RULE_ADMIN_ASKED in bot.texts()
+
+
+def test_an_admin_of_another_company_is_not_told_about_this_one(
+	rules_site: str, company_v03: str, monkeypatch: pytest.MonkeyPatch
+):
+	"""The Admin role is per company (TG-04), so the notice is too."""
+	link_user(COMPANY_ADMIN_ID, "Admin", company_v03)
+	_refuse_posting(monkeypatch)
+	proposal = make_proposal(rules_site, posting_pattern=BLOCKING)
+	bot = FakeBotApi()
+	run(bot, callback_update(ACCOUNTANT_ID, f"p:{proposal.name}:ap"))
+
+	notice = mn.MSG_ADMIN_RULE_VERIFY_REQUEST.format(company=rules_site, rule=BLOCKING)
+	assert [call["chat_id"] for call in bot.sent("send_message") if call["text"] == notice] == [ADMIN_ID]
+
+
+def test_with_nobody_to_tell_the_accountant_is_told_that_and_what_to_do(
+	rules_site: str, monkeypatch: pytest.MonkeyPatch
+):
+	"""An empty ADMIN_TELEGRAM_IDS and no linked Admin: the promise cannot be kept, so it is not made.
+
+	The old reply said the request had been recorded *and a notification sent to the admins*
+	while `notify_admins` had sent nothing at all — the accountant would have waited for a
+	person who was never going to hear about it.
+	"""
+	monkeypatch.setitem(frappe.conf, "admin_telegram_ids", "")
+	_refuse_posting(monkeypatch)
+	proposal = make_proposal(rules_site, posting_pattern=BLOCKING)
+	bot = FakeBotApi()
+	outcome = run(bot, callback_update(ACCOUNTANT_ID, f"p:{proposal.name}:ap"))
+
+	assert outcome["result"]["notified"] is False and outcome["result"]["admins_notified"] == 0
+	assert mn.MSG_UNVERIFIED_RULE_NO_ADMIN.format(rule=BLOCKING) in bot.texts()
+	assert mn.MSG_UNVERIFIED_RULE_ADMIN_ASKED not in bot.texts()
+	assert bot.sent("send_message"), "the accountant still hears something"
+	# The request is on record either way: that is what makes the sentence above true.
+	assert frappe.db.count("Nyabo Event", {"event_type": mn.EVENT_RULE_VERIFY_REQUESTED}) == 1
 
 
 def test_a_rule_id_too_long_for_a_button_sends_the_admin_to_the_desk(
