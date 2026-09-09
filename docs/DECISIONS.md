@@ -841,6 +841,32 @@ typed is a figure the books have not confirmed. **The time of day**: the clock c
 the set and so verified each of 0…59 as a tögrög figure. An answer about the books is about
 dates, never times.
 
+**Two things this check does not do**, both inherent to its design and both written down
+here and on `unverified_numbers` so that a clean compliance log is not read as more than it
+is.
+
+*It proves a figure came from the ledger; it does not bind that figure to the subject the
+sentence names.* The allowed set is the union of every read in the turn, so a model that asks
+about Петровис and about Болор and then writes «Болороос 85 000₮ авсан» with Петровис's total
+passes the check: the figure is in the set, from the wrong read. Closing it means checking
+each number against the read whose subject the sentence is about, which means deciding from
+Mongolian prose which subject each figure belongs to — a language judgement in the middle of
+the one path built to keep language judgement out of numbers. The honest close is narrower
+and costs a turn: one read per answer, the subject printed on the card, the figure checked
+against that read alone. Not done now because it would refuse the legitimate two-read answer
+(«энэ сар vs өнгөрсөн сар») that §5.7 was widened for. What holds meanwhile is Q-01's other
+half: the card prints the subject each read resolved, so a wrong attribution is visible to
+the accountant rather than invisible.
+
+*Only decimal literals are checked.* `_NUMBER` matches digits, so «наян таван мянган төгрөг»
+— eighty-five thousand written out in Mongolian words — is not a number to this check and a
+sentence with no digits in it passes untouched however wrong it is. Closing it means parsing
+Mongolian numerals (unit words, «мянга»/«сая» multipliers, spoken compounds) and then
+deciding which spelled-out quantities are money at all — «хоёр бичилт» is a count. That is a
+Mongolian-language component inside the number path, and getting it wrong drops correct
+sentences. Not done now; instead the prompt asks for figures in digits and every handler
+renders its own with `fmt_mnt`, so the ordinary answer carries digits and is checked.
+
 The stricter set is walked against all ten query kinds in the flow tests, because the way
 this fails is not a leak but correct sentences quietly being replaced for ever.
 "The model writes sentences, deterministic code writes numbers" was a rule the prompt asked

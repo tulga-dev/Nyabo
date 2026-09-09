@@ -43,7 +43,10 @@ bench:
 
    A number that does not appear means the model wrote a figure of its own; the sentence is
    dropped and the handler's own Mongolian text is sent instead. This is the mechanical form of
-   "the model writes sentences, deterministic code writes numbers".
+   "the model writes sentences, deterministic code writes numbers". The check is run over the
+   model's sentence and nothing else, and it has two documented limits — it does not bind a
+   figure to the subject the sentence names, and it never sees a number written out in
+   Mongolian words. Both are set out on ``unverified_numbers`` and in docs/DECISIONS.md Q-02.
 4. **Read-only widening.** Ten query kinds (§5.7 named four); every one of them is a read.
    Nothing in this path may write to the ledger, and no tool here can.
 """
@@ -545,7 +548,36 @@ def unverified_numbers(answer_text: str, calls: Sequence[ToolCall], now: datetim
 	check at all. What arithmetic costs is the model's phrasing, never the number.
 
 	Returned rather than raised so the caller can log it — see ``classify_unverified``, which
-	keeps the log honest about which of the two happened.
+	keeps the log honest about which of the two happened. ``answer`` runs it over the model's
+	sentence only: the handlers' own text is deterministic output built from the ledger, and
+	checking that accused Nyabo of inventing figures Nyabo had computed.
+
+	**Two things this check does not do.** Both are limits of its design rather than bugs, and
+	both are written down here and in docs/DECISIONS.md Q-02 so that nobody reads a clean
+	compliance log as more than it is.
+
+	First, *it proves a figure came from the ledger; it does not bind that figure to the subject
+	the sentence names.* The allowed set is the union of every read in the turn, so a model that
+	asks about Петровис and about Болор and then writes «Болороос 85 000₮ авсан» with Петровис's
+	total passes: the figure is in the set, from the wrong read. Closing it means checking each
+	number against the read whose subject the sentence is about, which means deciding from
+	Mongolian prose which subject each figure belongs to — a language judgement of exactly the
+	kind this module exists to keep out of the number path. The honest close is narrower and
+	costs a turn: one read per answer, the subject printed on the card (``subject_label``), the
+	figure checked against that read alone. Not done now because it would refuse the legitimate
+	two-read answer («энэ сар vs өнгөрсөн сар») the follow-ups were widened for. What holds
+	meanwhile is that the card prints the subject each read resolved, so a wrong attribution is
+	visible to the accountant rather than invisible.
+
+	Second, *only decimal literals are checked* (``_NUMBER``). «Наян таван мянган төгрөг» —
+	eighty-five thousand written out in Mongolian words — is not a number to that regular
+	expression, so a sentence with no digits in it passes untouched however wrong it is. Closing
+	it means parsing Mongolian numerals (unit words, «мянга»/«сая» multipliers, spoken compounds)
+	and then deciding which spelled-out quantities are money at all — «хоёр бичилт» is a count,
+	not a figure. That is a Mongolian-language component inside the one path built to be free of
+	language judgement, and getting it wrong drops correct sentences. Not done now; instead the
+	prompt asks for figures in digits and every handler renders its own with ``fmt_mnt``, so the
+	ordinary answer carries digits and is checked.
 	"""
 	known = _known_numbers(calls, now)
 	cleaned = _GROUP_SEPARATOR.sub("", answer_text or "")
