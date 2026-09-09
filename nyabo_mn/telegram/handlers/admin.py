@@ -1,7 +1,13 @@
-"""Admin commands: ``/link <role> <company>`` issues a code, ``/status`` shows site health.
+"""Admin commands: ``/link`` issues a code, ``/status`` shows site health, ``/дүрэм`` verifies a rule.
 
 Admins are the link role ``Admin`` or the ids in ``ADMIN_TELEGRAM_IDS``; the second lets
 the founder issue the very first accountant code before any link row exists.
+
+``/дүрэм`` (``/rules`` in the ☰ menu) is the door ``MSG_UNVERIFIED_RULE_BLOCKED`` points at.
+Until it existed the refusal said an admin would compare the rule with the primary text and
+mark it verified, while an admin could do exactly two things from Telegram — ``/link`` and
+``/status`` — so the only real path was the ERPNext desk. The list, the evidence card and the
+single confirming tap live here; the write and the audit event live in ``rules.verify``.
 """
 
 from __future__ import annotations
@@ -12,8 +18,14 @@ import frappe
 
 from nyabo_mn.config import get_settings
 from nyabo_mn.i18n import mn
+from nyabo_mn.log import log_event
+from nyabo_mn.telegram import _deps, cards, keyboards
 from nyabo_mn.telegram import state as chat_state
 from nyabo_mn.telegram.context import Ctx
+
+# One screen of rules: the card stays readable and every row still gets its own button. The
+# count in the header is the real total, so a cut list never understates what is blocking work.
+RULES_PER_CARD = 8
 
 
 def noop() -> None:
@@ -70,3 +82,156 @@ def handle_status(ctx: Ctx) -> Any:
 		)
 	)
 	return {"missing": missing}
+
+
+# --- rule verification (/дүрэм, ARCHITECTURE §1.2) ---------------------------------------------
+
+
+def handle_rules(ctx: Ctx) -> Any:
+	"""``/дүрэм`` — the unverified rules that are blocking postings, most-used first.
+
+	An accountant is told who may verify instead of being refused: from their side the command
+	is the only visible name for the thing that stopped their receipt.
+	"""
+	if not ctx.is_admin:
+		ctx.reply(mn.MSG_RULES_ADMIN_ONLY)
+		log_event("telegram.rules.refused", level="warning", telegram_id=ctx.telegram_id, role=ctx.role)
+		return {"refused": "not_admin"}
+	rules = list(_deps.pending_rules())
+	if not rules:
+		ctx.reply(mn.MSG_RULES_NONE)
+		return {"pending": 0}
+	shown = rules[:RULES_PER_CARD]
+	ctx.reply(cards.pending_rules_card(shown, total=len(rules)), keyboards.pending_rules_keyboard(shown))
+	return {"pending": len(rules), "shown": [rule.name for rule in shown]}
+
+
+def handle_callback(ctx: Ctx, parts: list[str]) -> Any:
+	"""``v:op|ok|no:<kind>:<rule…>`` — open one rule, verify it, or leave it unverified.
+
+	The admin check is repeated on every tap and not only on the command: callback data is
+	attacker-chosen (TG-03), so a datum copied out of an admin's chat must not verify anything.
+	"""
+	if len(parts) < 4:
+		return None
+	action, kind = parts[1], parts[2]
+	rule = keyboards.rule_from_parts(parts)
+	if not ctx.is_admin:
+		ctx.answer(mn.MSG_RULES_ADMIN_ONLY, show_alert=True)
+		ctx.reply(mn.MSG_RULES_ADMIN_ONLY)
+		log_event("telegram.rules.tap_refused", level="warning", rule=rule, telegram_id=ctx.telegram_id)
+		return {"refused": "not_admin", "rule": rule}
+	if action == keyboards.VERIFY_OPEN:
+		return show_rule(ctx, kind, rule)
+	if action == keyboards.VERIFY_CONFIRM:
+		return confirm_rule(ctx, kind, rule)
+	if action == keyboards.VERIFY_LEAVE:
+		ctx.answer(mn.MSG_RULE_LEFT)
+		ctx.edit(ctx.callback_message_id, mn.MSG_RULE_LEFT, keyboards.empty_markup())
+		return {"left": rule}
+	log_event("telegram.callback.unknown", level="warning", data=ctx.callback_data[:64])
+	return None
+
+
+def show_rule(ctx: Ctx, kind: str, rule: str) -> Any:
+	"""The evidence card: the Mongolian name, the debit and credit lines, and the citation or its absence."""
+	evidence = _deps.rule_evidence(kind, rule)
+	if evidence is None:
+		ctx.answer(mn.MSG_RULE_NOT_FOUND.format(rule=rule), show_alert=True)
+		return {"rule": rule, "found": False}
+	if evidence.verified:
+		ctx.answer(mn.MSG_RULE_ALREADY_VERIFIED.format(rule=rule), show_alert=True)
+		return {"rule": rule, "already": True}
+	# A new message, not an edit: the list above it is what the admin is working through, and
+	# opening one rule must not take the other seven off the screen.
+	offered = offer_decision(ctx, kind, evidence)
+	return {"rule": rule, "has_citation": evidence.has_citation, "offered": offered}
+
+
+def offer_decision(ctx: Ctx, kind: str, evidence: Any) -> bool:
+	"""The evidence card and the two buttons; False when the rule can only be verified in the desk.
+
+	A rule id long enough to push the callback datum past Telegram's 64 bytes costs the buttons
+	(``keyboards.rule_decision`` drops them and logs), and an admin left looking at a card with no
+	way to answer it would be exactly the dead end this whole flow exists to remove — so the card
+	is followed by the one instruction that still works.
+	"""
+	markup = keyboards.rule_decision(kind, evidence.name)
+	ctx.reply(cards.rule_card(evidence), markup)
+	if not markup.get("inline_keyboard"):
+		ctx.reply(mn.MSG_RULE_VERIFY_IN_DESK.format(rule=evidence.name))
+		return False
+	return True
+
+
+def confirm_rule(ctx: Ctx, kind: str, rule: str) -> Any:
+	"""The tap that is the compliance act: the flag, the name, the time and a Nyabo Event."""
+	result = _deps.verify_rule(kind, rule, ctx.user, telegram_id=ctx.telegram_id)
+	if not result.get("ok"):
+		ctx.answer(mn.MSG_RULE_NOT_FOUND.format(rule=rule), show_alert=True)
+		return result
+	if result.get("already"):
+		ctx.answer(mn.MSG_RULE_ALREADY_VERIFIED.format(rule=rule), show_alert=True)
+		return result
+	ctx.edit(
+		ctx.callback_message_id,
+		mn.MSG_RULE_VERIFIED.format(
+			rule=rule, user=_actor_name(ctx), when=str(result.get("verified_at") or "")[:16]
+		),
+		keyboards.empty_markup(),
+	)
+	# Nothing was re-sent and nothing was lost: the proposal that was refused is still `proposed`
+	# and still wearing its own [Батлах] (telegram.handlers.approve), so this is the whole retry.
+	ctx.reply(mn.MSG_RULE_VERIFIED_RETRY)
+	# ``event`` is log_event's own first parameter; the Nyabo Event name rides under its own key.
+	log_event("telegram.rules.verified", rule=rule, kind=kind, user=ctx.user, nyabo_event=result.get("event"))
+	return {"verified": True, "rule": rule, "event": result.get("event")}
+
+
+def rule_blocked(ctx: Ctx, rule: str, company: str | None = None) -> dict[str, Any]:
+	"""Turn the refusal an accountant just hit into the next step, whoever is reading it.
+
+	An admin gets the rule's evidence and the two buttons in the same breath as the refusal. Anyone
+	else is told an admin must do it — and that sentence is made true here rather than hoped for:
+	a Nyabo Event records the request and ``router.notify_admins`` puts it in the admins' chats.
+	"""
+	company = company or ctx.company
+	if ctx.is_admin:
+		found = _rule_evidence_by_name(rule)
+		if found is not None:
+			kind, evidence = found
+			ctx.reply(mn.MSG_UNVERIFIED_RULE_ADMIN_CAN_VERIFY)
+			return {
+				"rule": rule,
+				"offered": offer_decision(ctx, kind, evidence),
+				"notified": False,
+			}
+	# Not an admin, or a rule name that is not a row at all (the guard counts an unknown name as
+	# unverified, and that is a configuration fault an admin has to see).
+	_deps.request_rule_verification(rule, company=company, user=ctx.user, telegram_id=ctx.telegram_id)
+	ctx.reply(mn.MSG_UNVERIFIED_RULE_ADMIN_ASKED)
+	from nyabo_mn.telegram.router import notify_admins
+
+	notify_admins(
+		ctx.bot,
+		ctx.settings,
+		mn.MSG_ADMIN_RULE_VERIFY_REQUEST.format(company=company or mn.VALUE_UNKNOWN, rule=rule),
+	)
+	log_event("telegram.rules.requested", rule=rule, company=company, user=ctx.user)
+	return {"rule": rule, "offered": False, "notified": True}
+
+
+def _rule_evidence_by_name(rule: str) -> tuple[str, Any] | None:
+	"""``UnverifiedRuleError`` carries a bare name; the kinds are tried in ``rules.verify`` order."""
+	for kind in _deps.rule_kinds():
+		evidence = _deps.rule_evidence(kind, rule)
+		if evidence is not None and not evidence.verified:
+			return kind, evidence
+	return None
+
+
+def _actor_name(ctx: Ctx) -> str:
+	"""The name the admin was linked under, so the confirmation names a person, not an email."""
+	from nyabo_mn.telegram.handlers import approve
+
+	return approve.approver_name(ctx)

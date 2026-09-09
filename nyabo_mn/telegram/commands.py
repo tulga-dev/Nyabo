@@ -39,6 +39,10 @@ MENU_COMMANDS: tuple[str, ...] = (
 	"policy",
 	"company",
 	"setup",
+	# /rules (/дүрэм) is in everyone's menu although only an admin may verify: the accountant whose
+	# receipt was refused for an unverified rule has to be able to find out who can clear it, and
+	# ``admin.handle_rules`` answers them with that rather than with a bare refusal.
+	"rules",
 )
 
 # BotCommandScopeAllPrivateChats: Nyabo is a one-to-one bot, and a group chat would show
