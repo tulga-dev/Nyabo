@@ -481,6 +481,43 @@ def test_no_sentence_and_no_handler_text_still_says_it_could_not_answer(tmp_path
 	assert [f.verb for f in outcome.follow_ups] == [questions.VERB_ESCALATE, questions.VERB_MENU]
 
 
+def test_nyabo_does_not_log_an_invented_number_alarm_about_its_own_sentence(tmp_path):
+	"""MAJOR: the check ran over the handler's text whenever the model wrote none.
+
+	That text is deterministic output — the handler read the ledger and wrote the Mongolian for
+	it — so any figure in it that no handler happened to list in ``computed_numbers`` produced a
+	``question_number_unverified`` event accusing the model of fabricating a number Nyabo itself
+	wrote. The compliance log is evidence; this made it noise.
+	"""
+	client = MockLlmClient(fixtures_dir=tmp_path)
+	client.add(
+		"question",
+		{
+			"text": "",  # the model spent its turns on tools and wrote no closing sentence
+			"tool_calls": [
+				{
+					"name": "answer_from_books",
+					"arguments": {
+						"query_kind": "unmatched_count",
+						"args": dict.fromkeys(questions.SUBJECT_KEYS),
+					},
+				}
+			],
+		},
+	)
+	# a handler that vouches for nothing: its own sentence is still the ledger's answer
+	handlers = {"answer_from_books": lambda args: {"count": 2, "text": mn.UNMATCHED_ANSWER.format(count=2)}}
+	outcome = questions.answer(client, "Тулгаагүй гүйлгээ хэд вэ?", handlers, now=NOW)
+
+	assert outcome.answer.answer_mn == mn.UNMATCHED_ANSWER.format(count=2)
+	assert outcome.unverified_numbers == (), "the 2 in that sentence is Nyabo's own"
+	assert outcome.number_kinds == {}
+	# and the check still runs the moment the sentence is the model's again
+	assert questions.unverified_numbers("Тулгагдаагүй 2 гүйлгээ байна.", outcome.llm.tool_calls, NOW) == (
+		"2",
+	)
+
+
 def test_a_derived_figure_is_logged_as_derived_not_as_a_fabrication(tmp_path):
 	"""MINOR: an average or a difference failed the check and was logged as an invention.
 

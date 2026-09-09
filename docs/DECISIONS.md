@@ -819,6 +819,12 @@ it. A rendered string is not a computation, whoever wrote it. The year of a peri
 vouched for either: the read runs for whatever month it is given, so the year comes from the
 clock (`_clock_years`) and a model cannot ask about «9999 оны 12-р сар» to license «9 999₮».
 
+The check runs over the model's sentence and over nothing else. When the model spends its
+turns on tools and writes no closing sentence the user reads the *handler's* Mongolian text,
+which is deterministic output built from the ledger; checking it logged
+`question_number_unverified` against figures Nyabo itself had computed — a rounded total, a
+rendered label — which is the noise that gets the real alarms ignored.
+
 Two sources this brief once named were removed for the same reason. **The user's question**:
 «Петровисээс 9 сард 1 250 000₮-ийн шатахуун авсан биз дээ?» is the ordinary way a Mongolian
 bookkeeper checks a figure out loud, so admitting the question let the model answer «Тийм, …

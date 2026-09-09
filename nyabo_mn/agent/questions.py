@@ -798,6 +798,15 @@ def answer(
 	``on_turn`` is called once before each tool dispatch — a tool call is the seam between two
 	model turns and the only place this module can see one, so it is where a caller refreshes
 	whatever it is showing the user. It must not raise: this is the answer path.
+
+	The number check runs over the model's own sentence and over nothing else. When the model
+	spends its turns on tools and writes no closing sentence, what is sent is the *handler's*
+	Mongolian text — deterministic output built from the ledger, by definition made of figures
+	the ledger produced — and running the check over it accused the model of inventing a number
+	Nyabo itself had written: a rounded total, a rendered label, a count no handler listed in
+	``computed_numbers`` because nothing in the trace had to vouch for it. The compliance log is
+	evidence, and an alarm that fires on our own arithmetic is the noise that gets the real ones
+	ignored. Same for ``AGENT_ANSWER_TOOL_ERROR`` and ``MSG_QUESTION_CANNOT_FULL``: ours too.
 	"""
 	now = now or datetime.now(timezone.utc)
 	fragment = find_injection(text)
@@ -837,13 +846,18 @@ def answer(
 		for call in llm.tool_calls
 	)
 
+	model_text = (llm.text or "").strip()
 	answered = True
+	# Whether the sentence about to be sent is the model's own. Only that one is checked for
+	# invented numbers: see the ``unverified_numbers`` call below.
+	from_model = True
 	if escalated:
-		answer_text = (llm.text or "").strip() or mn.MSG_ESCALATED
-	elif llm.text and llm.text.strip():
-		answer_text = llm.text.strip()
+		answer_text = model_text or mn.MSG_ESCALATED
+		from_model = bool(model_text)
+	elif model_text:
+		answer_text = model_text
 	elif all_failed and handler_broke:
-		answer_text, answered = mn.AGENT_ANSWER_TOOL_ERROR, False
+		answer_text, answered, from_model = mn.AGENT_ANSWER_TOOL_ERROR, False, False
 	else:
 		# Tool calls but no closing sentence — reachable whenever the model spends its turns
 		# on tools, which ten query kinds and MAX_TURNS made likelier. The handler has by then
@@ -853,9 +867,10 @@ def answer(
 		fallback = _handler_text(llm.tool_calls)
 		answer_text = fallback or mn.MSG_QUESTION_CANNOT_FULL
 		answered = fallback is not None
+		from_model = False
 		last_ok = last_ok if fallback else None
 
-	invented = unverified_numbers(answer_text, llm.tool_calls, now) if answered else ()
+	invented = unverified_numbers(answer_text, llm.tool_calls, now) if answered and from_model else ()
 	if invented:
 		# The sentence carried a figure nothing returned. The handler already wrote a correct
 		# Mongolian sentence for what it found, so send that; there is never a reason to pass
