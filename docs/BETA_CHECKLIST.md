@@ -15,10 +15,20 @@ marked with the reason.
       be uninstalled before Frappe Cloud would move the site; Email Delivery Service was
       added to the bench instead so the site kept it.
 - [ ] Plan USD 25 or higher after the trial, daily backups on.
-- [ ] Site Config keys set: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`,
-      `ADMIN_TELEGRAM_IDS`, `OPENAI_API_KEY`, `EBARIMT_API_BASE`.
-      Frappe Cloud → the site → **Site Config** → **Add Config**, one key at a time:
-      Key, Type *String*, Value. Only the founder does this; the keys are secrets.
+- [x] `EBARIMT_API_BASE` = `https://api.ebarimt.mn`.
+- [ ] The four secret keys: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`,
+      `ADMIN_TELEGRAM_IDS`, `OPENAI_API_KEY`. Only the founder adds these.
+      Frappe Cloud → the site → **Site Config** → **Add Config**, then per key:
+      1. **Config Name** → choose **Custom Key** (the first entry in the list). Until you
+         pick it the Key and Type fields stay greyed out, which is what makes the dialog
+         look like it will not accept a new key.
+      2. **Key** → type the name exactly, capitals and underscores included.
+      3. **Type** → **String**, for all four. A custom key offers only String, Number, JSON
+         and Boolean; there is no Password type, so the value is visible in the dialog.
+      4. **Value** → paste it, then **Add Key**.
+      Do **not** pick `Press Bootstrap Telegram Bot Token` from the Config Name list. That
+      is Frappe Cloud's own key for its internal bot and Nyabo never reads it.
+      The site takes about 30 seconds to pick up a new key.
 - [ ] Config check shows no missing key for `telegram` and `llm`. From the desk console:
       `frappe.call("nyabo_mn.api.config_check").then(r => console.log(r.message))`.
 - [ ] Webhook set and `/start` answers. From the desk console:

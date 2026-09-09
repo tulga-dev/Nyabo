@@ -22,7 +22,17 @@ If a deploy fails, open the failed step's log, copy the last 30 lines and paste 
 
 ## 2. Secrets (Site Config)
 
-Site → **Site Config** → **Add key** for each row. Values never go in the repo or in chat.
+Site → **Site Config** → **Add Config** for each row. Values never go in the repo or in chat.
+
+In that dialog, set **Config Name** to **Custom Key** first: it is the first entry in the
+list, and until it is chosen the Key and Type fields are disabled, so the dialog looks as
+though it refuses new keys. Then type the Key exactly as written below, set Type to
+**String** (a custom key offers only String, Number, JSON and Boolean), paste the Value and
+press **Add Key**. The site reads the new key about 30 seconds later.
+
+The Config Name list also holds `Press Bootstrap Telegram Bot Token`. That is Frappe
+Cloud's own key for its internal bot; Nyabo never reads it. The bot token goes in
+`TELEGRAM_BOT_TOKEN` as a Custom Key.
 
 | Key | Where it comes from |
 |---|---|
