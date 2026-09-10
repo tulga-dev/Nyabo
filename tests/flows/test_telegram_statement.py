@@ -219,6 +219,59 @@ def test_the_confirmation_says_what_happens_next_and_not_what_used_to(books):
 	assert "дахин илгээ" in mn.MSG_STATEMENT_LAYOUT_ACCEPTED_RESEND
 
 
+def test_a_confirmation_the_accountant_came_back_to_still_reads_the_waiting_file(books):
+	"""The accountant is called away, confirms twenty minutes later, and the statement still goes in.
+
+	``blocked_document`` is kept to this chat and to REQUEST_DEDUPE_MINUTES because it finishes a
+	posting (VER-04). A layout confirmation posts nothing — it re-reads a spreadsheet — and being
+	held to the same window meant the card, tapped a little late, answered «send this statement
+	again», which the sha256 dedup then refused: a sentence that did not do what it said, with
+	nothing after it. The file is found by the books it is waiting for instead.
+	"""
+	helpers.setup_banks(books)
+	helpers.register_layouts()
+	frappe.db.set_value("Nyabo Bank Layout", "test_khan_synthetic", "verified", 0)
+	filename, data = fixtures.khan_xlsx()
+	link_user(9309, "Accountant", books)
+	bot = FakeBotApi(files={"first": data})
+	_send(bot, 9309, filename, file_id="first")
+	assert frappe.db.count("Bank Transaction") == 0
+	for row in frappe.get_all("Nyabo Event", filters={"event_type": mn.EVENT_RULE_BLOCKED}, fields=["name"]):
+		frappe.db.set_value(
+			"Nyabo Event", row["name"], "creation", "2020-01-01 00:00:00", update_modified=False
+		)
+
+	run(bot, callback_update(9309, keyboards.rule_data(keyboards.VERIFY_ACCEPT, "b", "test_khan_synthetic")))
+
+	texts = bot.texts()
+	assert mn.MSG_STATEMENT_LAYOUT_REIMPORTING in texts
+	assert mn.MSG_STATEMENT_LAYOUT_ACCEPTED_RESEND not in texts, (
+		"the file is stored, so asking for it again would meet the dedup and end the flow there"
+	)
+	assert frappe.db.count("Bank Transaction") == 5
+
+
+def test_a_statement_already_in_the_ledger_is_never_read_a_second_time(books):
+	"""``waiting_statement`` is widened by the books, so ``status`` is what keeps it honest."""
+	from nyabo_mn.rules import verify
+
+	helpers.setup_banks(books)
+	helpers.register_layouts()
+	filename, data = fixtures.khan_xlsx()
+	link_user(9310, "Accountant", books)
+	bot = FakeBotApi(files={"first": data})
+	_send(bot, 9310, filename, file_id="first")
+	assert frappe.db.count("Bank Transaction") == 5
+	document = frappe.get_last_doc("Nyabo Document")
+	assert document.status == "extracted"
+	# A block row naming a document that has since been read must not resurrect it.
+	verify.record_block(
+		"test_khan_synthetic", company=books, telegram_id=9310, document=document.name, user="tg-9310"
+	)
+
+	assert verify.waiting_statement("test_khan_synthetic", books) is None
+
+
 def test_a_layout_another_company_confirmed_is_still_refused_here(books, company_v03):
 	"""One accountant's reading of a spreadsheet is not evidence about another client's file."""
 	from nyabo_mn.rules import verify

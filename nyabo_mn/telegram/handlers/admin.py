@@ -378,7 +378,14 @@ def _finish_the_blocked_tap(ctx: Ctx, kind: str, rule: str, company: str) -> str
 	file itself is what has to come back, so that is what the accountant is asked for (ACC-02).
 	"""
 	if kind == LAYOUT_KIND:
-		document = _deps.blocked_document(rule, company, ctx.telegram_id)
+		# Their own upload first, then this company's — the file is what has to be read, and it
+		# is the same file either way. Asking only the narrow question sent an accountant who
+		# had stepped away for twenty minutes, or whose client had sent the file into a shared
+		# chat, off to re-send a statement the sha256 dedup would answer «this document is
+		# already here»: a sentence that did not do what it said, with nothing after it.
+		document = _deps.blocked_document(rule, company, ctx.telegram_id) or _deps.waiting_statement(
+			rule, company
+		)
 		if not document:
 			ctx.reply(mn.MSG_STATEMENT_LAYOUT_ACCEPTED_RESEND)
 			return None

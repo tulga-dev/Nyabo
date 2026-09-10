@@ -93,6 +93,11 @@ NOTE_MAX_CHARS = 1000
 #: one sitting, short enough that a real second attempt an hour later is heard.
 REQUEST_DEDUPE_MINUTES = 15
 
+#: ``Nyabo Document.status`` while a bank statement has been stored and not yet read into the
+#: ledger. ``matching.bank_import`` writes ``extracted`` the moment an import goes through, so
+#: this is what tells a statement still waiting on its layout from one that is already booked.
+STATEMENT_UNREAD = "received"
+
 #: How long after being stopped by a rule somebody is still told that it was verified. A receipt
 #: refused on Friday is still ``proposed`` on Monday, wearing its own [Батлах], so the news is
 #: still worth having; past a week the person has moved on and the card has been dealt with.
@@ -1339,6 +1344,47 @@ def blocked_document(
 		name = str(payload.get("document") or "").strip()
 		if name and frappe.db.exists(DOCUMENT, name):
 			return name
+	return None
+
+
+def waiting_statement(rule: str, company: str | None) -> str | None:
+	"""The statement file this bank layout is *still* holding for this company — or ``None``.
+
+	WHY this exists beside ``blocked_document``: that one is deliberately narrow (VER-04) — the
+	same chat, inside ``REQUEST_DEDUPE_MINUTES`` — because it finishes a *posting*, and one
+	person's tap must never post another person's document. A layout confirmation posts nothing:
+	it re-reads a spreadsheet into Bank Transaction rows and cards that still need their own
+	[Батлах]. Keeping the narrow lookup as the only one meant that an accountant who mapped the
+	columns, was called away for twenty minutes and then tapped [Манай компанид хамаарна] was told
+	«send this statement again» — and the sha256 dedup answered the second upload «this document
+	is already here» (§5.3). That is a dead end, and it is the one this whole flow exists to
+	remove.
+
+	So the question is asked of the books rather than of the chat: this company's own refusals of
+	this layout, whatever minute they happened in and whoever sent the file, naming a document
+	that is still sitting unread. ``status`` is what makes it safe to widen — an import that went
+	through sets ``extracted`` (``matching.bank_import``), so a statement already in the ledger is
+	never read a second time by this.
+	"""
+	if not rule or not company or not frappe.db.exists("DocType", DOCUMENT):
+		return None
+	rows = frappe.get_all(
+		events.EVENT_DOCTYPE,
+		filters={
+			"event_type": mn.EVENT_RULE_BLOCKED,
+			"reason": rule,
+			"company": company,
+			"ref_doctype": DOCUMENT,
+		},
+		fields=["ref_name"],
+		order_by="creation desc",
+	)
+	for row in rows:
+		document = str(row.get("ref_name") or "").strip()
+		if not document or not frappe.db.exists(DOCUMENT, document):
+			continue
+		if str(frappe.db.get_value(DOCUMENT, document, "status") or "") == STATEMENT_UNREAD:
+			return document
 	return None
 
 

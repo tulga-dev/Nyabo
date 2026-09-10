@@ -368,6 +368,15 @@ def blocked_document(rule: str, company: str | None, telegram_id: str | int | No
 	return _call("nyabo_mn.rules.verify", "blocked_document", rule, company, telegram_id)
 
 
+def waiting_statement(rule: str, company: str | None) -> str | None:
+	"""The statement this bank layout is still holding for this company, whenever it was sent.
+
+	The wider question ``blocked_document`` deliberately does not ask: re-reading a statement
+	posts nothing, so it is not kept to one chat and one quarter of an hour.
+	"""
+	return _call("nyabo_mn.rules.verify", "waiting_statement", rule, company)
+
+
 def record_rule_block(
 	rule: str,
 	company: str | None = None,
