@@ -92,6 +92,45 @@ def handle_status(ctx: Ctx) -> Any:
 # --- rule verification and acceptance (/дүрэм, ARCHITECTURE §1.2, DECISIONS ACC-01) -----------
 
 
+def _may_read_rules(ctx: Ctx) -> bool:
+	"""Who may open the list and the evidence cards: an accountant of these books, or a site admin.
+
+	Two people, two different answers on the same card, and each of them must be able to reach
+	it. ``is_accountant`` is per company (TG-04) and a site admin is site-wide (VER-08), so
+	neither check implies the other — asking only the first is how the founder, an Owner of his
+	own company, lost ``/дүрэм`` and with it the only door to the global verification.
+	"""
+	return ctx.is_accountant or ctx.is_site_admin
+
+
+def _accepting_company(ctx: Ctx) -> str | None:
+	"""The company an acceptance from *this* reader would be for — ``None`` when there is none.
+
+	A site admin who does not keep these books may verify the global row and may not accept
+	anything for anybody, so the evidence card is drawn for no company: it then asks the
+	site-wide question (``CARD_RULE_ASK``) instead of «does this apply to {company}?», which
+	would be a question they have no button to answer.
+	"""
+	return ctx.company if ctx.is_accountant else None
+
+
+def _refuse_tap(ctx: Ctx, kind: str, rule: str, message: str, reason: str) -> dict[str, Any]:
+	"""Answer a tap this reader may not make, in the words of the thing they tapped."""
+	# A layout is not in `/дүрэм`, so it does not get the sentence that points there (ACC-02).
+	if kind == LAYOUT_KIND and message == mn.MSG_RULES_ACCOUNTANT_ONLY:
+		message = mn.MSG_STATEMENT_LAYOUT_ACCOUNTANT_ONLY
+	ctx.answer(message, show_alert=True)
+	ctx.reply(message)
+	log_event(
+		"telegram.rules.tap_refused",
+		level="warning",
+		rule=rule,
+		telegram_id=ctx.telegram_id,
+		reason=reason,
+	)
+	return {"refused": reason, "rule": rule}
+
+
 def handle_rules(ctx: Ctx) -> Any:
 	"""``/дүрэм`` — the unverified rules that are blocking this company's postings, most-used first.
 
@@ -99,8 +138,13 @@ def handle_rules(ctx: Ctx) -> Any:
 	are the person whose signature the entry carries, so they are the person who decides whether
 	an uncited rule applies to the books they keep. A site admin sees the same list and may also
 	verify the global row when a citation turns up.
+
+	Both, therefore, and not one instead of the other: ``is_accountant`` is the link role on the
+	*active* company, so gating on it alone shut out the site admin whose role on their own
+	company is Owner — the one person VER-08 reserves the global verification for, and the only
+	way into it is this command.
 	"""
-	if not ctx.is_accountant:
+	if not _may_read_rules(ctx):
 		ctx.reply(mn.MSG_RULES_ACCOUNTANT_ONLY)
 		log_event("telegram.rules.refused", level="warning", telegram_id=ctx.telegram_id, role=ctx.role)
 		return {"refused": "not_accountant"}
@@ -118,23 +162,23 @@ def handle_callback(ctx: Ctx, parts: list[str]) -> Any:
 
 	The permission is re-checked on every tap and not only on the command: callback data is
 	attacker-chosen (TG-03), so a datum copied out of somebody else's chat must clear nothing.
+	And it is re-checked *per action*, because the two acts on this card belong to two different
+	people: reading is open to both, [Манай компанид хамаарна] is the accountant's alone, and
+	[Сайт даяар баталгаажуулах] is the site admin's alone (ACC-01, VER-08).
 	"""
 	if len(parts) < 4:
 		return None
 	action, kind = parts[1], parts[2]
 	rule = keyboards.rule_from_parts(parts)
-	if not ctx.is_accountant:
-		# A layout is not in `/дүрэм`, so it does not get the sentence that points there (ACC-02).
-		refusal = (
-			mn.MSG_STATEMENT_LAYOUT_ACCOUNTANT_ONLY if kind == LAYOUT_KIND else mn.MSG_RULES_ACCOUNTANT_ONLY
-		)
-		ctx.answer(refusal, show_alert=True)
-		ctx.reply(refusal)
-		log_event("telegram.rules.tap_refused", level="warning", rule=rule, telegram_id=ctx.telegram_id)
-		return {"refused": "not_accountant", "rule": rule}
+	if not _may_read_rules(ctx):
+		return _refuse_tap(ctx, kind, rule, mn.MSG_RULES_ACCOUNTANT_ONLY, "not_accountant")
 	if action == keyboards.VERIFY_OPEN:
 		return show_rule(ctx, kind, rule)
 	if action == keyboards.VERIFY_ACCEPT:
+		if not ctx.is_accountant:
+			# A site admin reading the list is not the professional who keeps these books, and
+			# acceptance is that professional's judgement — the global tick below is theirs.
+			return _refuse_tap(ctx, kind, rule, mn.MSG_RULES_ACCOUNTANT_ONLY, "not_accountant")
 		return accept_rule(ctx, kind, rule)
 	if action == keyboards.VERIFY_CONFIRM:
 		if not ctx.is_site_admin:
@@ -142,16 +186,7 @@ def handle_callback(ctx: Ctx, parts: list[str]) -> Any:
 			# other client on the site, and the datum is attacker-chosen, so this is re-checked
 			# on the tap and not only on the keyboard that was drawn. The accountant's own answer
 			# — [Манай компанид хамаарна] — is on the same card and is not refused.
-			ctx.answer(mn.MSG_RULES_SITE_ADMIN_ONLY, show_alert=True)
-			ctx.reply(mn.MSG_RULES_SITE_ADMIN_ONLY)
-			log_event(
-				"telegram.rules.tap_refused",
-				level="warning",
-				rule=rule,
-				telegram_id=ctx.telegram_id,
-				reason="not_site_admin",
-			)
-			return {"refused": "not_site_admin", "rule": rule}
+			return _refuse_tap(ctx, kind, rule, mn.MSG_RULES_SITE_ADMIN_ONLY, "not_site_admin")
 		return confirm_rule(ctx, kind, rule)
 	if action == keyboards.VERIFY_LEAVE:
 		# «This rule will go on refusing postings» is not what an unconfirmed *layout* does — it
@@ -166,7 +201,7 @@ def handle_callback(ctx: Ctx, parts: list[str]) -> Any:
 
 def show_rule(ctx: Ctx, kind: str, rule: str) -> Any:
 	"""The evidence card: the Mongolian name, the debit and credit lines, and the citation or its absence."""
-	evidence = _deps.rule_evidence(kind, rule, ctx.company)
+	evidence = _deps.rule_evidence(kind, rule, _accepting_company(ctx))
 	if evidence is None:
 		ctx.answer(mn.MSG_RULE_NOT_FOUND.format(rule=rule), show_alert=True)
 		return {"rule": rule, "found": False}
@@ -202,14 +237,18 @@ def offer_decision(ctx: Ctx, kind: str, evidence: Any) -> bool:
 	which binds that company only; a site admin also gets [Сайт даяар баталгаажуулах], which binds
 	every company on the site (VER-08). With no active company there is nothing to accept *for*,
 	and the card says so rather than drawing a button that would refuse.
+
+	A reader who is a site admin but not an accountant of these books gets the global tick and
+	nothing else — neither the button nor the question, which is why the company reaches the
+	card through ``_accepting_company`` rather than straight off ``ctx``.
 	"""
-	may_accept = bool(ctx.company)
+	may_accept = ctx.is_accountant and bool(ctx.company)
 	markup = keyboards.rule_decision(kind, evidence.name, may_verify=ctx.is_site_admin, may_accept=may_accept)
 	ctx.reply(cards.rule_card(evidence), markup)
 	if not markup.get("inline_keyboard"):
 		ctx.reply(mn.MSG_RULE_VERIFY_IN_DESK.format(rule=evidence.name))
 		return False
-	if not may_accept:
+	if ctx.is_accountant and not may_accept:
 		ctx.reply(mn.MSG_RULE_ACCEPT_NO_COMPANY)
 	return may_accept or ctx.is_site_admin
 

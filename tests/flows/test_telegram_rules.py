@@ -696,6 +696,74 @@ def test_a_blocked_company_admin_is_offered_their_own_companys_answer_not_the_gl
 	]
 
 
+@pytest.fixture
+def site_admin_who_owns(seeded: dict, company: str, unverified_seed: tuple[list[str], list[str]]) -> str:
+	"""The person VER-08 reserves the global tick for, whose role on their own company is Owner.
+
+	``ADMIN_TELEGRAM_IDS`` is what makes somebody a site admin; the link role is a separate,
+	per-company thing, and being the owner of one's own company is the ordinary case.
+	"""
+	link_user(ADMIN_ID, "Owner", company)
+	return company
+
+
+def test_a_site_admin_who_owns_their_company_keeps_the_command(site_admin_who_owns: str):
+	"""The accountant gate took ``/дүрэм`` away from the one person VER-08 names.
+
+	``ctx.is_accountant`` is the link role on the *active* company, so a site admin whose own
+	role there is Owner was refused the command — and the global verification, which no
+	accountant may make, is only reachable through it.
+	"""
+	bot = FakeBotApi()
+	outcome = run(bot, message_update(ADMIN_ID, "/дүрэм"))
+
+	assert outcome["result"]["pending"] > 0
+	assert mn.MSG_RULES_ACCOUNTANT_ONLY not in bot.texts()
+
+
+def test_the_site_admin_is_offered_the_global_tick_and_not_the_accountants_answer(
+	site_admin_who_owns: str,
+):
+	"""Each reader sees the button that is theirs, and neither sees the other's (ACC-01, VER-08).
+
+	They do not keep these books, so «Манай компанид хамаарна» is not an answer they may give —
+	and the card must not ask them the accountant's question either.
+	"""
+	bot = FakeBotApi()
+	data = keyboards.rule_data(keyboards.VERIFY_OPEN, verify.KIND_PATTERN, BLOCKING)
+	outcome = run(bot, callback_update(ADMIN_ID, data))
+
+	assert outcome["result"] == {"rule": BLOCKING, "has_citation": False, "offered": True}
+	assert bot.callback_datas() == [
+		keyboards.rule_data(keyboards.VERIFY_CONFIRM, verify.KIND_PATTERN, BLOCKING),
+		keyboards.rule_data(keyboards.VERIFY_LEAVE, verify.KIND_PATTERN, BLOCKING),
+	]
+	text = bot.texts()[0]
+	assert mn.CARD_RULE_ACCEPT_ASK.format(company=site_admin_who_owns) not in text
+	assert mn.CARD_RULE_ASK in text
+
+
+def test_the_site_admins_global_tick_still_lands(site_admin_who_owns: str):
+	bot = FakeBotApi()
+	data = keyboards.rule_data(keyboards.VERIFY_CONFIRM, verify.KIND_PATTERN, BLOCKING)
+	outcome = run(bot, callback_update(ADMIN_ID, data))
+
+	assert outcome["result"]["verified"] is True
+	assert frappe.db.get_value(verify.PATTERN, BLOCKING, "verified") == 1
+	assert frappe.db.get_value(verify.PATTERN, BLOCKING, "verified_by") == "tg-1001@nyabo.local"
+
+
+def test_a_site_admin_who_does_not_keep_these_books_accepts_nothing_for_them(site_admin_who_owns: str):
+	"""The datum is attacker-chosen (TG-03), so the accountant's answer is re-checked on the tap."""
+	bot = FakeBotApi()
+	data = keyboards.rule_data(keyboards.VERIFY_ACCEPT, verify.KIND_PATTERN, BLOCKING)
+	outcome = run(bot, callback_update(ADMIN_ID, data))
+
+	assert outcome["result"] == {"refused": "not_accountant", "rule": BLOCKING}
+	assert frappe.db.count(verify.ACCEPTANCE) == 0
+	assert bot.last_text == mn.MSG_RULES_ACCOUNTANT_ONLY
+
+
 # --- 5. the refusal the accountant hits -------------------------------------------------------
 
 
