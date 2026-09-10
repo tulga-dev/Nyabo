@@ -67,6 +67,11 @@ svg text { font-family: inherit; }
   <div class="tabs" id="tabs"></div>
   <div class="body" id="body"><div class="loading" id="loading">…</div></div>
 </div>
+<!-- Frappe fills this in with the session's CSRF token when the visitor has a desk session
+     (the founder opening the page in a browser); inside Telegram there is no session and no
+     token, and a guest request needs none. -->
+<script>window.frappe = window.frappe || {};</script>
+<!-- csrf_token -->
 <script>
 {% raw %}
 (function () {
@@ -86,9 +91,11 @@ svg text { font-family: inherit; }
 
   function load(period) {
     body.innerHTML = '<div class="loading">' + esc(document.title) + "…</div>";
+    var headers = { "Content-Type": "application/json", "Accept": "application/json" };
+    if (window.frappe && window.frappe.csrf_token) headers["X-Frappe-CSRF-Token"] = window.frappe.csrf_token;
     return fetch("/api/method/nyabo_mn.miniapp.data", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "Accept": "application/json" },
+      headers: headers,
       body: JSON.stringify({ init_data: initData(), period: period || undefined }),
     })
       .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })

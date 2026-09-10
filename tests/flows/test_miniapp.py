@@ -114,5 +114,6 @@ def test_the_page_is_a_standalone_document_with_no_jinja_outside_raw_blocks():
 	assert text.count("{% raw %}") == text.count("{% endraw %}") == 2
 	assert "nyabo_mn.miniapp.data" in text and "nyabo_mn.miniapp.export_xlsx" in text
 	assert "telegram-web-app.js" in text
+	assert "<!-- csrf_token -->" in text and "X-Frappe-CSRF-Token" in text
 	outside = "".join(part.split("{% endraw %}", 1)[-1] for part in text.split("{% raw %}"))
 	assert "{{" not in outside and "{%" not in outside.replace("{% raw %}", "")
