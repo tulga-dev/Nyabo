@@ -169,6 +169,49 @@ def test_three_taps_on_the_same_refused_card_write_one_block_row(books: str, mon
 	assert verify.blocked_proposal(BLOCKING, books, ACCOUNTANT_ID) == proposal.name
 
 
+# --- 1b. the warning on the card the founder actually looks at ----------------------------------
+
+
+def test_the_card_stops_warning_the_company_that_accepted_and_goes_on_warning_the_others(
+	books: str, company_v03: str
+):
+	"""The founder's own complaint: «⚠️ Дүрэм баталгаажаагүй» after he had already accepted.
+
+	The warning used to read ``pattern.verified`` and nothing else, so it knew about the seed's
+	citation and the site admin's tick and not about the third provenance — the one this whole
+	flow added. It has to ask the guard's two questions, in the guard's own order, for the
+	company the entry is being built for.
+	"""
+	from nyabo_mn.agent import pipeline
+	from nyabo_mn.core import rules_engine
+	from nyabo_mn.rules import patterns
+
+	pattern = patterns.load(BLOCKING)
+	assert pattern.verified is False, "the seed ships this one uncited; that is the whole premise"
+
+	def card_warnings(company: str) -> tuple[str, ...]:
+		"""The warnings the receipt card would carry, built the way ``agent.pipeline`` builds them."""
+		entry = rules_engine.instantiate(
+			pattern,
+			{"gross": "100000"},
+			lambda selector: "1110",
+			company=company,
+			cleared=pipeline.rule_cleared(pattern, company),
+		)
+		return entry.warnings
+
+	assert mn.WARN_UNVERIFIED_RULE in card_warnings(books)
+
+	verify.accept(verify.KIND_PATTERN, BLOCKING, books, "tg-5001@nyabo.local")
+
+	assert mn.WARN_UNVERIFIED_RULE not in card_warnings(books), (
+		"the accountant accepted this rule for these books; the card may not go on calling it "
+		"unverified, which is the complaint that started this work"
+	)
+	# ...and it binds one company, on the card exactly as in the guard.
+	assert mn.WARN_UNVERIFIED_RULE in card_warnings(company_v03)
+
+
 # --- 2. the record ------------------------------------------------------------------------------
 
 

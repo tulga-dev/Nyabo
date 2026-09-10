@@ -899,6 +899,10 @@ def _run(
 		if receipt.lines and receipt.lines[0].description
 		else receipt.seller_name
 	)
+	# Asked once, before the entry is built, and used for both answers it decides: the ⚠️ on the
+	# card and `needs_accountant`. Two questions, one answer — an accountant who has accepted
+	# this rule for these books must not be warned about it on the card either (DECISIONS ACC-01).
+	cleared = rule_cleared(pattern, company)
 	entry: ProposedEntry = rules_engine.instantiate(
 		pattern,
 		amounts,
@@ -911,8 +915,9 @@ def _run(
 		supplier=supplier_name,
 		description=description,
 		warnings=warnings,
+		cleared=cleared,
 	)
-	if not rule_cleared(pattern, company):
+	if not cleared:
 		needs_accountant = True
 	problems = validate_entry(entry, leaf_codes, vat_rate(posting_date, company=company))
 	entry_warnings = list(entry.warnings)

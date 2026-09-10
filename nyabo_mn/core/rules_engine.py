@@ -429,6 +429,7 @@ def instantiate(
 	supplier: str | None = None,
 	description: str = "",
 	warnings: Iterable[str] = (),
+	cleared: bool | None = None,
 ) -> ProposedEntry:
 	"""Fill a pattern with one document's amounts.
 
@@ -437,6 +438,14 @@ def instantiate(
 	no amount or a zero amount is dropped (the VAT line of a receipt from a non-VAT
 	seller). `resolve_code` receives the line selector ("class:70", "role:input_vat",
 	or an explicit code) and returns the account code for the company's chart.
+
+	`cleared` answers, for `company`, the same two questions `rules.guard` asks: is the
+	pattern's own row verified, **or** has this company's accountant accepted it (DECISIONS
+	ACC-01). The caller resolves it, because that second question needs the database and this
+	module has no frappe import. `None` means «nobody asked», and then only the row's own flag
+	counts — which is what the evals and any core-only caller want. WHY it matters: the warning
+	below is the ⚠️ on the receipt card, and reading `pattern.verified` alone kept telling an
+	accountant that a rule they had accepted for their own books was unverified.
 	"""
 	lines: list[ProposedLine] = []
 	for line in pattern.lines:
@@ -462,7 +471,8 @@ def instantiate(
 		)
 
 	warnings_out = list(warnings)
-	if not pattern.verified and mn.WARN_UNVERIFIED_RULE not in warnings_out:
+	cleared_here = bool(pattern.verified) if cleared is None else bool(cleared)
+	if not cleared_here and mn.WARN_UNVERIFIED_RULE not in warnings_out:
 		warnings_out.append(mn.WARN_UNVERIFIED_RULE)
 
 	gross = amounts.get("gross")

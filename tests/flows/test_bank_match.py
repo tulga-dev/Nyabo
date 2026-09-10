@@ -123,6 +123,36 @@ def test_own_transfer_is_paired_into_one_journal_proposal(books, banks):
 	assert frappe.db.count("Journal Entry") == 0
 
 
+def test_the_transfer_card_stops_warning_once_this_company_accepts_the_uncited_rule(books, banks):
+	"""MAJOR 1 on the bank side: ``bank_transfer_internal`` ships uncited, and the card said so.
+
+	An own-account transfer is ordinary work and the seed has no printed entry for it, so this
+	card carried ⚠️ on every transfer for ever — including for the accountant who had already
+	answered for it. The warning asks the acceptance too now, and only for these books.
+	"""
+	import frappe
+
+	from nyabo_mn.rules import verify
+	from tests.flows.conftest import seed_patterns
+
+	assert not rules.pattern_citation(rules.TRANSFER_PATTERN_ID).verified
+	# The row an acceptance points at; this module's fixtures do not sync the whole seed.
+	seed_patterns(verified=False, only=(rules.TRANSFER_PATTERN_ID,))
+	_import(books, fixtures.khan_xlsx)
+	_import(books, fixtures.tdb_xlsx)
+	before = frappe.get_doc("Nyabo Proposal", rules.existing_proposal(_bt(withdrawal=200000.0).name))
+	assert mn.WARN_UNVERIFIED_RULE in json.loads(before.warnings_json)
+
+	verify.accept(verify.KIND_PATTERN, rules.TRANSFER_PATTERN_ID, books, "Administrator")
+
+	assert rules.pattern_cleared(
+		rules.TRANSFER_PATTERN_ID, books, rules.pattern_citation(rules.TRANSFER_PATTERN_ID)
+	)
+	assert not rules.pattern_cleared(
+		rules.TRANSFER_PATTERN_ID, "Гурав ХХК", rules.pattern_citation(rules.TRANSFER_PATTERN_ID)
+	), "an acceptance speaks for one company's books and no other"
+
+
 def test_false_match_guard_leaves_a_far_dissimilar_voucher_alone(books, banks):
 	import frappe
 
