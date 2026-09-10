@@ -168,6 +168,19 @@ and bank line (they stay in the desk, cancelled — art. 11.1) and touches nothi
   unmatched lines) and the pending proposals; every card edits itself in place and pages by
   month. Every figure is read from the ledger on the tap — nothing is cached.
 
+### The Mini App («Дэлгэрэнгүй самбар»)
+
+The dashboard and reports cards carry a **Дэлгэрэнгүй самбар** button that opens
+`https://<site>/nyabo_app` inside Telegram: the month against last month, a six-month
+revenue/expense chart, biggest costs, what waits on a tap, plus Гүйлгээ / Банк / Бараа tabs
+and a month picker; the Telegram main button downloads the month's vouchers as Excel. The
+page is a guest page that draws nothing until the server has verified Telegram's signed
+`initData` with the bot token (`nyabo_mn.miniapp`); the figures are the same reads the cards
+make, for the link's own active company only. The button appears only when the site URL is
+HTTPS — Telegram opens no other kind — so a trial site on plain HTTP simply has no button.
+Opened in a normal browser (no `initData`) the page shows the refusal sentence, which is
+correct.
+
 ### Rich cards and old clients
 
 Cards are Bot API 10.3 rich messages (`sendRichMessage`, HTML body: headings, tables,

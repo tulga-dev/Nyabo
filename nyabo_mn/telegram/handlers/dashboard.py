@@ -50,7 +50,9 @@ def _commands_text(ctx: Ctx) -> str:
 
 def home_card(ctx: Ctx, company: str) -> Any:
 	overview = data.overview(company, _today())
-	return richcards.dashboard_card(overview, commands_text=_commands_text(ctx))
+	from nyabo_mn import miniapp
+
+	return richcards.dashboard_card(overview, commands_text=_commands_text(ctx), app_url=miniapp.page_url())
 
 
 def send_home(ctx: Ctx, company: str) -> Any:
@@ -100,7 +102,9 @@ def _open(ctx: Ctx, company: str, view: str, arg: str | None, today: dt.date, me
 	elif view == V.VIEW_BANK:
 		ctx.edit_card(message_id, richcards.bank_card(data.bank_summary(company, today), today))
 	elif view == V.VIEW_REPORTS:
-		ctx.edit_card(message_id, richcards.reports_card(_period(arg, today)))
+		from nyabo_mn import miniapp
+
+		ctx.edit_card(message_id, richcards.reports_card(_period(arg, today), miniapp.page_url()))
 	elif view == V.VIEW_TREND:
 		ctx.edit_card(message_id, richcards.trend_card(data.trend_rows(company, today)))
 	elif view == V.VIEW_TOP:

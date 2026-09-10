@@ -145,8 +145,14 @@ def _home_row(*extra: Button) -> Buttons:
 
 
 def dashboard_card(
-	overview: Mapping[str, Any], *, commands_text: str, now: dt.datetime | None = None
+	overview: Mapping[str, Any],
+	*,
+	commands_text: str,
+	now: dt.datetime | None = None,
+	app_url: str | None = None,
 ) -> Card:
+	"""``app_url`` is the Mini App page (``miniapp.page_url``); None on a site without HTTPS,
+	because Telegram opens only https ``web_app`` URLs and a bad one refuses the whole card."""
 	company = str(overview["company"])
 	today: dt.date = overview["today"]
 	period = str(overview["period"])
@@ -227,6 +233,8 @@ def dashboard_card(
 			),
 		)
 	blocks.append(Buttons(second))
+	if app_url:
+		blocks.append(Buttons([Button(mn.BTN_MINI_APP, web_app=app_url)]))
 	blocks.append(Details(mn.CARD_COMMANDS, [Paragraph(commands_text)]))
 	blocks.append(Footer(mn.CARD_FOOT_LEDGER.format(time=f"{today.isoformat()} {stamp}")))
 	return Card(blocks)
@@ -387,7 +395,7 @@ def bank_card(rows: Sequence[Mapping[str, Any]], today: dt.date) -> Card:
 # --- reports ---------------------------------------------------------------------------------------------
 
 
-def reports_card(period: str) -> Card:
+def reports_card(period: str, app_url: str | None = None) -> Card:
 	return card(
 		Heading(mn.CARD_REPORTS_TITLE),
 		Paragraph(mn.CARD_REPORTS_HINT),
@@ -409,6 +417,7 @@ def reports_card(period: str) -> Card:
 				Button(mn.BTN_R_UNMATCHED, data=datum(VIEW_UNMATCHED)),
 			]
 		),
+		Buttons([Button(mn.BTN_MINI_APP, web_app=app_url)]) if app_url else None,
 		_home_row(),
 		Footer(mn.CARD_REPORTS_FOOT.format(period=dates.period_label(period))),
 	)

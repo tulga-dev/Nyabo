@@ -1,0 +1,271 @@
+<!-- no-base -->
+<!doctype html>
+<html lang="mn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Нябо · Самбар</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+{% raw %}
+:root {
+  --bg: var(--tg-theme-bg-color, #efeff4);
+  --text: var(--tg-theme-text-color, #000000);
+  --hint: var(--tg-theme-hint-color, #8e8e93);
+  --link: var(--tg-theme-link-color, #2481cc);
+  --button: var(--tg-theme-button-color, #2481cc);
+  --button-text: var(--tg-theme-button-text-color, #ffffff);
+  --section: var(--tg-theme-section-bg-color, #ffffff);
+  --secondary: var(--tg-theme-secondary-bg-color, #efeff4);
+  --accent: var(--tg-theme-accent-text-color, #2481cc);
+  --danger: var(--tg-theme-destructive-text-color, #c0392b);
+  --good: #3a9e3a;
+  --bar-revenue: #2481cc;
+  --bar-expense: #d9702e;
+}
+* { box-sizing: border-box; }
+body { margin: 0; font-family: -apple-system, "Segoe UI", system-ui, Roboto, sans-serif; background: var(--secondary); color: var(--text); font-size: 15px; line-height: 1.35; }
+.app { display: flex; flex-direction: column; min-height: 100vh; }
+.tabs { display: flex; gap: 20px; padding: 0 14px; background: var(--bg); border-bottom: 1px solid rgba(128,128,128,0.25); position: sticky; top: 0; z-index: 2; }
+.tab { padding: 12px 0; color: var(--hint); border-bottom: 2px solid transparent; cursor: pointer; white-space: nowrap; }
+.tab.on { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+.body { padding: 12px; display: flex; flex-direction: column; gap: 12px; padding-bottom: 24px; }
+.chips { display: flex; align-items: center; gap: 8px; }
+.chip { padding: 7px 14px; border-radius: 16px; background: var(--section); color: var(--text); font-size: 13px; cursor: pointer; border: 0; }
+.chip.on { background: var(--button); color: var(--button-text); font-weight: 600; }
+.chip.nav { min-width: 44px; text-align: center; }
+.stat { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.stat > div { background: var(--section); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 2px; min-height: 44px; }
+.k { font-size: 12px; color: var(--hint); }
+.v { font-size: 16px; font-weight: 600; word-break: break-word; }
+.d { font-size: 12px; color: var(--good); }
+.d.neg { color: var(--danger); }
+.card { background: var(--section); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.card h4 { margin: 0; font-size: 15px; }
+.legend { display: flex; gap: 14px; font-size: 12px; color: var(--hint); }
+.legend span { display: flex; align-items: center; gap: 5px; }
+.legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { padding: 7px 4px; text-align: left; border-bottom: 1px solid rgba(128,128,128,0.18); vertical-align: top; }
+th { color: var(--hint); font-weight: 500; }
+.r { text-align: right; white-space: nowrap; }
+.tot td { font-weight: 600; border-top: 2px solid rgba(128,128,128,0.35); }
+.mark { background: #fff2a8; color: #000; padding: 0 3px; border-radius: 3px; }
+.muted { color: var(--hint); font-size: 12px; }
+.empty { color: var(--hint); padding: 8px 0; }
+.todo { display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+.todo div { display: flex; gap: 8px; align-items: center; }
+.box { width: 18px; height: 18px; border: 1.5px solid var(--hint); border-radius: 4px; flex-shrink: 0; }
+.err { background: var(--section); border-radius: 12px; padding: 16px; color: var(--danger); }
+.loading { color: var(--hint); padding: 24px; text-align: center; }
+svg text { font-family: inherit; }
+{% endraw %}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="tabs" id="tabs"></div>
+  <div class="body" id="body"><div class="loading" id="loading">…</div></div>
+</div>
+<script>
+{% raw %}
+(function () {
+  var tg = window.Telegram && window.Telegram.WebApp;
+  var state = { tab: "dashboard", period: null, data: null };
+  var body = document.getElementById("body");
+  var tabsEl = document.getElementById("tabs");
+
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function el(html) { var t = document.createElement("template"); t.innerHTML = html.trim(); return t.content.firstChild; }
+
+  function initData() { return (tg && tg.initData) || ""; }
+
+  function load(period) {
+    body.innerHTML = '<div class="loading">' + esc(document.title) + "…</div>";
+    return fetch("/api/method/nyabo_mn.miniapp.data", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Accept": "application/json" },
+      body: JSON.stringify({ init_data: initData(), period: period || undefined }),
+    })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (res) {
+        if (!res.ok || !res.j.message) {
+          var msg = (res.j && (res.j._server_messages || res.j.exception || res.j.message)) || "";
+          try { var arr = JSON.parse(msg); msg = JSON.parse(arr[0]).message; } catch (e) {}
+          throw new Error(msg || String(res.j && res.j.exc_type || "error"));
+        }
+        state.data = res.j.message;
+        state.period = state.data.period;
+        render();
+      })
+      .catch(function (e) {
+        body.innerHTML = '<div class="err">' + esc(e.message || e) + "</div>";
+        if (tg) tg.MainButton.hide();
+      });
+  }
+
+  function tabs() {
+    var L = state.data.labels;
+    var items = [["dashboard", L.dashboard], ["transactions", L.transactions], ["bank", L.bank], ["stock", L.stock]];
+    tabsEl.innerHTML = "";
+    items.forEach(function (it) {
+      var t = el('<div class="tab' + (state.tab === it[0] ? " on" : "") + '">' + esc(it[1]) + "</div>");
+      t.onclick = function () { state.tab = it[0]; if (tg && tg.HapticFeedback) tg.HapticFeedback.selectionChanged(); render(); };
+      tabsEl.appendChild(t);
+    });
+  }
+
+  function chips() {
+    var d = state.data;
+    var wrap = el('<div class="chips"></div>');
+    var prev = el('<button class="chip nav">←</button>');
+    prev.onclick = function () { load(d.prev_period); };
+    var cur = el('<button class="chip on"></button>');
+    cur.textContent = d.period_label;
+    var next = el('<button class="chip nav">→</button>');
+    next.onclick = function () { load(d.next_period); };
+    wrap.appendChild(prev); wrap.appendChild(cur); wrap.appendChild(next);
+    return wrap;
+  }
+
+  function deltaClass(text) { return text.charAt(0) === "-" || text.charAt(0) === "−" ? "d neg" : "d"; }
+
+  function stats() {
+    var d = state.data, L = d.labels, m = d.month;
+    if (m.empty) return el('<div class="card"><div class="empty">' + esc(L.month_empty) + "</div></div>");
+    return el(
+      '<div class="stat">' +
+        '<div><span class="k">' + esc(L.revenue) + '</span><span class="v">' + esc(m.revenue) + '</span><span class="' + deltaClass(m.revenue_delta) + '">' + esc(m.revenue_delta) + "</span></div>" +
+        '<div><span class="k">' + esc(L.expense) + '</span><span class="v">' + esc(m.expense) + '</span><span class="' + (m.expense_delta.charAt(0) === "+" ? "d neg" : "d") + '">' + esc(m.expense_delta) + "</span></div>" +
+        '<div><span class="k">' + esc(L.profit) + '</span><span class="v' + (m.profit_negative ? ' d neg' : '') + '">' + esc(m.profit) + '</span><span class="' + deltaClass(m.profit_delta) + '">' + esc(m.profit_delta) + "</span></div>" +
+      "</div>"
+    );
+  }
+
+  function chart() {
+    var d = state.data, L = d.labels, rows = d.trend;
+    var w = Math.min(document.body.clientWidth - 48, 600), h = 190, pl = 40, pb = 24, pt = 12;
+    var max = 0;
+    rows.forEach(function (r) { max = Math.max(max, r.revenue, r.expense); });
+    if (!max) return el('<div class="card"><h4>' + esc(L.trend_title) + '</h4><div class="empty">' + esc(L.month_empty) + "</div></div>");
+    var scale = (h - pb - pt) / (max * 1.1);
+    var group = (w - pl - 8) / rows.length, bw = Math.max(8, Math.min(18, (group - 6) / 2));
+    var svg = "";
+    [0, 0.5, 1].forEach(function (f) {
+      var y = h - pb - max * f * scale;
+      svg += '<line x1="' + pl + '" x2="' + (w - 8) + '" y1="' + y + '" y2="' + y + '" stroke="rgba(128,128,128,0.25)"/>';
+      svg += '<text x="' + (pl - 6) + '" y="' + (y + 4) + '" text-anchor="end" font-size="10" fill="var(--hint)">' + Math.round(max * f / 1e6) + "</text>";
+    });
+    rows.forEach(function (r, i) {
+      var x0 = pl + i * group + (group - (bw * 2 + 2)) / 2;
+      [["revenue", "var(--bar-revenue)"], ["expense", "var(--bar-expense)"]].forEach(function (s, j) {
+        var v = r[s[0]] * scale, x = x0 + j * (bw + 2), y = h - pb - v;
+        if (v > 0) svg += '<rect x="' + x + '" y="' + y + '" width="' + bw + '" height="' + v + '" rx="3" fill="' + s[1] + '"><title>' + esc(r[s[0] + "_fmt"]) + "</title></rect>";
+      });
+      svg += '<text x="' + (pl + i * group + group / 2) + '" y="' + (h - 6) + '" text-anchor="middle" font-size="10" fill="var(--hint)">' + esc(r.label.replace(/^\d+ оны /, "")) + "</text>";
+    });
+    return el(
+      '<div class="card"><h4>' + esc(L.trend_title) + ' · сая₮</h4>' +
+      '<div class="legend"><span><i style="background:var(--bar-revenue)"></i>' + esc(L.revenue) + '</span><span><i style="background:var(--bar-expense)"></i>' + esc(L.expense) + "</span></div>" +
+      '<svg viewBox="0 0 ' + w + " " + h + '" width="100%" height="' + h + '">' + svg + "</svg></div>"
+    );
+  }
+
+  function top() {
+    var d = state.data, L = d.labels;
+    if (!d.top.length) return null;
+    var rows = d.top.map(function (r, i) {
+      return "<tr><td>" + (i === 0 ? '<span class="mark">' + esc(r.label) + "</span>" : esc(r.label)) + '</td><td class="r">' + esc(r.amount) + '</td><td class="r">' + r.share_pct + "%</td></tr>";
+    }).join("");
+    return el('<div class="card"><h4>' + esc(L.top_title) + " · " + esc(d.period_label) + "</h4><table><thead><tr><th>" + esc(L.account) + '</th><th class="r">' + esc(L.amount) + '</th><th class="r">' + esc(L.share) + "</th></tr></thead><tbody>" + rows + '<tr class="tot"><td>' + esc(L.total) + '</td><td class="r">' + esc(d.top_total) + '</td><td class="r">100%</td></tr></tbody></table></div>');
+  }
+
+  function todo() {
+    var d = state.data, L = d.labels, p = d.pending || {};
+    var lines = [];
+    if (p.proposals) lines.push(L.todo_proposals.replace("{count}", p.proposals));
+    if (p.unmatched) lines.push(L.todo_unmatched.replace("{count}", p.unmatched));
+    if (p.rules) lines.push(L.todo_rules.replace("{count}", p.rules));
+    var inner = lines.length ? lines.map(function (t) { return '<div><span class="box"></span>' + esc(t) + "</div>"; }).join("") : '<div class="muted">' + esc(L.todo_none) + "</div>";
+    return el('<div class="card"><h4>' + esc(L.your_turn) + '</h4><div class="todo">' + inner + "</div></div>");
+  }
+
+  function transactions() {
+    var d = state.data, L = d.labels;
+    if (!d.vouchers.length) return el('<div class="card"><div class="empty">' + esc(L.no_vouchers.replace("{period}", d.period_label)) + "</div></div>");
+    var rows = d.vouchers.map(function (r) {
+      var sign = r.direction === "out" ? "−" : r.direction === "in" ? "+" : "";
+      return "<tr><td>" + esc(r.date.slice(5)) + "</td><td>" + esc(r.label) + '</td><td class="r">' + sign + esc(r.amount) + "</td></tr>";
+    }).join("");
+    var note = d.vouchers_count > d.vouchers.length ? '<div class="muted">' + d.vouchers.length + " / " + d.vouchers_count + "</div>" : "";
+    return el('<div class="card"><h4>' + esc(L.transactions) + " · " + esc(d.period_label) + "</h4><table><thead><tr><th>" + esc(L.date) + "</th><th>" + esc(L.description) + '</th><th class="r">' + esc(L.amount) + "</th></tr></thead><tbody>" + rows + "</tbody></table>" + note + "</div>");
+  }
+
+  function bank() {
+    var d = state.data, L = d.labels;
+    if (!d.banks.length) return el('<div class="card"><div class="empty">' + esc(L.no_banks) + "</div></div>");
+    var rows = d.banks.map(function (b) {
+      var recon = b.unmatched ? '<span class="mark">' + esc(L.unmatched.replace("{count}", b.unmatched)) + "</span>" : esc(L.matched);
+      return "<tr><td>" + esc(b.label) + '</td><td class="r">' + esc(b.ledger) + '</td><td class="r">' + esc(b.statement) + '</td><td class="r">' + esc(b.diff) + "</td></tr>" +
+        '<tr><td colspan="4" class="muted">' + recon + "</td></tr>";
+    }).join("");
+    return el('<div class="card"><h4>' + esc(L.bank) + "</h4><table><thead><tr><th>" + esc(L.account) + '</th><th class="r">' + esc(L.ledger) + '</th><th class="r">' + esc(L.statement) + '</th><th class="r">' + esc(L.diff) + "</th></tr></thead><tbody>" + rows + "</tbody></table></div>");
+  }
+
+  function stock() {
+    var d = state.data, L = d.labels, inv = d.inventory;
+    if (!inv.rows.length) return el('<div class="card"><div class="empty">' + esc(L.no_stock) + "</div></div>");
+    var rows = inv.rows.map(function (r) {
+      return "<tr><td>" + esc(r.label) + '</td><td class="r">' + esc(r.qty) + '</td><td class="r">' + esc(r.rate) + '</td><td class="r">' + esc(r.value) + "</td></tr>";
+    }).join("");
+    return el('<div class="card"><h4>' + esc(L.stock) + "</h4><table><thead><tr><th>" + esc(L.item) + '</th><th class="r">' + esc(L.qty) + '</th><th class="r">' + esc(L.rate) + '</th><th class="r">' + esc(L.amount) + "</th></tr></thead><tbody>" + rows + '<tr class="tot"><td>' + esc(L.total) + '</td><td></td><td></td><td class="r">' + esc(inv.total) + "</td></tr></tbody></table></div>");
+  }
+
+  function render() {
+    var d = state.data;
+    tabs();
+    body.innerHTML = "";
+    body.appendChild(chips());
+    var parts = [];
+    if (state.tab === "dashboard") parts = [stats(), chart(), top(), todo()];
+    else if (state.tab === "transactions") parts = [transactions()];
+    else if (state.tab === "bank") parts = [bank()];
+    else parts = [stock()];
+    parts.forEach(function (p) { if (p) body.appendChild(p); });
+    body.appendChild(el('<div class="muted">' + esc(d.labels.source) + " · " + esc(d.company) + "</div>"));
+    if (tg) {
+      tg.MainButton.setText(d.labels.export);
+      tg.MainButton.show();
+    }
+  }
+
+  function exportXlsx() {
+    var d = state.data;
+    if (!d) return;
+    var url = location.origin + "/api/method/nyabo_mn.miniapp.export_xlsx?" +
+      "init_data=" + encodeURIComponent(initData()) + "&period=" + encodeURIComponent(d.period);
+    var name = "nyabo_" + d.period + ".xlsx";
+    if (tg && typeof tg.downloadFile === "function") {
+      tg.downloadFile({ url: url, file_name: name }, function () {});
+    } else {
+      window.open(url, "_blank");
+    }
+  }
+
+  if (tg) {
+    tg.ready();
+    tg.expand();
+    tg.MainButton.onClick(exportXlsx);
+    tg.BackButton.show();
+    tg.BackButton.onClick(function () { tg.close(); });
+  }
+  load(null);
+})();
+{% endraw %}
+</script>
+</body>
+</html>
