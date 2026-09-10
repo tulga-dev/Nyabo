@@ -122,8 +122,8 @@ def run_import(document_name: str, chat_id: int | str) -> dict[str, Any]:
 		bot.send_message(chat_id, getattr(exc, "message_mn", None) or mn.MSG_ERROR_NO_BUTTON)
 		return {"ok": False}
 	# The importer sets ``unknown_layout`` for both cases, so the more specific one is asked
-	# first: a layout that was mapped once but is not verified must not re-ask the accountant,
-	# it needs an admin to tick Баталгаажсан on the Nyabo Bank Layout row.
+	# first: a layout that was mapped once but is not confirmed must not re-ask the column
+	# questions. It needs the confirmation card, which is the accountant's own (ACC-02).
 	status = summary.get("status")
 	if status == "unverified_layout":
 		layout_id = str(summary.get("layout") or "")
@@ -481,7 +481,8 @@ def handle_escape(ctx: Ctx, state: str, payload: dict[str, Any], verb: str) -> b
 
 	Буцах and Алгасах are gated on the accountant the way ``handle_layout_callback``'s own
 	buttons are, because they do the same work: Алгасах *is* the «Ашиглахгүй» answer, and on the
-	last column it saves a Nyabo Bank Layout and asks the admins to verify it. The escape row is
+	last column it saves a Nyabo Bank Layout and puts the confirmation card in front of the
+	accountant. The escape row is
 	drawn beside those buttons and the words are typed into the same step, so an Owner — who may
 	send a statement, and therefore reaches this conversation — used to walk round the check.
 	Цуцлах is deliberately not gated: leaving a step is never a permission, and the owner who

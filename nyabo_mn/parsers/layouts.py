@@ -5,8 +5,9 @@ objects, and the core parser wants one frozen ``LayoutSpec``. Everything that to
 Frappe for layouts is here so ``core.statements`` stays pure.
 
 Learned layouts are created with ``verified = 0``. They are usable under the simulator
-(``frappe.flags.nyabo_simulation``) and in tests; a real import refuses them until the
-admin verifies the row against the sample file (ARCHITECTURE §1.2, §5.4).
+(``frappe.flags.nyabo_simulation``) and in tests; a real import refuses them until something
+clears them — this company's accountant confirming the mapping they read (DECISIONS ACC-02), or
+a site admin verifying the row against the sample file for every client (ARCHITECTURE §1.2, §5.4).
 """
 
 from __future__ import annotations

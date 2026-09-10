@@ -86,8 +86,10 @@ def detect(
 def unverified_match(rows: Sequence[Sequence[Any]], company: str | None = None) -> LayoutSpec | None:
 	"""A stored layout whose signature matches these rows but which nobody has verified.
 
-	Never trusted for an import (``detect`` already refused it); it only tells the bot that
-	the mapping question has been answered once and the admin, not the accountant, is next.
+	Never trusted for an import (``detect`` already refused it); it only tells the bot that the
+	mapping question has been answered once, so what is owed is the confirmation card and not the
+	column questions again. Who answers that card is the accountant who read the file (ACC-02) —
+	which is why ``accepted(s, company)`` is part of the filter below.
 	"""
 	specs = layouts_mod.load_layouts(company)
 	candidates = [
