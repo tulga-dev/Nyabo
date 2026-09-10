@@ -315,8 +315,13 @@ MSG_STATEMENT_LAYOUT_CONFIRM_ASK = (
 	"«{layout}» формат {company}-ийн хуулгыг зөв уншиж байна уу?\n{mapping}\n"
 	"Баталгаажуулбал хэн, хэзээ баталгаажуулсан нь бүртгэгдэнэ."
 )
+# What the confirmation is followed by decides what it may promise. The usual next step is
+# MSG_STATEMENT_LAYOUT_REIMPORTING: the stored file is re-read on the spot. Saying «send the next
+# statement again» sent the accountant to do the one thing the sha256 dedup refuses (§5.3), and
+# left them waiting for a re-import that had already started. So this says only what is now true
+# of the format, and the line after it says what is happening to the file.
 MSG_STATEMENT_LAYOUT_ACCEPTED = (
-	"✅ «{layout}» форматыг баталгаажууллаа. Дараагийн хуулгыг дахин илгээхэд автоматаар уншина."
+	"✅ «{layout}» форматыг баталгаажууллаа. Энэ банкны хуулга үүнээс хойш автоматаар уншигдана."
 )
 MSG_STATEMENT_LAYOUT_ACCEPTED_RESEND = "Энэ хуулгаа дахин илгээнэ үү — одоо уншигдана."
 # The usual case: the file that was refused is already stored, so it is re-read on the spot.

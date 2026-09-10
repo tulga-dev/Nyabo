@@ -188,6 +188,37 @@ def test_the_accountant_confirms_the_layout_and_the_next_statement_imports(books
 	)
 
 
+def test_the_confirmation_says_what_happens_next_and_not_what_used_to(books):
+	"""MINOR 11: «the next statement will be read when you send it again» is not what happens.
+
+	The flow re-imports the file it already has on the spot. An accountant who reads that
+	sentence and sends the statement again meets the sha256 dedup and «this document is already
+	here» (§5.3) — the message asked them for the one thing Nyabo would refuse.
+	"""
+	helpers.setup_banks(books)
+	helpers.register_layouts()
+	frappe.db.set_value("Nyabo Bank Layout", "test_khan_synthetic", "verified", 0)
+	filename, data = fixtures.khan_xlsx()
+	link_user(9307, "Accountant", books)
+	bot = FakeBotApi(files={"first": data})
+	_send(bot, 9307, filename, file_id="first")
+
+	run(
+		bot,
+		callback_update(9307, keyboards.rule_data(keyboards.VERIFY_ACCEPT, "b", "test_khan_synthetic")),
+	)
+
+	texts = bot.texts()
+	assert mn.MSG_STATEMENT_LAYOUT_ACCEPTED.format(layout="test_khan_synthetic") in texts
+	assert mn.MSG_STATEMENT_LAYOUT_REIMPORTING in texts
+	assert "дахин илгээ" not in mn.MSG_STATEMENT_LAYOUT_ACCEPTED, (
+		"the confirmation must not ask for the file the flow is already re-reading; the sentence "
+		"that does ask for it is MSG_STATEMENT_LAYOUT_ACCEPTED_RESEND, on the branch where there "
+		"is no stored file to re-read"
+	)
+	assert "дахин илгээ" in mn.MSG_STATEMENT_LAYOUT_ACCEPTED_RESEND
+
+
 def test_a_layout_another_company_confirmed_is_still_refused_here(books, company_v03):
 	"""One accountant's reading of a spreadsheet is not evidence about another client's file."""
 	from nyabo_mn.rules import verify
