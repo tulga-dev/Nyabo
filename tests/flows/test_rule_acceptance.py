@@ -20,6 +20,7 @@ What is pinned here (DECISIONS ACC-01):
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any
 
 import frappe
@@ -36,6 +37,8 @@ from tests.fixtures.telegram.fake_bot import (
 	message_update,
 	run,
 )
+
+ROOT = Path(__file__).resolve().parents[2]
 
 #: Order 116 prints no entry that turns a customer advance into revenue (docs/legal/order116.md
 #: §3), so the seed ships this unverified and a non-VAT company meets it on every delivery
@@ -1361,3 +1364,48 @@ def test_the_menu_and_the_command_list_offer_the_rules_command_to_everyone(books
 	bot = FakeBotApi()
 	run(bot, message_update(ACCOUNTANT_ID, "/меню"))
 	assert "/дүрэм" in bot.last_text
+
+
+# --- the fingerprint has to answer for every column -------------------------------------------
+
+
+def _schema_fields(doctype: str) -> set[str]:
+	"""The columns of a guarded DocType, from the JSON a bench actually installs."""
+	folder = doctype.lower().replace(" ", "_")
+	path = ROOT / "nyabo_mn" / "nyabo" / "doctype" / folder / f"{folder}.json"
+	data = json.loads(path.read_text(encoding="utf-8"))
+	return {
+		field["fieldname"]
+		for field in data["fields"]
+		if field.get("fieldname") and field["fieldtype"] not in ("Section Break", "Column Break", "Table")
+	}
+
+
+@pytest.mark.parametrize("doctype", sorted(verify.CONTENT_FIELDS))
+def test_the_content_map_answers_for_every_field_of_every_guarded_doctype(doctype: str) -> None:
+	"""``family`` shipped in neither map, so a deploy could re-aim an accepted rule silently.
+
+	An acceptance says "this rule, as it reads today, is how my client's books work". The
+	fingerprint is what makes that sentence true later, so a field nobody classified is a field
+	that can change underneath it. Every column has to be either content or explicitly not, with
+	the reason written down - and a new column fails here until somebody decides which it is.
+	"""
+	content = set(verify.CONTENT_FIELDS[doctype])
+	excluded = set(verify.NOT_CONTENT_FIELDS[doctype])
+	schema = _schema_fields(doctype)
+
+	assert content & excluded == set(), f"{doctype}: a field cannot be both content and not content"
+	unanswered = schema - content - excluded
+	assert unanswered == set(), (
+		f"{doctype}: {sorted(unanswered)} is in neither map. Decide: does a deploy that changes it "
+		f"change what this company posts? If yes add it to CONTENT_FIELDS, if no add it to "
+		f"NOT_CONTENT_FIELDS with the reason."
+	)
+	assert content - schema == set(), f"{doctype}: CONTENT_FIELDS names a column that does not exist"
+	assert excluded - schema == set(), f"{doctype}: NOT_CONTENT_FIELDS names a column that does not exist"
+	assert all(reason.strip() for reason in verify.NOT_CONTENT_FIELDS[doctype].values())
+
+
+def test_the_selector_that_decides_which_receipts_a_pattern_touches_is_content() -> None:
+	"""core.rules_engine.choose_pattern filters on family, so it decides what the rule applies to."""
+	assert "family" in verify.CONTENT_FIELDS[verify.PATTERN]

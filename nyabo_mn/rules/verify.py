@@ -346,7 +346,7 @@ FINGERPRINT_CHARS = 16
 #:   is used only as a template when *no* layout matches (``statements._guess_layout``), and what
 #:   comes out of that is a new, unverified layout row with an acceptance of its own to earn.
 CONTENT_FIELDS: dict[str, tuple[str, ...]] = {
-	PATTERN: ("applies_to_vat", "applies_to_cit", "document_types", "enabled"),
+	PATTERN: ("family", "applies_to_vat", "applies_to_cit", "document_types", "enabled"),
 	PARAMETER: ("value_json", "unit", "effective_from", "effective_to", "status"),
 	LAYOUT: (
 		"column_map_json",
@@ -356,6 +356,51 @@ CONTENT_FIELDS: dict[str, tuple[str, ...]] = {
 		"date_formats",
 		"header_signature_json",
 	),
+}
+
+#: The other half of the answer, and the half that is easy to forget. A field left out of
+#: ``CONTENT_FIELDS`` is a field a deploy may change under a standing acceptance, so every
+#: field of every guarded DocType has to be in one map or the other, and
+#: ``test_the_content_map_answers_for_every_field_of_every_guarded_doctype`` fails when a new
+#: one appears in neither. ``family`` reached production missing from both: it is the selector
+#: ``core.rules_engine.choose_pattern`` filters on (``if family and pattern.family != family``),
+#: so changing it changes which receipts the rule the accountant accepted applies to at all.
+NOT_CONTENT_FIELDS: dict[str, dict[str, str]] = {
+	PATTERN: {
+		"pattern_id": "the row's own name; a different id is a different rule with its own acceptance",
+		"name_mn": "the label a human reads, not a term the engine selects or posts on",
+		"reference_bullet": "a pointer into the reference document, read by nobody at runtime",
+		"conditions": "prose describing when a human would reach for the pattern; parsed into a field and never consulted",
+		"verified": "the flag itself; an acceptance exists precisely because it is 0",
+		"primary_document_mn": "names the paper the accountant must hold, not the entry",
+		"citation_instrument": "evidence about the rule, not the rule",
+		"citation_instrument_full": "evidence about the rule, not the rule",
+		"citation_section": "evidence about the rule, not the rule",
+		"citation_quote": "evidence about the rule, not the rule",
+		"citation_url": "evidence about the rule, not the rule",
+		"notes": "the briefing shown to whoever accepts; changing it does not change what posts",
+		"verified_by": "who verified the global row, which an acceptance is not about",
+		"verified_at": "when the global row was verified",
+	},
+	PARAMETER: {
+		"key": "the row's own name, with effective_from",
+		"verified": "the flag itself",
+		"source_text": "evidence about the parameter, not its value",
+		"source_url": "evidence about the parameter, not its value",
+		"article": "evidence about the parameter, not its value",
+		"quote_mn": "evidence about the parameter, not its value",
+		"note": "the briefing shown to whoever accepts",
+		"verified_by": "who verified the global row",
+		"verified_at": "when the global row was verified",
+	},
+	LAYOUT: {
+		"layout_id": "the row's own name",
+		"bank": "which bank this layout is for; a different bank is a different layout row",
+		"verified": "the flag itself",
+		"keywords_json": "used only when NO layout matches, and what it produces is a new unverified row with an acceptance of its own to earn",
+		"sample_file": "the file the layout was learned from, kept as evidence",
+		"notes": "the briefing shown to whoever accepts",
+	},
 }
 
 #: A posting pattern's lines, in order: the debit and the credit themselves. This is the thing
