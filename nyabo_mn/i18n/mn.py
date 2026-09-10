@@ -1526,6 +1526,14 @@ CARD_RULE_CHANGED_NOW = "Одоогийн хувилбар:"
 # those lines, so changing it changes what the company posts even when the lines do not move —
 # and it is the one change a card of lines alone would print identically twice.
 CARD_RULE_CHANGED_SCOPE = "Хамрах хүрээ: {scope} · {documents}"
+# The same idea for a bank layout: the columns are not the whole of it. The date formats decide
+# which rows are read at all, the amount style how a figure becomes a debit or a credit, and the
+# header signature which file this layout claims. Without this line a change to any of them
+# printed the identical column list twice.
+CARD_RULE_CHANGED_LAYOUT_READING = (
+	"Уншилтын тохиргоо: огнооны хэлбэр {dates} · дүнгийн хэлбэр {amount_style} · "
+	"толгой мөр {header_row} · валют {currency} · толгойн таних багана {signature}"
+)
 CARD_RULE_CHANGED_ASK = (
 	"Хуучин хүлээн зөвшөөрөлт шинэ агуулгад хамаарахгүй тул {company}-д энэ дүрмээр "
 	"бичилт хийхгүй. Шинэ хувилбарыг уншаад дахин хүлээн зөвшөөрнө үү."

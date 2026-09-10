@@ -284,10 +284,35 @@ FINGERPRINT_CHARS = 16
 #: row — the Mongolian name, the citation, the notes — may be corrected by a deploy without the
 #: accountant's acceptance meaning anything different, and treating those as content would refuse
 #: real work every time a typo was fixed.
+#:
+#: The test of what belongs here is «could a deploy change this and change what the company's
+#: ledger ends up saying», and every field of every guarded DocType has been put to it:
+#:
+#: * ``Nyabo Posting Pattern``: the scope fields decide which documents reach the lines and
+#:   ``enabled`` decides whether the pattern is selected at all; ``lines`` is the entry itself
+#:   (``CONTENT_LINE_FIELDS``). ``conditions`` is deliberately out — it is a paragraph of prose
+#:   describing when a human would reach for the pattern, read by nothing in the engine
+#:   (``core.rules_engine`` parses it into a field and never consults it). If it is ever made
+#:   selective it belongs here the same day.
+#: * ``Nyabo Tax Parameter``: the value, its unit, the dates it is in force between and its
+#:   status are the whole of what ``rules.params`` reads; the rest of the row is its citation.
+#: * ``Nyabo Bank Layout``: everything ``core.statements`` reads a file *with*. ``date_formats``
+#:   and ``header_signature_json`` were missing and both change how a statement is parsed — a
+#:   date format decides which rows are read at all, and the signature decides where the header
+#:   is and whether this layout is the one that reads the file. ``keywords_json`` stays out: it
+#:   is used only as a template when *no* layout matches (``statements._guess_layout``), and what
+#:   comes out of that is a new, unverified layout row with an acceptance of its own to earn.
 CONTENT_FIELDS: dict[str, tuple[str, ...]] = {
 	PATTERN: ("applies_to_vat", "applies_to_cit", "document_types", "enabled"),
 	PARAMETER: ("value_json", "unit", "effective_from", "effective_to", "status"),
-	LAYOUT: ("column_map_json", "amount_style", "header_row_hint", "currency_default"),
+	LAYOUT: (
+		"column_map_json",
+		"amount_style",
+		"header_row_hint",
+		"currency_default",
+		"date_formats",
+		"header_signature_json",
+	),
 }
 
 #: A posting pattern's lines, in order: the debit and the credit themselves. This is the thing
@@ -388,9 +413,39 @@ def content_lines(doctype: str | None, content: dict[str, Any]) -> tuple[str, ..
 			),
 		)
 	mapping = content.get("column_map_json") or {}
-	if not isinstance(mapping, dict):
-		return ()
-	return tuple(f"{mn.COLUMN_ROLES.get(role, role)} = «{header}»" for role, header in mapping.items())
+	columns = (
+		tuple(f"{mn.COLUMN_ROLES.get(role, role)} = «{header}»" for role, header in mapping.items())
+		if isinstance(mapping, dict)
+		else ()
+	)
+	return (*columns, _layout_reading_line(content))
+
+
+def _layout_reading_line(content: dict[str, Any]) -> str:
+	"""How the file is *read*, printed beside the mapping — the layout's own scope line.
+
+	The columns alone are not the layout: the date formats decide which rows parse at all, the
+	amount style decides whether a figure is a debit or a signed amount, and the header signature
+	decides where the header is and whether this layout reads the file. A card that printed only
+	the mapping showed the same two lines twice when one of those moved — «the layout changed,
+	here it is, and here it is again» — which reads as a bug and teaches the accountant to tap
+	through the warning. Exactly the reason ``_pattern_scope_line`` exists.
+	"""
+	signature = content.get("header_signature_json")
+	return mn.CARD_RULE_CHANGED_LAYOUT_READING.format(
+		dates=_joined(content.get("date_formats")) or mn.VALUE_UNKNOWN,
+		amount_style=str(content.get("amount_style") or mn.VALUE_UNKNOWN),
+		header_row=content.get("header_row_hint") if content.get("header_row_hint") is not None else "—",
+		currency=str(content.get("currency_default") or mn.VALUE_UNKNOWN),
+		signature=_joined(signature) or mn.VALUE_UNKNOWN,
+	)
+
+
+def _joined(value: Any) -> str:
+	"""A newline-separated Small Text or a JSON list as one readable, comma-separated line."""
+	if isinstance(value, (list, tuple)):
+		return ", ".join(str(item) for item in value)
+	return ", ".join(part.strip() for part in str(value or "").splitlines() if part.strip())
 
 
 def _pattern_scope_line(content: dict[str, Any]) -> str:

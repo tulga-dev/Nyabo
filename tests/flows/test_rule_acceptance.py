@@ -340,6 +340,58 @@ def _redeploy_with_a_different_debit(rule: str = BLOCKING) -> str:
 	)
 
 
+#: A bank layout the seed ships unverified, so an accountant really does accept it for their own
+#: books before any statement of that bank is read (ACC-02).
+LAYOUT = "khan_bank_xlsx"
+
+
+def _redeploy_layout(**changes: Any) -> str:
+	"""The same seed row with one of its reading rules rewritten, upserted as a deploy would."""
+	import copy
+
+	from nyabo_mn.nyabo.seed import load_seed
+	from nyabo_mn.rules import seed
+
+	row = copy.deepcopy(next(r for r in load_seed("bank_layouts")["rows"] if r["layout_id"] == LAYOUT))
+	row.update(changes)
+	return seed.upsert(seed.BANK_LAYOUT, LAYOUT, seed.bank_layout_values(row), force=False)
+
+
+@pytest.mark.parametrize(
+	("change", "shown"),
+	[
+		({"date_formats": ["%d/%m/%Y"]}, "%d/%m/%Y"),
+		({"header_signature": ["Огноо", "Дүн"]}, "Огноо"),
+	],
+)
+def test_a_layouts_fingerprint_covers_what_decides_how_a_statement_is_read(
+	books: str, change: dict[str, Any], shown: str
+):
+	"""MAJOR 2: the protection covered posting patterns and tax parameters and not layouts.
+
+	``CONTENT_FIELDS`` promised «the fields that decide what actually gets posted» and the layout
+	entry held only the column mapping, the amount style, the header row hint and the currency.
+	``date_formats`` decides which rows are read at all — a deploy that narrowed it would silently
+	drop every line of a statement the accountant had accepted the mapping for — and
+	``header_signature_json`` decides where the header is and whether this layout is the one that
+	reads the file. Both were outside the fingerprint, so the acceptance went on covering content
+	nobody had seen.
+	"""
+	verify.accept(verify.KIND_LAYOUT, LAYOUT, books, "tg-5001@nyabo.local")
+	guard.require_verified(LAYOUT, company=books)  # today this company's statements are read
+
+	assert _redeploy_layout(**change) == "updated"
+
+	with pytest.raises(guard.UnverifiedRuleError):
+		guard.require_verified(LAYOUT, company=books)
+	# ...and the accountant is shown what moved, not merely told that something did: the reading
+	# rules are printed beside the columns, so a change to them is not two identical lists.
+	changed = verify.rule_change(books, LAYOUT, verify.LAYOUT)
+	assert changed is not None
+	assert not any(shown in line for line in changed.before)
+	assert any(shown in line for line in changed.after)
+
+
 def test_a_deploy_that_rewrites_an_accepted_rule_stops_it_posting_again(
 	books: str, monkeypatch: pytest.MonkeyPatch
 ):
