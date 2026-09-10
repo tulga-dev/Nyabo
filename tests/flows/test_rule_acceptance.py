@@ -588,6 +588,81 @@ def test_a_name_no_guarded_doctype_knows_is_never_cleared_by_an_acceptance(
 	assert asked == [], "nothing is asked about a name that is in none of the guarded DocTypes"
 
 
+#: The employee social-insurance rate: an uncited tax parameter that stops an ordinary payroll,
+#: and the one shape ``guard._ref``'s docstring warns about — a core ``ParameterRow`` carries
+#: ``key`` and ``effective_from`` separately, while the row it came from is named ``key:date``.
+SI_RATE_KEY = "si.employee_rate"
+SI_RATE_ROW = "si.employee_rate:2026-01-01"
+
+
+def test_a_tax_parameter_acceptance_clears_the_guard_through_a_parameter_row(books: str, company_v03: str):
+	"""MINOR 6: the failure ``guard._ref`` names in its own docstring, covered.
+
+	``rules.params.get`` hands the guard a ``ParameterRow``, not a name. If the guard asked about
+	``si.employee_rate`` instead of ``si.employee_rate:2026-01-01`` it would never find the
+	acceptance recorded a moment earlier, and would go on refusing a rule the accountant had just
+	accepted — which is the one failure this whole flow exists to remove. Nothing else on the tax
+	side exercises that mapping.
+	"""
+	import datetime as dt
+
+	from nyabo_mn.rules import params
+
+	on_date = dt.date(2026, 6, 15)
+	assert frappe.db.get_value(verify.PARAMETER, SI_RATE_ROW, "verified") == 0
+
+	with pytest.raises(guard.UnverifiedRuleError) as refused:
+		params.get(SI_RATE_KEY, on_date, company=books)
+	assert refused.value.rule == SI_RATE_ROW, "the refusal names the row, not the bare key"
+
+	verify.accept(verify.KIND_PARAMETER, SI_RATE_ROW, books, "tg-5001@nyabo.local")
+
+	row = params.get(SI_RATE_KEY, on_date, company=books)
+	assert str(row.key) == SI_RATE_KEY and row.verified is False, "cleared by acceptance, not by a flag"
+	# The guard was asked about the ParameterRow itself, and found the acceptance under the
+	# document name the row is stored as.
+	assert guard.accepted_for(row, books) is True
+	assert guard.is_verified(row, company=books) is True
+	# ...and it binds one company, on this side of the guard exactly as on the pattern side.
+	assert guard.accepted_for(row, company_v03) is False
+	with pytest.raises(guard.UnverifiedRuleError):
+		params.get(SI_RATE_KEY, on_date, company=company_v03)
+
+
+def test_a_tax_parameter_refusal_reaches_the_accountants_card_by_the_name_it_names(
+	books: str, monkeypatch: pytest.MonkeyPatch
+):
+	"""The other half of the same mapping: the refusal has to name a row somebody can open.
+
+	``handlers.admin.rule_blocked`` looks the rule up by the name in the message. A refusal that
+	said ``si.employee_rate`` named nothing — the row is ``si.employee_rate:2026-01-01`` — so the
+	accountant got no evidence card and was told which person decides, on the tax-parameter path
+	the whole flow is supposed to cover.
+	"""
+
+	def post_proposal(name: str, user: str, telegram_id: str) -> dict[str, Any]:
+		import datetime as dt
+
+		from nyabo_mn.rules import params
+
+		proposal = frappe.get_doc("Nyabo Proposal", name)
+		params.get(SI_RATE_KEY, dt.date(2026, 6, 15), company=proposal.company)
+		raise AssertionError("the guard was supposed to refuse")
+
+	monkeypatch.setattr(_deps, "post_proposal", post_proposal)
+	proposal = make_proposal(books, posting_pattern=CITED)
+	bot = FakeBotApi()
+
+	outcome = run(bot, callback_update(ACCOUNTANT_ID, f"p:{proposal.name}:ap"))
+
+	assert outcome["result"]["unverified_rule"] == SI_RATE_ROW
+	assert outcome["result"]["offered"] is True
+	assert mn.MSG_UNVERIFIED_RULE_ACCOUNTANT_CAN_ACCEPT.format(company=books) in bot.texts()
+	assert keyboards.rule_data(keyboards.VERIFY_ACCEPT, verify.KIND_PARAMETER, SI_RATE_ROW) in (
+		bot.callback_datas()
+	)
+
+
 # --- 5. a cited rule asks nobody -------------------------------------------------------------------
 
 

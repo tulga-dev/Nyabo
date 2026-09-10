@@ -129,11 +129,16 @@ def _inspect(rule: Any) -> tuple[str, bool]:
 			if frappe.db.exists(doctype, rule):
 				return _lookup(doctype, rule)
 		return rule, False
+	# The label and the acceptance lookup must name the same thing. A core ``ParameterRow``
+	# carries `key` and `effective_from` separately, so labelling it `si.employee_rate` made the
+	# refusal name something that is no row: the Telegram layer looks the rule up by the name in
+	# the message, found nothing, and told the accountant that somebody else decides — on the very
+	# path `_ref` was written to keep working. `_ref` owns that identity, so it is asked for it.
 	label = (
 		getattr(rule, "pattern_id", None)
 		or getattr(rule, "layout_id", None)
 		or getattr(rule, "name", None)
-		or getattr(rule, "key", None)
+		or _ref(rule)[1]
 		or str(rule)
 	)
 	verified = getattr(rule, "verified", None)
