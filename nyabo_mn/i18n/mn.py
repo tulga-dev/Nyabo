@@ -951,8 +951,13 @@ TAX_ITEM_ZERO = "Тэг хувийн НӨАТ"
 AGENT_REASON_CODE_NOT_IN_CHART = "Санал болгосон данс төлөвлөгөөнд байхгүй тул үндсэн зардлын дансыг сонгов."
 AGENT_REASON_VAT_NOT_PAYER = "Компани НӨАТ төлөгч бус тул НӨАТ зардалд орно."
 AGENT_REASON_UNAVAILABLE = "Тайлбар боловсруулж чадсангүй; нягтлан шалгана уу."
+# A question that argues with the prompt has no legitimate answer. The refusal used to send the
+# reader to «an accountant or an admin» — the reader *is* the accountant, and no admin can answer
+# a question about these books either. It names the two things that actually work from here, one
+# of which is the button sent with it (``agent.questions``: FollowUp(VERB_MENU, BTN_MENU)).
 AGENT_ANSWER_INJECTION_REFUSED = (
-	"Уучлаарай, энэ асуултад хариулах боломжгүй. Нягтлан эсвэл админд хандана уу."
+	"Уучлаарай, энэ асуултад хариулах боломжгүй. Асуултаа өөрөөр бичиж үзнэ үү, "
+	"эсвэл доорх «Цэс» товчоор өөр үйлдэл сонгоно уу."
 )
 AGENT_ANSWER_TOOL_ERROR = "Дэвтрээс мэдээлэл авахад алдаа гарлаа. Дахин оролдоно уу."
 
@@ -1338,7 +1343,15 @@ MSG_STATUS_CONFIG_OK = "бүрэн"
 MSG_STATUS_CONFIG_MISSING = "дутуу: {keys}"
 MSG_ACCOUNT_SEARCH_RESULTS = "Олдсон данс:"
 MSG_REJECT_TEXT_ASK = "Татгалзсан шалтгаанаа нэг өгүүлбэрээр бичнэ үү:"
-MSG_ONBOARDING_APPLY_PENDING = "Хариултуудыг хадгаллаа; дансны бүртгэлийг админ дуусгасны дараа мэдэгдэнэ."
+# The setup module is not installed on this site, so the answers were stored and the chart, the
+# tax templates and the bank accounts were not created. Nothing on that branch notifies anybody
+# — it writes a log line and returns — so this promises no notice and names nobody to wait for:
+# it says what was saved, what did not happen, and the command that runs it again (UX-13, ACC-01).
+MSG_ONBOARDING_APPLY_PENDING = (
+	"Хариултуудыг хадгаллаа. Дансны бүртгэл одоогоор хийгдсэнгүй — энэ нь хэн нэгэн таны "
+	"тохиргоог дуусгах гэж хүлээж байна гэсэн үг биш, алдааг бүртгэлээ. Тохиргоо бэлэн болмогц "
+	"«/эхлэх дахин» гэж бичээд үргэлжлүүлнэ үү."
+)
 MSG_ONBOARDING_ALREADY_DONE = "Тохиргоо аль хэдийн хийгдсэн. Дахин хийх бол «/эхлэх дахин» гэж бичнэ үү."
 MSG_ONBOARDING_INVENTORY_NEED_FILE = "Excel/CSV файл эсвэл мөр бүрт `нэр, тоо, үнэ` гэсэн текст илгээнэ үү."
 ONB_SUMMARY_INVENTORY_NONE = "байхгүй"

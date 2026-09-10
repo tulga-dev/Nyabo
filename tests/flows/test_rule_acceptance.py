@@ -776,6 +776,11 @@ INTAKE_PATH_STRINGS = (
 	"MSG_RULE_PENDING",
 	"MSG_MENU",
 	"BOT_COMMAND_DESCRIPTIONS",
+	# The two the first sweep missed (MINOR 9). Onboarding is the first intake there is, and a
+	# refused question is the accountant asking about their own books; neither of them has an
+	# admin to send anybody to, and one of them promised a notification nothing sends.
+	"MSG_ONBOARDING_APPLY_PENDING",
+	"AGENT_ANSWER_INJECTION_REFUSED",
 )
 
 #: The other half of the sweep: the places on an intake path where somebody else really is

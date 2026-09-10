@@ -182,6 +182,10 @@ BELOW_POINTS_AT: dict[str, str] = {
 		"statement.run_import sends ask_layout_confirmation straight after it, mapping and buttons"
 	),
 	"ONB_CURRENCY_ADDED": "onboarding._on_currency sends it with keyboards.onboarding_currencies()",
+	"AGENT_ANSWER_INJECTION_REFUSED": (
+		"agent.questions returns it with FollowUp(VERB_MENU, BTN_MENU), which handlers.question "
+		"draws as keyboards.question_keyboard under the answer"
+	),
 }
 
 

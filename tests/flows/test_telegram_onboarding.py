@@ -298,6 +298,48 @@ def test_onboarding_applies_bank_accounts_to_erpnext(company):
 	assert settings.accountant_of_record_name == "Дорж"
 
 
+def test_a_setup_that_could_not_be_applied_promises_no_notice_nobody_sends(company, monkeypatch):
+	"""MINOR 9: the sentence told the accountant to wait for an admin and promised a notification.
+
+	Nothing on this branch notifies anybody — it logs a warning and returns — so the accountant
+	was left waiting for a message that would never come, on an intake path, at the first thing
+	they ever do with Nyabo. What is true is that their answers are saved and the account setup
+	did not run, and that is what it has to say.
+	"""
+	from nyabo_mn.telegram._deps import DependencyMissing
+
+	def missing(*args):
+		raise DependencyMissing("nyabo_mn.setup.provision_company.apply_onboarding")
+
+	monkeypatch.setattr(_deps, "apply_onboarding", missing)
+	link_user(9010, "Accountant", company)
+	uid = 9010
+	bot = FakeBotApi()
+	run(bot, message_update(uid, "/эхлэх"))
+	run(bot, callback_update(uid, "o:vat:yes"))
+	run(bot, callback_update(uid, "o:400m:no"))
+	run(bot, callback_update(uid, "o:banks:done"))
+	run(bot, callback_update(uid, "o:inv:no"))
+	run(bot, message_update(uid, "Дорж"))
+	run(bot, callback_update(uid, "o:micpa:skip"))
+	run(bot, callback_update(uid, "o:summary:confirm"))
+
+	assert mn.MSG_ONBOARDING_APPLY_PENDING in bot.texts()
+	assert "админ" not in mn.MSG_ONBOARDING_APPLY_PENDING.lower(), (
+		"an intake path may not send the accountant to look for an admin (DECISIONS ACC-01)"
+	)
+	assert "мэдэгдэнэ" not in mn.MSG_ONBOARDING_APPLY_PENDING, (
+		"nothing on this branch notifies anybody, so the sentence may not promise a notification"
+	)
+	# ...and the answers really are saved, which is the half of it that is true.
+	settings = frappe.get_doc(
+		"Nyabo Company Settings", frappe.db.exists("Nyabo Company Settings", {"company": company})
+	)
+	assert settings.onboarding_completed == 1 and settings.accountant_of_record_name == "Дорж"
+	# Nobody was written to but the person in front of the bot.
+	assert {str(call["chat_id"]) for call in bot.sent("send_message")} == {str(uid)}
+
+
 def test_apply_onboarding_is_idempotent(company):
 	from nyabo_mn.setup import provision_company as provision
 
