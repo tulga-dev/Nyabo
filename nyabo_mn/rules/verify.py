@@ -914,6 +914,45 @@ def blocked_proposal(
 	return None
 
 
+def blocked_company(
+	rule: str, telegram_id: str | int | None, within_minutes: int = REQUEST_DEDUPE_MINUTES
+) -> str | None:
+	"""The company *this chat's own* refusal of this rule was for, minutes ago — or ``None``.
+
+	WHY this exists: one accountant across several clients is the persona ACC-01 is about, and
+	their active company is often not the one whose receipt they just tapped —
+	``handlers.approve.can_approve`` deliberately lets them act on any client they are linked to.
+	An acceptance has to be written for the client the refused document belongs to, or it clears
+	nothing; and the callback datum cannot carry a company name beside a rule name (VER-03).
+
+	So it is read back out of the audit log from the same three facts that make
+	``blocked_proposal`` safe (VER-04): the same Telegram chat, the same rule, inside the retry
+	window. It is a *hint about which books*, never a permission — the caller re-checks that this
+	reader really keeps them before anything is written.
+	"""
+	if not rule or telegram_id is None:
+		return None
+	from frappe.utils import add_to_date, now_datetime
+
+	since = add_to_date(now_datetime(), minutes=-int(within_minutes))
+	rows = frappe.get_all(
+		events.EVENT_DOCTYPE,
+		filters={
+			"event_type": mn.EVENT_RULE_BLOCKED,
+			"reason": rule,
+			"actor_telegram_id": str(telegram_id),
+			"creation": [">=", since],
+		},
+		fields=["company"],
+		order_by="creation desc",
+	)
+	for row in rows:
+		company = str(row.get("company") or "").strip()
+		if company:
+			return company
+	return None
+
+
 def _recent_blocks(
 	rule: str, company: str | None, telegram_id: str | int | None, within_minutes: int
 ) -> list[dict[str, Any]]:

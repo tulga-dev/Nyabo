@@ -23,7 +23,7 @@ from nyabo_mn.i18n import mn
 from nyabo_mn.log import log_event
 from nyabo_mn.telegram import _deps, cards, keyboards
 from nyabo_mn.telegram import state as chat_state
-from nyabo_mn.telegram.context import Ctx
+from nyabo_mn.telegram.context import ACCOUNTANT_ROLES, Ctx
 
 # One screen of rules: the card stays readable and every row still gets its own button. The
 # count in the header is the real total, so a cut list never understates what is blocking work.
@@ -92,26 +92,52 @@ def handle_status(ctx: Ctx) -> Any:
 # --- rule verification and acceptance (/дүрэм, ARCHITECTURE §1.2, DECISIONS ACC-01) -----------
 
 
+def _keeps_books(ctx: Ctx, company: str | None) -> bool:
+	"""Is this reader the accountant of *that* company's books — not of whichever one is active?
+
+	``ctx.is_accountant`` answers for the active company, and ``approve.can_approve`` deliberately
+	does not: an accountant may tap [Батлах] on a proposal for any client they are linked to.
+	Reading the role off the active company told the multi-client accountant, on their own
+	client's receipt, that somebody else decides — and then sent that somebody-else notice to
+	their own chat. The role lives on the ``Nyabo User Company`` row, so it is asked there.
+	"""
+	if not company or ctx.link is None:
+		return False
+	return chat_state.role_for(ctx.link, company) in ACCOUNTANT_ROLES
+
+
+def _keeps_any_books(ctx: Ctx) -> bool:
+	"""True when this reader is the accountant of at least one of the companies they are linked to."""
+	return ctx.is_accountant or any(_keeps_books(ctx, company) for company in ctx.companies)
+
+
 def _may_read_rules(ctx: Ctx) -> bool:
-	"""Who may open the list and the evidence cards: an accountant of these books, or a site admin.
+	"""Who may open the list and the evidence cards: an accountant of some books, or a site admin.
 
 	Two people, two different answers on the same card, and each of them must be able to reach
 	it. ``is_accountant`` is per company (TG-04) and a site admin is site-wide (VER-08), so
 	neither check implies the other — asking only the first is how the founder, an Owner of his
 	own company, lost ``/дүрэм`` and with it the only door to the global verification.
 	"""
-	return ctx.is_accountant or ctx.is_site_admin
+	return _keeps_any_books(ctx) or ctx.is_site_admin
 
 
-def _accepting_company(ctx: Ctx) -> str | None:
-	"""The company an acceptance from *this* reader would be for — ``None`` when there is none.
+def _accepting_company(ctx: Ctx, rule: str = "") -> str | None:
+	"""The books an acceptance from *this* reader would be for — ``None`` when there are none.
 
-	A site admin who does not keep these books may verify the global row and may not accept
-	anything for anybody, so the evidence card is drawn for no company: it then asks the
-	site-wide question (``CARD_RULE_ASK``) instead of «does this apply to {company}?», which
-	would be a question they have no button to answer.
+	Normally the active company. But when this very chat was refused this very rule for another
+	of their clients inside the retry window, that client is what the card asks about and what
+	the acceptance is written for: it is the company whose document is waiting, and accepting for
+	the active one instead would clear a rule nobody was blocked on (``verify.blocked_company``).
+
+	A site admin who keeps nobody's books gets ``None``, so their evidence card is drawn for no
+	company: it then asks the site-wide question (``CARD_RULE_ASK``) instead of «does this apply
+	to {company}?», which is a question they have no button to answer.
 	"""
-	return ctx.company if ctx.is_accountant else None
+	blocked = _deps.blocked_company(rule, ctx.telegram_id) if rule else None
+	if blocked and blocked != ctx.company and _keeps_books(ctx, blocked):
+		return blocked
+	return ctx.company if _keeps_books(ctx, ctx.company) else None
 
 
 def _refuse_tap(ctx: Ctx, kind: str, rule: str, message: str, reason: str) -> dict[str, Any]:
@@ -175,7 +201,7 @@ def handle_callback(ctx: Ctx, parts: list[str]) -> Any:
 	if action == keyboards.VERIFY_OPEN:
 		return show_rule(ctx, kind, rule)
 	if action == keyboards.VERIFY_ACCEPT:
-		if not ctx.is_accountant:
+		if not _keeps_any_books(ctx):
 			# A site admin reading the list is not the professional who keeps these books, and
 			# acceptance is that professional's judgement — the global tick below is theirs.
 			return _refuse_tap(ctx, kind, rule, mn.MSG_RULES_ACCOUNTANT_ONLY, "not_accountant")
@@ -201,7 +227,7 @@ def handle_callback(ctx: Ctx, parts: list[str]) -> Any:
 
 def show_rule(ctx: Ctx, kind: str, rule: str) -> Any:
 	"""The evidence card: the Mongolian name, the debit and credit lines, and the citation or its absence."""
-	evidence = _deps.rule_evidence(kind, rule, _accepting_company(ctx))
+	evidence = _deps.rule_evidence(kind, rule, _accepting_company(ctx, rule))
 	if evidence is None:
 		ctx.answer(mn.MSG_RULE_NOT_FOUND.format(rule=rule), show_alert=True)
 		return {"rule": rule, "found": False}
@@ -240,15 +266,18 @@ def offer_decision(ctx: Ctx, kind: str, evidence: Any) -> bool:
 
 	A reader who is a site admin but not an accountant of these books gets the global tick and
 	nothing else — neither the button nor the question, which is why the company reaches the
-	card through ``_accepting_company`` rather than straight off ``ctx``.
+	card through ``_accepting_company`` rather than straight off ``ctx``. The card's own company
+	is what decides: it is the client the acceptance would be written for, which for an
+	accountant acting on a second client is not the active one.
 	"""
-	may_accept = ctx.is_accountant and bool(ctx.company)
+	company = str(getattr(evidence, "company", "") or "")
+	may_accept = _keeps_books(ctx, company)
 	markup = keyboards.rule_decision(kind, evidence.name, may_verify=ctx.is_site_admin, may_accept=may_accept)
 	ctx.reply(cards.rule_card(evidence), markup)
 	if not markup.get("inline_keyboard"):
 		ctx.reply(mn.MSG_RULE_VERIFY_IN_DESK.format(rule=evidence.name))
 		return False
-	if ctx.is_accountant and not may_accept:
+	if _keeps_any_books(ctx) and not may_accept:
 		ctx.reply(mn.MSG_RULE_ACCEPT_NO_COMPANY)
 	return may_accept or ctx.is_site_admin
 
@@ -256,19 +285,21 @@ def offer_decision(ctx: Ctx, kind: str, evidence: Any) -> bool:
 def accept_rule(ctx: Ctx, kind: str, rule: str) -> Any:
 	"""The accountant's tap: this rule applies to *this company's* books, and the record of it.
 
-	The company is the tapper's active company, resolved here rather than carried in the datum:
-	64 bytes do not stretch to a company name beside a rule name (VER-03), and a company copied
-	out of somebody else's chat must never decide anything for those books.
+	The company is resolved here rather than carried in the datum: 64 bytes do not stretch to a
+	company name beside a rule name (VER-03), and a company copied out of somebody else's chat
+	must never decide anything for those books. Usually it is the tapper's active company —
+	unless this very chat's refusal of this very rule, minutes ago, was another client of theirs
+	(``_accepting_company``), because that is the client whose document is waiting.
 
 	It never touches ``verified``. The global row is one row for the whole site, and one
 	accountant's reading of an uncited rule must not bind another accountant's client — which is
 	the whole reason acceptance is per company and not a widening of VER-08.
 	"""
-	if not ctx.company:
+	company = _accepting_company(ctx, rule)
+	if not company:
 		ctx.answer(mn.MSG_RULE_ACCEPT_NO_COMPANY, show_alert=True)
 		ctx.reply(mn.MSG_RULE_ACCEPT_NO_COMPANY)
 		return {"accepted": False, "reason": "no_company", "rule": rule}
-	company = ctx.company
 	result = _deps.accept_rule(kind, rule, company, ctx.user, telegram_id=ctx.telegram_id)
 	if not result.get("ok"):
 		# A rule that is not there and a write that would not go through are different problems,
@@ -460,7 +491,10 @@ def rule_blocked(
 	The accountant of the company the document belongs to is asked, right here, whether the rule
 	applies to their books: the evidence card, the briefing the seed wrote for exactly this
 	screen, and [Манай компанид хамаарна]. That is the founder's decision made real — the person
-	whose signature the entry carries decides, and nothing waits on anybody else.
+	whose signature the entry carries decides, and nothing waits on anybody else. «The company
+	the document belongs to» is the point: the role is resolved against *that* company, the way
+	``approve.can_approve`` resolves the right to tap [Батлах], and not against whichever
+	company happens to be active in this chat.
 
 	A site admin is additionally offered the global verification. Anyone else — an owner tapping
 	[Батлах] under an auto-approve policy — is told which person decides, and that sentence is
@@ -474,7 +508,7 @@ def rule_blocked(
 	_deps.record_rule_block(
 		rule, company=company, proposal=proposal, telegram_id=ctx.telegram_id, user=ctx.user
 	)
-	if company and company == ctx.company and ctx.is_accountant:
+	if _keeps_books(ctx, company):
 		found = _rule_evidence_by_name(rule, company)
 		if found is not None:
 			kind, evidence = found
@@ -548,12 +582,19 @@ def _tell_who_can_clear_it(ctx: Ctx, rule: str, company: str | None) -> int:
 	(DECISIONS ACC-01): this company's accountants, who may accept the rule for these books,
 	and the site admins, who may verify the global row when a citation is found. An owner is
 	never sent to a button that would refuse them, and neither is anybody else.
+
+	The person who was just stopped is dropped from both lists. They are reading the answer to
+	their own tap on the screen in front of them, and «your request has been passed to your
+	accountant», delivered to their own chat, is somebody-else-will-do-it addressed to nobody.
+	It is reachable whenever the reader is themselves one of the people who could clear it —
+	a rule name that is no row at all takes an accountant down this path.
 	"""
 	from nyabo_mn.telegram.router import company_accountant_ids, notify_chats, site_admin_ids
 
 	label = company or mn.VALUE_UNKNOWN
-	site_ids = site_admin_ids(ctx.settings)
-	accountant_ids = (company_accountant_ids(company) - site_ids) if company else set()
+	self_id = {int(ctx.telegram_id)} if str(ctx.telegram_id).lstrip("-").isdigit() else set()
+	site_ids = site_admin_ids(ctx.settings) - self_id
+	accountant_ids = (company_accountant_ids(company) - site_ids - self_id) if company else set()
 	reached = notify_chats(
 		ctx.bot,
 		sorted(accountant_ids),

@@ -46,6 +46,8 @@ CITED = "purchase_expense_non_vat"
 ACCOUNTANT_ID = 5001
 OTHER_ACCOUNTANT_ID = 5002
 OWNER_ID = 5003
+#: One accountant, two clients: the persona the founder's decision is about.
+MULTI_CLIENT_ID = 5004
 ADMIN_ID = 1001  # tests/fixtures/site/site_config.json admin_telegram_ids
 
 
@@ -329,6 +331,71 @@ def test_an_accountant_of_another_company_accepts_nothing_here(books: str, compa
 	assert [row["company"] for row in verify.acceptances(BLOCKING)] == [company_v03]
 	with pytest.raises(guard.UnverifiedRuleError):
 		guard.require_verified(BLOCKING, company=books)
+
+
+def test_the_multi_client_accountant_is_offered_their_own_clients_rule_not_told_to_wait(
+	books: str, company_v03: str, monkeypatch: pytest.MonkeyPatch
+):
+	"""One accountant across several clients — the persona this whole change exists for.
+
+	``approve.can_approve`` lets them tap [Батлах] on a proposal for any client they are linked
+	to, but the rule block resolved their role against the ACTIVE company. Acting on client B
+	while client A was active they were read as not-an-accountant: told which person decides,
+	and sent that «ask your accountant» notice in their own chat.
+	"""
+	posted = _guarded_post(monkeypatch)
+	link_user(MULTI_CLIENT_ID, "Accountant", books)
+	link_user(MULTI_CLIENT_ID, "Accountant", company_v03)
+	assert frappe.db.get_value("Nyabo User Link", str(MULTI_CLIENT_ID), "active_company") == books
+
+	other = make_proposal(company_v03, posting_pattern=BLOCKING)
+	bot = FakeBotApi()
+	refused = run(bot, callback_update(MULTI_CLIENT_ID, f"p:{other.name}:ap"))
+
+	assert refused["result"]["unverified_rule"] == BLOCKING
+	assert refused["result"]["offered"] is True and refused["result"]["notified"] is False
+	# The client whose receipt it is, named in the sentence and in the question on the card.
+	assert mn.MSG_UNVERIFIED_RULE_ACCOUNTANT_CAN_ACCEPT.format(company=company_v03) in bot.texts()
+	assert mn.MSG_UNVERIFIED_RULE_ACCOUNTANT_ASKED not in bot.texts()
+	assert (
+		mn.MSG_ACCOUNTANT_RULE_ACCEPT_REQUEST.format(company=company_v03, rule=BLOCKING) not in bot.texts()
+	), "nobody is told to go and ask themselves"
+
+	accepted = _accept(bot, MULTI_CLIENT_ID)
+
+	# ...and the acceptance is written for the client the document belongs to, which is the only
+	# company it unblocks — the active one is untouched.
+	assert accepted["result"]["company"] == company_v03
+	assert accepted["result"]["posted"] == "JE-00000" and posted == ["JE-00000"]
+	assert [row["company"] for row in verify.acceptances(BLOCKING)] == [company_v03]
+	with pytest.raises(guard.UnverifiedRuleError):
+		guard.require_verified(BLOCKING, company=books)
+
+
+def test_nobody_is_rung_about_a_block_of_their_own(books: str, monkeypatch: pytest.MonkeyPatch):
+	"""A rule name that is no row at all falls through to «who can clear this» — and the people
+	who can are this company's accountants, one of whom is the person who was just stopped.
+
+	Telling somebody that their request has been passed to an accountant, and then sending that
+	request to their own chat, is the shape of «somebody else will do it» that this work removes.
+	"""
+
+	def post_proposal(name: str, user: str, telegram_id: str) -> dict[str, Any]:
+		raise guard.UnverifiedRuleError("no_such_rule", company=books)
+
+	monkeypatch.setattr(_deps, "post_proposal", post_proposal)
+	proposal = make_proposal(books, posting_pattern=BLOCKING)
+	bot = FakeBotApi()
+
+	outcome = run(bot, callback_update(ACCOUNTANT_ID, f"p:{proposal.name}:ap"))
+
+	assert outcome["result"]["offered"] is False
+	# The site admin is a different person and is still told; the accountant who was stopped is
+	# not sent a copy of their own request.
+	assert outcome["result"]["admins_notified"] == 1
+	assert mn.MSG_ACCOUNTANT_RULE_ACCEPT_REQUEST.format(company=books, rule="no_such_rule") not in bot.texts()
+	# The request is still on record, whoever could or could not be reached.
+	assert frappe.db.exists("Nyabo Event", {"event_type": mn.EVENT_RULE_VERIFY_REQUESTED})
 
 
 # --- 5. a cited rule asks nobody -------------------------------------------------------------------
