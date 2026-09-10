@@ -331,6 +331,15 @@ def test_a_setup_that_could_not_be_applied_promises_no_notice_nobody_sends(compa
 	assert "мэдэгдэнэ" not in mn.MSG_ONBOARDING_APPLY_PENDING, (
 		"nothing on this branch notifies anybody, so the sentence may not promise a notification"
 	)
+	# MINOR 9: and it does not argue with a belief the reader may never have had. Denying that
+	# somebody is waiting to finish their setup is the first place it puts that idea, and it
+	# pushes the two things they actually need — what happened, what to do — behind the denial.
+	assert "гэсэн үг биш" not in mn.MSG_ONBOARDING_APPLY_PENDING, (
+		"say what happened and what to do; do not deny something the accountant never said"
+	)
+	# The two facts, in that order, and the one step that works.
+	assert "Хариултуудыг хадгаллаа" in mn.MSG_ONBOARDING_APPLY_PENDING
+	assert "/эхлэх дахин" in mn.MSG_ONBOARDING_APPLY_PENDING
 	# ...and the answers really are saved, which is the half of it that is true.
 	settings = frappe.get_doc(
 		"Nyabo Company Settings", frappe.db.exists("Nyabo Company Settings", {"company": company})

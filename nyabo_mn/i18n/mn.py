@@ -1360,10 +1360,12 @@ MSG_REJECT_TEXT_ASK = "Татгалзсан шалтгаанаа нэг өгүү
 # tax templates and the bank accounts were not created. Nothing on that branch notifies anybody
 # — it writes a log line and returns — so this promises no notice and names nobody to wait for:
 # it says what was saved, what did not happen, and the command that runs it again (UX-13, ACC-01).
+# What happened and what to do, in that order. It used to argue with a belief the accountant may
+# never have held («this does not mean someone is waiting to finish your setup»), which both
+# raises the idea and leaves the two facts they need buried behind it.
 MSG_ONBOARDING_APPLY_PENDING = (
-	"Хариултуудыг хадгаллаа. Дансны бүртгэл одоогоор хийгдсэнгүй — энэ нь хэн нэгэн таны "
-	"тохиргоог дуусгах гэж хүлээж байна гэсэн үг биш, алдааг бүртгэлээ. Тохиргоо бэлэн болмогц "
-	"«/эхлэх дахин» гэж бичээд үргэлжлүүлнэ үү."
+	"Хариултуудыг хадгаллаа. Гэхдээ дансны бүртгэлийг үүсгэж чадсангүй: Нябогийн суулгац дутуу "
+	"байна. Алдааг бүртгэлээ. Тохиргоо бэлэн болмогц «/эхлэх дахин» гэж бичээд үргэлжлүүлнэ үү."
 )
 MSG_ONBOARDING_ALREADY_DONE = "Тохиргоо аль хэдийн хийгдсэн. Дахин хийх бол «/эхлэх дахин» гэж бичнэ үү."
 MSG_ONBOARDING_INVENTORY_NEED_FILE = "Excel/CSV файл эсвэл мөр бүрт `нэр, тоо, үнэ` гэсэн текст илгээнэ үү."
