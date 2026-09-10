@@ -56,6 +56,7 @@ PATTERN = "Nyabo Posting Pattern"
 PARAMETER = "Nyabo Tax Parameter"
 LAYOUT = "Nyabo Bank Layout"
 PROPOSAL = "Nyabo Proposal"
+DOCUMENT = "Nyabo Document"
 ACCEPTANCE = "Nyabo Rule Acceptance"
 
 # One-letter kinds because they ride in Telegram callback data, which is capped at 64 bytes and
@@ -910,8 +911,19 @@ def blocked_proposal(
 	``handlers.admin`` can finish the approval the accountant already asked for instead of asking
 	them to press the same button twice.
 	"""
+	for payload in _recent_blocks(rule, company, telegram_id, within_minutes):
+		name = str(payload.get("proposal") or "").strip()
+		if name and frappe.db.exists(PROPOSAL, name):
+			return name
+	return None
+
+
+def _recent_blocks(
+	rule: str, company: str | None, telegram_id: str | int | None, within_minutes: int
+) -> list[dict[str, Any]]:
+	"""The payloads of this chat's own recent refusals of one rule for one company, newest first."""
 	if not rule or telegram_id is None:
-		return None
+		return []
 	from frappe.utils import add_to_date, now_datetime
 
 	since = add_to_date(now_datetime(), minutes=-int(within_minutes))
@@ -926,7 +938,10 @@ def blocked_proposal(
 		fields=["company", "payload_json"],
 		order_by="creation desc",
 	)
+	payloads: list[dict[str, Any]] = []
 	for row in rows:
+		# Compared here rather than in the filter: it may be None, and "no company" must not
+		# silently match every company's refusals.
 		if (row.get("company") or None) != (company or None):
 			continue
 		payload = row.get("payload_json")
@@ -935,8 +950,28 @@ def blocked_proposal(
 				payload = json.loads(payload)
 			except ValueError:
 				payload = {}
-		name = str((payload or {}).get("proposal") or "").strip()
-		if name and frappe.db.exists(PROPOSAL, name):
+		payloads.append(payload or {})
+	return payloads
+
+
+def blocked_document(
+	rule: str,
+	company: str | None,
+	telegram_id: str | int | None,
+	within_minutes: int = REQUEST_DEDUPE_MINUTES,
+) -> str | None:
+	"""The statement *file* this person's own upload was refused on, for the same reason and window.
+
+	A bank layout stops a document before any proposal exists, so what has to be finished is the
+	import, not an approval. Re-sending the file is not an option Nyabo can offer honestly: the
+	sha256 dedup would answer the second upload with «this document is already here» (§5.3). So
+	the file that is already stored is what the confirmation re-reads.
+	"""
+	if not rule or telegram_id is None:
+		return None
+	for payload in _recent_blocks(rule, company, telegram_id, within_minutes):
+		name = str(payload.get("document") or "").strip()
+		if name and frappe.db.exists(DOCUMENT, name):
 			return name
 	return None
 
@@ -944,22 +979,31 @@ def blocked_proposal(
 def record_block(
 	rule: str,
 	company: str | None,
-	proposal: str | None,
-	telegram_id: str | int | None,
+	proposal: str | None = None,
+	telegram_id: str | int | None = None,
 	user: str | None = None,
+	document: str | None = None,
 ) -> str:
-	"""The Nyabo Event behind every refused [Батлах]: which rule stopped which document, for whom.
+	"""The Nyabo Event behind every refusal: which rule stopped which piece of work, for whom.
 
 	Written whoever the reader is — accountant, owner or admin — because it is the trail
-	``blocked_proposal`` reads to finish an approval, and because «this rule stopped real work»
-	is the fact ``/дүрэм`` and the month-end checklist are both about.
+	``blocked_proposal`` / ``blocked_document`` read to finish that work once the rule is
+	cleared, and because «this rule stopped real work» is the fact ``/дүрэм`` and the month-end
+	checklist are both about. A posting names its proposal, a refused statement names its file.
 	"""
+	ref_doctype = PROPOSAL if proposal else (DOCUMENT if document else None)
 	return events.log(
 		mn.EVENT_RULE_BLOCKED,
 		company=company,
-		ref_doctype=PROPOSAL if proposal else None,
-		ref_name=proposal or None,
+		ref_doctype=ref_doctype,
+		ref_name=proposal or document or None,
 		reason=rule,
-		payload={"rule": rule, "company": company, "proposal": proposal, "user": user or frappe.session.user},
+		payload={
+			"rule": rule,
+			"company": company,
+			"proposal": proposal,
+			"document": document,
+			"user": user or frappe.session.user,
+		},
 		actor_telegram_id=telegram_id,
 	)

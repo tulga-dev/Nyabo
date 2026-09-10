@@ -128,6 +128,7 @@ def run_import(document_name: str, chat_id: int | str) -> dict[str, Any]:
 	if status == "unverified_layout":
 		layout_id = str(summary.get("layout") or "")
 		bot.send_message(chat_id, mn.MSG_STATEMENT_LAYOUT_UNVERIFIED.format(layout=layout_id))
+		_record_layout_block(layout_id, summary.get("company"), document_name, chat_id)
 		ask_layout_confirmation(bot, chat_id, layout_id, summary.get("company"))
 		return {"ok": True, "unverified": True, "layout": layout_id}
 	# The importer sets both keys; a caller (or a test double) may send only ``status``.
@@ -356,6 +357,7 @@ def save_layout(ctx: Ctx, payload: dict[str, Any]) -> Any:
 	# The confirmation is asked of the person who just read the file and answered every column —
 	# nobody is sent away to wait (ACC-02). The site admins are told a new format exists because
 	# they may want it for every client, which is a different decision and stays theirs.
+	_record_layout_block(layout_id, ctx.company, payload.get("document"), ctx.telegram_id, user=ctx.user)
 	ask_layout_confirmation(ctx.bot, ctx.chat_id, layout_id, ctx.company, mapping=mapping)
 	from nyabo_mn.telegram.router import notify_admins
 
@@ -366,6 +368,23 @@ def save_layout(ctx: Ctx, payload: dict[str, Any]) -> Any:
 	)
 	log_event("telegram.layout.saved", layout=layout_id, document=payload.get("document"))
 	return {"layout": layout_id, "mapping": mapping}
+
+
+def _record_layout_block(
+	layout_id: str, company: Any, document: Any, telegram_id: Any, user: str | None = None
+) -> None:
+	"""Record which file this layout is holding up, so confirming it re-reads that very file.
+
+	Asking the accountant to send the statement again would be a promise Nyabo cannot keep: the
+	sha256 dedup answers a second upload of the same file with «this document is already here»
+	(§5.3). The stored document is the one that gets read, and this row is how the confirmation
+	finds it — the same trail a refused [Батлах] leaves for a posting.
+	"""
+	if not layout_id or not document:
+		return
+	_deps.record_rule_block(
+		layout_id, company=company, document=str(document), telegram_id=telegram_id, user=user
+	)
 
 
 def ask_layout_confirmation(

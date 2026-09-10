@@ -17,7 +17,13 @@ from nyabo_mn.i18n import mn
 from nyabo_mn.telegram import _deps, keyboards
 from nyabo_mn.telegram._deps import DependencyMissing
 from tests.fixtures.statements import make_fixtures as fixtures
-from tests.fixtures.telegram.fake_bot import FakeBotApi, link_user, message_update, run
+from tests.fixtures.telegram.fake_bot import (
+	FakeBotApi,
+	callback_update,
+	link_user,
+	message_update,
+	run,
+)
 from tests.flows import bank_helpers as helpers
 
 XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -99,6 +105,65 @@ def test_a_layout_nobody_confirmed_imports_nothing_and_asks_the_accountant(books
 	assert document.status == "received"  # nothing was extracted from it
 	# Nothing waits on an admin, so nothing is sent to one from this branch either.
 	assert [kw for kw in bot.sent("send_message") if kw["chat_id"] == 1001] == []
+
+
+def test_the_accountant_confirms_the_layout_and_the_next_statement_imports(books):
+	"""ACC-02: the person who read the file confirms the mapping, and the file then goes in.
+
+	The confirmation is per company for the same reason a rule's acceptance is (ACC-01): one
+	client's Khan Bank export is not proof about another client's, so the site-wide flag on the
+	row stays a site admin's to set. What changes is that nobody has to be found first.
+	"""
+	from nyabo_mn.rules import verify
+
+	helpers.setup_banks(books)
+	helpers.register_layouts()
+	frappe.db.set_value("Nyabo Bank Layout", "test_khan_synthetic", "verified", 0)
+	filename, data = fixtures.khan_xlsx()
+	link_user(9305, "Accountant", books)
+	bot = FakeBotApi(files={"first": data})
+	_send(bot, 9305, filename, file_id="first")
+	assert frappe.db.count("Bank Transaction") == 0
+
+	confirmed = run(
+		bot,
+		callback_update(9305, keyboards.rule_data(keyboards.VERIFY_ACCEPT, "b", "test_khan_synthetic")),
+	)
+
+	assert confirmed["result"]["accepted"] is True
+	row = frappe.get_doc(verify.ACCEPTANCE, confirmed["result"]["acceptance"])
+	assert row.company == books and row.rule_doctype == "Nyabo Bank Layout"
+	assert row.accepted_by == "tg-9305@nyabo.local" and row.accepted_at
+	# The global row is untouched: this says «right for my client», not «right for the site».
+	assert frappe.db.get_value("Nyabo Bank Layout", "test_khan_synthetic", "verified") == 0
+	# The file it stopped is already stored, so it is read on the spot: re-sending it would meet
+	# the sha256 dedup and be answered «this document is already here» (§5.3).
+	assert mn.MSG_STATEMENT_LAYOUT_REIMPORTING in bot.texts()
+	assert frappe.db.count("Bank Transaction") == 5
+	assert (
+		mn.MSG_STATEMENT_IMPORTED.format(
+			bank=mn.BANK_NAMES_MN["Khan Bank"], count=5, new=5, dup=0, matched=0, unmatched=5
+		)
+		in bot.texts()
+	)
+
+
+def test_a_layout_another_company_confirmed_is_still_refused_here(books, company_v03):
+	"""One accountant's reading of a spreadsheet is not evidence about another client's file."""
+	from nyabo_mn.rules import verify
+
+	helpers.setup_banks(books)
+	helpers.register_layouts()
+	frappe.db.set_value("Nyabo Bank Layout", "test_khan_synthetic", "verified", 0)
+	verify.accept(verify.KIND_LAYOUT, "test_khan_synthetic", company_v03, "Administrator")
+	filename, data = fixtures.khan_xlsx()
+	link_user(9306, "Accountant", books)
+	bot = FakeBotApi(files={"stmt": data})
+
+	_send(bot, 9306, filename)
+
+	assert frappe.db.count("Bank Transaction") == 0
+	assert mn.MSG_STATEMENT_LAYOUT_UNVERIFIED.format(layout="test_khan_synthetic") in bot.texts()
 
 
 def test_a_bank_that_is_not_in_the_settings_says_which_one(books):

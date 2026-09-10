@@ -296,8 +296,22 @@ def _finish_the_blocked_tap(ctx: Ctx, kind: str, rule: str, company: str) -> str
 	file itself is what has to come back, so that is what the accountant is asked for (ACC-02).
 	"""
 	if kind == LAYOUT_KIND:
-		ctx.reply(mn.MSG_STATEMENT_LAYOUT_ACCEPTED_RESEND)
-		return None
+		document = _deps.blocked_document(rule, company, ctx.telegram_id)
+		if not document:
+			ctx.reply(mn.MSG_STATEMENT_LAYOUT_ACCEPTED_RESEND)
+			return None
+		from nyabo_mn.telegram.handlers import statement
+
+		ctx.reply(mn.MSG_STATEMENT_LAYOUT_REIMPORTING)
+		frappe.enqueue(
+			statement.IMPORT_METHOD,
+			queue="long",
+			timeout=900,
+			document_name=document,
+			chat_id=ctx.chat_id,
+			enqueue_after_commit=True,
+		)
+		return document
 	proposal = _deps.blocked_proposal(rule, company, ctx.telegram_id)
 	if not proposal:
 		ctx.reply(mn.MSG_RULE_ACCEPTED_RETRY)

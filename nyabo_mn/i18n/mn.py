@@ -313,6 +313,9 @@ MSG_STATEMENT_LAYOUT_ACCEPTED = (
 	"✅ «{layout}» форматыг баталгаажууллаа. Дараагийн хуулгыг дахин илгээхэд автоматаар уншина."
 )
 MSG_STATEMENT_LAYOUT_ACCEPTED_RESEND = "Энэ хуулгаа дахин илгээнэ үү — одоо уншигдана."
+# The usual case: the file that was refused is already stored, so it is re-read on the spot.
+# Asking for it again would meet the sha256 dedup and be answered «this document is already here».
+MSG_STATEMENT_LAYOUT_REIMPORTING = "Хүлээгдэж байсан хуулгыг дахин уншиж байна…"
 MSG_STATEMENT_LAYOUT_LEFT = "Форматыг баталгаажуулаагүй үлдээлээ; энэ форматаар хуулга уншихгүй."
 MSG_STATEMENT_LAYOUT_ACCOUNTANT_ONLY = "Хуулгын форматыг зөвхөн тухайн компанийн нягтлан баталгаажуулна."
 MSG_STATEMENT_NO_BANK_ACCOUNT = "{bank} банкны данс компанийн тохиргоонд алга. /эхлэх командаар нэмнэ үү."

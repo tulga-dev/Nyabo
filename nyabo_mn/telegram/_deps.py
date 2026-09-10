@@ -350,14 +350,20 @@ def blocked_proposal(rule: str, company: str | None, telegram_id: str | int | No
 	return _call("nyabo_mn.rules.verify", "blocked_proposal", rule, company, telegram_id)
 
 
+def blocked_document(rule: str, company: str | None, telegram_id: str | int | None) -> str | None:
+	"""The statement file this person's own upload was refused on, so a confirmation can re-read it."""
+	return _call("nyabo_mn.rules.verify", "blocked_document", rule, company, telegram_id)
+
+
 def record_rule_block(
 	rule: str,
 	company: str | None = None,
 	proposal: str | None = None,
 	telegram_id: str | int | None = None,
 	user: str | None = None,
+	document: str | None = None,
 ) -> str:
-	"""The Nyabo Event behind every refused [Батлах]: which rule stopped which document."""
+	"""The Nyabo Event behind every refusal: which rule stopped which piece of work, for whom."""
 	return _call(
 		"nyabo_mn.rules.verify",
 		"record_block",
@@ -366,6 +372,7 @@ def record_rule_block(
 		proposal,
 		telegram_id,
 		user=user,
+		document=document,
 	)
 
 
