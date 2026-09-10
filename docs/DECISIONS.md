@@ -1300,3 +1300,62 @@ rule blocks, while a layout is answered in the statement flow at the moment it m
 person holding the file. `cards._rule_citation` prints `CARD_RULE_LAYOUT_SOURCE` instead of
 `CARD_RULE_NO_CITATION` for the same reason — telling someone that a column mapping has no legal
 provision behind it would send them looking for one that cannot exist.
+## the skeptics' round (defects found in the accountant flow, and what they settled)
+
+### ACC-03 An acceptance covers content, not a rule id
+`seed.upsert` protects a `verified = 1` row from being rewritten by a deploy. An *accepted* rule
+is not verified — it is an unverified row with a `Nyabo Rule Acceptance` beside it — so nothing
+protected it, and a later deploy could change its debit and credit lines while the acceptance
+stood. The company then went on posting on content its accountant never saw, under that
+accountant's name, with nothing in the record marking the change.
+
+An acceptance is one person saying «I have read this and these books work this way». That
+sentence is about a text, so the row records the text: a canonical JSON of the fields that decide
+what gets posted — a pattern's lines and the scope that selects it, a parameter's value and dates,
+a layout's column map — and a 16-hex-character sha256 of that JSON.
+
+*Why a hash and not a version number or a field-by-field copy.* The question is «is this the same
+content the accountant read», it has to be answered on every posting, and a version number is a
+number a deploy forgets to bump. *Why truncated.* This is a change detector, not an adversarial
+signature: nobody is forging posting lines to collide with a digest. 64 bits makes an accidental
+collision impossible in practice and keeps the row's name inside Frappe's 140 characters. The
+canonical content is stored beside the hash anyway, because a refusal has to say *what* changed —
+«the rule changed, accept it again» asks a professional to take responsibility twice for a text
+they cannot see.
+
+*Neither silence is allowed.* The guard stops honouring the acceptance the moment the content
+moves, so the rule refuses again and `/дүрэм` lists it again; and the deploy that outran it writes
+a `rule_changed_after_acceptance` Nyabo Event naming the company, the person, and both
+fingerprints, because an invalidation nobody is told about is the same silence as posting on
+content nobody read. The accountant is then shown both versions side by side before being asked
+again.
+
+*Re-accepting writes a second row.* There were two decisions, taken on two texts. Rewriting the
+first would put that accountant's name against words they never saw, so the acceptance is named
+`company:kind:rule:fingerprint` and is append-only in its controller (the desk may still delete a
+row: that is how an acceptance is withdrawn, and an edit rewrites what a person read while a
+deletion does not claim they read anything).
+
+### ACC-04 The warning on the card asks the guard's two questions, not the row's one flag
+`WARN_UNVERIFIED_RULE` was reworded for the accountant and its condition was left reading
+`pattern.verified`. So the receipt card went on saying «Дүрэм баталгаажаагүй» after the accountant
+had accepted the rule for their own books — the founder's original complaint, surviving in the one
+place he looks. Anything that shows the ⚠️ now asks both questions for the company the entry is
+being built for. `core.rules_engine` has no frappe import, so the caller resolves the answer and
+passes it in (`instantiate(..., cleared=...)`); `agent.pipeline` asks `rule_cleared` once and uses
+it for the warning and for `needs_accountant`, which cannot then disagree.
+
+### ACC-05 Both readers reach the card, and each gets only the answer that is theirs
+The gate on `/дүрэм` moved from `ctx.is_admin` to `ctx.is_accountant`, which is the link role on
+the *active* company. A site admin whose role on his own company is Owner therefore lost the
+command — and with it the global verification VER-08 reserves for exactly that person, which is
+only reachable through it. Both roles read the list and the evidence; the permission is re-checked
+per action, because the two acts on one card belong to two different people.
+
+And the role is resolved against the company the work belongs to, the way `approve.can_approve`
+resolves the right to tap [Батлах] at all. One accountant across several clients is the persona
+ACC-01 is for: acting on client B while client A was active, they were read as not-an-accountant,
+told which person decides, and sent that notice in their own chat. The company an acceptance is
+written for is read back from this chat's own refusal of this rule inside the retry window — the
+same three facts VER-04 already trusts for `blocked_proposal` — and nobody is ever notified about
+a block of their own.
