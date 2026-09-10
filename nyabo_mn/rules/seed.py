@@ -211,6 +211,9 @@ def upsert(
 	doc.update(dict(values))
 	doc.flags.ignore_permissions = True
 	doc.save()
+	# The Nyabo Event saying this rewrite has outrun somebody's acceptance is not written here:
+	# `verify.note_rule_changed_after_save` is on `on_update` for all three guarded DocTypes, so
+	# a hand edit in the ERPNext desk leaves the same record a deploy does (MAJOR 3).
 	return "updated"
 
 

@@ -114,6 +114,28 @@ def test_unverified_pattern_is_refused_with_mongolian_message(run_receipt):
 	assert frappe.db.get_value("Nyabo Proposal", proposal.name, "status") == "proposed"
 
 
+def test_the_companys_own_acceptance_lets_the_same_posting_through(run_receipt):
+	"""ACC-01 against the real ledger: the accountant's acceptance is what `post_proposal` reads.
+
+	The refusal above is the same rule, the same proposal and the same tap; the only thing that
+	changes is a `Nyabo Rule Acceptance` for this company. It has to be enough on its own — the
+	global row stays unverified, so a second client is still refused — and it has to reach the
+	guard through `post_proposal`, which is the call that actually posts.
+	"""
+	from nyabo_mn.rules import verify
+
+	proposal = run_receipt("petrovis_fuel")
+	frappe.db.set_value("Nyabo Posting Pattern", "purchase_expense_vat_payer", "verified", 0)
+	verify.accept(verify.KIND_PATTERN, "purchase_expense_vat_payer", proposal.company, ACCOUNTANT)
+
+	result = post.post_proposal(proposal.name, ACCOUNTANT)
+
+	assert result["posted_doctype"] == "Purchase Invoice"
+	assert frappe.db.get_value("Nyabo Proposal", proposal.name, "status") == "posted"
+	# ...and the row it posted on is still unverified for everybody else on the site.
+	assert frappe.db.get_value("Nyabo Posting Pattern", "purchase_expense_vat_payer", "verified") == 0
+
+
 def test_owner_cannot_approve_when_needs_accountant(run_receipt):
 	proposal = run_receipt("petrovis_fuel")  # new supplier -> needs_accountant
 	with pytest.raises(post.ApprovalError) as info:

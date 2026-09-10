@@ -461,9 +461,13 @@ def quality_card(company: str, days: int, metrics: dict[str, Any]) -> str:
 
 # --- rule verification (/дүрэм, §1.2) ---------------------------------------------------------------
 
+#: ``rules.verify.KIND_LAYOUT``, spelled here so this module does not import the rules package
+#: (the cards are drawn from plain objects and the simulator draws them without a bench).
+LAYOUT_KIND = "b"
+
 
 def pending_rules_card(rules: Any, total: int | None = None) -> str:
-	"""The list an admin sees: what is blocking work, most-used first, and what each rule is for.
+	"""The list the accountant sees: what is blocking work, most-used first, and what each is for.
 
 	``total`` is the number of unverified rules there really are, when the list was cut short:
 	saying "16" and showing eight is honest, showing eight and saying nothing is not.
@@ -500,6 +504,29 @@ def rule_verified_source(verified_by: Any, verified_at: Any = "") -> str:
 	return mn.RULE_VERIFIED_SOURCE_PERSON.format(user=user, when=str(verified_at or "")[:16])
 
 
+def rule_changed_card(change: Any) -> str:
+	"""The two versions of a rule this company has already answered for, side by side.
+
+	It goes above the evidence card whenever an acceptance has been outrun by a deploy. «This
+	rule changed, accept it again» on its own would ask the accountant to take responsibility a
+	second time for a text they cannot see, so both versions are printed: what they answered for
+	and what the row says now (``rules.verify.RuleChange``).
+	"""
+	lines = [
+		mn.CARD_RULE_CHANGED_TITLE,
+		mn.CARD_RULE_CHANGED_WHEN.format(
+			user=str(change.accepted_by or mn.VALUE_UNKNOWN), when=str(change.accepted_at or "")[:16]
+		),
+		*(change.before or (mn.VALUE_UNKNOWN,)),
+		"",
+		mn.CARD_RULE_CHANGED_NOW,
+		*(change.after or (mn.VALUE_UNKNOWN,)),
+		"",
+		mn.CARD_RULE_CHANGED_ASK.format(company=change.company or mn.VALUE_UNKNOWN),
+	]
+	return "\n".join(lines)
+
+
 def rule_card(rule: Any) -> str:
 	"""One rule with its mechanics and its citation — or with the plain statement that it has none.
 
@@ -533,6 +560,7 @@ def rule_card(rule: Any) -> str:
 	lines += _rule_citation(rule)
 	lines += _rule_briefing(rule)
 	lines.append("")
+	company = str(getattr(rule, "company", "") or "")
 	if getattr(rule, "verified", False):
 		# The same evidence, read rather than decided: a verified rule asks nothing, and names
 		# whoever vouched for it. Without this branch the card ended «Баталгаажуулах уу?» on a
@@ -544,6 +572,21 @@ def rule_card(rule: Any) -> str:
 				)
 			)
 		)
+	elif getattr(rule, "accepted", False):
+		# The third provenance, and it is never printed as one of the other two: this company's
+		# accountant applied an uncited rule to their own books (DECISIONS ACC-01).
+		lines.append(
+			mn.CARD_RULE_ACCEPTED_BY.format(
+				company=company or mn.VALUE_UNKNOWN,
+				user=str(getattr(rule, "accepted_by", "") or mn.VALUE_UNKNOWN),
+				when=str(getattr(rule, "accepted_at", "") or "")[:16],
+			)
+		)
+	elif company:
+		# The question the accountant is really being asked: not «is this the law» — that is the
+		# site admin's question — but «do the books I sign work this way», answered for one company.
+		lines.append(mn.CARD_RULE_ACCEPT_RESPONSIBILITY.format(company=company))
+		lines.append(mn.CARD_RULE_ACCEPT_ASK.format(company=company))
 	else:
 		lines.append(mn.CARD_RULE_RESPONSIBILITY)
 		lines.append(mn.CARD_RULE_ASK)
@@ -566,19 +609,27 @@ def _rule_briefing(rule: Any) -> list[str]:
 	a verify button with nothing but «no citation» beside it — while the seed has a sentence
 	naming the other instrument, or saying that the entry is plain double-entry mechanics.
 
-	The body is that sentence verbatim, and the seed writes its notes in English, so the card
-	says so in Mongolian first (VER-10): the admin reading this is a Mongolian bookkeeper, and a
-	paragraph they cannot read must not sit unlabelled under a button they are about to press.
+	The body is that sentence verbatim, in the Mongolian the seed now carries beside the English
+	one and addressed to the accountant who is at the button. Nothing is translated here: this is
+	the most important sentence in the flow, and a rendering-time paraphrase of a legal caveat
+	would be a claim about the law that no reviewer ever saw. A row whose Mongolian block has not
+	been written yet falls back to the English and keeps the line that says what it is and what to
+	do instead — a paragraph the reader cannot read must never sit unlabelled under a button.
 	"""
 	note = getattr(rule, "note", "")
 	if not note:
 		return []
+	in_mongolian = bool(getattr(rule, "note_mn", False))
 	if getattr(rule, "verified", False):
 		# Nothing is being decided on this card, so the heading does not ask what the reader
 		# would be accepting and the note does not tell them not to verify it.
-		heading = [mn.CARD_RULE_BRIEFING_TITLE_VERIFIED, mn.CARD_RULE_BRIEFING_LANGUAGE_VERIFIED]
+		heading = [mn.CARD_RULE_BRIEFING_TITLE_VERIFIED]
+		if not in_mongolian:
+			heading.append(mn.CARD_RULE_BRIEFING_LANGUAGE_VERIFIED)
 	else:
-		heading = [mn.CARD_RULE_BRIEFING_TITLE, mn.CARD_RULE_BRIEFING_LANGUAGE]
+		heading = [mn.CARD_RULE_BRIEFING_TITLE]
+		if not in_mongolian:
+			heading.append(mn.CARD_RULE_BRIEFING_LANGUAGE)
 	lines = ["", *heading, note]
 	if getattr(rule, "note_truncated", False):
 		lines.append(mn.CARD_RULE_NOTE_CUT)
@@ -586,6 +637,10 @@ def _rule_briefing(rule: Any) -> list[str]:
 
 
 def _rule_citation(rule: Any) -> list[str]:
+	if getattr(rule, "kind", "") == LAYOUT_KIND:
+		# A column mapping has no legal source; what it is read against is the accountant's own
+		# statement file. «No citation» would send them looking for a provision that cannot exist.
+		return [mn.CARD_RULE_LAYOUT_SOURCE]
 	if not rule.has_citation:
 		return [mn.CARD_RULE_NO_CITATION]
 	head = (

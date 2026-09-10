@@ -33,8 +33,10 @@ RULE_DOCTYPE = "Nyabo Rule"
 KIND = "bank_line"
 FEE_PATTERN_ID = "bank_fee_expense"
 INCOME_PATTERN_ID = "receivable_collect"
-EXPENSE_PATTERN_ID = "bank_line_expense"  # seed row (Дт 70 / Кт 11 direct), unverified until an admin says so
-TRANSFER_PATTERN_ID = "bank_transfer_internal"  # seed row (Дт 11 / Кт 11), unverified until an admin says so
+EXPENSE_PATTERN_ID = "bank_line_expense"  # seed row (Дт 70 / Кт 11 direct)
+# Seed row (Дт 11 / Кт 11), shipped uncited: the company's accountant accepts it for their own
+# books, or a site admin verifies the global row once a citation turns up (DECISIONS ACC-01).
+TRANSFER_PATTERN_ID = "bank_transfer_internal"
 DEFAULT_SCHEME = "v1"
 MAX_EXPLANATION = 200
 MAX_EXAMPLES = 20
@@ -162,6 +164,25 @@ def pattern_citation(pattern_id: str) -> Citation:
 				quote=cit.get("quote"),
 			)
 	return Citation(instrument="Заавар 116 (2000)", section=None, verified=False)
+
+
+def pattern_cleared(pattern_id: str, company: str | None, citation: Citation) -> bool:
+	"""May ``company`` post on this pattern — the guard's two questions, for a bank line's card.
+
+	``citation.verified`` is the seed's own flag and it is the first question, unchanged. The
+	second is the one the card used not to ask: this company's accountant may have accepted the
+	rule for their own books (DECISIONS ACC-01), and after that the ⚠️ on every statement line
+	built from it is telling them their own signature does not count.
+
+	The acceptance lookup is deliberately not `guard.is_verified`: that would re-read the row's
+	flag from the DocType, and a site whose rows were never synced reads its patterns out of the
+	seed file, where `citation.verified` is the only truth there is.
+	"""
+	if citation.verified:
+		return True
+	from nyabo_mn.rules import guard
+
+	return guard.accepted_for(("Nyabo Posting Pattern", pattern_id), company)
 
 
 def pattern_link(pattern_id: str) -> str | None:
@@ -498,7 +519,7 @@ def propose_for_line(
 			),
 		)
 
-	if not citation.verified:
+	if not pattern_cleared(pattern_id, company, citation):
 		warnings.append(mn.WARN_UNVERIFIED_RULE)
 	entry = ProposedEntry(
 		company=company,
@@ -560,7 +581,7 @@ def propose_transfer(withdrawal_name: str, deposit_name: str, *, document: str |
 	from_account, from_code = _bank_codes(out_bt)
 	to_account, to_code = _bank_codes(in_bt)
 	citation = pattern_citation(TRANSFER_PATTERN_ID)
-	warnings = [mn.WARN_UNVERIFIED_RULE] if not citation.verified else []
+	warnings = [] if pattern_cleared(TRANSFER_PATTERN_ID, company, citation) else [mn.WARN_UNVERIFIED_RULE]
 	entry = ProposedEntry(
 		company=company,
 		posting_date=out_line.date,

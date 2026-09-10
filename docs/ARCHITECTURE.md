@@ -17,10 +17,17 @@ an API that is not listed there or in the Frappe/ERPNext version-16 source you h
    the transaction date, never "today".
 2. **Unverified rules are refused for real postings.** A Tax Parameter, Posting Pattern
    or Bank Layout with `verified = 0` may be used by tests and by the simulator, but
-   `nyabo_mn.rules.guard.require_verified()` raises `UnverifiedRuleError` with a Mongolian
-   message before anything reaches `insert()` on an accounting document. The admin can
-   set `verified = 1` in the desk after checking the primary text (the DocType stores the
-   citation).
+   `nyabo_mn.rules.guard.require_verified(*rules, company=…)` raises `UnverifiedRuleError`
+   with a Mongolian message before anything reaches `insert()` on an accounting document.
+   Three things clear a rule and they are three different claims (DECISIONS VER-07,
+   ACC-01): the seed's own citation (`verified = 1`, `verified_by` empty), a **site**
+   admin's tap (`verified = 1` with a name and a `rule_verified` event, binding every
+   company on the site, VER-08), and an acceptance by the **accountant of one company**
+   (a `Nyabo Rule Acceptance` row and a `rule_accepted_for_company` event, binding that
+   company alone). The accountant is the main user and the person who signs the books, so
+   an uncited rule is theirs to accept for their own client; the guard therefore takes the
+   company it is posting for, and without one only the global flag counts. No screen ever
+   prints one of the three as if it were another.
 3. **The model proposes, deterministic code validates, the accountant disposes.** The LLM
    only ever returns schema-validated fields (extraction, classification) or answers
    questions with read-only tools. It never calls insert/submit/approve. Approval is a
@@ -198,6 +205,7 @@ under `nyabo_mn/nyabo/doctype/` are committed. Roles (fixtures): `Nyabo Admin`,
 | Nyabo Account Alias | `format:{company}:{scheme}:{alias_code}` | `company`, `scheme` (v1/accountant/mof), `alias_code`, `target_code`, `target_account` (Link Account), `note` |
 | Nyabo Bank Layout | `field:layout_id` | `layout_id`, `bank`, `header_signature_json` (JSON list of header cell texts), `column_map_json` (JSON: date/description/debit/credit/amount/balance/reference/currency → column index or header text), `date_formats` (Small Text), `amount_style` (separate_debit_credit/signed_amount), `header_row_hint`, `verified`, `sample_file` (Attach, private), `notes` |
 | Nyabo Event | `NYEV-.######` | append-only audit: `event_type`, `company`, `actor_user`, `actor_telegram_id`, `ref_doctype`, `ref_name`, `reason`, `payload_json`; `on_trash` throws |
+| Nyabo Rule Acceptance | `format:{company}:{rule_kind}:{rule}` | one accountant applying one uncited rule to one company's books (§1.2, DECISIONS ACC-01): `company`, `rule_kind` (p/t/b), `rule`, `rule_doctype`, `rule_label`, `had_citation`, `accepted_by` (Link User), `accepted_telegram_id`, `accepted_at`, `note`. The name is the uniqueness rule; the global rule row is never touched |
 | Nyabo Inventory Intake | `NYI-.#####` | `company`, `source` (excel/text), `file` (Attach), `posting_date`, `status` (draft/confirmed/posted), table `items` (Nyabo Inventory Intake Item: `item_name`, `qty`, `uom`, `rate`, `amount`, `item_code` (Link Item), `warehouse`), `created_docs_json`, `confirmed_by` |
 | Nyabo Reconciliation Note | not needed; use Bank Transaction fields | |
 
@@ -274,16 +282,22 @@ Photo → `Nyabo Document` (sha256 dedup per company → `MSG_DUPLICATE_DOCUMENT
    Journal Entry (`Дт expense (gross) / Кт 2110 or cash`), both with custom fields,
    `submit()`, Nyabo Document status `posted`, reply `MSG_POSTED`.
 7. Confidence < 0.7 on `total`, `date` or `vat_amount`, a QR/vision disagreement, a new
-   supplier, or an unverified rule → `needs_accountant = 1`; an Owner tap on
-   [Батлах] gets `MSG_ACCOUNTANT_ONLY`.
+   supplier, or a rule this company may not post on → `needs_accountant = 1`; an Owner tap
+   on [Батлах] gets `MSG_ACCOUNTANT_ONLY`. When the guard refuses on an unverified rule the
+   accountant reads it and accepts it for their company on the spot, and the [Батлах] that
+   was refused is completed for them (`rule_blocked_posting` is the event that makes that
+   safe); an owner is told which person decides and the company's accountants are notified.
 
 ### 5.4 Bank statement
 
 Document (xlsx/csv) → `Nyabo Document(bank_statement)` → `parsers.excel.read_rows` →
 `core.statements.detect_layout` against `Nyabo Bank Layout` rows. Unknown → the bot
 shows the first three rows and asks the accountant to map columns (buttons per column
-role); the answer is saved as a new Bank Layout with `verified = 0` and a card asks the
-admin to verify. Known → `matching.bank_import.create_bank_transactions` (idempotent on
+role); the answer is saved as a new Bank Layout with `verified = 0` and the accountant who
+read the file is asked to confirm the mapping for their own company (a `Nyabo Rule
+Acceptance` of kind `b`, DECISIONS ACC-02). Confirming re-reads the stored `Nyabo Document`,
+because re-sending the file would meet the sha256 dedup; the site-wide `verified` flag stays
+a site admin's. Known → `matching.bank_import.create_bank_transactions` (idempotent on
 `bank_account + date + amount + reference + row hash`) → `matching.match.run`:
 exact amount + date within 3 days + name similarity ≥ 0.8 → reconcile via ERPNext
 (`Bank Transaction.add_payment_entries` or the reconciliation tool API the stub author

@@ -10,8 +10,9 @@ the reconciliation tool and ``match.run`` can allocate against them.
 An unknown layout is not an error: the summary carries ``status = "unknown_layout"``
 (``unknown_layout = True`` for older readers), the header row, a preview and the generic
 guess so the bot can ask the accountant to map columns. A stored layout that matches but
-is not verified gives ``status = "unverified_layout"`` instead — re-mapping it would only
-create a second unverified row; the admin verifies the one that exists. A statement whose
+is not cleared gives ``status = "unverified_layout"`` instead — re-mapping it would only
+create a second unverified row; the accountant confirms the one that exists for their own
+company (DECISIONS ACC-02), and a site admin may still tick the global row. A statement whose
 bank account is not configured raises ``BankImportError``, whose ``message_mn`` is the
 card text. Contract keys the Telegram layer reads: ``status``, ``company``, ``bank``,
 ``headers``, ``preview``, ``count``, ``new``, ``dup``, ``matched``, ``unmatched``.
@@ -301,8 +302,8 @@ def import_statement(document_name: str, *, run_matching: bool = True) -> dict[s
 	layout, guess = detect_mod.detect(rows, company)
 	summary["guess"] = _layout_dict(guess)
 	if layout is None:
-		# A stored layout whose signature matches but which nobody verified must not restart
-		# the mapping conversation: the admin verifies the row instead (CORE-08, §1.2).
+		# A stored layout whose signature matches but which nothing has cleared must not restart
+		# the mapping conversation: the accountant confirms the row it already has (ACC-02).
 		unverified = detect_mod.unverified_match(rows, company)
 		summary["status"] = "unverified_layout" if unverified is not None else "unknown_layout"
 		summary["unknown_layout"] = True

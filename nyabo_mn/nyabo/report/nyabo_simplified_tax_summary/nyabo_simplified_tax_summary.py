@@ -31,6 +31,18 @@ def columns() -> list[dict[str, Any]]:
 	]
 
 
+def _clearance(row: dict[str, Any]) -> str:
+	"""Which of the three things lets this parameter carry a statutory figure (VER-07).
+
+	The guard refuses an uncleared row before any of this is printed, so «Баталгаажаагүй» here
+	means only one thing outside a simulation: this company's accountant accepted it, and that
+	is a named person on the record rather than nothing at all.
+	"""
+	if row.get("verified"):
+		return mn.LBL_VERIFIED
+	return mn.LBL_ACCEPTED_FOR_COMPANY if row.get("accepted") else mn.LBL_UNVERIFIED
+
+
 def execute(filters: Any = None) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
 	filters = frappe._dict(filters or {})
 	if not (filters.company and filters.to_date):
@@ -44,7 +56,7 @@ def execute(filters: Any = None) -> tuple[list[dict[str, Any]], list[dict[str, A
 		for m in summary["months"]
 	]
 	row = summary["rate_row"]
-	verified = mn.LBL_VERIFIED if row["verified"] else mn.LBL_UNVERIFIED
+	verified = _clearance(row)
 	data.append(
 		{
 			"label": mn.LBL_TOTAL,
@@ -57,7 +69,7 @@ def execute(filters: Any = None) -> tuple[list[dict[str, Any]], list[dict[str, A
 	)
 	# The regime's conditions the figure rests on (CIT art. 29.1 and 29.3.1), and any warning.
 	for condition in summary["eligibility"]["rows"].values():
-		state = mn.LBL_VERIFIED if condition["verified"] else mn.LBL_UNVERIFIED
+		state = _clearance(condition)
 		data.append(
 			{
 				"label": mn.LBL_REGIME_CONDITION,

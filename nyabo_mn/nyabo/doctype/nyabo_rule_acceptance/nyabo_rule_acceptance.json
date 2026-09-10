@@ -1,0 +1,170 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-09-08 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "company",
+  "rule_kind",
+  "rule",
+  "rule_doctype",
+  "rule_label",
+  "had_citation",
+  "rule_fingerprint",
+  "rule_content_json",
+  "sb_acceptance",
+  "accepted_by",
+  "accepted_telegram_id",
+  "accepted_at"
+ ],
+ "fields": [
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Компани",
+   "options": "Company",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "rule_kind",
+   "fieldtype": "Select",
+   "label": "Дүрмийн төрөл",
+   "options": "p\nt\nb",
+   "reqd": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "rule",
+   "fieldtype": "Data",
+   "label": "Дүрмийн код",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "rule_doctype",
+   "fieldtype": "Data",
+   "label": "Дүрмийн бичлэгийн төрөл",
+   "read_only": 1
+  },
+  {
+   "fieldname": "rule_label",
+   "fieldtype": "Data",
+   "label": "Дүрмийн нэр",
+   "read_only": 1
+  },
+  {
+   "fieldname": "had_citation",
+   "fieldtype": "Check",
+   "label": "Ишлэлтэй байсан",
+   "default": "0",
+   "read_only": 1
+  },
+  {
+   "fieldname": "rule_fingerprint",
+   "fieldtype": "Data",
+   "label": "Агуулгын хурууны хээ",
+   "reqd": 1,
+   "read_only": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "rule_content_json",
+   "fieldtype": "JSON",
+   "label": "Хүлээн зөвшөөрсөн агуулга",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sb_acceptance",
+   "fieldtype": "Section Break",
+   "label": "Хүлээн зөвшөөрөлт"
+  },
+  {
+   "fieldname": "accepted_by",
+   "fieldtype": "Link",
+   "label": "Хүлээн зөвшөөрсөн хэрэглэгч",
+   "options": "User",
+   "reqd": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "accepted_telegram_id",
+   "fieldtype": "Data",
+   "label": "Telegram ID",
+   "read_only": 1
+  },
+  {
+   "fieldname": "accepted_at",
+   "fieldtype": "Datetime",
+   "label": "Огноо",
+   "reqd": 1,
+   "read_only": 1,
+   "in_list_view": 1
+  }
+ ],
+ "idx": 0,
+ "index_web_pages_for_search": 0,
+ "istable": 0,
+ "links": [],
+ "modified": "2026-09-08 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Nyabo",
+ "name": "Nyabo Rule Acceptance",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 0,
+   "create": 1,
+   "delete": 1,
+   "submit": 0,
+   "cancel": 0,
+   "amend": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "report": 1,
+   "share": 1
+  },
+  {
+   "role": "Nyabo Admin",
+   "read": 1,
+   "write": 0,
+   "create": 1,
+   "delete": 1,
+   "submit": 0,
+   "cancel": 0,
+   "amend": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "report": 1,
+   "share": 1
+  },
+  {
+   "role": "Nyabo Accountant",
+   "read": 1,
+   "write": 0,
+   "create": 1,
+   "delete": 0,
+   "submit": 0,
+   "cancel": 0,
+   "amend": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "report": 1,
+   "share": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1,
+ "autoname": "format:{company}:{rule_kind}:{rule}:{rule_fingerprint}",
+ "naming_rule": "Expression"
+}

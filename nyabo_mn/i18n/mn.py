@@ -131,7 +131,13 @@ MSG_NO_PERMISSION = "Танд энэ үйлдлийг хийх эрх байхг
 MSG_UNKNOWN_COMMAND = "Ойлгосонгүй. /тусламж гэж бичнэ үү."
 MSG_CHOOSE_COMPANY = "Компаниа сонгоно уу:"
 MSG_ACTIVE_COMPANY = "Идэвхтэй компани: {company}"
-MSG_NO_COMPANY = "Танд холбогдсон компани алга. Админд хандана уу."
+# On an intake path (a photo or a statement arrives before any company is linked). Linking a
+# person to a company really is an admin action — `/link` issues the code — so the sentence
+# names that person and the command they run, instead of «ask an admin» and a dead end.
+MSG_NO_COMPANY = (
+	"Танд холбогдсон компани алга тул баримт бүртгэх боломжгүй. Нябог тохируулсан хүнээс "
+	"«/link нягтлан <компанийн нэр>» командаар холболтын код авч, энд бичнэ үү."
+)
 MSG_PROPOSAL_NOT_FOUND = "Санал олдсонгүй эсвэл аль хэдийн шийдвэрлэгдсэн."
 MSG_PROPOSAL_ALREADY_DECIDED = "Энэ санал аль хэдийн {status} төлөвтэй."
 MSG_PROCESSING_TAKES_LONG = "Боловсруулалт удаж байна, түр хүлээнэ үү…"
@@ -150,7 +156,7 @@ MSG_MENU = (
 	"/бодлого — НББ-ийн бодлогын баримт бичиг\n"
 	"/компани — идэвхтэй компани солих\n"
 	"/эхлэх — компанийн тохиргоо\n"
-	"/дүрэм — баталгаажаагүй дүрэм (админ баталгаажуулна)\n"
+	"/дүрэм — баталгаажаагүй дүрмийг харах, хүлээн зөвшөөрөх\n"
 	"/меню (эсвэл /цэс) — энэ цэс\n"
 	"/цуцлах — эхлүүлсэн ажлыг болих\n"
 	"/тусламж — тусламж\n"
@@ -170,7 +176,7 @@ BOT_COMMAND_DESCRIPTIONS = {
 	"company": "Идэвхтэй компани солих (/компани)",
 	"setup": "Компанийн тохиргоо (/эхлэх)",
 	"cancel": "Эхлүүлсэн ажлыг цуцлах (/цуцлах)",
-	"rules": "Баталгаажаагүй дүрэм (/дүрэм) — админ",
+	"rules": "Баталгаажаагүй дүрэм (/дүрэм)",
 }
 MSG_HELP = (
 	"Нябо хэрхэн ажилладаг вэ?\n"
@@ -185,7 +191,7 @@ MSG_ADMIN_HELP = (
 	"/link <нягтлан|эзэмшигч> <компани> — холболтын код олгох\n"
 	"/whoami — Telegram ID харах\n"
 	"/status — системийн төлөв\n"
-	"/дүрэм (/rules) — баталгаажаагүй дүрмийг харах, баталгаажуулах"
+	"/дүрэм (/rules) — баталгаажаагүй дүрмийг харах, сайтын хэмжээнд баталгаажуулах"
 )
 
 # --- onboarding ------------------------------------------------------------------------
@@ -266,7 +272,7 @@ VERIFICATION_QR_MISSING = "QR олдсонгүй"
 WARN_LOW_CONFIDENCE = "{field} тодорхойгүй ({confidence}%)"
 WARN_QR_VISION_MISMATCH = "QR ба зургийн дүн зөрүүтэй"
 WARN_NEW_SUPPLIER = "Шинэ харилцагч, нягтлан баталгаажуулна"
-WARN_UNVERIFIED_RULE = "Дүрэм баталгаажаагүй (админ шалгана)"
+WARN_UNVERIFIED_RULE = "Дүрэм баталгаажаагүй (нягтлан хүлээн зөвшөөрнө)"
 WARN_SELLER_NOT_VAT_PAYER = "Худалдагч НӨАТ төлөгч бус, НӨАТ суутгахгүй"
 WARN_DATE_IN_CLOSED_PERIOD = "Огноо хаагдсан сард байна"
 WARN_INJECTION_SUSPECTED = "Баримт дээр гадны заавар илэрсэн, үл тоов"
@@ -294,8 +300,35 @@ MSG_STATEMENT_LAYOUT_UNKNOWN = (
 	"Энэ хуулгын форматыг танихгүй байна. Эхний мөрүүд:\n{preview}\nБаганын утгыг зааж өгнө үү."
 )
 MSG_STATEMENT_LAYOUT_ASK_COLUMN = "«{header}» багана юу вэ?"
-MSG_STATEMENT_LAYOUT_SAVED = "Форматыг хадгаллаа ({layout}). Админ баталгаажуулсны дараа автоматаар ашиглана."
-MSG_STATEMENT_LAYOUT_UNVERIFIED = "Энэ банкны формат баталгаажаагүй тул импорт хийхгүй. Админд мэдэгдлээ."
+# The accountant who read the statement and mapped its columns is the person who knows whether
+# the mapping is right, so they confirm it for their own company (DECISIONS ACC-02) — nobody is
+# asked to wait for an admin who never saw the file.
+MSG_STATEMENT_LAYOUT_SAVED = (
+	"Форматыг хадгаллаа ({layout}). Доорх зураглалыг шалгаад баталгаажуулснаар "
+	"энэ банкны хуулга автоматаар уншигдана."
+)
+MSG_STATEMENT_LAYOUT_UNVERIFIED = (
+	"Энэ банкны форматыг өмнө нь зурагласан ч баталгаажуулаагүй тул импорт хийсэнгүй ({layout}). "
+	"Доорх зураглалыг шалгаад баталгаажуулна уу."
+)
+MSG_STATEMENT_LAYOUT_CONFIRM_ASK = (
+	"«{layout}» формат {company}-ийн хуулгыг зөв уншиж байна уу?\n{mapping}\n"
+	"Баталгаажуулбал хэн, хэзээ баталгаажуулсан нь бүртгэгдэнэ."
+)
+# What the confirmation is followed by decides what it may promise. The usual next step is
+# MSG_STATEMENT_LAYOUT_REIMPORTING: the stored file is re-read on the spot. Saying «send the next
+# statement again» sent the accountant to do the one thing the sha256 dedup refuses (§5.3), and
+# left them waiting for a re-import that had already started. So this says only what is now true
+# of the format, and the line after it says what is happening to the file.
+MSG_STATEMENT_LAYOUT_ACCEPTED = (
+	"✅ «{layout}» форматыг баталгаажууллаа. Энэ банкны хуулга үүнээс хойш автоматаар уншигдана."
+)
+MSG_STATEMENT_LAYOUT_ACCEPTED_RESEND = "Энэ хуулгаа дахин илгээнэ үү — одоо уншигдана."
+# The usual case: the file that was refused is already stored, so it is re-read on the spot.
+# Asking for it again would meet the sha256 dedup and be answered «this document is already here».
+MSG_STATEMENT_LAYOUT_REIMPORTING = "Хүлээгдэж байсан хуулгыг дахин уншиж байна…"
+MSG_STATEMENT_LAYOUT_LEFT = "Форматыг баталгаажуулаагүй үлдээлээ; энэ форматаар хуулга уншихгүй."
+MSG_STATEMENT_LAYOUT_ACCOUNTANT_ONLY = "Хуулгын форматыг зөвхөн тухайн компанийн нягтлан баталгаажуулна."
 MSG_STATEMENT_NO_BANK_ACCOUNT = "{bank} банкны данс компанийн тохиргоонд алга. /эхлэх командаар нэмнэ үү."
 COLUMN_ROLES = {
 	"date": "Огноо",
@@ -343,7 +376,8 @@ MSG_CLOSE_BLOCKED = "Хаах боломжгүй: {reason}"
 MSG_PERIOD_NOT_ENDED = "Сар дуусаагүй байна ({end_date} хүртэл)."
 MSG_PERIOD_ALREADY_CLOSED = "Энэ сар аль хэдийн хаагдсан ({name})."
 MSG_PERIOD_UNVERIFIED_RULES = (
-	"Баталгаажаагүй дүрмээр хийсэн бичилт байна; админ дүрмийг баталгаажуулах шаардлагатай."
+	"Баталгаажаагүй дүрмээр хийсэн бичилт байна. /дүрэм командаар тэдгээр дүрмийг үзэж, "
+	"компанидаа хамаарна гэж хүлээн зөвшөөрсний дараа сарыг хаана."
 )
 MSG_PERIOD_REOPENED = "🔓 {period} үеийг дахин нээлээ. Шалтгаан: {reason}"
 MSG_PERIOD_DELETE_BLOCKED = "Нябо-гоор хаасан тайлант үеийг ({name}) устгахгүй; шаардлагатай бол дахин нээнэ."
@@ -400,9 +434,23 @@ MSG_RETAINED_DOCUMENT_DELETE_BLOCKED = (
 )
 MSG_POSTED_DELETE_BLOCKED = "Бүртгэгдсэн баримтыг устгахгүй; залруулгыг буцаалтаар хийнэ (Хууль 15)."
 MSG_EVENT_APPEND_ONLY = "Үйл явдлын бүртгэлийг өөрчлөх, устгах боломжгүй."
+# An acceptance says what one named person read and took responsibility for on one day. Editing
+# it afterwards would put their name against words they never saw, so it is refused — but the row
+# may still be deleted in the desk, which is how an acceptance is withdrawn and what the sentence
+# names, because a refusal that leaves no way to correct a mistake is its own dead end.
+MSG_ACCEPTANCE_APPEND_ONLY = (
+	"Дүрмийн хүлээн зөвшөөрөлтийг өөрчлөх боломжгүй — энэ нь хэн, юуг уншиж хариуцлага "
+	"хүлээснийг тэмдэглэсэн бичлэг. Буруу бол ERPNext дэсктээс тухайн мөрийг устгаж, "
+	"дүрмийг дахин уншаад хүлээн зөвшөөрнө үү."
+)
+# The accountant is the professional who signs these books, so the refusal names what THEY can
+# do now (DECISIONS ACC-01) instead of sending them to wait for an admin. The wording stays true
+# wherever the guard raises — a report, a desk call — because reading the rule and accepting it
+# for one's own company is the step in every one of those places.
 MSG_UNVERIFIED_RULE_BLOCKED = (
 	"Баталгаажаагүй дүрэм ({rule}) ашиглан бодит бичилт хийх боломжгүй. "
-	"Админ эрх зүйн эх сурвалжтай тулгаж «Баталгаажсан» гэж тэмдэглэнэ."
+	"Нягтлан дүрмийн агуулгыг уншиж, өөрийн компанийн бүртгэлд хамаарна гэж "
+	"хүлээн зөвшөөрснөөр бичилт үргэлжилнэ."
 )
 MSG_ENTRY_UNBALANCED = "Бичилт тэнцэхгүй байна: дебет {debit}₮, кредит {credit}₮."
 MSG_ACCOUNT_IS_GROUP = "{account} нь бүлэг данс тул бичилт хийхгүй."
@@ -429,11 +477,24 @@ EVENT_FX_RATES_IMPORTED = "fx_rates_imported"
 # somebody who may not verify hits the refusal, so «the request has been recorded» is true.
 EVENT_RULE_VERIFIED = "rule_verified"
 EVENT_RULE_VERIFY_REQUESTED = "rule_verification_requested"
+# The accountant of one company saying an uncited rule applies to *their* client's books
+# (DECISIONS ACC-01). A different claim from EVENT_RULE_VERIFIED — it never speaks for another
+# company — so it is a different event, and the two are counted apart everywhere they are shown.
+EVENT_RULE_ACCEPTED = "rule_accepted_for_company"
+# Every [Батлах] the guard refused: which rule stopped which document, for whom. It is what lets
+# the accountant's acceptance finish the approval they already asked for, and it is the honest
+# answer to «which rules are actually holding up work».
+EVENT_RULE_BLOCKED = "rule_blocked_posting"
 # A deploy added the repository's citation to a row a *person* had already ticked (VER-06). The
 # row then reads «verified by Ганбат» next to a quote Ганбат never saw, and only this event says
 # so: it is the difference between what the human took responsibility for and what is on the row
 # now. A seeded flag needs no such row — the repository's own history is git.
 EVENT_RULE_CITATION_FILLED = "rule_citation_filled"
+# A deploy rewrote the posting lines of a rule some company's accountant had already accepted.
+# The acceptance was given for content, not for a name, so from that moment it covers nothing —
+# and an invalidation nobody is told about is the same silence as posting on content nobody read.
+# The row names the company, the rule, the person who had accepted it and both fingerprints.
+EVENT_RULE_CHANGED_AFTER_ACCEPTANCE = "rule_changed_after_acceptance"
 MSG_FX_RATES_IMPORTED = "Монголбанкны ханш: {count} мөр импортлолоо ({skipped} давхардсан)."
 MSG_FX_FETCH_DISABLED = "Монголбанкны ханш татах тохиргоо идэвхгүй (MONGOLBANK_FETCH_ENABLED)."
 
@@ -696,6 +757,12 @@ LBL_TAX_PARAMETER_ROW = "Татварын параметр"
 LBL_REGIME_CONDITION = "Горимын нөхцөл"
 LBL_VERIFIED = "Баталгаажсан"
 LBL_UNVERIFIED = "Баталгаажаагүй"
+# The third provenance (DECISIONS ACC-01, VER-07). A report renders only figures the guard let
+# through, so an unverified row on a printed page is one this company's accountant accepted for
+# these books — and «Баталгаажаагүй» beside such a figure tells a tax reviewer the number rests
+# on nothing, when it rests on a named person. It is not «Баталгаажсан» either: that is the
+# site-wide claim about the law, and this one is about these books.
+LBL_ACCEPTED_FOR_COMPANY = "Нягтлан хүлээн зөвшөөрсөн"
 LBL_SIMULATION = "Симуляц (баталгаажаагүй дүрэм)"
 REPORT_PDF_FOOTER = "Нябо · ERPNext. Маягтын эх сурвалж: {source}."
 
@@ -787,9 +854,19 @@ READINESS_DETAIL_OK = "Байна"
 READINESS_DETAIL_MISSING = "Алга: {what}"
 READINESS_DETAIL_COUNT = "{count} мөр"
 # The certification reader must not be able to read "35 rows verified" as 35 human decisions.
+# ...and it must not read an accountant's acceptance as either of the other two: it clears the
+# rule for one company's books, not for the site, and no citation stands behind it (ACC-01).
 READINESS_DETAIL_RULES_VERIFIED = (
 	"{count} мөр: {by_seed} нь Нябогийн эх сурвалжийн ишлэлээр, "
-	"{by_person} нь нэрлэсэн хүний баталгаажуулалтаар"
+	"{by_person} нь нэрлэсэн хүний баталгаажуулалтаар; "
+	"нэмж {accepted} дүрмийг {companies} компанийн нягтлан өөрийн бүртгэлдээ хамааруулсан"
+)
+# Acceptances the rule has since outgrown. They are not added to the number above - they clear
+# nothing and the guard refuses on them - but they are not dropped either: this is the queue of
+# rules an accountant has to look at again, and a page that hid it would hide work.
+READINESS_DETAIL_RULES_ACCEPTANCE_STALE = (
+	"; дүрэм өөрчлөгдсөнөөс хойш хүчингүй болсон {stale} хүлээн зөвшөөрөлт "
+	"нягтлангийн дахин хариултыг хүлээж байна"
 )
 READINESS_DETAIL_ERPNEXT_REPORT = "ERPNext-ийн стандарт тайлан ({report})"
 READINESS_DETAIL_HOOK = "Хук: {handler}"
@@ -887,8 +964,13 @@ TAX_ITEM_ZERO = "Тэг хувийн НӨАТ"
 AGENT_REASON_CODE_NOT_IN_CHART = "Санал болгосон данс төлөвлөгөөнд байхгүй тул үндсэн зардлын дансыг сонгов."
 AGENT_REASON_VAT_NOT_PAYER = "Компани НӨАТ төлөгч бус тул НӨАТ зардалд орно."
 AGENT_REASON_UNAVAILABLE = "Тайлбар боловсруулж чадсангүй; нягтлан шалгана уу."
+# A question that argues with the prompt has no legitimate answer. The refusal used to send the
+# reader to «an accountant or an admin» — the reader *is* the accountant, and no admin can answer
+# a question about these books either. It names the two things that actually work from here, one
+# of which is the button sent with it (``agent.questions``: FollowUp(VERB_MENU, BTN_MENU)).
 AGENT_ANSWER_INJECTION_REFUSED = (
-	"Уучлаарай, энэ асуултад хариулах боломжгүй. Нягтлан эсвэл админд хандана уу."
+	"Уучлаарай, энэ асуултад хариулах боломжгүй. Асуултаа өөрөөр бичиж үзнэ үү, "
+	"эсвэл доорх «Цэс» товчоор өөр үйлдэл сонгоно уу."
 )
 AGENT_ANSWER_TOOL_ERROR = "Дэвтрээс мэдээлэл авахад алдаа гарлаа. Дахин оролдоно уу."
 
@@ -1031,7 +1113,15 @@ MSG_ENTRY_NEGATIVE_AMOUNT = "{account} дансны мөрийн дүн сөрө
 MSG_ACCOUNT_UNKNOWN = "{account} данс дансны төлөвлөгөөнд алга."
 MSG_RULE_MISSING = "«{key}» дүрэм {date} огноонд тодорхойлогдоогүй байна; нягтлан шалгана уу."
 MSG_RULE_PENDING = "«{key}» дүрэм {date} огноонд хараахан баталгаажаагүй (хүлээгдэж буй) тул тооцоолохгүй; нягтлан шалгана уу."
-MSG_RULE_AMBIGUOUS = "«{key}» дүрэм {date} огноонд давхардсан байна; админ шалгана уу."
+# Two rows of one tax parameter in force on the same day is a site-wide data fault, not a
+# reading the accountant can accept for their own company: whichever row wins would win for
+# every client. So this is one of the few places an admin genuinely is needed, and it says
+# which one and what they have to do.
+MSG_RULE_AMBIGUOUS = (
+	"«{key}» дүрэм {date} огноонд хоёр мөрөөр давхардсан байна. Энэ нь сайт даяарх өгөгдлийн "
+	"алдаа тул нэг компанийн хэмжээнд засах боломжгүй. Нябог тохируулсан хүнд хандаж, ERPNext "
+	"дэск дэх «Nyabo Tax Parameter» бичлэгүүдийн хүчинтэй хугацааг залруулуулна уу."
+)
 MSG_REGIME_MISSING = (
 	"{date} огноонд компанийн татварын горим тохируулаагүй байна. /эхлэх командаар тохируулна уу."
 )
@@ -1125,8 +1215,12 @@ MSG_BANK_SETTLE_OVER_ALLOCATION = (
 	"Гүйлгээний дүн {amount}₮ нь {name} нэхэмжлэхийн үлдэгдэл {outstanding}₮-оос их байна. "
 	"Өөр баримт сонгох эсвэл нягтлан гараар хуваан бүртгэнэ үү."
 )
+# A genuinely administrative gap, and a rare one: TG-05 grants the ERPNext roles at link
+# time, so this only reaches somebody linked before that existed. Re-linking is the fix they
+# can ask for, and it names who can give it.
 MSG_BANK_SETTLE_ERPNEXT_PERMISSION = (
-	"Төлбөрийн баримт үүсгэх ERPNext эрх (Accounts User) байхгүй байна. Админд хандана уу."
+	"Төлбөрийн баримт үүсгэх ERPNext эрх (Accounts User) таны хэрэглэгчид олгогдоогүй байна. "
+	"Нябог тохируулсан хүнээс шинэ холболтын код авч дахин холбогдоно уу; эрх автоматаар олгогдоно."
 )
 MSG_BANK_SETTLE_WRONG_DIRECTION = (
 	"Зарлагын гүйлгээгээр зөвхөн худалдан авалтын нэхэмжлэх, орлогын гүйлгээгээр зөвхөн "
@@ -1139,8 +1233,11 @@ MSG_BANK_SETTLE_CURRENCY_MISMATCH = (
 MSG_BANK_SETTLE_ALREADY_PROPOSED = (
 	"Энэ гүйлгээнд аль хэдийн бичилтийн санал ({proposal}) байна; банкны данс дахин кредитлэгдэхгүй."
 )
+# The accountant configures the bank accounts themselves in `/эхлэх`, so the step is named
+# rather than handed to somebody else.
 MSG_BANK_SETTLE_NO_BANK_ACCOUNT = (
-	"Энэ гүйлгээний банкны дансанд ерөнхий дэвтрийн данс тохируулаагүй байна. Админд хандана уу."
+	"Энэ гүйлгээний банкны дансанд ерөнхий дэвтрийн данс тохируулаагүй байна. "
+	"/эхлэх командаар банкны дансаа тохируулаад дахин оролдоно уу."
 )
 MSG_BANK_SETTLE_REVERSED = "{doctype} {name} буцаагдсан/залруулагдсан тул төлбөр бүртгэх боломжгүй."
 MSG_BANK_SETTLED = "💸 Төлбөр бүртгэлээ: {payment} · {voucher}"
@@ -1259,7 +1356,17 @@ MSG_STATUS_CONFIG_OK = "бүрэн"
 MSG_STATUS_CONFIG_MISSING = "дутуу: {keys}"
 MSG_ACCOUNT_SEARCH_RESULTS = "Олдсон данс:"
 MSG_REJECT_TEXT_ASK = "Татгалзсан шалтгаанаа нэг өгүүлбэрээр бичнэ үү:"
-MSG_ONBOARDING_APPLY_PENDING = "Хариултуудыг хадгаллаа; дансны бүртгэлийг админ дуусгасны дараа мэдэгдэнэ."
+# The setup module is not installed on this site, so the answers were stored and the chart, the
+# tax templates and the bank accounts were not created. Nothing on that branch notifies anybody
+# — it writes a log line and returns — so this promises no notice and names nobody to wait for:
+# it says what was saved, what did not happen, and the command that runs it again (UX-13, ACC-01).
+# What happened and what to do, in that order. It used to argue with a belief the accountant may
+# never have held («this does not mean someone is waiting to finish your setup»), which both
+# raises the idea and leaves the two facts they need buried behind it.
+MSG_ONBOARDING_APPLY_PENDING = (
+	"Хариултуудыг хадгаллаа. Гэхдээ дансны бүртгэлийг үүсгэж чадсангүй: Нябогийн суулгац дутуу "
+	"байна. Алдааг бүртгэлээ. Тохиргоо бэлэн болмогц «/эхлэх дахин» гэж бичээд үргэлжлүүлнэ үү."
+)
 MSG_ONBOARDING_ALREADY_DONE = "Тохиргоо аль хэдийн хийгдсэн. Дахин хийх бол «/эхлэх дахин» гэж бичнэ үү."
 MSG_ONBOARDING_INVENTORY_NEED_FILE = "Excel/CSV файл эсвэл мөр бүрт `нэр, тоо, үнэ` гэсэн текст илгээнэ үү."
 ONB_SUMMARY_INVENTORY_NONE = "байхгүй"
@@ -1280,7 +1387,13 @@ CARD_BANK_CANDIDATE = "{index}. {voucher} · {date} · {amount}₮ · {party}"
 MSG_BANK_EXPENSE_CHOOSE_ACCOUNT = "Энэ гүйлгээг аль дансанд бүртгэх вэ?"
 MSG_BANK_TRANSACTION_NOT_FOUND = "Банкны гүйлгээ олдсонгүй: {name}"
 MSG_STATEMENT_LAYOUT_DONE = "Баганын тохиргоо: {mapping}"
-MSG_STATEMENT_ADMIN_VERIFY = "🆕 Шинэ банкны формат хадгалагдлаа: {layout}. Баталгаажуулна уу."
+# Nothing waits on this notice any more: the accountant who mapped the columns confirms them for
+# their own company. It exists so a site admin can still see a new format appear and, if they want
+# it used by every client on the site, tick the global row in the desk.
+MSG_STATEMENT_ADMIN_VERIFY = (
+	"🆕 {company}: шинэ банкны формат хадгалагдлаа ({layout}). Нягтлан өөрийн компанидаа "
+	"баталгаажуулна; сайт даяар ашиглах бол ERPNext дэсктээс «Баталгаажсан» гэж тэмдэглэнэ."
+)
 MSG_CLOSE_PDF_CAPTION = "{title} · {period}"
 MSG_CLOSE_CANCELLED = "Сарын хаалтыг цуцаллаа."
 MSG_POSTED_CARD_FOOTER = "✅ Бүртгэлээ: {doc_name} · Баталсан: {approver}"
@@ -1292,16 +1405,25 @@ MSG_CORRECTION_STARTED = "Залруулга: {doctype} {name}"
 # These are the door that promise points at: the list of what is blocking work, the evidence
 # behind one rule, and the two answers an admin may give it.
 BTN_RULE_LEAVE = "Одоохондоо үлдээх"
+BTN_RULE_ACCEPT = "Манай компанид хамаарна"
+# The site admin's button on the same card. «Баталгаажуулах» alone beside the accountant's
+# button would read as the same act one notch stronger; it is a different act — it speaks for
+# every company on the site (VER-08) — so the word says so.
+BTN_RULE_VERIFY_SITE = "Сайт даяар баталгаажуулах"
 BTN_RULE_ROW = "{index}. {label}"
 MSG_RULES_TITLE = "📋 Баталгаажаагүй дүрэм: {count}"
 MSG_RULES_INTRO = (
-	"Эдгээр дүрмээр бодит бичилт хийгдэхгүй. Дүрэм бүрийг эх сурвалжтай нь тулгаж баталгаажуулна уу."
+	"Эдгээр дүрмээр бодит бичилт хийгдэхгүй. Дүрэм бүрийг уншиж, өөрийн компанийн "
+	"бүртгэлд хамаарах эсэхийг шийднэ үү."
 )
 MSG_RULES_MORE = "…бас {count} дүрэм байна; бүгдийг ERPNext дэсктээс харна."
 MSG_RULES_NONE = "✅ Баталгаажаагүй дүрэм алга байна."
-MSG_RULES_ADMIN_ONLY = (
-	"Дүрмийг зөвхөн Нябо админ баталгаажуулна. Танай Нябо админд хандана уу — "
-	"баталгаажаагүй дүрмээс болж бичилт зогсвол админд мэдэгдэл автоматаар очно."
+# `/дүрэм` is the accountant's command now (DECISIONS ACC-01): they are the person the refusal
+# stops, and they are the person who decides whether an uncited rule applies to the books they
+# sign. An owner may not — the tap is a professional judgement, not an approval of one document.
+MSG_RULES_ACCOUNTANT_ONLY = (
+	"Дүрмийг тухайн компанийн нягтлан хүлээн зөвшөөрнө. Танай нягтлан /дүрэм командаар "
+	"дүрмийг үзэж, хамаарах эсэхийг шийднэ."
 )
 # Keyed by ``rules.verify`` kinds ("p", "t"), which are also what the callback datum carries.
 # A posting pattern and a tax parameter are one row for the whole site, so verifying one is a
@@ -1312,7 +1434,7 @@ MSG_RULES_SITE_ADMIN_ONLY = (
 	"админ биш, зөвхөн сайтын админ баталгаажуулна. Сайтын админд хандана уу — "
 	"баталгаажаагүй дүрмээс болж бичилт зогсвол түүнд мэдэгдэл очно."
 )
-RULE_KIND_LABELS = {"p": "бичилтийн загвар", "t": "татварын үзүүлэлт"}
+RULE_KIND_LABELS = {"p": "бичилтийн загвар", "t": "татварын үзүүлэлт", "b": "хуулгын формат"}
 # Keyed in ``rules.verify`` (F-12: the regime name itself is spelled only in rules/regime.py).
 RULE_VAT_SCOPE_ANY = "бүх горим"
 RULE_VAT_SCOPE_VAT_PAYER = "НӨАТ төлөгч"
@@ -1326,6 +1448,7 @@ RULE_STATUS_LABELS = {"active": "хүчинтэй", "pending": "хүлээгдэ
 # half that is cut off.
 RULE_PURPOSE_PATTERN = "{document} · {scope}"
 RULE_PURPOSE_PARAMETER = "{status} · {source}"
+RULE_PURPOSE_LAYOUT = "{bank} · {columns} багана"
 CARD_RULE_ROW = "{index}. {label}\n     {purpose}"
 CARD_RULE_ROW_USES = "{index}. {label}\n     {purpose} · {uses} удаа хэрэглэсэн"
 CARD_RULE_TITLE = "📜 {label}"
@@ -1333,7 +1456,7 @@ CARD_RULE_CODE = "Код: {rule} · {kind}"
 # Keyed by ``rules.verify`` kinds, like RULE_KIND_LABELS: the line under the title says what a
 # pattern is *for* (a document and a regime), and what state a parameter is *in* — calling a law
 # title and «хүлээгдэж буй» a «хамрах хүрээ» told the reader the wrong thing about both.
-CARD_RULE_PURPOSE_LABELS = {"p": "Хамрах хүрээ: {purpose}", "t": "Төлөв: {purpose}"}
+CARD_RULE_PURPOSE_LABELS = {"p": "Хамрах хүрээ: {purpose}", "t": "Төлөв: {purpose}", "b": "Банк: {purpose}"}
 CARD_RULE_PURPOSE = CARD_RULE_PURPOSE_LABELS["p"]
 CARD_RULE_USES = "Энэ дүрмээр {uses} санал үүссэн."
 CARD_RULE_ENTRY_TITLE = "Бичилт:"
@@ -1361,22 +1484,37 @@ CARD_RULE_QUOTE_CUT_NOTE = (
 )
 CARD_RULE_SOURCE_URL = "🔗 {url}"
 # The seed's own briefing for whoever is at the verify button (DECISIONS CORE-18, CORE-19).
-# Only the heading is translated: the body is the seed note verbatim, and the seed writes its
-# notes in English for the repository's readers. Paraphrasing it here would put a second,
-# unreviewed wording of a legal caveat in front of the person taking responsibility for it.
+# The body is the seed note verbatim - the Mongolian paragraph the seed now carries beside the
+# English one, written for the accountant who is actually at the button and reviewed with the
+# rest of the note. Nothing is paraphrased at render time: a second, unreviewed wording of a
+# legal caveat would be a new claim about the law in front of the person taking responsibility
+# for it, which is what DECISIONS VER-10 refused and why the translation lives in the seed.
 CARD_RULE_BRIEFING_TITLE = "📝 Баталгаажуулбал юуг хүлээн зөвшөөрөх вэ:"
-# ...and the card says so, in Mongolian, before the English begins (DECISIONS VER-10). Everything
-# else on this card is Mongolian; a reader who meets a paragraph they cannot read on the screen
-# where they take responsibility either taps blindly or gives up, and both are worse than being
-# told plainly what the paragraph is and what to do instead.
+# The headings the seed's Mongolian briefing is built from. They are read (rules.verify._briefing
+# finds where the paragraph for the accountant begins) and printed (they are the first words of
+# it), which is why the wording lives here with the rest of what the card says rather than beside
+# the code that looks for it. The English ones stay in rules.verify: they are markers in the
+# repository's own record and no accountant ever sees them.
+RULE_BRIEFING_MARKERS_MN: tuple[str, ...] = (
+	"ӨДӨР ТУТМЫН ХЭРЭГЛЭЭ:",
+	"ЭНЭ ИШЛЭЛИЙН ХАМРАХ ХҮРЭЭ:",
+	"НЯГТЛАН ЮУГ ХАРИУЦАХ ВЭ:",
+	"ЮУ БОЛВОЛ ЭНЭ ДҮРЭМ НЭЭГДЭХ ВЭ:",
+	"ТЭМДЭГЛЭВЭЛ ЮУ БУРУУ БОЛОХ ВЭ:",
+)
+# The fallback for a row whose Mongolian block has not been written yet - a rule added by hand in
+# the desk, or a citation pass that got as far as the English. Everything else on this card is
+# Mongolian; a reader who meets a paragraph they cannot read on the screen where they take
+# responsibility either taps blindly or gives up, and both are worse than being told plainly what
+# the paragraph is and what to do instead.
 CARD_RULE_BRIEFING_LANGUAGE = (
 	"(Тайлбарыг эх сурвалж судалсан хүн англиар бичсэн. Орчуулбал хуулийн агуулга гуйвах "
 	"эрсдэлтэй тул хэвээр нь тавив. Уншиж ойлгохгүй бол битгий баталгаажуулаарай — "
 	"ERPNext дэск дэх дүрмийн бичлэгээс, эсвэл эх сурвалжийг нь мэддэг хүнээр шалгуулна уу.)"
 )
 # The same two lines on a rule that is already verified, where nothing is being decided: the
-# heading no longer asks what the reader would be accepting, and the note drops the «do not
-# verify» advice, which would be an instruction about a decision that has already been taken.
+# heading no longer asks what the reader would be accepting, and the language fallback drops the
+# «do not verify» advice, which would be an instruction about a decision already taken.
 CARD_RULE_BRIEFING_TITLE_VERIFIED = "📝 Энэ дүрмийн тайлбар, ишлэлийн хамрах хүрээ:"
 CARD_RULE_BRIEFING_LANGUAGE_VERIFIED = (
 	"(Тайлбарыг эх сурвалж судалсан хүн англиар бичсэн; орчуулбал хуулийн агуулга гуйвах "
@@ -1384,11 +1522,47 @@ CARD_RULE_BRIEFING_LANGUAGE_VERIFIED = (
 )
 CARD_RULE_NOTE_CUT = "✂️ Тайлбар бүтэн багтсангүй; бүрэн эхийг ERPNext дэск дэх дүрмийн бичлэгээс уншина уу."
 CARD_RULE_NO_CITATION = (
-	"⚠️ Хуулийн тодорхой заалт, ишлэл энэ дүрэмд алга. Баталгаажуулна гэдэг нь дээрх агуулгыг "
+	"⚠️ Хуулийн тодорхой заалт, ишлэл энэ дүрэмд алга. Хүлээн зөвшөөрнө гэдэг нь дээрх агуулгыг "
 	"эх сурвалжтай нь өөрөө тулгаж, хариуцлагыг нь хүлээж байгаа хэрэг."
+)
+# A bank layout has no legal source and never will: what it is read against is the spreadsheet
+# the accountant uploaded. Printing «no citation» there would ask them to look for a provision
+# that does not exist for a column mapping.
+CARD_RULE_LAYOUT_SOURCE = (
+	"📄 Энэ бол таны илгээсэн хуулгаас сурсан баганын зураглал; эрх зүйн эх сурвалж байхгүй."
 )
 CARD_RULE_RESPONSIBILITY = "Баталгаажуулсан хүн, огноо бүртгэгдэж, аудитын мөр үлдэнэ."
 CARD_RULE_ASK = "Баталгаажуулах уу?"
+# The accountant's own question (DECISIONS ACC-01): not «is this the law», which is the site
+# admin's question, but «do these books work this way» — and the answer binds this company only.
+CARD_RULE_ACCEPT_RESPONSIBILITY = (
+	"Хүлээн зөвшөөрвөл зөвхөн {company}-д хамаарна; бусад компанид хамаарахгүй. "
+	"Хэн, хэзээ хүлээн зөвшөөрсөн нь бүртгэгдэж, аудитын мөр үлдэнэ."
+)
+CARD_RULE_ACCEPT_ASK = "Энэ дүрэм {company}-ийн бүртгэлд хамаарах уу?"
+# The rule was rewritten after this company accepted it, so the acceptance covers nothing any
+# more. The accountant is not told «it stopped working»: they are shown the two versions side by
+# side, because what they answered for is the content and the content is what changed.
+CARD_RULE_CHANGED_TITLE = "⚠️ Дүрмийн бичилт өөрчлөгдсөн"
+CARD_RULE_CHANGED_WHEN = "Хүлээн зөвшөөрсөн хувилбар ({user} · {when}):"
+CARD_RULE_CHANGED_NOW = "Одоогийн хувилбар:"
+# The scope belongs on that card beside the debit and credit: it decides which documents reach
+# those lines, so changing it changes what the company posts even when the lines do not move —
+# and it is the one change a card of lines alone would print identically twice.
+CARD_RULE_CHANGED_SCOPE = "Хамрах хүрээ: {scope} · {documents}"
+# The same idea for a bank layout: the columns are not the whole of it. The date formats decide
+# which rows are read at all, the amount style how a figure becomes a debit or a credit, and the
+# header signature which file this layout claims. Without this line a change to any of them
+# printed the identical column list twice.
+CARD_RULE_CHANGED_LAYOUT_READING = (
+	"Уншилтын тохиргоо: огнооны хэлбэр {dates} · дүнгийн хэлбэр {amount_style} · "
+	"толгой мөр {header_row} · валют {currency} · толгойн таних багана {signature}"
+)
+CARD_RULE_CHANGED_ASK = (
+	"Хуучин хүлээн зөвшөөрөлт шинэ агуулгад хамаарахгүй тул {company}-д энэ дүрмээр "
+	"бичилт хийхгүй. Шинэ хувилбарыг уншаад дахин хүлээн зөвшөөрнө үү."
+)
+CARD_RULE_ACCEPTED_BY = "✅ {company}-д хамаарна гэж хүлээн зөвшөөрсөн: {user} · {when}"
 # The same card for a rule that is already verified: it asks nothing, and it says who vouched
 # for it (cards.rule_verified_source) — the seed's citation and a person's tap are not the same
 # claim (VER-07). This is the only place in the chat where a verified rule can be read at all.
@@ -1419,38 +1593,76 @@ MSG_RULE_VERIFIED_FOR_REQUESTER = (
 	"✅ «{rule}» дүрэм баталгаажлаа. Энэ дүрмээс болж зогссон баримтынхаа карт дээрх «Батлах» "
 	"товчийг дахин дарна уу; зургийг дахин илгээх шаардлагагүй."
 )
+# The same news after an *acceptance*, which clears the rule for one company only — so the
+# sentence names that company instead of claiming the rule is now good everywhere.
+MSG_RULE_ACCEPTED_FOR_REQUESTER = (
+	"✅ «{rule}» дүрмийг {company}-д хамаарна гэж хүлээн зөвшөөрлөө. Энэ дүрмээс болж зогссон "
+	"баримтынхаа карт дээрх «Батлах» товчийг дахин дарна уу; баримтаа дахин илгээх шаардлагагүй."
+)
 MSG_RULE_LEFT = "Дүрмийг баталгаажуулаагүй үлдээлээ; энэ дүрмээр бичилт хийгдэхгүй хэвээр."
 MSG_RULE_VERIFY_IN_DESK = (
 	"Энэ дүрмийн кодыг товчинд багтаах боломжгүй тул ERPNext дэсктээс баталгаажуулна уу: {rule}"
 )
-# The refusal the accountant already sees (MSG_UNVERIFIED_RULE_BLOCKED) plus the way out, which
-# is different for the two readers: an admin gets the rule card and the buttons, everyone else
-# gets a promise that is actually kept by notify_admins.
-MSG_UNVERIFIED_RULE_ADMIN_CAN_VERIFY = "Та админ эрхтэй тул энэ дүрмийг эндээс баталгаажуулж болно."
-MSG_UNVERIFIED_RULE_ADMIN_ASKED = (
-	"Энэ дүрмийг Нябо админ баталгаажуулна. Хүсэлтийг бүртгэж, админд мэдэгдэл илгээлээ. "
-	"Баталгаажсаны дараа энэ картын «Батлах» товчийг дахин дарахад бичилт хийгдэнэ."
+# --- the refusal, answered where the reader already is ------------------------------------------
+# MSG_UNVERIFIED_RULE_BLOCKED plus the way out, which differs by who is reading it. The
+# accountant — the main user, and the person whose signature the entry carries — decides it here
+# and now; a site admin may still verify the global row; an owner is told which person decides.
+MSG_UNVERIFIED_RULE_ACCOUNTANT_CAN_ACCEPT = (
+	"Та {company}-ийн нягтлан тул дүрмийг уншаад эндээс хүлээн зөвшөөрч болно. "
+	"Хүлээн зөвшөөрмөгц зогссон бичилт үргэлжилнэ; баримтаа дахин илгээх шаардлагагүй."
 )
-# When there is nobody to notify at all — no ADMIN_TELEGRAM_IDS and no Admin linked to this
-# company — the accountant must not be told a message was sent. They are a bookkeeper, so the
-# next step is named for them: the request is on record, and who to go to.
-MSG_UNVERIFIED_RULE_NO_ADMIN = (
-	"Энэ дүрмийг баталгаажуулах админ Нябод бүртгэгдээгүй байна. Хүсэлтийг бүртгэлээ, гэхдээ "
-	"мэдэгдэл очих хүн алга. Нябог тохируулсан хүнд хандаж, «{rule}» дүрмийг ERPNext дэсктээс "
-	"баталгаажуулах, эсвэл админаа Нябод холбуулна уу. Тэгсний дараа энэ картын «Батлах» "
-	"товчийг дахин дарахад бичилт хийгдэнэ."
+MSG_UNVERIFIED_RULE_ADMIN_CAN_VERIFY = "Та сайтын админ тул энэ дүрмийг сайт даяар баталгаажуулж бас болно."
+MSG_RULE_ACCEPTED = (
+	"✅ «{rule}» дүрмийг {company}-д хамаарна гэж бүртгэлээ.\nХүлээн зөвшөөрсөн: {user} · {when}"
+)
+MSG_RULE_ALREADY_ACCEPTED = (
+	"Энэ дүрмийг {company}-д аль хэдийн хүлээн зөвшөөрсөн байна: {rule}\nХүлээн зөвшөөрсөн: {user} · {when}"
+)
+MSG_RULE_ACCEPTED_RETRY = (
+	"Энэ дүрмээр бичилт хийх боломжтой боллоо. Хүлээж байсан баримтын карт дээрх «Батлах» "
+	"товчийг дахин дарна уу; баримтаа дахин илгээх шаардлагагүй."
+)
+# The continuation: the accountant's own [Батлах] tap was refused minutes ago on this very
+# proposal, and the acceptance removed the only thing standing between it and the ledger, so
+# Nyabo finishes what they asked for instead of asking them to press the same button twice.
+MSG_RULE_ACCEPTED_POSTING = "Хүлээгдэж байсан бичилтийг үргэлжлүүлж байна…"
+MSG_RULE_ACCEPT_FAILED = (
+	"«{rule}» дүрмийг хүлээн зөвшөөрөх үед алдаа гарлаа. Дүрэм хүлээн зөвшөөрөгдөөгүй хэвээр байна. "
+	"Дахин оролдоод, давтагдвал Нябог тохируулсан хүнд хандана уу."
+)
+MSG_RULE_ACCEPT_NO_COMPANY = (
+	"Идэвхтэй компани сонгогдоогүй байна. Дүрэм компани тус бүрээр хүлээн зөвшөөрөгддөг тул "
+	"/компани командаар компаниа сонгоод дахин оролдоно уу."
+)
+# The card named a client, and the tap can no longer tie that client to this reader: they were
+# unlinked from it, or the datum came from elsewhere. The acceptance is a record with their name
+# on it, so it is refused rather than written for whichever company happens to be active — the
+# card asked about one client and the record must not name another. The way back is one tap.
+MSG_RULE_ACCEPT_COMPANY_UNKNOWN = (
+	"Энэ карт аль үйлчлүүлэгчийн талаар асууж байсныг одоо тогтоох боломжгүй байна, "
+	"тиймээс хүлээн зөвшөөрөхгүйгээр орхилоо. /дүрэм командаар жагсаалтаа дахин нээж, "
+	"тухайн компанийхаа дүрмийг сонгоно уу."
+)
+# An owner tapping [Батлах] under an auto-approve policy: the rule is a professional judgement,
+# so it is not theirs. The sentence names the person who decides, not a role nobody can find.
+MSG_UNVERIFIED_RULE_ACCOUNTANT_ASKED = (
+	"Энэ дүрмийг танай компанийн нягтлан хүлээн зөвшөөрнө. Хүсэлтийг бүртгэж, нягтланд "
+	"мэдэгдэл илгээлээ. Дараа нь энэ картын «Батлах» товчийг дахин дарахад бичилт хийгдэнэ."
+)
+# ...and when there is nobody to tell, the promise is not made. The request is on record either
+# way, and the next step is named for the person reading it.
+MSG_UNVERIFIED_RULE_NO_ACCOUNTANT = (
+	"«{rule}» дүрмийг хүлээн зөвшөөрөх нягтлан Нябод холбогдоогүй байна. Хүсэлтийг бүртгэлээ, "
+	"гэхдээ мэдэгдэл очих хүн алга. Нягтлангаа Нябод холбуулсны дараа тэр /дүрэм командаар "
+	"дүрмийг хүлээн зөвшөөрнө; тэгсний дараа энэ картын «Батлах» товчийг дахин дарна уу."
+)
+MSG_ACCOUNTANT_RULE_ACCEPT_REQUEST = (
+	"🔒 {company}: «{rule}» дүрэм баталгаажаагүй тул бичилт зогслоо. /дүрэм командаар дүрмийг "
+	"үзэж, компанидаа хамаарах эсэхийг шийднэ үү."
 )
 MSG_ADMIN_RULE_VERIFY_REQUEST = (
-	"🔒 {company}: «{rule}» дүрэм баталгаажаагүй тул бичилт зогслоо. /дүрэм командаар баталгаажуулна уу."
-)
-# The same news for the other kind of admin. A rule row belongs to the whole site, so an admin
-# linked to one company may read the evidence but not tick it (VER-08) — telling them to verify
-# it with /дүрэм would send them to a card that refuses them. They are still worth telling: they
-# are admins of these books and can clear the row in the ERPNext desk.
-MSG_ADMIN_RULE_VERIFY_REQUEST_COMPANY = (
-	"🔒 {company}: «{rule}» дүрэм баталгаажаагүй тул бичилт зогслоо. Энэ дүрэм сайт дээрх бүх "
-	"компанид хамаарах тул чатнаас сайтын админ баталгаажуулна; та /дүрэм командаар нотлох "
-	"баримтыг нь харах, эсвэл ERPNext дэсктээс өөрөө баталгаажуулах боломжтой."
+	"🔒 {company}: «{rule}» дүрэм баталгаажаагүй тул бичилт зогслоо. Тухайн компанийн нягтлан "
+	"өөрөө хүлээн зөвшөөрч болно; сайт даяар хүчинтэй ишлэл олдвол /дүрэм командаар баталгаажуулна уу."
 )
 
 # --- evals + simulator (nyabo_mn.evals, nyabo_mn.simulator) -----------------------------------------

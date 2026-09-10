@@ -985,12 +985,27 @@ verifying them means vouching for the mechanics printed above it. The debit and 
 always shown, because for a rule with no citation they are the entire evidence.
 
 ### VER-03 The callback datum carries the action before the rule
-`v:<action>:<kind>:<rule…>`. Everywhere else in `keyboards` the action comes last, but a Nyabo
-Tax Parameter is named `key:effective_from` — the separator is inside the name — so with the
-action last, `v:t:si.employer_rate:2027-01-01:ok` could not be told from a rule whose name ends
-in `:ok`. With it first the rule is "everything after the kind" and `rule_from_parts` puts it
-back exactly. The longest seeded names fit in 46 and 56 of the 64 bytes; a longer one drops the
-button and logs, never the card (`settle_row`'s trade), and the admin is pointed at the desk.
+`v:<action>:<kind>:<company?>:<rule…>`. Everywhere else in `keyboards` the action comes last, but
+a Nyabo Tax Parameter is named `key:effective_from` — the separator is inside the name — so with
+the action last, `v:t:si.employer_rate:2027-01-01:ok` could not be told from a rule whose name
+ends in `:ok`. With it first the rule is "everything after the company slot" and `rule_from_parts`
+puts it back exactly. The longest seeded names fit in 53 and 63 of the 64 bytes; a longer one
+drops the button and logs, never the card (`settle_row`'s trade), and the reader is pointed at
+the desk.
+
+*The company slot.* It holds a six-hex digest of the company the card was drawn for, empty when
+the card is about no particular company. A company **name** does not fit beside a rule name and a
+name in a datum would be a name an attacker chooses, so the digest is never read as one: it can
+only *select* among the companies the tapper is themselves linked to and keeps the books of
+(`handlers.admin._card_company`), resolved from their own link rows on the tap. A digest that
+selects none of them is refused rather than fallen back from.
+
+*Why the card has to carry it at all.* An acceptance is a compliance record with a person's name
+on it, so it must name the company the **card** asked about. Resolving that on the tap from this
+chat's recent refusals worked only inside `REQUEST_DEDUPE_MINUTES` while the button stayed live
+for ever: an accountant stopped on client B who came back twenty minutes later got a record
+saying client A, whichever was active. The card asked about B and the record said A. `/дүрэм`
+stamps the company its list was drawn for on every row for the same reason, one step earlier.
 
 ### VER-04 A blocked proposal is retried by tapping [Батлах] again, not re-sent
 When `post_proposal` raises `UnverifiedRuleError`, `approve.refuse_unverified_rule` puts the
@@ -1165,3 +1180,224 @@ in the ERPNext desk, and somebody who knows the source. «Do not verify it» is 
 the paragraph cannot be read, which is the safe answer: an unverified rule refuses postings, and
 a wrongly verified one does not. Reverse this when the notes themselves are translated and
 re-reviewed in Mongolian — at which point the line is untrue and must go.
+
+**Reversed, as that paragraph said to.** ACC-01 moved the decision to the accountant, and the
+body then read «WHAT AN ADMIN WOULD BE VOUCHING FOR if they tick it», in English, naming a person
+who no longer takes it — the single most important sentence in the flow, in the wrong language and
+about the wrong reader. The condition VER-10 set is met the only way it could be: the Mongolian is
+**in the seed**, appended to each note after the English one, so it was written and reviewed with
+the rest of the note and there is one text rather than a rendering-time paraphrase of another. The
+English half stays where it was — `docs/legal` quotes it verbatim, `tests/unit/test_seed_citations.py`
+pins it, and it is what a later reader checks the Mongolian against — but only the Mongolian reaches
+the card (`rules.verify.BRIEFING_MARKERS_MN`, whose wording lives in `i18n.mn` like every other
+string a user reads). `CARD_RULE_BRIEFING_LANGUAGE` stays as the fallback for a row nobody has
+translated yet — a rule added by hand in the desk — because the argument for it is unchanged for
+that row; a seeded row that reaches it now fails a test instead.
+
+## the accountant is the main user (the founder's decision on who confirms an intake)
+
+### ACC-01 An accountant accepts an uncited rule for their own company; it is not a verification
+The founder: «the main user is accountant, so all the intakes should just ask accountant confirm».
+He is right about who is at the other end. Nyabo is for Mongolian SMEs whose books are kept by an
+accountant — often one accountant across several client companies — and that accountant is the
+professional who signs the books and holds the MICPA permit. An "admin" in this app is a technical
+role: someone who links people and watches the site. Intake *approval* was already the
+accountant's (`approve.can_approve`, `statement.handle_layout_callback`), and that part did not
+move. What was backwards is what happened when the guard refused: §1.2 refuses an unverified
+Posting Pattern or Tax Parameter, VER-08 made the tap that lifts it a *site* admin's, and the
+accountant — the person whose signature the entry will carry — was told to go and find someone.
+Nine posting patterns and thirteen tax parameters are in that state, and they are ordinary work:
+recognising revenue from a customer advance, a transfer between the company's own bank accounts,
+accruing the simplified 1% tax, withholding employee social insurance.
+
+**Decided: an accountant linked to a company may accept an uncited rule as applying to that
+company's books, and the guard then lets that company post on it.** The global row is untouched.
+
+*Why not simply widen VER-08 so an accountant may tick the row.* Rejected for exactly the reason
+VER-08 gives, one seat further along. `Nyabo Posting Pattern` and `Nyabo Tax Parameter` are one row
+for the whole site; a tick by one accountant would decide, for every other accountant's client,
+that a posting is backed — with a name on the audit row that never looked at those books. Worse
+than the cost is what it would *say*: a verification is the claim «Order 116 12.2.2 А prints this
+entry», which has one answer for the whole country, and an acceptance is the claim «this is how
+the books I keep for Тест ХХК work», which does not. Merging them would put the weaker claim on
+the record wearing the stronger one's name.
+
+*Where the acceptance lives.* A separate DocType, `Nyabo Rule Acceptance`, named
+`format:{company}:{rule_kind}:{rule}`. The three candidates were a child table on each rule, a
+field on `Nyabo Company Settings`, and this.
+
+- A child table on the rule was rejected because it puts per-company data on a row that is global
+  by definition, on rows `seed.sync` rewrites on every migrate (VER-06 already has to reason
+  carefully about what a deploy may and may not touch there), and because it needs the same table
+  three times — pattern, parameter, layout.
+- A field on `Nyabo Company Settings` was rejected because an acceptance is an *act* with an
+  author and a time, and a settings field has neither. The audit question is «who accepted what,
+  for whom, when» and a JSON blob inside a settings document answers it badly and versions it
+  worse.
+- The separate DocType makes the name itself the uniqueness rule — one company, one rule, one
+  acceptance — so a second tap cannot become a second record, and it carries `accepted_by`,
+  `accepted_telegram_id`, `accepted_at`, the rule's Mongolian label as the accountant read it, and
+  `had_citation`: whether the rule carried a legal citation at that moment. An accountant who
+  accepted a cited reading and one who vouched for bare mechanics did different things, and a
+  year later the row still says which.
+
+The write is `rules.verify.accept`, idempotent like `verify` and for the same reason (a second tap
+on a card somebody scrolled back to must not overwrite the first accountant's name), and it also
+writes a `rule_accepted_for_company` Nyabo Event. Withdrawing one is deleting the row in the desk,
+where the deletion is itself traceable and the event stays — the same shape as un-verifying
+(VER-01).
+
+*The guard is not weakened.* `rules.guard.require_verified` now takes `company` and asks two
+questions instead of one: is the row verified, and has this company accepted it. With no company
+it behaves exactly as it always did. A rule that neither evidence nor a named person has accepted
+still refuses; the refusal still names the rule; nothing posts without a human tap; corrections are
+still reversals. What changed is who can lift it and how fast. The company is threaded from the
+places that have one — `agent.post.post_proposal` (the proposal's company), `rules.params.get`,
+`reports.rules_bridge`, `compliance.period.unverified_proposals` — and `guard._ref` exists because
+a core `ParameterRow` carries `key` and `effective_from` separately while its DocType row is named
+`key:effective_from`: looking the acceptance up by the label alone would ask about
+`si.employer_rate` and never find the acceptance recorded for `si.employer_rate:2027-01-01`.
+
+*Three provenances, kept apart everywhere they are shown* (VER-07 extended): `SOURCE_SEED` (the
+repository's citation, nobody named), `SOURCE_PERSON` (a site admin's tap, everybody bound),
+`SOURCE_COMPANY` (this company's accountant, one client bound). Separate events, separate counts
+(`verified_counts` / `accepted_counts`), separate lines on the card, and a separate number in the
+readiness table — never added together, because a certification reader who saw one total would
+read the weakest claim in it as the strongest. `accepted_counts` counts what is **in force**: an
+acceptance a change to the rule has outrun clears nothing, so counting it would report more rules
+cleared than the guard will let post. Those rows come back as their own number (`stale`) rather
+than being dropped — they are the queue of rules somebody has to answer for a second time.
+
+*What an acceptance is about, and when it stops covering it.* The rule's content, fingerprinted
+on the row (`CONTENT_FIELDS`, `CONTENT_LINE_FIELDS`): everything that decides what gets posted,
+and nothing that a deploy may correct without the acceptance meaning anything different. The list
+is written out field by field beside the map, including what is deliberately absent and why — a
+promise like «the fields that decide what gets posted» is only worth what its longest gap is, and
+the bank-layout entry silently lacked the date formats a statement is parsed with. And the Nyabo
+Event that says an acceptance has just been outrun is written on `on_update` of the guarded
+DocTypes, not by the seed: a rule edited by hand in the ERPNext desk moves the content exactly as
+a deploy does, and «do not silently invalidate» has to hold for every writer, not for one of them.
+
+*Who may take it.* `Ctx.is_accountant` on the company the document belongs to, which is the link
+role `Accountant` **or** `Admin` (TG-04's per-company role; an Admin link keeps those books). An
+owner may not: they can approve a simple document under `owner_simple`, but deciding that an
+uncited rule applies to a set of books is a professional judgement, not an approval of one entry.
+An owner who meets the refusal is told which person decides, and the company's accountants are
+notified — the honest version of the promise VER-04 made to the wrong audience.
+
+*The acceptance finishes the tap that was refused.* The accountant taps [Батлах], the guard
+refuses, they read the rule and accept it — and Nyabo posts the document they already asked to
+post, rather than asking them to press the identical button again. VER-04 rejected carrying the
+proposal through the verification datum, and that reasoning stands: 64 bytes do not stretch to a
+proposal name beside a rule name, and one person's tap must not post another person's document. So
+the continuation is read back out of the audit log instead. Every refused [Батлах] writes a
+`rule_blocked_posting` Nyabo Event naming the rule, the company, the document and the Telegram
+chat; `verify.blocked_proposal` returns a proposal only when the same chat, the same company and
+the same rule match inside `REQUEST_DEDUPE_MINUTES` and the proposal is still `proposed`. Anything
+else — a card in a shared chat, a colleague's document, a stale refusal — falls back to
+`MSG_RULE_ACCEPTED_RETRY`, which names the one tap. §1.3 is untouched: the human tap is the
+[Батлах] this same person made minutes ago, and `post_proposal` re-runs every check.
+
+*The language.* Every string on an intake path was swept. `WARN_UNVERIFIED_RULE`,
+`MSG_UNVERIFIED_RULE_BLOCKED`, `MSG_PERIOD_UNVERIFIED_RULES`, the two statement-layout lines and
+the `/дүрэм` entries in `MSG_MENU` and `BOT_COMMAND_DESCRIPTIONS` now name what the accountant can
+do; `MSG_RULES_ADMIN_ONLY` became `MSG_RULES_ACCOUNTANT_ONLY` and is what an *owner* reads;
+`MSG_NO_COMPANY`, `MSG_BANK_SETTLE_NO_BANK_ACCOUNT`, `MSG_BANK_SETTLE_ERPNEXT_PERMISSION` and
+`MSG_RULE_AMBIGUOUS` were the four remaining «Админд хандана уу» dead ends on an intake path and
+now name a command or a screen. `tests/flows/test_rule_acceptance.py` pins both halves: no listed
+intake-path string may contain the word «админ» at all, and every string that does send the reader
+to somebody else must name the door that opens.
+
+Reverse by deleting `Nyabo Rule Acceptance`, `verify.accept` and the `company` parameter on
+`guard.require_verified` — and accept that the accountant goes back to waiting for a site admin on
+twenty-two rules of ordinary work.
+
+### ACC-02 A learned bank layout is confirmed by the accountant who read the file
+The same shape, and an easier argument. A `Nyabo Bank Layout` learned from a Telegram column
+mapping was saved with `verified = 0` and the accountant was told «Админ баталгаажуулсны дараа
+автоматаар ашиглана» — an admin who had never seen the spreadsheet. On the other branch
+(`unverified_layout`) the message ended «Админд мэдэгдлээ» while that branch notified nobody at
+all; `tests/flows/test_telegram_statement.py` had the broken promise pinned as current behaviour
+with a note saying either the branch notifies or the sentence goes. The sentence goes.
+
+The evidence behind a layout is not a legal text; it is the file the accountant just uploaded and
+answered questions about. So the person who read it confirms it, through the same acceptance path
+as a rule (kind `b`, `KIND_LAYOUT`), leaving the same row and the same event. It stays per company
+for the same reason as ACC-01, weaker but real: one client's Khan Bank export is not proof about
+another client's, and a bank changes its format per product. The site-wide `verified` flag is still
+a site admin's, and `MSG_STATEMENT_ADMIN_VERIFY` is now what it should always have been — an
+informational notice that a new format appeared, with the desk named for the decision that is
+genuinely theirs.
+
+*Confirming re-reads the file rather than asking for it again.* «Send it again» would be a promise
+Nyabo cannot keep: the sha256 dedup (§5.3) answers a second upload of the same file with
+«this document is already here». So the block event names the stored `Nyabo Document` and
+`verify.blocked_document` finds it, exactly as `blocked_proposal` finds a refused approval.
+`MSG_STATEMENT_LAYOUT_ACCEPTED_RESEND` survives only for the case where no such file is on record.
+
+*Where a layout is deliberately not treated like a rule.* `verify.pending()` still leaves layouts
+out of `/дүрэм`: that list is about legal readings and is ordered by how much posting work each
+rule blocks, while a layout is answered in the statement flow at the moment it matters, by the
+person holding the file. `cards._rule_citation` prints `CARD_RULE_LAYOUT_SOURCE` instead of
+`CARD_RULE_NO_CITATION` for the same reason — telling someone that a column mapping has no legal
+provision behind it would send them looking for one that cannot exist.
+## the skeptics' round (defects found in the accountant flow, and what they settled)
+
+### ACC-03 An acceptance covers content, not a rule id
+`seed.upsert` protects a `verified = 1` row from being rewritten by a deploy. An *accepted* rule
+is not verified — it is an unverified row with a `Nyabo Rule Acceptance` beside it — so nothing
+protected it, and a later deploy could change its debit and credit lines while the acceptance
+stood. The company then went on posting on content its accountant never saw, under that
+accountant's name, with nothing in the record marking the change.
+
+An acceptance is one person saying «I have read this and these books work this way». That
+sentence is about a text, so the row records the text: a canonical JSON of the fields that decide
+what gets posted — a pattern's lines and the scope that selects it, a parameter's value and dates,
+a layout's column map — and a 16-hex-character sha256 of that JSON.
+
+*Why a hash and not a version number or a field-by-field copy.* The question is «is this the same
+content the accountant read», it has to be answered on every posting, and a version number is a
+number a deploy forgets to bump. *Why truncated.* This is a change detector, not an adversarial
+signature: nobody is forging posting lines to collide with a digest. 64 bits makes an accidental
+collision impossible in practice and keeps the row's name inside Frappe's 140 characters. The
+canonical content is stored beside the hash anyway, because a refusal has to say *what* changed —
+«the rule changed, accept it again» asks a professional to take responsibility twice for a text
+they cannot see.
+
+*Neither silence is allowed.* The guard stops honouring the acceptance the moment the content
+moves, so the rule refuses again and `/дүрэм` lists it again; and the deploy that outran it writes
+a `rule_changed_after_acceptance` Nyabo Event naming the company, the person, and both
+fingerprints, because an invalidation nobody is told about is the same silence as posting on
+content nobody read. The accountant is then shown both versions side by side before being asked
+again.
+
+*Re-accepting writes a second row.* There were two decisions, taken on two texts. Rewriting the
+first would put that accountant's name against words they never saw, so the acceptance is named
+`company:kind:rule:fingerprint` and is append-only in its controller (the desk may still delete a
+row: that is how an acceptance is withdrawn, and an edit rewrites what a person read while a
+deletion does not claim they read anything).
+
+### ACC-04 The warning on the card asks the guard's two questions, not the row's one flag
+`WARN_UNVERIFIED_RULE` was reworded for the accountant and its condition was left reading
+`pattern.verified`. So the receipt card went on saying «Дүрэм баталгаажаагүй» after the accountant
+had accepted the rule for their own books — the founder's original complaint, surviving in the one
+place he looks. Anything that shows the ⚠️ now asks both questions for the company the entry is
+being built for. `core.rules_engine` has no frappe import, so the caller resolves the answer and
+passes it in (`instantiate(..., cleared=...)`); `agent.pipeline` asks `rule_cleared` once and uses
+it for the warning and for `needs_accountant`, which cannot then disagree.
+
+### ACC-05 Both readers reach the card, and each gets only the answer that is theirs
+The gate on `/дүрэм` moved from `ctx.is_admin` to `ctx.is_accountant`, which is the link role on
+the *active* company. A site admin whose role on his own company is Owner therefore lost the
+command — and with it the global verification VER-08 reserves for exactly that person, which is
+only reachable through it. Both roles read the list and the evidence; the permission is re-checked
+per action, because the two acts on one card belong to two different people.
+
+And the role is resolved against the company the work belongs to, the way `approve.can_approve`
+resolves the right to tap [Батлах] at all. One accountant across several clients is the persona
+ACC-01 is for: acting on client B while client A was active, they were read as not-an-accountant,
+told which person decides, and sent that notice in their own chat. The company an acceptance is
+written for travels on the card that asked the question (VER-03) rather than being resolved on
+the tap: reading it back from this chat's own recent refusals answered nothing once the retry
+window had passed, and the button outlives the window by any amount. Nobody is ever notified
+about a block of their own.

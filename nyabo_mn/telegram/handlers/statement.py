@@ -5,10 +5,13 @@ runs on the ``long`` queue. When the importer does not recognise the layout it r
 ``status = "unknown_layout"`` with the header row and a preview; the accountant is then
 asked, one column at a time, which role the column plays, and the answer is saved as a
 ``Nyabo Bank Layout`` with ``verified = 0`` so nothing is imported on a guessed mapping
-(CORE-08). A layout that was already mapped but not verified comes back as
-``status = "unverified_layout"``: the admin verifies that row, the accountant is not asked
-the same questions again. Anything the importer refuses (no bank account, unreadable file)
-arrives as an exception whose ``message_mn`` is the reply.
+(CORE-08). The accountant who mapped the columns is then asked to confirm them for their own
+company (DECISIONS ACC-02) — they read the file, so they are the person who can say whether the
+mapping is right, and nothing waits on an admin who never saw it. A layout that was already
+mapped but not confirmed comes back as ``status = "unverified_layout"``: the same confirmation
+card is sent, and the accountant is not asked the column questions a second time. Anything the
+importer refuses (no bank account, unreadable file) arrives as an exception whose ``message_mn``
+is the reply.
 """
 
 from __future__ import annotations
@@ -30,6 +33,9 @@ IMPORT_METHOD = "nyabo_mn.telegram.handlers.statement.run_import"
 STATE_PREFIX = "layout"
 BANK_LAYOUT = "Nyabo Bank Layout"
 LAYOUT_BANKS = ("Khan Bank", "TDB", "Golomt Bank", "Trans Bank", "XacBank")
+#: ``rules.verify.KIND_LAYOUT`` — the kind a bank layout rides under in the acceptance callback
+#: datum, so the confirmation tap lands in the same handler as a posting pattern's (ACC-02).
+LAYOUT_KIND = "b"
 MAX_PREVIEW_ROWS = 3
 # The money columns: any one of them carries an amount into a BankLine.
 AMOUNT_ROLES = ("amount", "debit", "credit")
@@ -116,12 +122,17 @@ def run_import(document_name: str, chat_id: int | str) -> dict[str, Any]:
 		bot.send_message(chat_id, getattr(exc, "message_mn", None) or mn.MSG_ERROR_NO_BUTTON)
 		return {"ok": False}
 	# The importer sets ``unknown_layout`` for both cases, so the more specific one is asked
-	# first: a layout that was mapped once but is not verified must not re-ask the accountant,
-	# it needs an admin to tick Баталгаажсан on the Nyabo Bank Layout row.
+	# first: a layout that was mapped once but is not confirmed must not re-ask the column
+	# questions. It needs the confirmation card, which is the accountant's own (ACC-02).
 	status = summary.get("status")
 	if status == "unverified_layout":
-		bot.send_message(chat_id, mn.MSG_STATEMENT_LAYOUT_UNVERIFIED)
-		return {"ok": True, "unverified": True}
+		layout_id = str(summary.get("layout") or "")
+		bot.send_message(chat_id, mn.MSG_STATEMENT_LAYOUT_UNVERIFIED.format(layout=layout_id))
+		_record_layout_block(
+			layout_id, summary.get("company"), document_name, _sender_of(document_name) or chat_id
+		)
+		ask_layout_confirmation(bot, chat_id, layout_id, summary.get("company"))
+		return {"ok": True, "unverified": True, "layout": layout_id}
 	# The importer sets both keys; a caller (or a test double) may send only ``status``.
 	if status == "unknown_layout" or summary.get("unknown_layout"):
 		start_layout_mapping(bot, chat_id, document_name, summary)
@@ -345,11 +356,99 @@ def save_layout(ctx: Ctx, payload: dict[str, Any]) -> Any:
 	mapping_text = ", ".join(f"{mn.COLUMN_ROLES[r]} = «{h}»" for r, h in mapping.items())
 	ctx.reply(mn.MSG_STATEMENT_LAYOUT_DONE.format(mapping=mapping_text))
 	ctx.reply(mn.MSG_STATEMENT_LAYOUT_SAVED.format(layout=layout_id))
+	# The confirmation is asked of the person who just read the file and answered every column —
+	# nobody is sent away to wait (ACC-02). The site admins are told a new format exists because
+	# they may want it for every client, which is a different decision and stays theirs.
+	_record_layout_block(layout_id, ctx.company, payload.get("document"), ctx.telegram_id, user=ctx.user)
+	ask_layout_confirmation(ctx.bot, ctx.chat_id, layout_id, ctx.company, mapping=mapping)
 	from nyabo_mn.telegram.router import notify_admins
 
-	notify_admins(ctx.bot, ctx.settings, mn.MSG_STATEMENT_ADMIN_VERIFY.format(layout=layout_id))
+	notify_admins(
+		ctx.bot,
+		ctx.settings,
+		mn.MSG_STATEMENT_ADMIN_VERIFY.format(layout=layout_id, company=ctx.company or mn.VALUE_UNKNOWN),
+	)
 	log_event("telegram.layout.saved", layout=layout_id, document=payload.get("document"))
 	return {"layout": layout_id, "mapping": mapping}
+
+
+def _sender_of(document_name: str) -> str | None:
+	"""The Telegram id of the person who uploaded this document, or ``None``.
+
+	``run_import`` is a worker with a chat id and no ``Ctx``, and the chat id used to go into the
+	block row's ``telegram_id`` — the field ``save_layout`` fills with ``ctx.telegram_id``. In a
+	one-to-one chat the two numbers are equal, so it worked; in a group they are not, and the row
+	would then name a conversation where it claims to name a person. It is read back to finish
+	*that person's* own upload (``verify.blocked_document``), so the difference is not cosmetic.
+	``Nyabo Document.sender_telegram_id`` is who really sent the file.
+	"""
+	try:
+		sender = frappe.db.get_value("Nyabo Document", document_name, "sender_telegram_id")
+	except Exception as exc:  # noqa: BLE001 - a missing row must not lose the refusal itself
+		log_event(
+			"telegram.statement.sender_unknown", level="warning", document=document_name, error=repr(exc)
+		)
+		return None
+	return str(sender).strip() or None if sender else None
+
+
+def _record_layout_block(
+	layout_id: str, company: Any, document: Any, telegram_id: Any, user: str | None = None
+) -> None:
+	"""Record which file this layout is holding up, so confirming it re-reads that very file.
+
+	Asking the accountant to send the statement again would be a promise Nyabo cannot keep: the
+	sha256 dedup answers a second upload of the same file with «this document is already here»
+	(§5.3). The stored document is the one that gets read, and this row is how the confirmation
+	finds it — the same trail a refused [Батлах] leaves for a posting.
+	"""
+	if not layout_id or not document:
+		return
+	_deps.record_rule_block(
+		layout_id, company=company, document=str(document), telegram_id=telegram_id, user=user
+	)
+
+
+def ask_layout_confirmation(
+	bot: Any,
+	chat_id: int | str,
+	layout_id: str,
+	company: str | None,
+	mapping: dict[str, str] | None = None,
+) -> None:
+	"""Show the mapping and ask the accountant to confirm it for their own company (ACC-02).
+
+	The buttons are ``rules.verify``'s own, with the layout riding as kind ``b``: a bank layout, a
+	posting pattern and a tax parameter are all rules the guard refuses, so confirming one leaves
+	the same audit row and is read back by the same code. Drawn without the site-admin button
+	because this runs on the import worker, where there is no reader to check — a site admin who
+	wants the row verified for every client does that from ``/дүрэм`` or the desk.
+	"""
+	if not layout_id:
+		return
+	if mapping is None:
+		mapping = _layout_mapping(layout_id)
+	mapping_text = ", ".join(f"{mn.COLUMN_ROLES.get(r, r)} = «{h}»" for r, h in mapping.items())
+	bot.send_message(
+		chat_id,
+		mn.MSG_STATEMENT_LAYOUT_CONFIRM_ASK.format(
+			layout=layout_id, company=company or mn.VALUE_UNKNOWN, mapping=mapping_text
+		),
+		# The company rides on the button: this card asks whether the mapping is right for *these*
+		# books, and the acceptance it writes must name the same client however long the file sat.
+		reply_markup=keyboards.rule_decision(LAYOUT_KIND, layout_id, may_accept=True, company=company),
+	)
+
+
+def _layout_mapping(layout_id: str) -> dict[str, str]:
+	"""``{role: header}`` off the stored row; an unreadable mapping shows as none rather than raising."""
+	raw = frappe.db.get_value(BANK_LAYOUT, layout_id, "column_map_json")
+	if isinstance(raw, str):
+		try:
+			raw = json.loads(raw) if raw.strip() else {}
+		except ValueError:
+			return {}
+	return {str(role): str(header) for role, header in (raw or {}).items()} if isinstance(raw, dict) else {}
 
 
 def handle_state(ctx: Ctx, state: str, payload: dict[str, Any]) -> Any:
@@ -384,7 +483,8 @@ def handle_escape(ctx: Ctx, state: str, payload: dict[str, Any], verb: str) -> b
 
 	Буцах and Алгасах are gated on the accountant the way ``handle_layout_callback``'s own
 	buttons are, because they do the same work: Алгасах *is* the «Ашиглахгүй» answer, and on the
-	last column it saves a Nyabo Bank Layout and asks the admins to verify it. The escape row is
+	last column it saves a Nyabo Bank Layout and puts the confirmation card in front of the
+	accountant. The escape row is
 	drawn beside those buttons and the words are typed into the same step, so an Owner — who may
 	send a statement, and therefore reaches this conversation — used to walk round the check.
 	Цуцлах is deliberately not gated: leaving a step is never a permission, and the owner who

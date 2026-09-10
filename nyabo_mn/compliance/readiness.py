@@ -208,21 +208,34 @@ def _check_policy_document() -> dict[str, Any]:
 
 
 def _check_rules_verified() -> dict[str, Any]:
-	"""How many posting patterns may post — and, of those, how many a person actually vouched for.
+	"""How many posting patterns may post, and on whose authority — all three of them, apart.
 
 	A bare count would let a certification reader take 35 verified rows for 35 human decisions,
-	while the flag on most of them came from the seed (DECISIONS VER-07). The split is the row.
+	while the flag on most of them came from the seed (DECISIONS VER-07). A rule one company's
+	accountant accepted for their own books is a third thing again (ACC-01): it is a named
+	person, but it speaks for one company and no citation stands behind it. Three claims, three
+	numbers, never added together.
+
+	The accepted number counts what is in force. An acceptance a deploy has outrun clears
+	nothing — the guard refuses on it — so counting it reported more rules cleared than are, on
+	the one page whose whole job is to be accurate about that. The outrun ones are shown as their
+	own number when there are any: they are the queue of rules an accountant has to look at
+	again, and a page that dropped them would hide work rather than report it.
 	"""
 	from nyabo_mn.rules import verify
 
 	counts = verify.verified_counts("Nyabo Posting Pattern")
-	return _row(
-		"rules_verified",
-		counts["verified"] > 0,
-		mn.READINESS_DETAIL_RULES_VERIFIED.format(
-			count=counts["verified"], by_seed=counts["by_seed"], by_person=counts["by_person"]
-		),
+	accepted = verify.accepted_counts("Nyabo Posting Pattern")
+	detail = mn.READINESS_DETAIL_RULES_VERIFIED.format(
+		count=counts["verified"],
+		by_seed=counts["by_seed"],
+		by_person=counts["by_person"],
+		accepted=accepted["rules"],
+		companies=accepted["companies"],
 	)
+	if accepted["stale"]:
+		detail += mn.READINESS_DETAIL_RULES_ACCEPTANCE_STALE.format(stale=accepted["stale"])
+	return _row("rules_verified", counts["verified"] > 0, detail)
 
 
 def checks(site: str | None = None) -> list[dict[str, Any]]:

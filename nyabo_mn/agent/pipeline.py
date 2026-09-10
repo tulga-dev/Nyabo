@@ -217,7 +217,9 @@ def tax_parameter_rows() -> list[rules_engine.ParameterRow]:
 	return [rules_engine.ParameterRow.from_dict(r) for r in load_seed("tax_parameters")["rows"]]
 
 
-def tax_parameter(key: str, on_date: dt.date, *, allow_unverified: bool = False) -> rules_engine.ParameterRow:
+def tax_parameter(
+	key: str, on_date: dt.date, *, company: str | None = None, allow_unverified: bool = False
+) -> rules_engine.ParameterRow:
 	"""The dated tax-parameter row through ``rules.params`` (which applies ``rules.guard``).
 
 	WHY the bridge and not ``rules_engine.parameter_decimal`` on our own rows (F-09): the
@@ -232,16 +234,18 @@ def tax_parameter(key: str, on_date: dt.date, *, allow_unverified: bool = False)
 	except ImportError:
 		rules_params = None
 	if rules_params is not None and hasattr(rules_params, "get"):
-		return rules_params.get(key, on_date, allow_unverified=allow_unverified)
+		return rules_params.get(key, on_date, company=company, allow_unverified=allow_unverified)
 	row = rules_engine.resolve_parameter(tax_parameter_rows(), key, on_date)
 	if not allow_unverified:
-		_require_verified_rule(row, key)
+		_require_verified_rule(row, key, company=company)
 	return row
 
 
-def vat_rate(on_date: dt.date, *, allow_unverified: bool = False) -> Decimal:
+def vat_rate(on_date: dt.date, *, company: str | None = None, allow_unverified: bool = False) -> Decimal:
 	"""The VAT rate in force on the date, refused when the row is unverified (see ``tax_parameter``)."""
-	return tax_parameter(VAT_RATE_KEY, on_date, allow_unverified=allow_unverified).as_decimal()
+	return tax_parameter(
+		VAT_RATE_KEY, on_date, company=company, allow_unverified=allow_unverified
+	).as_decimal()
 
 
 def _has_rows(doctype: str) -> bool:
@@ -284,18 +288,23 @@ def pattern_by_id(pattern_id: str) -> rules_engine.PatternSpec:
 	)
 
 
-def _require_verified_rule(rule: Any, label: str) -> None:
+def _require_verified_rule(rule: Any, label: str, company: str | None = None) -> None:
 	"""``rules.guard.require_verified`` when the package is importable, else the same check locally.
 
 	One helper for every rule shape (pattern, tax-parameter row) so the guard - and its
 	single ``frappe.flags.nyabo_simulation`` bypass - is applied in exactly one way.
+
+	``company`` is the company being posted for: a rule that company's accountant has accepted
+	passes, and the same rule for any other company still refuses (DECISIONS ACC-01). The local
+	fallback below knows nothing about acceptances - it runs only when the whole rules package is
+	missing, where there is no DocType to have recorded one either.
 	"""
 	try:
 		from nyabo_mn.rules import guard  # type: ignore[import-not-found]
 	except ImportError:
 		guard = None
 	if guard is not None and hasattr(guard, "require_verified"):
-		guard.require_verified(rule)
+		guard.require_verified(rule, company=company)
 		return
 	if not getattr(rule, "verified", False):
 		raise UnverifiedRuleError(
@@ -304,9 +313,23 @@ def _require_verified_rule(rule: Any, label: str) -> None:
 		)
 
 
-def require_verified(pattern: rules_engine.PatternSpec) -> None:
+def require_verified(pattern: rules_engine.PatternSpec, company: str | None = None) -> None:
 	"""``rules.guard.require_verified`` when available; refuses an unverified pattern for a real posting."""
-	_require_verified_rule(pattern, pattern.pattern_id)
+	_require_verified_rule(pattern, pattern.pattern_id, company=company)
+
+
+def rule_cleared(rule: Any, company: str | None = None) -> bool:
+	"""The card's question, not the guard's: may this company post on this rule at all?
+
+	True when the row is verified (the seed's citation or a site admin's tap) or when this
+	company's accountant has accepted it. Used for ``needs_accountant``, so an accountant who has
+	already vouched for a rule is not warned about it on every receipt that uses it.
+	"""
+	try:
+		from nyabo_mn.rules import guard  # type: ignore[import-not-found]
+	except ImportError:
+		return bool(getattr(rule, "verified", False))
+	return bool(guard.is_verified(rule, company=company))
 
 
 # --- chart, schemes, code resolution ----------------------------------------------------------------
@@ -876,6 +899,10 @@ def _run(
 		if receipt.lines and receipt.lines[0].description
 		else receipt.seller_name
 	)
+	# Asked once, before the entry is built, and used for both answers it decides: the ⚠️ on the
+	# card and `needs_accountant`. Two questions, one answer — an accountant who has accepted
+	# this rule for these books must not be warned about it on the card either (DECISIONS ACC-01).
+	cleared = rule_cleared(pattern, company)
 	entry: ProposedEntry = rules_engine.instantiate(
 		pattern,
 		amounts,
@@ -888,10 +915,11 @@ def _run(
 		supplier=supplier_name,
 		description=description,
 		warnings=warnings,
+		cleared=cleared,
 	)
-	if not pattern.verified:
+	if not cleared:
 		needs_accountant = True
-	problems = validate_entry(entry, leaf_codes, vat_rate(posting_date))
+	problems = validate_entry(entry, leaf_codes, vat_rate(posting_date, company=company))
 	entry_warnings = list(entry.warnings)
 	for problem in problems:
 		entry_warnings.append(mn.WARN_ENTRY_INVALID.format(problem=problem))
@@ -1933,6 +1961,7 @@ __all__ = [
 	"process_receipt",
 	"regime_context",
 	"require_verified",
+	"rule_cleared",
 	"role_code",
 	"send_card",
 	"tax_parameter",

@@ -445,3 +445,28 @@ def test_unverified_vat_rate_is_refused_and_only_the_simulation_flag_bypasses_it
 	row.save()
 	assert pipeline.vat_rate(dt.date(2026, 6, 15)) == Decimal("0.1")
 	assert run_receipt("petrovis_fuel").vat_amount == 7727.27
+
+
+def test_the_receipt_card_drops_the_unverified_warning_once_this_company_accepts_the_rule(run_receipt, books):
+	"""MAJOR 1, on the one screen the founder looks at: the receipt card.
+
+	``instantiate`` used to decide the warning from ``pattern.verified`` alone, so an accountant
+	who had already accepted the rule for these books went on reading «⚠️ Дүрэм баталгаажаагүй»
+	on every receipt that used it. The warning now asks the same two questions the guard asks,
+	and the pipeline is what threads the company into them.
+	"""
+	from nyabo_mn.rules import patterns, verify
+
+	frappe.db.set_value("Nyabo Posting Pattern", "purchase_expense_vat_payer", "verified", 0)
+	patterns.clear_cache()
+
+	before = run_receipt("petrovis_fuel")
+	assert json.loads(before.entry_json)["pattern_id"] == "purchase_expense_vat_payer"
+	assert mn.WARN_UNVERIFIED_RULE in json.loads(before.warnings_json)
+
+	verify.accept(verify.KIND_PATTERN, "purchase_expense_vat_payer", books, "Administrator")
+	after = run_receipt("petrovis_fuel")
+
+	assert mn.WARN_UNVERIFIED_RULE not in json.loads(after.warnings_json)
+	# The global row is untouched: the acceptance speaks for these books and no others.
+	assert frappe.db.get_value("Nyabo Posting Pattern", "purchase_expense_vat_payer", "verified") == 0

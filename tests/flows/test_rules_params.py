@@ -41,7 +41,9 @@ def test_guard_refuses_unverified_rules_with_the_mongolian_message(seeded, frapp
 	assert not frappe.db.get_value("Nyabo Tax Parameter", "si.employee_rate:2026-01-01", "verified")
 	with pytest.raises(guard.UnverifiedRuleError) as excinfo:
 		params.get("si.employee_rate", dt.date(2026, 3, 1))
-	assert str(excinfo.value) == mn.MSG_UNVERIFIED_RULE_BLOCKED.format(rule="si.employee_rate")
+	# The row's own name, not the bare key: the reader is sent to look this rule up, and
+	# `si.employee_rate` is not a row anybody can open (`guard._ref`).
+	assert str(excinfo.value) == mn.MSG_UNVERIFIED_RULE_BLOCKED.format(rule="si.employee_rate:2026-01-01")
 	assert isinstance(excinfo.value, frappe.ValidationError)
 
 	with pytest.raises(guard.UnverifiedRuleError, match="bank_transfer_internal"):
