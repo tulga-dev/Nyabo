@@ -985,12 +985,27 @@ verifying them means vouching for the mechanics printed above it. The debit and 
 always shown, because for a rule with no citation they are the entire evidence.
 
 ### VER-03 The callback datum carries the action before the rule
-`v:<action>:<kind>:<rule…>`. Everywhere else in `keyboards` the action comes last, but a Nyabo
-Tax Parameter is named `key:effective_from` — the separator is inside the name — so with the
-action last, `v:t:si.employer_rate:2027-01-01:ok` could not be told from a rule whose name ends
-in `:ok`. With it first the rule is "everything after the kind" and `rule_from_parts` puts it
-back exactly. The longest seeded names fit in 46 and 56 of the 64 bytes; a longer one drops the
-button and logs, never the card (`settle_row`'s trade), and the admin is pointed at the desk.
+`v:<action>:<kind>:<company?>:<rule…>`. Everywhere else in `keyboards` the action comes last, but
+a Nyabo Tax Parameter is named `key:effective_from` — the separator is inside the name — so with
+the action last, `v:t:si.employer_rate:2027-01-01:ok` could not be told from a rule whose name
+ends in `:ok`. With it first the rule is "everything after the company slot" and `rule_from_parts`
+puts it back exactly. The longest seeded names fit in 53 and 63 of the 64 bytes; a longer one
+drops the button and logs, never the card (`settle_row`'s trade), and the reader is pointed at
+the desk.
+
+*The company slot.* It holds a six-hex digest of the company the card was drawn for, empty when
+the card is about no particular company. A company **name** does not fit beside a rule name and a
+name in a datum would be a name an attacker chooses, so the digest is never read as one: it can
+only *select* among the companies the tapper is themselves linked to and keeps the books of
+(`handlers.admin._card_company`), resolved from their own link rows on the tap. A digest that
+selects none of them is refused rather than fallen back from.
+
+*Why the card has to carry it at all.* An acceptance is a compliance record with a person's name
+on it, so it must name the company the **card** asked about. Resolving that on the tap from this
+chat's recent refusals worked only inside `REQUEST_DEDUPE_MINUTES` while the button stayed live
+for ever: an accountant stopped on client B who came back twenty minutes later got a record
+saying client A, whichever was active. The card asked about B and the record said A. `/дүрэм`
+stamps the company its list was drawn for on every row for the same reason, one step earlier.
 
 ### VER-04 A blocked proposal is retried by tapping [Батлах] again, not re-sent
 When `post_proposal` raises `UnverifiedRuleError`, `approve.refuse_unverified_rule` puts the
@@ -1248,7 +1263,20 @@ repository's citation, nobody named), `SOURCE_PERSON` (a site admin's tap, every
 `SOURCE_COMPANY` (this company's accountant, one client bound). Separate events, separate counts
 (`verified_counts` / `accepted_counts`), separate lines on the card, and a separate number in the
 readiness table — never added together, because a certification reader who saw one total would
-read the weakest claim in it as the strongest.
+read the weakest claim in it as the strongest. `accepted_counts` counts what is **in force**: an
+acceptance a change to the rule has outrun clears nothing, so counting it would report more rules
+cleared than the guard will let post. Those rows come back as their own number (`stale`) rather
+than being dropped — they are the queue of rules somebody has to answer for a second time.
+
+*What an acceptance is about, and when it stops covering it.* The rule's content, fingerprinted
+on the row (`CONTENT_FIELDS`, `CONTENT_LINE_FIELDS`): everything that decides what gets posted,
+and nothing that a deploy may correct without the acceptance meaning anything different. The list
+is written out field by field beside the map, including what is deliberately absent and why — a
+promise like «the fields that decide what gets posted» is only worth what its longest gap is, and
+the bank-layout entry silently lacked the date formats a statement is parsed with. And the Nyabo
+Event that says an acceptance has just been outrun is written on `on_update` of the guarded
+DocTypes, not by the seed: a rule edited by hand in the ERPNext desk moves the content exactly as
+a deploy does, and «do not silently invalidate» has to hold for every writer, not for one of them.
 
 *Who may take it.* `Ctx.is_accountant` on the company the document belongs to, which is the link
 role `Accountant` **or** `Admin` (TG-04's per-company role; an Admin link keeps those books). An
@@ -1369,6 +1397,7 @@ And the role is resolved against the company the work belongs to, the way `appro
 resolves the right to tap [Батлах] at all. One accountant across several clients is the persona
 ACC-01 is for: acting on client B while client A was active, they were read as not-an-accountant,
 told which person decides, and sent that notice in their own chat. The company an acceptance is
-written for is read back from this chat's own refusal of this rule inside the retry window — the
-same three facts VER-04 already trusts for `blocked_proposal` — and nobody is ever notified about
-a block of their own.
+written for travels on the card that asked the question (VER-03) rather than being resolved on
+the tap: reading it back from this chat's own recent refusals answered nothing once the retry
+window had passed, and the button outlives the window by any amount. Nobody is ever notified
+about a block of their own.
