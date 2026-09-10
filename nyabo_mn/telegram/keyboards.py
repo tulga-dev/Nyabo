@@ -42,7 +42,7 @@ PREFIX_ONBOARDING = "o"
 PREFIX_INTAKE = "i"
 PREFIX_LAYOUT = "l"  # statement column mapping; not in §5.1, listed in the module report
 PREFIX_QUESTION = "q"  # q:<verb>[:<arg>…] — the next read offered under an answer (§5.7)
-PREFIX_VERIFY = "v"  # v:<action>:<kind>:<rule…> — the admin's door onto an unverified rule (§1.2)
+PREFIX_VERIFY = "v"  # v:<action>:<kind>:<company?>:<rule…> — the door onto an unverified rule (§1.2)
 PREFIX_ESCAPE = "e"  # e:<scope>:cancel|back|skip|menu:<step> — the way out of a waiting step (UX-13)
 
 # Escape verbs. The scope and step beside them are the conversation state the button was drawn
@@ -380,31 +380,68 @@ VERIFY_OPEN = "op"
 VERIFY_CONFIRM = "ok"
 VERIFY_LEAVE = "no"
 #: The accountant's own answer: this rule applies to *this company's* books (DECISIONS ACC-01).
-#: The company is not in the datum — it is the tapper's active company, resolved on the tap —
-#: because a rule name already eats up to 49 of the 64 bytes (VER-03) and because a company
-#: copied out of somebody else's chat must not decide anything for those books.
 VERIFY_ACCEPT = "ac"
 
+#: How many hex characters of the sha256 of a company name ride in a rule datum.
+#:
+#: WHY the company rides at all: the acceptance it writes is a compliance record with a person's
+#: name on it, so it must say the company the *card* asked about. Resolving that on the tap from
+#: the audit log only worked inside a 15-minute window while the button stayed live for ever, so
+#: an accountant with two clients who was stopped on client B, walked away for twenty minutes and
+#: then tapped got a record saying client A. A record must never be able to say what did not
+#: happen, so the card carries its own answer.
+#:
+#: WHY a digest and not the name: 64 bytes are all Telegram allows and a tax-parameter name eats
+#: up to 49 of them (VER-03); a Mongolian company name would not fit beside it. WHY it is safe:
+#: the digest is never trusted as a name (TG-03). It can only *select* one of the companies the
+#: tapper themselves is linked to, read off their own link rows on the tap — so a datum copied
+#: out of somebody else's chat selects nothing and is refused.
+COMPANY_TOKEN_CHARS = 6
 
-def rule_data(action: str, kind: str, rule: str) -> str:
-	"""``("ok", "t", "si.employer_rate:2027-01-01") -> "v:ok:t:si.employer_rate:2027-01-01"``.
+
+def company_token(company: str | None) -> str:
+	"""``"Тест ХХК" -> "8f1c2a"``; ``""`` when the card was drawn for no company at all.
+
+	Truncated on purpose: this is not a signature, it is a selector among the handful of clients
+	one accountant keeps, and 24 bits makes an accidental collision between two of them
+	impossible in practice while leaving the datum inside its 64 bytes.
+	"""
+	name = str(company or "").strip()
+	if not name:
+		return ""
+	import hashlib
+
+	return hashlib.sha256(name.encode("utf-8")).hexdigest()[:COMPANY_TOKEN_CHARS]
+
+
+def rule_data(action: str, kind: str, rule: str, company: str | None = None) -> str:
+	"""``("ok", "t", "si.employer_rate:2027-01-01") -> "v:ok:t::si.employer_rate:2027-01-01"``.
+
+	The company slot is always there and is empty when the card is about no particular company
+	(``/дүрэм`` read by a site admin), so the rule is still simply «everything after the slot»
+	and a name containing the separator can be put back together unambiguously.
 
 	Raises ``CallbackDataTooLong`` past 64 bytes; the keyboards below catch it and drop the
 	button rather than the card, the trade ``settle_row`` documents.
 	"""
-	return encode(PREFIX_VERIFY, action, kind, *str(rule).split(SEP))
+	return encode(PREFIX_VERIFY, action, kind, company_token(company), *str(rule).split(SEP))
 
 
 def rule_from_parts(parts: Sequence[str]) -> str:
-	"""``["v", "ok", "t", "si.employer_rate", "2027-01-01"] -> "si.employer_rate:2027-01-01"``."""
-	return SEP.join(str(part) for part in parts[3:])
+	"""``["v", "ok", "t", "", "si.employer_rate", "2027-01-01"] -> "si.employer_rate:2027-01-01"``."""
+	return SEP.join(str(part) for part in parts[4:])
+
+
+def company_token_from_parts(parts: Sequence[str]) -> str:
+	"""The digest of the company the card was drawn for, or ``""``; never a company name."""
+	return str(parts[3]) if len(parts) > 3 else ""
 
 
 def _rule_button(
-	text: str, action: str, kind: str, rule: str, style: str | None = None
+	text: str, action: str, kind: str, rule: str, style: str | None = None, company: str | None = None
 ) -> dict[str, str] | None:
 	try:
-		return button(text, rule_data(action, kind, rule), style=style)
+		return button(text, rule_data(action, kind, rule, company), style=style)
 	except (CallbackDataTooLong, ValueError) as exc:
 		# A rule this long is verified in the desk (mn.MSG_RULE_VERIFY_IN_DESK); losing the
 		# button must never lose the list, which is the only place the rule is even named.
@@ -412,18 +449,29 @@ def _rule_button(
 		return None
 
 
-def pending_rules_keyboard(rules: Sequence[Any]) -> dict[str, Any]:
-	"""One button per unverified rule, numbered to match the lines of the card above it."""
+def pending_rules_keyboard(rules: Sequence[Any], company: str | None = None) -> dict[str, Any]:
+	"""One button per unverified rule, numbered to match the lines of the card above it.
+
+	``company`` is the client the list was drawn for, and it rides on every row so that opening a
+	rule asks about that client. Without it the card resolved a company of its own and could name
+	a different one of the reader's clients than the list they were reading.
+	"""
 	buttons = []
 	for index, rule in enumerate(rules, start=1):
 		label = mn.BTN_RULE_ROW.format(index=index, label=rule.label)[:40]
-		drawn = _rule_button(label, VERIFY_OPEN, rule.kind, rule.name)
+		drawn = _rule_button(label, VERIFY_OPEN, rule.kind, rule.name, company=company)
 		if drawn is not None:
 			buttons.append(drawn)
 	return markup(*rows(buttons, per_row=1))
 
 
-def rule_decision(kind: str, rule: str, may_verify: bool = False, may_accept: bool = False) -> dict[str, Any]:
+def rule_decision(
+	kind: str,
+	rule: str,
+	may_verify: bool = False,
+	may_accept: bool = False,
+	company: str | None = None,
+) -> dict[str, Any]:
 	"""The answers this reader may actually give, primary first, [Одоохондоо үлдээх] last.
 
 	Two different acts share this card and each gets its own words (DECISIONS ACC-01):
@@ -432,17 +480,24 @@ def rule_decision(kind: str, rule: str, may_verify: bool = False, may_accept: bo
 	instrument prints this entry, which binds every company on the site (VER-08). A reader who
 	may do neither gets only [Одоохондоо үлдээх] — a button that could only ever answer «you may
 	not» is the dead end this flow exists to remove.
+
+	``company`` is the client this card is asking about, and it rides on the accountant's button
+	so the acceptance can only ever be written for the client the card named (``company_token``).
+	The site admin's button and [Одоохондоо үлдээх] carry it too, for one datum shape, but
+	neither reads it: a global verification is about no company and leaving is about nothing.
 	"""
 	rows_out = []
 	if may_accept:
-		accept = _rule_button(mn.BTN_RULE_ACCEPT, VERIFY_ACCEPT, kind, rule, style=STYLE_SUCCESS)
+		accept = _rule_button(
+			mn.BTN_RULE_ACCEPT, VERIFY_ACCEPT, kind, rule, style=STYLE_SUCCESS, company=company
+		)
 		if accept:
 			rows_out.append([accept])
 	if may_verify:
-		confirm = _rule_button(mn.BTN_RULE_VERIFY_SITE, VERIFY_CONFIRM, kind, rule)
+		confirm = _rule_button(mn.BTN_RULE_VERIFY_SITE, VERIFY_CONFIRM, kind, rule, company=company)
 		if confirm:
 			rows_out.append([confirm])
-	leave = _rule_button(mn.BTN_RULE_LEAVE, VERIFY_LEAVE, kind, rule)
+	leave = _rule_button(mn.BTN_RULE_LEAVE, VERIFY_LEAVE, kind, rule, company=company)
 	if leave:
 		rows_out.append([leave])
 	return markup(*rows_out)

@@ -122,29 +122,42 @@ def _may_read_rules(ctx: Ctx) -> bool:
 	return _keeps_any_books(ctx) or ctx.is_site_admin
 
 
-def _accepting_company(ctx: Ctx, rule: str = "") -> str | None:
-	"""The books an acceptance from *this* reader would be for — ``None`` when there are none.
+def _card_company(ctx: Ctx, token: str) -> str | None:
+	"""The client the card was drawn for, read back from its datum — ``None`` when it is not this reader's.
 
-	Normally the active company. But when this very chat was refused this very rule for another
-	of their clients inside the retry window, that client is what the card asks about and what
-	the acceptance is written for: it is the company whose document is waiting, and accepting for
-	the active one instead would clear a rule nobody was blocked on (``verify.blocked_company``).
+	The datum carries a digest of the company (``keyboards.company_token``), never its name, and
+	this is where it is turned back into one: the digest is matched against the companies *this
+	reader* is linked to and keeps the books of. So the datum can only ever select one of their
+	own clients (TG-03) — a datum copied out of somebody else's chat matches nothing here — and
+	the company that comes back is the one the card put the question about.
 
-	A site admin who keeps nobody's books gets ``None``, so their evidence card is drawn for no
-	company: it then asks the site-wide question (``CARD_RULE_ASK``) instead of «does this apply
-	to {company}?», which is a question they have no button to answer.
-
-	The other client wins only while it is still *waiting*. Once it has accepted this rule, an
-	acceptance for it would clear nothing, and going on answering with it stranded the very
-	persona this is for: clear a rule for client B, turn to client A where the same rule is still
-	blocking work, open it from ``/дүрэм`` — a list drawn for A — and the card said «already
-	accepted for B» with no button on it. A's books stayed refused with nothing left to tap.
+	WHY it is read off the card at all: an acceptance is a compliance record with a person's name
+	on it. The company used to be resolved on the tap from this chat's recent refusals, which
+	stopped answering after ``REQUEST_DEDUPE_MINUTES`` while the button stayed live for ever: an
+	accountant stopped on client B who came back twenty minutes later got an acceptance written
+	for client A, whichever happened to be active. The card asked about B and the record said A.
 	"""
-	blocked = _deps.blocked_company(rule, ctx.telegram_id) if rule else None
-	if blocked and blocked != ctx.company and _keeps_books(ctx, blocked):
-		if not _deps.rule_accepted(rule, blocked):
-			return blocked
-	return ctx.company if _keeps_books(ctx, ctx.company) else None
+	if not token:
+		return None
+	for company in ctx.companies:
+		if keyboards.company_token(company) == token and _keeps_books(ctx, company):
+			return company
+	return None
+
+
+def _reading_company(ctx: Ctx, token: str) -> str | None:
+	"""Which client an evidence card should ask about; the card's own, else the active one.
+
+	Opening a rule decides nothing and writes nothing, so a datum with no company on it (a bare
+	``v:op`` typed by hand) may fall back to the books this reader is working in. What the card
+	must not do is answer for a *different* client than the list it was opened from, which is why
+	``/дүрэм`` stamps its own company on every row: the list is drawn for the active company, and
+	the card under it has to ask about the same one.
+
+	A site admin who keeps nobody's books gets ``None``, so their card is drawn for no company and
+	asks the site-wide question (``CARD_RULE_ASK``) instead of one they have no button to answer.
+	"""
+	return _card_company(ctx, token) or (ctx.company if _keeps_books(ctx, ctx.company) else None)
 
 
 def _refuse_tap(ctx: Ctx, kind: str, rule: str, message: str, reason: str) -> dict[str, Any]:
@@ -191,7 +204,7 @@ def handle_rules(ctx: Ctx) -> Any:
 
 
 def handle_callback(ctx: Ctx, parts: list[str]) -> Any:
-	"""``v:op|ac|ok|no:<kind>:<rule…>`` — open one rule, accept it here, verify it, or leave it.
+	"""``v:op|ac|ok|no:<kind>:<company?>:<rule…>`` — open one rule, accept it, verify it, or leave it.
 
 	The permission is re-checked on every tap and not only on the command: callback data is
 	attacker-chosen (TG-03), so a datum copied out of somebody else's chat must clear nothing.
@@ -199,20 +212,21 @@ def handle_callback(ctx: Ctx, parts: list[str]) -> Any:
 	people: reading is open to both, [Манай компанид хамаарна] is the accountant's alone, and
 	[Сайт даяар баталгаажуулах] is the site admin's alone (ACC-01, VER-08).
 	"""
-	if len(parts) < 4:
+	if len(parts) < 5:
 		return None
 	action, kind = parts[1], parts[2]
 	rule = keyboards.rule_from_parts(parts)
+	token = keyboards.company_token_from_parts(parts)
 	if not _may_read_rules(ctx):
 		return _refuse_tap(ctx, kind, rule, mn.MSG_RULES_ACCOUNTANT_ONLY, "not_accountant")
 	if action == keyboards.VERIFY_OPEN:
-		return show_rule(ctx, kind, rule)
+		return show_rule(ctx, kind, rule, token)
 	if action == keyboards.VERIFY_ACCEPT:
 		if not _keeps_any_books(ctx):
 			# A site admin reading the list is not the professional who keeps these books, and
 			# acceptance is that professional's judgement — the global tick below is theirs.
 			return _refuse_tap(ctx, kind, rule, mn.MSG_RULES_ACCOUNTANT_ONLY, "not_accountant")
-		return accept_rule(ctx, kind, rule)
+		return accept_rule(ctx, kind, rule, token)
 	if action == keyboards.VERIFY_CONFIRM:
 		if not ctx.is_site_admin:
 			# The row is global (VER-08): an admin of one company must not decide it for every
@@ -232,9 +246,9 @@ def handle_callback(ctx: Ctx, parts: list[str]) -> Any:
 	return None
 
 
-def show_rule(ctx: Ctx, kind: str, rule: str) -> Any:
+def show_rule(ctx: Ctx, kind: str, rule: str, token: str = "") -> Any:
 	"""The evidence card: the Mongolian name, the debit and credit lines, and the citation or its absence."""
-	evidence = _deps.rule_evidence(kind, rule, _accepting_company(ctx, rule))
+	evidence = _deps.rule_evidence(kind, rule, _reading_company(ctx, token))
 	if evidence is None:
 		ctx.answer(mn.MSG_RULE_NOT_FOUND.format(rule=rule), show_alert=True)
 		return {"rule": rule, "found": False}
@@ -272,10 +286,10 @@ def offer_decision(ctx: Ctx, kind: str, evidence: Any) -> bool:
 	and the card says so rather than drawing a button that would refuse.
 
 	A reader who is a site admin but not an accountant of these books gets the global tick and
-	nothing else — neither the button nor the question, which is why the company reaches the
-	card through ``_accepting_company`` rather than straight off ``ctx``. The card's own company
-	is what decides: it is the client the acceptance would be written for, which for an
-	accountant acting on a second client is not the active one.
+	nothing else — neither the button nor the question. The card's own company is what decides
+	throughout: it is the client the acceptance would be written for, which for an accountant
+	acting on a second client is not the active one, and it rides on the button so that the
+	record can only ever name the client the card asked about.
 	"""
 	company = str(getattr(evidence, "company", "") or "")
 	may_accept = _keeps_books(ctx, company)
@@ -284,7 +298,15 @@ def offer_decision(ctx: Ctx, kind: str, evidence: Any) -> bool:
 	changed = _deps.rule_change(evidence.name, company, evidence.doctype) if company else None
 	if changed is not None:
 		ctx.reply(cards.rule_changed_card(changed))
-	markup = keyboards.rule_decision(kind, evidence.name, may_verify=ctx.is_site_admin, may_accept=may_accept)
+	markup = keyboards.rule_decision(
+		kind,
+		evidence.name,
+		may_verify=ctx.is_site_admin,
+		may_accept=may_accept,
+		# The company the card is asking about travels with the button, so the acceptance it
+		# writes can only ever name the client this card put the question about (BLOCKER 1).
+		company=company or None,
+	)
 	ctx.reply(cards.rule_card(evidence), markup)
 	if not markup.get("inline_keyboard"):
 		ctx.reply(mn.MSG_RULE_VERIFY_IN_DESK.format(rule=evidence.name))
@@ -294,24 +316,41 @@ def offer_decision(ctx: Ctx, kind: str, evidence: Any) -> bool:
 	return may_accept or ctx.is_site_admin
 
 
-def accept_rule(ctx: Ctx, kind: str, rule: str) -> Any:
+def accept_rule(ctx: Ctx, kind: str, rule: str, token: str = "") -> Any:
 	"""The accountant's tap: this rule applies to *this company's* books, and the record of it.
 
-	The company is resolved here rather than carried in the datum: 64 bytes do not stretch to a
-	company name beside a rule name (VER-03), and a company copied out of somebody else's chat
-	must never decide anything for those books. Usually it is the tapper's active company —
-	unless this very chat's refusal of this very rule, minutes ago, was another client of theirs
-	(``_accepting_company``), because that is the client whose document is waiting.
+	The company is the one the **card** asked about, carried on the button as a digest and turned
+	back into a name here against this reader's own linked companies (``_card_company``). Neither
+	half is trusted alone: the datum is attacker-chosen (TG-03) so it can only select a client
+	this reader already keeps the books of, and the reader's active company is not consulted at
+	all, because it is not what the card asked about.
+
+	A digest that no longer names one of their clients is refused rather than guessed at. It
+	means the card can no longer be tied to a client — the accountant was unlinked from it, or
+	the datum came from somewhere else — and an acceptance is a compliance record with a person's
+	name on it: writing it for whichever company happened to be active would put that name
+	against a decision nobody was asked to take. Refusing costs one tap in ``/дүрэм``; guessing
+	costs a record that says something that never happened.
 
 	It never touches ``verified``. The global row is one row for the whole site, and one
 	accountant's reading of an uncited rule must not bind another accountant's client — which is
 	the whole reason acceptance is per company and not a widening of VER-08.
 	"""
-	company = _accepting_company(ctx, rule)
+	company = _card_company(ctx, token)
 	if not company:
-		ctx.answer(mn.MSG_RULE_ACCEPT_NO_COMPANY, show_alert=True)
-		ctx.reply(mn.MSG_RULE_ACCEPT_NO_COMPANY)
-		return {"accepted": False, "reason": "no_company", "rule": rule}
+		# The card named no company at all (a site admin's, or a hand-made datum) versus a card
+		# whose company this reader can no longer be tied to: different facts, different sentences.
+		message = mn.MSG_RULE_ACCEPT_NO_COMPANY if not token else mn.MSG_RULE_ACCEPT_COMPANY_UNKNOWN
+		ctx.answer(message, show_alert=True)
+		ctx.reply(message)
+		log_event(
+			"telegram.rules.accept_no_company",
+			level="warning",
+			rule=rule,
+			telegram_id=ctx.telegram_id,
+			had_token=bool(token),
+		)
+		return {"accepted": False, "reason": "unknown_company" if token else "no_company", "rule": rule}
 	result = _deps.accept_rule(kind, rule, company, ctx.user, telegram_id=ctx.telegram_id)
 	if not result.get("ok"):
 		# A rule that is not there and a write that would not go through are different problems,

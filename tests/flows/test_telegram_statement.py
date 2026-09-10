@@ -96,8 +96,8 @@ def test_a_layout_nobody_confirmed_imports_nothing_and_asks_the_accountant(books
 	_send(bot, 9303, filename)
 	assert mn.MSG_STATEMENT_LAYOUT_UNVERIFIED.format(layout="test_khan_synthetic") in bot.texts()
 	assert bot.callback_datas() == [
-		keyboards.rule_data(keyboards.VERIFY_ACCEPT, "b", "test_khan_synthetic"),
-		keyboards.rule_data(keyboards.VERIFY_LEAVE, "b", "test_khan_synthetic"),
+		keyboards.rule_data(keyboards.VERIFY_ACCEPT, "b", "test_khan_synthetic", books),
+		keyboards.rule_data(keyboards.VERIFY_LEAVE, "b", "test_khan_synthetic", books),
 	]
 	assert frappe.db.count("Bank Transaction") == 0
 	assert frappe.db.get_value("Nyabo Chat State", {"chat_id": "9303"}, "state") in (None, "")
@@ -167,7 +167,9 @@ def test_the_accountant_confirms_the_layout_and_the_next_statement_imports(books
 
 	confirmed = run(
 		bot,
-		callback_update(9305, keyboards.rule_data(keyboards.VERIFY_ACCEPT, "b", "test_khan_synthetic")),
+		callback_update(
+			9305, keyboards.rule_data(keyboards.VERIFY_ACCEPT, "b", "test_khan_synthetic", books)
+		),
 	)
 
 	assert confirmed["result"]["accepted"] is True
@@ -205,7 +207,9 @@ def test_the_confirmation_says_what_happens_next_and_not_what_used_to(books):
 
 	run(
 		bot,
-		callback_update(9307, keyboards.rule_data(keyboards.VERIFY_ACCEPT, "b", "test_khan_synthetic")),
+		callback_update(
+			9307, keyboards.rule_data(keyboards.VERIFY_ACCEPT, "b", "test_khan_synthetic", books)
+		),
 	)
 
 	texts = bot.texts()
@@ -241,7 +245,12 @@ def test_a_confirmation_the_accountant_came_back_to_still_reads_the_waiting_file
 			"Nyabo Event", row["name"], "creation", "2020-01-01 00:00:00", update_modified=False
 		)
 
-	run(bot, callback_update(9309, keyboards.rule_data(keyboards.VERIFY_ACCEPT, "b", "test_khan_synthetic")))
+	run(
+		bot,
+		callback_update(
+			9309, keyboards.rule_data(keyboards.VERIFY_ACCEPT, "b", "test_khan_synthetic", books)
+		),
+	)
 
 	texts = bot.texts()
 	assert mn.MSG_STATEMENT_LAYOUT_REIMPORTING in texts

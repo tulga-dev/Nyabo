@@ -82,8 +82,23 @@ def _guarded_post(monkeypatch: pytest.MonkeyPatch, rule: str = BLOCKING) -> list
 	return posted
 
 
-def _accept(bot: FakeBotApi, telegram_id: int, rule: str = BLOCKING, kind: str = verify.KIND_PATTERN):
-	return run(bot, callback_update(telegram_id, keyboards.rule_data(keyboards.VERIFY_ACCEPT, kind, rule)))
+def _accept(
+	bot: FakeBotApi,
+	telegram_id: int,
+	company: str,
+	rule: str = BLOCKING,
+	kind: str = verify.KIND_PATTERN,
+):
+	"""Tap [Манай компанид хамаарна] on a card that asked about ``company``.
+
+	The client the card named rides on the button (``keyboards.company_token``), so the tap can
+	only ever be answered for that client — which is why every call here has to say which one it
+	was looking at, exactly as the real card does.
+	"""
+	return run(
+		bot,
+		callback_update(telegram_id, keyboards.rule_data(keyboards.VERIFY_ACCEPT, kind, rule, company)),
+	)
 
 
 # --- 1. the whole point: refused, accepted, posted, in one exchange -----------------------------
@@ -106,11 +121,11 @@ def test_the_accountant_is_refused_accepts_the_rule_and_the_intake_posts(
 	assert posted == [] and frappe.db.get_value("Nyabo Proposal", proposal.name, "status") == "proposed"
 	# The way out is on the screen they are already looking at, with the evidence above it.
 	assert mn.MSG_UNVERIFIED_RULE_ACCOUNTANT_CAN_ACCEPT.format(company=books) in bot.texts()
-	assert keyboards.rule_data(keyboards.VERIFY_ACCEPT, verify.KIND_PATTERN, BLOCKING) in (
+	assert keyboards.rule_data(keyboards.VERIFY_ACCEPT, verify.KIND_PATTERN, BLOCKING, books) in (
 		bot.callback_datas()
 	)
 
-	outcome = _accept(bot, ACCOUNTANT_ID)
+	outcome = _accept(bot, ACCOUNTANT_ID, books)
 
 	assert outcome["result"]["accepted"] is True
 	assert outcome["result"]["posted"] == "JE-00000"
@@ -138,7 +153,7 @@ def test_a_stale_acceptance_asks_for_the_one_tap_instead_of_posting_somebody_els
 	run(blocked, callback_update(ACCOUNTANT_ID, f"p:{proposal.name}:ap"))
 
 	colleague = FakeBotApi()
-	outcome = _accept(colleague, OTHER_ACCOUNTANT_ID)
+	outcome = _accept(colleague, OTHER_ACCOUNTANT_ID, books)
 
 	assert outcome["result"]["accepted"] is True and outcome["result"]["posted"] is None
 	assert posted == [] and frappe.db.get_value("Nyabo Proposal", proposal.name, "status") == "proposed"
@@ -220,7 +235,7 @@ def test_the_card_stops_warning_the_company_that_accepted_and_goes_on_warning_th
 
 def test_the_acceptance_records_the_rule_the_company_the_person_and_the_time(books: str):
 	bot = FakeBotApi()
-	outcome = _accept(bot, ACCOUNTANT_ID)
+	outcome = _accept(bot, ACCOUNTANT_ID, books)
 
 	row = frappe.get_doc(verify.ACCEPTANCE, outcome["result"]["acceptance"])
 	assert row.company == books and row.rule == BLOCKING and row.rule_kind == verify.KIND_PATTERN
@@ -285,7 +300,7 @@ def test_a_second_company_is_still_refused_until_its_own_accountant_accepts(
 	refused = run(bot, callback_update(OTHER_ACCOUNTANT_ID, f"p:{other.name}:ap"))
 	assert refused["result"]["unverified_rule"] == BLOCKING and posted == []
 
-	_accept(bot, OTHER_ACCOUNTANT_ID)
+	_accept(bot, OTHER_ACCOUNTANT_ID, company_v03)
 	assert posted == ["JE-00000"]
 	assert {row["company"] for row in verify.acceptances(BLOCKING)} == {books, company_v03}
 
@@ -395,7 +410,7 @@ def test_the_accountant_is_told_what_changed_and_accepts_the_new_version(
 	assert "Дансны өглөг" in told, "the line as it reads now"
 	assert "Бусад өглөг, урьдчилан төлөгдсөн орлого" in told, "and the line they had accepted"
 
-	outcome = _accept(bot, ACCOUNTANT_ID)
+	outcome = _accept(bot, ACCOUNTANT_ID, books)
 
 	assert outcome["result"]["accepted"] is True and posted == ["JE-00000"]
 	# Two rows, because there were two decisions: what was accepted before the change is not
@@ -493,7 +508,7 @@ def test_an_owner_cannot_accept_a_rule(books: str):
 	link_user(OWNER_ID, "Owner", books)
 	bot = FakeBotApi()
 
-	outcome = _accept(bot, OWNER_ID)
+	outcome = _accept(bot, OWNER_ID, books)
 
 	assert outcome["result"] == {"refused": "not_accountant", "rule": BLOCKING}
 	assert frappe.db.count(verify.ACCEPTANCE) == 0
@@ -508,7 +523,7 @@ def test_an_accountant_of_another_company_accepts_nothing_here(books: str, compa
 	link_user(OTHER_ACCOUNTANT_ID, "Accountant", company_v03)
 	bot = FakeBotApi()
 
-	_accept(bot, OTHER_ACCOUNTANT_ID)
+	_accept(bot, OTHER_ACCOUNTANT_ID, company_v03)
 
 	# The tap accepted the rule for *their* company, the active one, and for no other.
 	assert [row["company"] for row in verify.acceptances(BLOCKING)] == [company_v03]
@@ -544,13 +559,102 @@ def test_the_multi_client_accountant_is_offered_their_own_clients_rule_not_told_
 		mn.MSG_ACCOUNTANT_RULE_ACCEPT_REQUEST.format(company=company_v03, rule=BLOCKING) not in bot.texts()
 	), "nobody is told to go and ask themselves"
 
-	accepted = _accept(bot, MULTI_CLIENT_ID)
+	accepted = _accept(bot, MULTI_CLIENT_ID, company_v03)
 
 	# ...and the acceptance is written for the client the document belongs to, which is the only
 	# company it unblocks — the active one is untouched.
 	assert accepted["result"]["company"] == company_v03
 	assert accepted["result"]["posted"] == "JE-00000" and posted == ["JE-00000"]
 	assert [row["company"] for row in verify.acceptances(BLOCKING)] == [company_v03]
+	with pytest.raises(guard.UnverifiedRuleError):
+		guard.require_verified(BLOCKING, company=books)
+
+
+def _the_card_goes_cold() -> None:
+	"""Age every refusal past ``REQUEST_DEDUPE_MINUTES``: the accountant walked away and came back.
+
+	The inline button on the card stays live for ever, and this is the state it is tapped in far
+	more often than not — a client rings, twenty minutes go by, and the card is still on screen.
+	"""
+	from frappe.utils import add_to_date, now_datetime
+
+	long_ago = add_to_date(now_datetime(), minutes=-(verify.REQUEST_DEDUPE_MINUTES + 5))
+	for row in frappe.get_all("Nyabo Event", filters={"event_type": mn.EVENT_RULE_BLOCKED}, pluck="name"):
+		frappe.db.set_value("Nyabo Event", row, "creation", long_ago, update_modified=False)
+
+
+def _drawn_accept_datum(bot: FakeBotApi) -> str:
+	"""The [Манай компанид хамаарна] datum the card really drew — never one rebuilt by the test."""
+	prefix = f"{keyboards.PREFIX_VERIFY}:{keyboards.VERIFY_ACCEPT}:"
+	return next(data for data in bot.callback_datas() if data.startswith(prefix))
+
+
+def test_a_tap_twenty_minutes_late_is_recorded_for_the_client_the_card_asked_about(
+	books: str, company_v03: str, monkeypatch: pytest.MonkeyPatch
+):
+	"""BLOCKER 1: a compliance record must never be able to say something that did not happen.
+
+	The company an acceptance was written for used to be resolved on the tap from this chat's
+	recent refusals, which only look back ``REQUEST_DEDUPE_MINUTES``; the button on the card
+	never expires. So an accountant with two clients, stopped on client B's receipt, who walked
+	away for twenty minutes and then tapped got the acceptance written for client A — whichever
+	company happened to be active. The card asked about B, the record said A, A's books were
+	unblocked on a rule nobody had decided about for A, and B stayed stuck.
+
+	The company now rides on the card's own button as a digest of the name and is resolved
+	against this reader's own linked companies (TG-03), so the answer is the same however long
+	the card sat there. Finishing the *posting* is deliberately not: that stays inside the retry
+	window (VER-04), so the accountant is told the one tap that is left rather than having a
+	receipt posted for them out of a card of unknown age.
+	"""
+	posted = _guarded_post(monkeypatch)
+	link_user(MULTI_CLIENT_ID, "Accountant", books)
+	link_user(MULTI_CLIENT_ID, "Accountant", company_v03)
+	assert frappe.db.get_value("Nyabo User Link", str(MULTI_CLIENT_ID), "active_company") == books
+
+	other = make_proposal(company_v03, posting_pattern=BLOCKING)
+	bot = FakeBotApi()
+	run(bot, callback_update(MULTI_CLIENT_ID, f"p:{other.name}:ap"))
+	tap = _drawn_accept_datum(bot)
+
+	_the_card_goes_cold()
+	bot.clear()
+	accepted = run(bot, callback_update(MULTI_CLIENT_ID, tap))
+
+	assert accepted["result"]["company"] == company_v03, "the card asked about B; so does the record"
+	assert [row["company"] for row in verify.acceptances(BLOCKING)] == [company_v03]
+	# A was never asked about and is not cleared — the whole point of the per-company record.
+	with pytest.raises(guard.UnverifiedRuleError):
+		guard.require_verified(BLOCKING, company=books)
+	guard.require_verified(BLOCKING, company=company_v03)
+	# ...and the confirmation on screen names the same client the row does.
+	assert any(company_v03 in text for text in bot.texts())
+	# The refused tap is too old to finish for them, so they are told the one tap that is left.
+	assert posted == [] and mn.MSG_RULE_ACCEPTED_RETRY in bot.texts()
+
+
+def test_a_card_whose_client_this_reader_no_longer_keeps_is_refused_not_guessed_at(
+	books: str, company_v03: str, monkeypatch: pytest.MonkeyPatch
+):
+	"""The datum names a client, and it is never trusted on its own (TG-03).
+
+	The digest can only *select* among the companies the tapper is linked to and keeps the books
+	of. When it selects none of them — the accountant was unlinked from that client, or the datum
+	was copied out of somebody else's chat — there is nothing the acceptance could truthfully
+	say, so nothing is written and the card says so. Falling back to the active company here is
+	exactly the guess that put one client's name on another client's decision.
+	"""
+	_guarded_post(monkeypatch)
+	link_user(ACCOUNTANT_ID, "Accountant", books)
+	bot = FakeBotApi()
+
+	outcome = _accept(bot, ACCOUNTANT_ID, company_v03)
+
+	assert outcome["result"] == {"accepted": False, "reason": "unknown_company", "rule": BLOCKING}
+	assert frappe.db.count(verify.ACCEPTANCE) == 0
+	assert frappe.db.count("Nyabo Event", {"event_type": mn.EVENT_RULE_ACCEPTED}) == 0
+	assert bot.last_text == mn.MSG_RULE_ACCEPT_COMPANY_UNKNOWN
+	# ...and their own client is not quietly cleared instead.
 	with pytest.raises(guard.UnverifiedRuleError):
 		guard.require_verified(BLOCKING, company=books)
 
@@ -573,7 +677,7 @@ def test_after_clearing_one_client_the_accountant_can_clear_the_next(
 	other = make_proposal(company_v03, posting_pattern=BLOCKING)
 	bot = FakeBotApi()
 	run(bot, callback_update(MULTI_CLIENT_ID, f"p:{other.name}:ap"))
-	_accept(bot, MULTI_CLIENT_ID)
+	_accept(bot, MULTI_CLIENT_ID, company_v03)
 	assert [row["company"] for row in verify.acceptances(BLOCKING)] == [company_v03] and posted
 
 	# Same accountant, same quarter of an hour, now on their own active client's list.
@@ -589,7 +693,7 @@ def test_after_clearing_one_client_the_accountant_can_clear_the_next(
 	assert bot.callback_datas(), "a card the accountant cannot answer is the dead end itself"
 	assert any(mn.CARD_RULE_ACCEPT_ASK.format(company=books) in text for text in bot.texts())
 
-	accepted = _accept(bot, MULTI_CLIENT_ID)
+	accepted = _accept(bot, MULTI_CLIENT_ID, books)
 
 	assert accepted["result"]["company"] == books
 	assert sorted(row["company"] for row in verify.acceptances(BLOCKING)) == sorted([books, company_v03])
@@ -730,7 +834,7 @@ def test_a_tax_parameter_refusal_reaches_the_accountants_card_by_the_name_it_nam
 	assert outcome["result"]["unverified_rule"] == SI_RATE_ROW
 	assert outcome["result"]["offered"] is True
 	assert mn.MSG_UNVERIFIED_RULE_ACCOUNTANT_CAN_ACCEPT.format(company=books) in bot.texts()
-	assert keyboards.rule_data(keyboards.VERIFY_ACCEPT, verify.KIND_PARAMETER, SI_RATE_ROW) in (
+	assert keyboards.rule_data(keyboards.VERIFY_ACCEPT, verify.KIND_PARAMETER, SI_RATE_ROW, books) in (
 		bot.callback_datas()
 	)
 

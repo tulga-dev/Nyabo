@@ -354,24 +354,6 @@ def blocked_proposal(rule: str, company: str | None, telegram_id: str | int | No
 	return _call("nyabo_mn.rules.verify", "blocked_proposal", rule, company, telegram_id)
 
 
-def rule_accepted(rule: str, company: str | None) -> bool:
-	"""Has this company already accepted this rule *as it now reads*? (``rules.verify.acceptance``)
-
-	The card's own question, asked before it decides which client it is about: a company that has
-	answered cannot be the company an acceptance is still owed to.
-	"""
-	return _call("nyabo_mn.rules.verify", "acceptance", company, rule) is not None
-
-
-def blocked_company(rule: str, telegram_id: str | int | None) -> str | None:
-	"""The client whose document this chat's own refusal of this rule was about, if it was recent.
-
-	One accountant may keep several clients' books and act on any of them, so the company an
-	acceptance is for is not always the active one.
-	"""
-	return _call("nyabo_mn.rules.verify", "blocked_company", rule, telegram_id)
-
-
 def blocked_document(rule: str, company: str | None, telegram_id: str | int | None) -> str | None:
 	"""The statement file this person's own upload was refused on, so a confirmation can re-read it."""
 	return _call("nyabo_mn.rules.verify", "blocked_document", rule, company, telegram_id)

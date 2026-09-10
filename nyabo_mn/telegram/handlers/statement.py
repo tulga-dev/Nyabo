@@ -434,7 +434,9 @@ def ask_layout_confirmation(
 		mn.MSG_STATEMENT_LAYOUT_CONFIRM_ASK.format(
 			layout=layout_id, company=company or mn.VALUE_UNKNOWN, mapping=mapping_text
 		),
-		reply_markup=keyboards.rule_decision(LAYOUT_KIND, layout_id, may_accept=True),
+		# The company rides on the button: this card asks whether the mapping is right for *these*
+		# books, and the acceptance it writes must name the same client however long the file sat.
+		reply_markup=keyboards.rule_decision(LAYOUT_KIND, layout_id, may_accept=True, company=company),
 	)
 
 

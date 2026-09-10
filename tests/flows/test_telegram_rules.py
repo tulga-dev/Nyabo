@@ -181,10 +181,11 @@ def test_the_rule_card_shows_the_entry_and_says_plainly_that_there_is_no_citatio
 	# under it — in words that do not read as the same act one notch stronger.
 	assert mn.CARD_RULE_ACCEPT_RESPONSIBILITY.format(company=rules_site) in text
 	assert mn.CARD_RULE_ACCEPT_ASK.format(company=rules_site) in text
+	# Every button carries the client the card asked about, so the answer cannot land elsewhere.
 	assert bot.callback_datas() == [
-		keyboards.rule_data(keyboards.VERIFY_ACCEPT, verify.KIND_PATTERN, BLOCKING),
-		keyboards.rule_data(keyboards.VERIFY_CONFIRM, verify.KIND_PATTERN, BLOCKING),
-		keyboards.rule_data(keyboards.VERIFY_LEAVE, verify.KIND_PATTERN, BLOCKING),
+		keyboards.rule_data(keyboards.VERIFY_ACCEPT, verify.KIND_PATTERN, BLOCKING, rules_site),
+		keyboards.rule_data(keyboards.VERIFY_CONFIRM, verify.KIND_PATTERN, BLOCKING, rules_site),
+		keyboards.rule_data(keyboards.VERIFY_LEAVE, verify.KIND_PATTERN, BLOCKING, rules_site),
 	]
 
 
@@ -674,8 +675,8 @@ def test_a_company_admin_reads_the_evidence_and_answers_it_for_their_own_company
 	assert outcome["result"] == {"rule": BLOCKING, "has_citation": False, "offered": True}
 	assert BLOCKING_LABEL in bot.texts()[0]  # the evidence card came first
 	assert bot.callback_datas() == [
-		keyboards.rule_data(keyboards.VERIFY_ACCEPT, verify.KIND_PATTERN, BLOCKING),
-		keyboards.rule_data(keyboards.VERIFY_LEAVE, verify.KIND_PATTERN, BLOCKING),
+		keyboards.rule_data(keyboards.VERIFY_ACCEPT, verify.KIND_PATTERN, BLOCKING, rules_site),
+		keyboards.rule_data(keyboards.VERIFY_LEAVE, verify.KIND_PATTERN, BLOCKING, rules_site),
 	]
 
 
@@ -691,8 +692,8 @@ def test_a_blocked_company_admin_is_offered_their_own_companys_answer_not_the_gl
 
 	assert outcome["result"]["offered"] is True and outcome["result"]["notified"] is False
 	assert _rule_datas(bot) == [
-		keyboards.rule_data(keyboards.VERIFY_ACCEPT, verify.KIND_PATTERN, BLOCKING),
-		keyboards.rule_data(keyboards.VERIFY_LEAVE, verify.KIND_PATTERN, BLOCKING),
+		keyboards.rule_data(keyboards.VERIFY_ACCEPT, verify.KIND_PATTERN, BLOCKING, rules_site),
+		keyboards.rule_data(keyboards.VERIFY_LEAVE, verify.KIND_PATTERN, BLOCKING, rules_site),
 	]
 
 
@@ -937,7 +938,7 @@ def test_nobody_is_told_to_use_a_button_that_will_refuse_them(
 	# ...and the flow it points at is the one they really get: the evidence and their own answer.
 	tap = FakeBotApi()
 	run(tap, callback_update(COMPANY_ADMIN_ID, keyboards.rule_data(keyboards.VERIFY_OPEN, "p", BLOCKING)))
-	assert keyboards.rule_data(keyboards.VERIFY_ACCEPT, "p", BLOCKING) in tap.callback_datas()
+	assert keyboards.rule_data(keyboards.VERIFY_ACCEPT, "p", BLOCKING, rules_site) in tap.callback_datas()
 
 
 def test_a_bookkeeper_of_another_company_is_not_told_about_this_one(
@@ -1010,7 +1011,9 @@ def test_a_blocked_admin_is_offered_the_verify_button_there_and_then(
 
 	assert outcome["result"]["offered"] is True and outcome["result"]["notified"] is False
 	assert mn.MSG_UNVERIFIED_RULE_ADMIN_CAN_VERIFY in bot.texts()
-	assert keyboards.rule_data(keyboards.VERIFY_CONFIRM, verify.KIND_PATTERN, BLOCKING) in _rule_datas(bot)
+	assert keyboards.rule_data(
+		keyboards.VERIFY_CONFIRM, verify.KIND_PATTERN, BLOCKING, rules_site
+	) in _rule_datas(bot)
 	assert mn.CARD_RULE_NO_CITATION in bot.last_text
 
 
@@ -1023,13 +1026,21 @@ def test_callback_data_fits_64_bytes_for_the_longest_seeded_rule_names():
 	longest_parameter = max(
 		(f"{row['key']}:{row['effective_from']}" for row in load_seed("tax_parameters")["rows"]), key=len
 	)
+	# ...and the accountant's answer carries the client the card asked about beside it (BLOCKER 1).
 	for kind, rule in ((verify.KIND_PATTERN, longest_pattern), (verify.KIND_PARAMETER, longest_parameter)):
-		for action in (keyboards.VERIFY_OPEN, keyboards.VERIFY_CONFIRM, keyboards.VERIFY_LEAVE):
-			data = keyboards.rule_data(action, kind, rule)
-			assert len(data.encode("utf-8")) <= MAX_CALLBACK_DATA_BYTES, data
-			parts = keyboards.decode(data)
-			assert parts[1] == action and parts[2] == kind
-			assert keyboards.rule_from_parts(parts) == rule
+		for action in (
+			keyboards.VERIFY_OPEN,
+			keyboards.VERIFY_CONFIRM,
+			keyboards.VERIFY_LEAVE,
+			keyboards.VERIFY_ACCEPT,
+		):
+			for company in (None, "Маш урт нэртэй хязгаарлагдмал хариуцлагатай компани ХХК"):
+				data = keyboards.rule_data(action, kind, rule, company)
+				assert len(data.encode("utf-8")) <= MAX_CALLBACK_DATA_BYTES, data
+				parts = keyboards.decode(data)
+				assert parts[1] == action and parts[2] == kind
+				assert keyboards.rule_from_parts(parts) == rule
+				assert keyboards.company_token_from_parts(parts) == keyboards.company_token(company)
 
 
 def test_a_rule_too_long_for_a_button_costs_the_button_not_the_card():

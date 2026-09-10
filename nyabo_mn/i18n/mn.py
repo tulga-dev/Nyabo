@@ -1602,6 +1602,15 @@ MSG_RULE_ACCEPT_NO_COMPANY = (
 	"Идэвхтэй компани сонгогдоогүй байна. Дүрэм компани тус бүрээр хүлээн зөвшөөрөгддөг тул "
 	"/компани командаар компаниа сонгоод дахин оролдоно уу."
 )
+# The card named a client, and the tap can no longer tie that client to this reader: they were
+# unlinked from it, or the datum came from elsewhere. The acceptance is a record with their name
+# on it, so it is refused rather than written for whichever company happens to be active — the
+# card asked about one client and the record must not name another. The way back is one tap.
+MSG_RULE_ACCEPT_COMPANY_UNKNOWN = (
+	"Энэ карт аль үйлчлүүлэгчийн талаар асууж байсныг одоо тогтоох боломжгүй байна, "
+	"тиймээс хүлээн зөвшөөрөхгүйгээр орхилоо. /дүрэм командаар жагсаалтаа дахин нээж, "
+	"тухайн компанийхаа дүрмийг сонгоно уу."
+)
 # An owner tapping [Батлах] under an auto-approve policy: the rule is a professional judgement,
 # so it is not theirs. The sentence names the person who decides, not a role nobody can find.
 MSG_UNVERIFIED_RULE_ACCOUNTANT_ASKED = (

@@ -231,8 +231,8 @@ def test_run_import_asks_the_accountant_to_confirm_a_learned_layout(books):
 	# ...and the confirmation is offered right there, with the mapping to read and a button.
 	assert layout in bot.last_text and "Огноо" in bot.last_text
 	assert bot.callback_datas() == [
-		keyboards.rule_data(keyboards.VERIFY_ACCEPT, "b", layout),
-		keyboards.rule_data(keyboards.VERIFY_LEAVE, "b", layout),
+		keyboards.rule_data(keyboards.VERIFY_ACCEPT, "b", layout, books),
+		keyboards.rule_data(keyboards.VERIFY_LEAVE, "b", layout, books),
 	]
 	assert frappe.db.count("Bank Transaction") == 0
 	assert frappe.db.get_value("Nyabo Chat State", {"chat_id": "3102"}, "state") in (None, "")
