@@ -86,21 +86,28 @@ def clear_cache() -> None:
 		delattr(frappe.local, _CACHE_ATTR)
 
 
-def get(key: str, on_date: dt.date, *, allow_unverified: bool = False) -> ParameterRow:
+def get(
+	key: str, on_date: dt.date, *, company: str | None = None, allow_unverified: bool = False
+) -> ParameterRow:
 	"""The row of `key` in force on `on_date` (raises MissingRuleError / PendingRuleError / AmbiguousRuleError).
 
 	With `allow_unverified=False` an unverified row raises UnverifiedRuleError unless the
-	simulation flag is set (see rules.guard).
+	simulation flag is set (see rules.guard). `company` lets a row that company's accountant has
+	accepted through, and only for that company (DECISIONS ACC-01) — thirteen tax parameters ship
+	uncited, and several of them (the social-insurance rates, the simplified 1% accrual) are
+	everyday work that used to stop dead.
 	"""
 	row = resolve_parameter(load_rows(), key, on_date)
 	if not allow_unverified:
-		guard.require_verified(row)
+		guard.require_verified(row, company=company)
 	return row
 
 
-def get_decimal(key: str, on_date: dt.date, *, allow_unverified: bool = False) -> Decimal:
+def get_decimal(
+	key: str, on_date: dt.date, *, company: str | None = None, allow_unverified: bool = False
+) -> Decimal:
 	"""Numeric parameters (rates as fractions, thresholds as tögrög)."""
-	return get(key, on_date, allow_unverified=allow_unverified).as_decimal()
+	return get(key, on_date, company=company, allow_unverified=allow_unverified).as_decimal()
 
 
 def history(key: str) -> list[ParameterRow]:

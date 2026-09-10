@@ -1165,3 +1165,138 @@ in the ERPNext desk, and somebody who knows the source. «Do not verify it» is 
 the paragraph cannot be read, which is the safe answer: an unverified rule refuses postings, and
 a wrongly verified one does not. Reverse this when the notes themselves are translated and
 re-reviewed in Mongolian — at which point the line is untrue and must go.
+
+## the accountant is the main user (the founder's decision on who confirms an intake)
+
+### ACC-01 An accountant accepts an uncited rule for their own company; it is not a verification
+The founder: «the main user is accountant, so all the intakes should just ask accountant confirm».
+He is right about who is at the other end. Nyabo is for Mongolian SMEs whose books are kept by an
+accountant — often one accountant across several client companies — and that accountant is the
+professional who signs the books and holds the MICPA permit. An "admin" in this app is a technical
+role: someone who links people and watches the site. Intake *approval* was already the
+accountant's (`approve.can_approve`, `statement.handle_layout_callback`), and that part did not
+move. What was backwards is what happened when the guard refused: §1.2 refuses an unverified
+Posting Pattern or Tax Parameter, VER-08 made the tap that lifts it a *site* admin's, and the
+accountant — the person whose signature the entry will carry — was told to go and find someone.
+Nine posting patterns and thirteen tax parameters are in that state, and they are ordinary work:
+recognising revenue from a customer advance, a transfer between the company's own bank accounts,
+accruing the simplified 1% tax, withholding employee social insurance.
+
+**Decided: an accountant linked to a company may accept an uncited rule as applying to that
+company's books, and the guard then lets that company post on it.** The global row is untouched.
+
+*Why not simply widen VER-08 so an accountant may tick the row.* Rejected for exactly the reason
+VER-08 gives, one seat further along. `Nyabo Posting Pattern` and `Nyabo Tax Parameter` are one row
+for the whole site; a tick by one accountant would decide, for every other accountant's client,
+that a posting is backed — with a name on the audit row that never looked at those books. Worse
+than the cost is what it would *say*: a verification is the claim «Order 116 12.2.2 А prints this
+entry», which has one answer for the whole country, and an acceptance is the claim «this is how
+the books I keep for Тест ХХК work», which does not. Merging them would put the weaker claim on
+the record wearing the stronger one's name.
+
+*Where the acceptance lives.* A separate DocType, `Nyabo Rule Acceptance`, named
+`format:{company}:{rule_kind}:{rule}`. The three candidates were a child table on each rule, a
+field on `Nyabo Company Settings`, and this.
+
+- A child table on the rule was rejected because it puts per-company data on a row that is global
+  by definition, on rows `seed.sync` rewrites on every migrate (VER-06 already has to reason
+  carefully about what a deploy may and may not touch there), and because it needs the same table
+  three times — pattern, parameter, layout.
+- A field on `Nyabo Company Settings` was rejected because an acceptance is an *act* with an
+  author and a time, and a settings field has neither. The audit question is «who accepted what,
+  for whom, when» and a JSON blob inside a settings document answers it badly and versions it
+  worse.
+- The separate DocType makes the name itself the uniqueness rule — one company, one rule, one
+  acceptance — so a second tap cannot become a second record, and it carries `accepted_by`,
+  `accepted_telegram_id`, `accepted_at`, the rule's Mongolian label as the accountant read it, and
+  `had_citation`: whether the rule carried a legal citation at that moment. An accountant who
+  accepted a cited reading and one who vouched for bare mechanics did different things, and a
+  year later the row still says which.
+
+The write is `rules.verify.accept`, idempotent like `verify` and for the same reason (a second tap
+on a card somebody scrolled back to must not overwrite the first accountant's name), and it also
+writes a `rule_accepted_for_company` Nyabo Event. Withdrawing one is deleting the row in the desk,
+where the deletion is itself traceable and the event stays — the same shape as un-verifying
+(VER-01).
+
+*The guard is not weakened.* `rules.guard.require_verified` now takes `company` and asks two
+questions instead of one: is the row verified, and has this company accepted it. With no company
+it behaves exactly as it always did. A rule that neither evidence nor a named person has accepted
+still refuses; the refusal still names the rule; nothing posts without a human tap; corrections are
+still reversals. What changed is who can lift it and how fast. The company is threaded from the
+places that have one — `agent.post.post_proposal` (the proposal's company), `rules.params.get`,
+`reports.rules_bridge`, `compliance.period.unverified_proposals` — and `guard._ref` exists because
+a core `ParameterRow` carries `key` and `effective_from` separately while its DocType row is named
+`key:effective_from`: looking the acceptance up by the label alone would ask about
+`si.employer_rate` and never find the acceptance recorded for `si.employer_rate:2027-01-01`.
+
+*Three provenances, kept apart everywhere they are shown* (VER-07 extended): `SOURCE_SEED` (the
+repository's citation, nobody named), `SOURCE_PERSON` (a site admin's tap, everybody bound),
+`SOURCE_COMPANY` (this company's accountant, one client bound). Separate events, separate counts
+(`verified_counts` / `accepted_counts`), separate lines on the card, and a separate number in the
+readiness table — never added together, because a certification reader who saw one total would
+read the weakest claim in it as the strongest.
+
+*Who may take it.* `Ctx.is_accountant` on the company the document belongs to, which is the link
+role `Accountant` **or** `Admin` (TG-04's per-company role; an Admin link keeps those books). An
+owner may not: they can approve a simple document under `owner_simple`, but deciding that an
+uncited rule applies to a set of books is a professional judgement, not an approval of one entry.
+An owner who meets the refusal is told which person decides, and the company's accountants are
+notified — the honest version of the promise VER-04 made to the wrong audience.
+
+*The acceptance finishes the tap that was refused.* The accountant taps [Батлах], the guard
+refuses, they read the rule and accept it — and Nyabo posts the document they already asked to
+post, rather than asking them to press the identical button again. VER-04 rejected carrying the
+proposal through the verification datum, and that reasoning stands: 64 bytes do not stretch to a
+proposal name beside a rule name, and one person's tap must not post another person's document. So
+the continuation is read back out of the audit log instead. Every refused [Батлах] writes a
+`rule_blocked_posting` Nyabo Event naming the rule, the company, the document and the Telegram
+chat; `verify.blocked_proposal` returns a proposal only when the same chat, the same company and
+the same rule match inside `REQUEST_DEDUPE_MINUTES` and the proposal is still `proposed`. Anything
+else — a card in a shared chat, a colleague's document, a stale refusal — falls back to
+`MSG_RULE_ACCEPTED_RETRY`, which names the one tap. §1.3 is untouched: the human tap is the
+[Батлах] this same person made minutes ago, and `post_proposal` re-runs every check.
+
+*The language.* Every string on an intake path was swept. `WARN_UNVERIFIED_RULE`,
+`MSG_UNVERIFIED_RULE_BLOCKED`, `MSG_PERIOD_UNVERIFIED_RULES`, the two statement-layout lines and
+the `/дүрэм` entries in `MSG_MENU` and `BOT_COMMAND_DESCRIPTIONS` now name what the accountant can
+do; `MSG_RULES_ADMIN_ONLY` became `MSG_RULES_ACCOUNTANT_ONLY` and is what an *owner* reads;
+`MSG_NO_COMPANY`, `MSG_BANK_SETTLE_NO_BANK_ACCOUNT`, `MSG_BANK_SETTLE_ERPNEXT_PERMISSION` and
+`MSG_RULE_AMBIGUOUS` were the four remaining «Админд хандана уу» dead ends on an intake path and
+now name a command or a screen. `tests/flows/test_rule_acceptance.py` pins both halves: no listed
+intake-path string may contain the word «админ» at all, and every string that does send the reader
+to somebody else must name the door that opens.
+
+Reverse by deleting `Nyabo Rule Acceptance`, `verify.accept` and the `company` parameter on
+`guard.require_verified` — and accept that the accountant goes back to waiting for a site admin on
+twenty-two rules of ordinary work.
+
+### ACC-02 A learned bank layout is confirmed by the accountant who read the file
+The same shape, and an easier argument. A `Nyabo Bank Layout` learned from a Telegram column
+mapping was saved with `verified = 0` and the accountant was told «Админ баталгаажуулсны дараа
+автоматаар ашиглана» — an admin who had never seen the spreadsheet. On the other branch
+(`unverified_layout`) the message ended «Админд мэдэгдлээ» while that branch notified nobody at
+all; `tests/flows/test_telegram_statement.py` had the broken promise pinned as current behaviour
+with a note saying either the branch notifies or the sentence goes. The sentence goes.
+
+The evidence behind a layout is not a legal text; it is the file the accountant just uploaded and
+answered questions about. So the person who read it confirms it, through the same acceptance path
+as a rule (kind `b`, `KIND_LAYOUT`), leaving the same row and the same event. It stays per company
+for the same reason as ACC-01, weaker but real: one client's Khan Bank export is not proof about
+another client's, and a bank changes its format per product. The site-wide `verified` flag is still
+a site admin's, and `MSG_STATEMENT_ADMIN_VERIFY` is now what it should always have been — an
+informational notice that a new format appeared, with the desk named for the decision that is
+genuinely theirs.
+
+*Confirming re-reads the file rather than asking for it again.* «Send it again» would be a promise
+Nyabo cannot keep: the sha256 dedup (§5.3) answers a second upload of the same file with
+«this document is already here». So the block event names the stored `Nyabo Document` and
+`verify.blocked_document` finds it, exactly as `blocked_proposal` finds a refused approval.
+`MSG_STATEMENT_LAYOUT_ACCEPTED_RESEND` survives only for the case where no such file is on record.
+
+*Where a layout is deliberately not treated like a rule.* `verify.pending()` still leaves layouts
+out of `/дүрэм`: that list is about legal readings and is ordered by how much posting work each
+rule blocks, while a layout is answered in the statement flow at the moment it matters, by the
+person holding the file. `cards._rule_citation` prints `CARD_RULE_LAYOUT_SOURCE` instead of
+`CARD_RULE_NO_CITATION` for the same reason — telling someone that a column mapping has no legal
+provision behind it would send them looking for one that cannot exist.

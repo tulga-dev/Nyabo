@@ -371,7 +371,9 @@ def post_proposal(
 	check_can_approve(proposal, approver_user)
 	entry = _entry(proposal)
 	pattern = pipeline.pattern_by_id(entry.pattern_id)
-	pipeline.require_verified(pattern)
+	# The company is what makes the guard's answer honest: a rule this company's accountant
+	# accepted posts here and nowhere else (DECISIONS ACC-01).
+	pipeline.require_verified(pattern, company=proposal.company)
 	pipeline.regime_context(proposal.company, entry.posting_date)  # raises MissingRuleError without a regime
 	doctype = rules_engine.DOCUMENT_KIND_TO_DOCTYPE[entry.document_kind]
 	refuse_if_closed(proposal.company, doctype, entry.posting_date)

@@ -39,6 +39,9 @@ ADMIN_ID = 1001  # tests/fixtures/site/site_config.json admin_telegram_ids
 #: site config file, and whom a notice about this company's blocked work has to reach.
 COMPANY_ADMIN_ID = 3001
 ACCOUNTANT_ID = 2001
+#: An owner: they may tap [Батлах] under an auto-approve policy, so they can meet the guard's
+#: refusal — and accepting a rule is a professional judgement that is not theirs to make.
+OWNER_ID = 4001
 
 #: The rule these tests verify. Order 116 prints no entry that turns a customer advance into
 #: revenue (docs/legal/order116.md §3, "Order 116 prints no such entry at all"), so the seed
@@ -90,6 +93,21 @@ def rules_site(seeded: dict, company: str, unverified_seed: tuple[list[str], lis
 	link_user(ADMIN_ID, "Accountant", company)
 	link_user(ACCOUNTANT_ID, "Accountant", company)
 	return company
+
+
+def _owner_who_may_approve(company: str) -> None:
+	"""An owner with the ``owner_simple`` policy: the one non-accountant who reaches the guard."""
+	link_user(OWNER_ID, "Owner", company)
+	name = frappe.db.exists("Nyabo Company Settings", {"company": company})
+	frappe.db.set_value(
+		"Nyabo Company Settings",
+		name,
+		{
+			"auto_approve_policy": "owner_simple",
+			"auto_approve_max_amount": 1000000,
+			"auto_approve_accounts": "",
+		},
+	)
 
 
 def _use_pattern(company: str, pattern_id: str, times: int = 2) -> None:
@@ -158,8 +176,13 @@ def test_the_rule_card_shows_the_entry_and_says_plainly_that_there_is_no_citatio
 	# The seed carries the instrument for every pattern, so «Заавар 116» alone must not read as
 	# an authority: this row has no section and no quote, and the card has to say it in words.
 	assert mn.CARD_RULE_NO_CITATION in text
-	assert mn.CARD_RULE_RESPONSIBILITY in text
+	# The question is the accountant's own: does this rule apply to the books they sign, and whose
+	# books the answer binds (ACC-01). ADMIN_ID is also a site admin, so the global tick is offered
+	# under it — in words that do not read as the same act one notch stronger.
+	assert mn.CARD_RULE_ACCEPT_RESPONSIBILITY.format(company=rules_site) in text
+	assert mn.CARD_RULE_ACCEPT_ASK.format(company=rules_site) in text
 	assert bot.callback_datas() == [
+		keyboards.rule_data(keyboards.VERIFY_ACCEPT, verify.KIND_PATTERN, BLOCKING),
 		keyboards.rule_data(keyboards.VERIFY_CONFIRM, verify.KIND_PATTERN, BLOCKING),
 		keyboards.rule_data(keyboards.VERIFY_LEAVE, verify.KIND_PATTERN, BLOCKING),
 	]
@@ -381,7 +404,7 @@ def test_the_accountant_who_was_blocked_is_told_the_rule_was_cleared(
 	proposal = make_proposal(rules_site, posting_pattern=BLOCKING)
 	bot = FakeBotApi()
 	run(bot, callback_update(ACCOUNTANT_ID, f"p:{proposal.name}:ap"))
-	assert mn.MSG_UNVERIFIED_RULE_ADMIN_ASKED in bot.texts()
+	assert mn.MSG_UNVERIFIED_RULE_ACCOUNTANT_CAN_ACCEPT.format(company=rules_site) in bot.texts()
 
 	admin_bot = FakeBotApi()
 	outcome = run(
@@ -579,23 +602,45 @@ def test_leaving_a_rule_changes_nothing(rules_site: str):
 	assert frappe.db.get_value(verify.PATTERN, BLOCKING, "verified") == 0
 
 
-# --- 4. only an admin -------------------------------------------------------------------------
+# --- 4. who may answer a rule at all ----------------------------------------------------------
 
 
-def test_a_non_admin_is_told_who_can_verify_not_silently_refused(rules_site: str):
+def test_the_accountant_reaches_the_list_because_it_is_their_command_now(rules_site: str):
+	"""ACC-01: `/дүрэм` used to refuse the accountant and name an admin they had to go and find."""
 	bot = FakeBotApi()
 	outcome = run(bot, message_update(ACCOUNTANT_ID, "/дүрэм"))
-	assert outcome["result"] == {"refused": "not_admin"}
-	assert bot.last_text == mn.MSG_RULES_ADMIN_ONLY
+	assert outcome["result"]["pending"] > 0
+	assert mn.MSG_RULES_ACCOUNTANT_ONLY not in bot.texts()
 
 
-def test_a_forged_tap_from_a_non_admin_verifies_nothing(rules_site: str):
+def test_an_owner_is_told_which_person_decides_not_silently_refused(rules_site: str):
+	"""An owner may tap [Батлах]; deciding that an uncited rule applies to the books is not theirs."""
+	link_user(OWNER_ID, "Owner", rules_site)
+	bot = FakeBotApi()
+	outcome = run(bot, message_update(OWNER_ID, "/дүрэм"))
+	assert outcome["result"] == {"refused": "not_accountant"}
+	assert bot.last_text == mn.MSG_RULES_ACCOUNTANT_ONLY
+	assert "админ" not in bot.last_text.lower(), "the person named is the accountant, not an admin"
+
+
+def test_a_forged_tap_from_an_owner_accepts_nothing(rules_site: str):
+	link_user(OWNER_ID, "Owner", rules_site)
+	bot = FakeBotApi()
+	data = keyboards.rule_data(keyboards.VERIFY_ACCEPT, verify.KIND_PATTERN, BLOCKING)
+	outcome = run(bot, callback_update(OWNER_ID, data))
+	assert outcome["result"] == {"refused": "not_accountant", "rule": BLOCKING}
+	assert frappe.db.count(verify.ACCEPTANCE) == 0
+	assert bot.last_text == mn.MSG_RULES_ACCOUNTANT_ONLY
+
+
+def test_an_accountant_may_not_tick_the_global_row(rules_site: str):
+	"""The two acts on one card stay apart: the accountant's binds their company, not the site."""
 	bot = FakeBotApi()
 	data = keyboards.rule_data(keyboards.VERIFY_CONFIRM, verify.KIND_PATTERN, BLOCKING)
 	outcome = run(bot, callback_update(ACCOUNTANT_ID, data))
-	assert outcome["result"] == {"refused": "not_admin", "rule": BLOCKING}
+	assert outcome["result"] == {"refused": "not_site_admin", "rule": BLOCKING}
 	assert frappe.db.get_value(verify.PATTERN, BLOCKING, "verified") == 0
-	assert bot.last_text == mn.MSG_RULES_ADMIN_ONLY
+	assert bot.last_text == mn.MSG_RULES_SITE_ADMIN_ONLY
 
 
 def test_an_admin_of_one_company_cannot_verify_a_rule_that_applies_to_every_client(rules_site: str):
@@ -615,34 +660,40 @@ def test_an_admin_of_one_company_cannot_verify_a_rule_that_applies_to_every_clie
 	assert bot.last_text == mn.MSG_RULES_SITE_ADMIN_ONLY
 
 
-def test_a_company_admin_still_reads_the_evidence_and_is_told_who_may_clear_it(rules_site: str):
-	"""It is their work that is blocked, so they get the card — with no button that would refuse."""
+def test_a_company_admin_reads_the_evidence_and_answers_it_for_their_own_company(rules_site: str):
+	"""An Admin link role keeps a company's books (``context.ACCOUNTANT_ROLES``), so the answer is theirs.
+
+	What is still not theirs is the global row: they get [Манай компанид хамаарна] and no
+	[Сайт даяар баталгаажуулах] (VER-08), which is the one button that would refuse them.
+	"""
 	link_user(COMPANY_ADMIN_ID, "Admin", rules_site)
 	bot = FakeBotApi()
 	data = keyboards.rule_data(keyboards.VERIFY_OPEN, verify.KIND_PATTERN, BLOCKING)
 	outcome = run(bot, callback_update(COMPANY_ADMIN_ID, data))
 
-	assert outcome["result"] == {"rule": BLOCKING, "has_citation": False, "offered": False}
+	assert outcome["result"] == {"rule": BLOCKING, "has_citation": False, "offered": True}
 	assert BLOCKING_LABEL in bot.texts()[0]  # the evidence card came first
 	assert bot.callback_datas() == [
-		keyboards.rule_data(keyboards.VERIFY_LEAVE, verify.KIND_PATTERN, BLOCKING)
+		keyboards.rule_data(keyboards.VERIFY_ACCEPT, verify.KIND_PATTERN, BLOCKING),
+		keyboards.rule_data(keyboards.VERIFY_LEAVE, verify.KIND_PATTERN, BLOCKING),
 	]
-	assert bot.last_text == mn.MSG_RULES_SITE_ADMIN_ONLY
 
 
-def test_a_blocked_company_admin_takes_the_accountants_path_not_the_verify_button(
+def test_a_blocked_company_admin_is_offered_their_own_companys_answer_not_the_global_one(
 	rules_site: str, monkeypatch: pytest.MonkeyPatch
 ):
-	"""A refusal must not hand a per-company admin a tap they are not allowed to make."""
+	"""A refusal must not hand a per-company admin a tap they are not allowed to make (VER-08)."""
 	link_user(COMPANY_ADMIN_ID, "Admin", rules_site)
 	_refuse_posting(monkeypatch)
 	proposal = make_proposal(rules_site, posting_pattern=BLOCKING)
 	bot = FakeBotApi()
 	outcome = run(bot, callback_update(COMPANY_ADMIN_ID, f"p:{proposal.name}:ap"))
 
-	assert outcome["result"]["offered"] is False and outcome["result"]["notified"] is True
-	assert _rule_datas(bot) == []
-	assert mn.MSG_UNVERIFIED_RULE_ADMIN_ASKED in bot.texts()
+	assert outcome["result"]["offered"] is True and outcome["result"]["notified"] is False
+	assert _rule_datas(bot) == [
+		keyboards.rule_data(keyboards.VERIFY_ACCEPT, verify.KIND_PATTERN, BLOCKING),
+		keyboards.rule_data(keyboards.VERIFY_LEAVE, verify.KIND_PATTERN, BLOCKING),
+	]
 
 
 # --- 5. the refusal the accountant hits -------------------------------------------------------
@@ -667,7 +718,7 @@ def test_the_refusal_names_the_rule_and_keeps_the_card_tappable(
 
 	assert outcome["result"]["unverified_rule"] == BLOCKING
 	assert mn.MSG_UNVERIFIED_RULE_BLOCKED.format(rule=BLOCKING) in bot.texts()
-	assert mn.MSG_UNVERIFIED_RULE_ADMIN_ASKED in bot.texts()
+	assert mn.MSG_UNVERIFIED_RULE_ACCOUNTANT_CAN_ACCEPT.format(company=rules_site) in bot.texts()
 	# The proposal is untouched and its card still carries [Батлах]: the retry is one tap, and the
 	# accountant never re-sends the photo.
 	assert frappe.db.get_value("Nyabo Proposal", proposal.name, "status") == "proposed"
@@ -679,69 +730,84 @@ def test_the_refusal_names_the_rule_and_keeps_the_card_tappable(
 	]
 
 
-def test_a_blocked_accountant_has_the_request_recorded_and_the_admins_notified(
+def test_a_blocked_accountant_waits_for_nobody_and_the_block_is_on_record(
 	rules_site: str, monkeypatch: pytest.MonkeyPatch
 ):
+	"""The whole point of ACC-01: no request, no notification, no waiting — a card to answer.
+
+	The block is still recorded, because «which rules are actually holding up work» is a real
+	question and because that row is what lets the acceptance finish this person's own tap.
+	"""
 	_refuse_posting(monkeypatch)
 	proposal = make_proposal(rules_site, posting_pattern=BLOCKING)
 	bot = FakeBotApi()
 	run(bot, callback_update(ACCOUNTANT_ID, f"p:{proposal.name}:ap"))
 
-	requested = frappe.get_all(
-		"Nyabo Event", filters={"event_type": mn.EVENT_RULE_VERIFY_REQUESTED}, fields=["reason", "company"]
+	assert frappe.db.count("Nyabo Event", {"event_type": mn.EVENT_RULE_VERIFY_REQUESTED}) == 0
+	blocked = frappe.get_all(
+		"Nyabo Event",
+		filters={"event_type": mn.EVENT_RULE_BLOCKED},
+		fields=["reason", "company", "ref_name", "actor_telegram_id"],
 	)
-	assert [(row["reason"], row["company"]) for row in requested] == [(BLOCKING, rules_site)]
+	assert [(r["reason"], r["company"], r["ref_name"], r["actor_telegram_id"]) for r in blocked] == [
+		(BLOCKING, rules_site, proposal.name, str(ACCOUNTANT_ID))
+	]
 	notice = mn.MSG_ADMIN_RULE_VERIFY_REQUEST.format(company=rules_site, rule=BLOCKING)
-	assert [call["chat_id"] for call in bot.sent("send_message") if call["text"] == notice] == [ADMIN_ID]
+	assert [call for call in bot.sent("send_message") if call["text"] == notice] == []
 
 
-def test_three_taps_on_the_same_blocked_card_write_one_row_and_send_one_notice(
+def test_three_taps_from_an_owner_write_one_request_row_and_send_one_notice(
 	rules_site: str, monkeypatch: pytest.MonkeyPatch
 ):
 	"""Tapping [Батлах] again is what a person does when nothing seems to happen.
 
 	Each tap used to write a row into an append-only log — which is the one log nobody can tidy
-	up afterwards — and ring every admin again. The accountant still gets an answer every time.
+	up afterwards — and ring everybody again. The owner still gets an answer every time.
 	"""
+	_owner_who_may_approve(rules_site)
 	_refuse_posting(monkeypatch)
 	proposal = make_proposal(rules_site, posting_pattern=BLOCKING)
 	bot = FakeBotApi()
-	outcomes = [run(bot, callback_update(ACCOUNTANT_ID, f"p:{proposal.name}:ap")) for _ in range(3)]
+	outcomes = [run(bot, callback_update(OWNER_ID, f"p:{proposal.name}:ap")) for _ in range(3)]
 
 	assert [o["result"]["deduped"] for o in outcomes] == [False, True, True]
 	assert frappe.db.count("Nyabo Event", {"event_type": mn.EVENT_RULE_VERIFY_REQUESTED}) == 1
-	notice = mn.MSG_ADMIN_RULE_VERIFY_REQUEST.format(company=rules_site, rule=BLOCKING)
+	notice = mn.MSG_ACCOUNTANT_RULE_ACCEPT_REQUEST.format(company=rules_site, rule=BLOCKING)
+	# ADMIN_ID keeps these books too, but they are a site admin and hear once, in the wording
+	# that lets them tick the global row; ACCOUNTANT_ID is the one told to accept it here.
 	assert len([c for c in bot.sent("send_message") if c["text"] == notice]) == 1
 	# Every tap is still answered, and with the same sentence: silence is what the retry means.
-	assert bot.texts().count(mn.MSG_UNVERIFIED_RULE_ADMIN_ASKED) == 3
+	assert bot.texts().count(mn.MSG_UNVERIFIED_RULE_ACCOUNTANT_ASKED) == 3
 
 
-def test_a_repeat_does_not_start_claiming_admins_were_told_when_none_were(
-	rules_site: str, monkeypatch: pytest.MonkeyPatch
+def test_a_repeat_does_not_start_claiming_people_were_told_when_none_were(
+	rules_site: str, monkeypatch: pytest.MonkeyPatch, company_v03: str
 ):
 	"""The deduped answer is the first tap's answer, so it cannot become truer by repetition."""
 	monkeypatch.setitem(frappe.conf, "admin_telegram_ids", "")
+	_owner_who_may_approve(company_v03)
 	_refuse_posting(monkeypatch)
-	proposal = make_proposal(rules_site, posting_pattern=BLOCKING)
+	proposal = make_proposal(company_v03, posting_pattern=BLOCKING)
 	bot = FakeBotApi()
-	first = run(bot, callback_update(ACCOUNTANT_ID, f"p:{proposal.name}:ap"))
-	second = run(bot, callback_update(ACCOUNTANT_ID, f"p:{proposal.name}:ap"))
+	first = run(bot, callback_update(OWNER_ID, f"p:{proposal.name}:ap"))
+	second = run(bot, callback_update(OWNER_ID, f"p:{proposal.name}:ap"))
 
 	assert first["result"]["deduped"] is False and second["result"]["deduped"] is True
 	assert second["result"]["notified"] is False
-	assert bot.texts().count(mn.MSG_UNVERIFIED_RULE_NO_ADMIN.format(rule=BLOCKING)) == 2
-	assert mn.MSG_UNVERIFIED_RULE_ADMIN_ASKED not in bot.texts()
+	assert bot.texts().count(mn.MSG_UNVERIFIED_RULE_NO_ACCOUNTANT.format(rule=BLOCKING)) == 2
+	assert mn.MSG_UNVERIFIED_RULE_ACCOUNTANT_ASKED not in bot.texts()
 
 
 def test_a_different_rule_is_not_swallowed_by_the_dedupe(rules_site: str, monkeypatch: pytest.MonkeyPatch):
 	"""The window is per rule and company: a second rule blocking work is its own request."""
+	_owner_who_may_approve(rules_site)
 	_refuse_posting(monkeypatch)
 	first = make_proposal(rules_site, posting_pattern=BLOCKING)
 	bot = FakeBotApi()
-	run(bot, callback_update(ACCOUNTANT_ID, f"p:{first.name}:ap"))
+	run(bot, callback_update(OWNER_ID, f"p:{first.name}:ap"))
 	_refuse_posting(monkeypatch, rule=STILL_BLOCKED)
 	second = make_proposal(rules_site, posting_pattern=STILL_BLOCKED)
-	outcome = run(bot, callback_update(ACCOUNTANT_ID, f"p:{second.name}:ap"))
+	outcome = run(bot, callback_update(OWNER_ID, f"p:{second.name}:ap"))
 
 	assert outcome["result"]["deduped"] is False
 	rules = frappe.get_all(
@@ -750,94 +816,99 @@ def test_a_different_rule_is_not_swallowed_by_the_dedupe(rules_site: str, monkey
 	assert sorted(rules) == sorted([BLOCKING, STILL_BLOCKED])
 
 
-def test_the_request_reaches_the_admin_linked_to_the_company_not_only_the_site_config(
+def test_a_blocked_owners_notice_reaches_the_people_who_keep_the_books(
 	rules_site: str, monkeypatch: pytest.MonkeyPatch
 ):
-	"""«A notification has gone to the admins» must mean every admin who can act on these books.
+	"""«Somebody has been told» must mean somebody who can actually clear it (ACC-01).
 
-	`/link admin <company>` is how a client's own admin is created, and that person is in no
-	site config file. Notifying only ADMIN_TELEGRAM_IDS told the accountant something that was
-	not true for the person actually responsible for their company.
+	The accountants of this company can accept the rule for these books; the site admins can
+	verify the global row if a citation turns up. They are told different things because they
+	can do different things, and both are counted honestly.
 	"""
 	link_user(COMPANY_ADMIN_ID, "Admin", rules_site)
+	_owner_who_may_approve(rules_site)
 	_refuse_posting(monkeypatch)
 	proposal = make_proposal(rules_site, posting_pattern=BLOCKING)
 	bot = FakeBotApi()
-	outcome = run(bot, callback_update(ACCOUNTANT_ID, f"p:{proposal.name}:ap"))
+	outcome = run(bot, callback_update(OWNER_ID, f"p:{proposal.name}:ap"))
 
-	assert outcome["result"]["notified"] is True and outcome["result"]["admins_notified"] == 2
-	notice = mn.MSG_ADMIN_RULE_VERIFY_REQUEST.format(company=rules_site, rule=BLOCKING)
-	told = [call["chat_id"] for call in bot.sent("send_message") if call["text"] == notice]
-	assert told == [ADMIN_ID]
-	# The company's own admin hears about it too, in the wording that is true for them: the row
-	# is global, so the chat's verify button is not theirs (VER-08) and the desk is.
-	company_notice = mn.MSG_ADMIN_RULE_VERIFY_REQUEST_COMPANY.format(company=rules_site, rule=BLOCKING)
-	told_company = [call["chat_id"] for call in bot.sent("send_message") if call["text"] == company_notice]
-	assert told_company == [COMPANY_ADMIN_ID]
-	assert mn.MSG_UNVERIFIED_RULE_ADMIN_ASKED in bot.texts()
+	# ACCOUNTANT_ID and COMPANY_ADMIN_ID keep these books; ADMIN_ID is the site admin (and is
+	# linked as an accountant here too, so they hear once, in the wording that lets them act).
+	assert outcome["result"]["notified"] is True and outcome["result"]["admins_notified"] == 3
+	accountant_notice = mn.MSG_ACCOUNTANT_RULE_ACCEPT_REQUEST.format(company=rules_site, rule=BLOCKING)
+	told = [call["chat_id"] for call in bot.sent("send_message") if call["text"] == accountant_notice]
+	assert sorted(told) == sorted([ACCOUNTANT_ID, COMPANY_ADMIN_ID])
+	site_notice = mn.MSG_ADMIN_RULE_VERIFY_REQUEST.format(company=rules_site, rule=BLOCKING)
+	told_site = [call["chat_id"] for call in bot.sent("send_message") if call["text"] == site_notice]
+	assert told_site == [ADMIN_ID]
+	assert mn.MSG_UNVERIFIED_RULE_ACCOUNTANT_ASKED in bot.texts()
 
 
-def test_a_company_admin_is_never_told_to_use_a_button_that_will_refuse_them(
+def test_nobody_is_told_to_use_a_button_that_will_refuse_them(
 	rules_site: str, monkeypatch: pytest.MonkeyPatch
 ):
-	"""The notice must not send its reader to a card that answers «you may not» (VER-08).
+	"""The notice must point at the flow its reader really gets (VER-08, ACC-01).
 
-	A posting pattern is one row for every company on the site, so `/дүрэм` draws the verify
-	button only for a site admin. Telling a per-company admin «/дүрэм командаар баталгаажуулна
-	уу» is the same empty promise as telling the accountant the admins were notified when nobody
-	was — one seat further along the same flow.
+	A per-company admin used to be told «/дүрэм командаар баталгаажуулна уу» about a row only a
+	site admin could tick. They are now told what is true: they keep these books, so the rule is
+	theirs to accept for this company — and that is exactly what the command gives them.
 	"""
 	link_user(COMPANY_ADMIN_ID, "Admin", rules_site)
+	_owner_who_may_approve(rules_site)
 	_refuse_posting(monkeypatch)
 	proposal = make_proposal(rules_site, posting_pattern=BLOCKING)
 	bot = FakeBotApi()
-	run(bot, callback_update(ACCOUNTANT_ID, f"p:{proposal.name}:ap"))
+	run(bot, callback_update(OWNER_ID, f"p:{proposal.name}:ap"))
 
 	to_company_admin = [
 		call["text"] for call in bot.sent("send_message") if call["chat_id"] == COMPANY_ADMIN_ID
 	]
 	assert to_company_admin == [
-		mn.MSG_ADMIN_RULE_VERIFY_REQUEST_COMPANY.format(company=rules_site, rule=BLOCKING)
+		mn.MSG_ACCOUNTANT_RULE_ACCEPT_REQUEST.format(company=rules_site, rule=BLOCKING)
 	]
-	# ...and the flow it points at is the one they really get: the evidence, and who may clear it.
+	# ...and the flow it points at is the one they really get: the evidence and their own answer.
 	tap = FakeBotApi()
 	run(tap, callback_update(COMPANY_ADMIN_ID, keyboards.rule_data(keyboards.VERIFY_OPEN, "p", BLOCKING)))
-	assert tap.last_text == mn.MSG_RULES_SITE_ADMIN_ONLY
+	assert keyboards.rule_data(keyboards.VERIFY_ACCEPT, "p", BLOCKING) in tap.callback_datas()
 
 
-def test_an_admin_of_another_company_is_not_told_about_this_one(
+def test_a_bookkeeper_of_another_company_is_not_told_about_this_one(
 	rules_site: str, company_v03: str, monkeypatch: pytest.MonkeyPatch
 ):
-	"""The Admin role is per company (TG-04), so the notice is too."""
+	"""The link role is per company (TG-04), so the notice is too."""
 	link_user(COMPANY_ADMIN_ID, "Admin", company_v03)
+	_owner_who_may_approve(rules_site)
 	_refuse_posting(monkeypatch)
 	proposal = make_proposal(rules_site, posting_pattern=BLOCKING)
 	bot = FakeBotApi()
-	run(bot, callback_update(ACCOUNTANT_ID, f"p:{proposal.name}:ap"))
+	run(bot, callback_update(OWNER_ID, f"p:{proposal.name}:ap"))
 
+	told = [call["chat_id"] for call in bot.sent("send_message")]
+	assert COMPANY_ADMIN_ID not in told
 	notice = mn.MSG_ADMIN_RULE_VERIFY_REQUEST.format(company=rules_site, rule=BLOCKING)
 	assert [call["chat_id"] for call in bot.sent("send_message") if call["text"] == notice] == [ADMIN_ID]
 
 
-def test_with_nobody_to_tell_the_accountant_is_told_that_and_what_to_do(
-	rules_site: str, monkeypatch: pytest.MonkeyPatch
+def test_with_nobody_to_tell_the_owner_is_told_that_and_what_to_do(
+	rules_site: str, company_v03: str, monkeypatch: pytest.MonkeyPatch
 ):
-	"""An empty ADMIN_TELEGRAM_IDS and no linked Admin: the promise cannot be kept, so it is not made.
+	"""No site admin and no accountant on these books: the promise cannot be kept, so it is not made.
 
-	The old reply said the request had been recorded *and a notification sent to the admins*
-	while `notify_admins` had sent nothing at all — the accountant would have waited for a
-	person who was never going to hear about it.
+	The old reply said the request had been recorded *and a notification sent* while nothing had
+	been sent at all — the owner would have waited for a person who was never going to hear
+	about it. `company_v03` has no accountant linked, which is the state that produces it.
 	"""
 	monkeypatch.setitem(frappe.conf, "admin_telegram_ids", "")
+	_owner_who_may_approve(company_v03)
 	_refuse_posting(monkeypatch)
-	proposal = make_proposal(rules_site, posting_pattern=BLOCKING)
+	proposal = make_proposal(company_v03, posting_pattern=BLOCKING)
 	bot = FakeBotApi()
-	outcome = run(bot, callback_update(ACCOUNTANT_ID, f"p:{proposal.name}:ap"))
+	outcome = run(bot, callback_update(OWNER_ID, f"p:{proposal.name}:ap"))
 
 	assert outcome["result"]["notified"] is False and outcome["result"]["admins_notified"] == 0
-	assert mn.MSG_UNVERIFIED_RULE_NO_ADMIN.format(rule=BLOCKING) in bot.texts()
-	assert mn.MSG_UNVERIFIED_RULE_ADMIN_ASKED not in bot.texts()
-	assert bot.sent("send_message"), "the accountant still hears something"
+	assert mn.MSG_UNVERIFIED_RULE_NO_ACCOUNTANT.format(rule=BLOCKING) in bot.texts()
+	assert mn.MSG_UNVERIFIED_RULE_ACCOUNTANT_ASKED not in bot.texts()
+	assert bot.sent("send_message"), "the owner still hears something"
 	# The request is on record either way: that is what makes the sentence above true.
 	assert frappe.db.count("Nyabo Event", {"event_type": mn.EVENT_RULE_VERIFY_REQUESTED}) == 1
 

@@ -23,6 +23,7 @@ _SCOPED_DOCTYPES = (
 	"Nyabo Event",
 	"Nyabo Rule",
 	"Nyabo Account Alias",
+	"Nyabo Rule Acceptance",
 	"Nyabo Inventory Intake",
 	"Nyabo Eval Case",
 	"Nyabo LLM Call",

@@ -154,10 +154,13 @@ def refuse_unverified_rule(ctx: Ctx, proposal: Any, exc: Exception) -> dict[str,
 	"""The tap is refused because the rule behind it is unverified (§1.2) — with the way out.
 
 	The card is put back exactly as it was, buttons and all, because the proposal was not touched:
-	it is still ``proposed``, so once the rule is verified the accountant taps [Батлах] again and
-	the receipt goes through without re-sending the photo. Anything else here — retiring the card,
-	rejecting the proposal — would throw away a document the guard never objected to; the guard
-	objects to the rule, and the rule is what ``admin.rule_blocked`` offers to fix.
+	it is still ``proposed``, so it can be posted the moment the rule is cleared, and the photo is
+	never re-sent. Anything else here — retiring the card, rejecting the proposal — would throw
+	away a document the guard never objected to; the guard objects to the rule, and the rule is
+	what ``admin.rule_blocked`` puts in front of the accountant to answer.
+
+	The proposal's name travels with the refusal so that the accountant's acceptance can finish
+	this very approval instead of asking them to press the identical button a second time.
 	"""
 	rule = str(getattr(exc, "rule", "") or proposal.posting_pattern or mn.VALUE_UNKNOWN)
 	ctx.edit(
@@ -172,8 +175,57 @@ def refuse_unverified_rule(ctx: Ctx, proposal: Any, exc: Exception) -> dict[str,
 	# The refusal itself, then the door: the message the accountant is used to reading must still
 	# be the first thing they see, and it must still name the rule that stopped them.
 	ctx.reply(mn.MSG_UNVERIFIED_RULE_BLOCKED.format(rule=rule))
-	outcome = admin.rule_blocked(ctx, rule, company=proposal.company)
+	outcome = admin.rule_blocked(ctx, rule, company=proposal.company, proposal=proposal.name)
 	return {"approved": False, "unverified_rule": rule, **outcome}
+
+
+def post_after_rule_cleared(ctx: Ctx, proposal_name: str) -> str | None:
+	"""Finish the approval this person already asked for, now that the rule no longer refuses it.
+
+	WHY this does not weaken §1.3 «nothing posts without a human tap»: the human tap happened.
+	This accountant tapped [Батлах] on this proposal minutes ago and the guard refused; the tap
+	that just landed removed the only obstacle they were told about. Making them press the same
+	button again would be ceremony, not consent — and it is the waiting the founder's decision is
+	about. ``rules.verify.blocked_proposal`` is what keeps it to *their own* refused tap.
+
+	Everything the ordinary path checks is still checked, because it is the ordinary path:
+	``post_proposal`` re-runs the guard, the period lock and the approver's right to approve, and
+	the card is re-rendered from the proposal's own status wherever it is sitting. A second rule
+	blocking the same document simply produces the same offer again, for that rule.
+	"""
+	proposal = _load_quietly(ctx, proposal_name)
+	if proposal is None:
+		return None
+	if proposal.status != "proposed" or not can_approve(ctx, proposal):
+		log_event(
+			"telegram.approve.retry_skipped",
+			proposal=proposal_name,
+			status=proposal.status,
+			role=ctx.role,
+		)
+		return None
+	try:
+		result = _deps.post_proposal(proposal.name, ctx.user, str(ctx.telegram_id)) or {}
+	except _deps.unverified_rule_error() as exc:
+		# Another rule refuses the same document; the accountant is offered that one in turn.
+		refuse_unverified_rule(ctx, proposal, exc)
+		return None
+	proposal.reload()
+	posted_name = result.get("posted_name") or proposal.posted_name or "—"
+	receipt.update_card(proposal.name, bot=ctx.bot)
+	ctx.reply(mn.MSG_POSTED.format(doc_name=posted_name))
+	log_event("telegram.approve.posted", proposal=proposal.name, posted=posted_name, user=ctx.user)
+	return str(posted_name)
+
+
+def _load_quietly(ctx: Ctx, name: str) -> Any | None:
+	"""Like ``_load`` but with no alert: this proposal was not what the reader just tapped."""
+	if not frappe.db.exists(PROPOSAL, name):
+		return None
+	proposal = frappe.get_doc(PROPOSAL, name)
+	if proposal.company and proposal.company not in ctx.companies:
+		return None
+	return proposal
 
 
 def choose_account(ctx: Ctx, proposal: Any) -> Any:

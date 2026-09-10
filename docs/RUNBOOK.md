@@ -190,4 +190,4 @@ bench --site nyabo.s.frappe.cloud execute nyabo_mn.simulator.run.run --kwargs '{
 | Card says ⚠️ Дүрэм баталгаажаагүй | posting pattern not verified | desk → Nyabo Posting Pattern → check citation → tick Баталгаажсан |
 | `Site config is missing OPENAI_API_KEY` | secret missing | step 2 |
 | Statement import asks for columns | bank layout unknown | answer the column questions once; an admin then verifies the Nyabo Bank Layout |
-| `/хаалт` refuses | month not ended, or unverified rules used | wait for month end; verify rules |
+| `/хаалт` refuses | month not ended, or rules this company has not cleared were used | wait for month end; the accountant answers them with `/дүрэм` (ACC-01) |

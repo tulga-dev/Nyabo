@@ -379,6 +379,11 @@ def question_keyboard(follow_ups: Sequence[Any]) -> dict[str, Any]:
 VERIFY_OPEN = "op"
 VERIFY_CONFIRM = "ok"
 VERIFY_LEAVE = "no"
+#: The accountant's own answer: this rule applies to *this company's* books (DECISIONS ACC-01).
+#: The company is not in the datum — it is the tapper's active company, resolved on the tap —
+#: because a rule name already eats up to 49 of the 64 bytes (VER-03) and because a company
+#: copied out of somebody else's chat must not decide anything for those books.
+VERIFY_ACCEPT = "ac"
 
 
 def rule_data(action: str, kind: str, rule: str) -> str:
@@ -418,19 +423,29 @@ def pending_rules_keyboard(rules: Sequence[Any]) -> dict[str, Any]:
 	return markup(*rows(buttons, per_row=1))
 
 
-def rule_decision(kind: str, rule: str, may_verify: bool = True) -> dict[str, Any]:
-	"""[Баталгаажуулах] alone on top, [Одоохондоо үлдээх] under it: verify, or leave it.
+def rule_decision(kind: str, rule: str, may_verify: bool = False, may_accept: bool = False) -> dict[str, Any]:
+	"""The answers this reader may actually give, primary first, [Одоохондоо үлдээх] last.
 
-	``may_verify=False`` draws only the second button. A per-company admin may read the evidence
-	— it is their work the rule is blocking — but the row is global, so the tap is not theirs
-	(VER-08), and a button that only ever answers «you may not» is the dead end this flow exists
-	to remove.
+	Two different acts share this card and each gets its own words (DECISIONS ACC-01):
+	[Манай компанид хамаарна] is the accountant applying an uncited rule to the books they sign,
+	and it binds their company only; [Сайт даяар баталгаажуулах] is a site admin saying the
+	instrument prints this entry, which binds every company on the site (VER-08). A reader who
+	may do neither gets only [Одоохондоо үлдээх] — a button that could only ever answer «you may
+	not» is the dead end this flow exists to remove.
 	"""
-	confirm = (
-		_rule_button(mn.BTN_CONFIRM, VERIFY_CONFIRM, kind, rule, style=STYLE_SUCCESS) if may_verify else None
-	)
+	rows_out = []
+	if may_accept:
+		accept = _rule_button(mn.BTN_RULE_ACCEPT, VERIFY_ACCEPT, kind, rule, style=STYLE_SUCCESS)
+		if accept:
+			rows_out.append([accept])
+	if may_verify:
+		confirm = _rule_button(mn.BTN_RULE_VERIFY_SITE, VERIFY_CONFIRM, kind, rule)
+		if confirm:
+			rows_out.append([confirm])
 	leave = _rule_button(mn.BTN_RULE_LEAVE, VERIFY_LEAVE, kind, rule)
-	return markup([confirm] if confirm else [], [leave] if leave else [])
+	if leave:
+		rows_out.append([leave])
+	return markup(*rows_out)
 
 
 # --- month-end -------------------------------------------------------------------------------------

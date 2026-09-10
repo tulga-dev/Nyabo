@@ -113,11 +113,30 @@ def test_readiness_returns_every_item_with_honest_results(company, capsys):
 	# The certification reader must not take a seeded flag for somebody's signature: the row
 	# ships verified with verified_by empty, so the detail says one row, none of it human.
 	assert by_key["rules_verified"]["detail"] == mn.READINESS_DETAIL_RULES_VERIFIED.format(
-		count=1, by_seed=1, by_person=0
+		count=1, by_seed=1, by_person=0, accepted=0, companies=0
 	)
 	frappe.db.set_value("Nyabo Posting Pattern", "p1", "verified_by", "Administrator")
 	detail = {r["key"]: r for r in readiness.checks()}["rules_verified"]["detail"]
-	assert detail == mn.READINESS_DETAIL_RULES_VERIFIED.format(count=1, by_seed=0, by_person=1)
+	assert detail == mn.READINESS_DETAIL_RULES_VERIFIED.format(
+		count=1, by_seed=0, by_person=1, accepted=0, companies=0
+	)
+	# ...and the third provenance is a third number, never folded into either of the others: a
+	# rule one company's accountant accepted for their own books is not a citation and not a
+	# site-wide decision (DECISIONS ACC-01).
+	frappe.get_doc(
+		{
+			"doctype": "Nyabo Rule Acceptance",
+			"company": company,
+			"rule_kind": "p",
+			"rule": "p1",
+			"accepted_by": "Administrator",
+			"accepted_at": "2026-09-10 09:00:00",
+		}
+	).insert()
+	detail = {r["key"]: r for r in readiness.checks()}["rules_verified"]["detail"]
+	assert detail == mn.READINESS_DETAIL_RULES_VERIFIED.format(
+		count=1, by_seed=0, by_person=1, accepted=1, companies=1
+	)
 
 	printed = readiness.run("nyabo.s.frappe.cloud")
 	out = capsys.readouterr().out
