@@ -950,6 +950,39 @@ def _recent_blocks(
 	return payloads
 
 
+def _existing_block(
+	rule: str,
+	company: str | None,
+	proposal: str | None,
+	document: str | None,
+	telegram_id: str | int | None,
+	within_minutes: int = REQUEST_DEDUPE_MINUTES,
+) -> str | None:
+	"""The name of this chat's own identical, still-recent block row, if there is one."""
+	if telegram_id is None:
+		return None
+	from frappe.utils import add_to_date, now_datetime
+
+	since = add_to_date(now_datetime(), minutes=-int(within_minutes))
+	rows = frappe.get_all(
+		events.EVENT_DOCTYPE,
+		filters={
+			"event_type": mn.EVENT_RULE_BLOCKED,
+			"reason": rule,
+			"actor_telegram_id": str(telegram_id),
+			"ref_name": proposal or document or "",
+			"creation": [">=", since],
+		},
+		fields=["name", "company"],
+		order_by="creation desc",
+		limit=1,
+	)
+	for row in rows:
+		if (row.get("company") or None) == (company or None):
+			return str(row["name"])
+	return None
+
+
 def blocked_document(
 	rule: str,
 	company: str | None,
@@ -986,7 +1019,15 @@ def record_block(
 	``blocked_proposal`` / ``blocked_document`` read to finish that work once the rule is
 	cleared, and because «this rule stopped real work» is the fact ``/дүрэм`` and the month-end
 	checklist are both about. A posting names its proposal, a refused statement names its file.
+
+	Repeated inside ``REQUEST_DEDUPE_MINUTES`` it returns the row that is already there instead of
+	writing another. Tapping [Батлах] again is what a person does when nothing seems to happen,
+	and this is an append-only log — the one log nobody can tidy up afterwards. The first row says
+	everything a second identical one would.
 	"""
+	existing = _existing_block(rule, company, proposal, document, telegram_id)
+	if existing:
+		return existing
 	ref_doctype = PROPOSAL if proposal else (DOCUMENT if document else None)
 	return events.log(
 		mn.EVENT_RULE_BLOCKED,

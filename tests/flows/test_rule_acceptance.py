@@ -149,6 +149,26 @@ def test_a_stale_acceptance_asks_for_the_one_tap_instead_of_posting_somebody_els
 	assert told == [str(ACCOUNTANT_ID)]
 
 
+def test_three_taps_on_the_same_refused_card_write_one_block_row(books: str, monkeypatch: pytest.MonkeyPatch):
+	"""Tapping [Батлах] again is what a person does when nothing seems to happen.
+
+	The block row is what lets the acceptance finish that tap, so it has to be written on the
+	first refusal — and it must not be written again on the second and third, because a Nyabo
+	Event is append-only and nobody can tidy the duplicates away afterwards.
+	"""
+	_guarded_post(monkeypatch)
+	proposal = make_proposal(books, posting_pattern=BLOCKING)
+	bot = FakeBotApi()
+
+	for _ in range(3):
+		run(bot, callback_update(ACCOUNTANT_ID, f"p:{proposal.name}:ap"))
+
+	assert frappe.db.count("Nyabo Event", {"event_type": mn.EVENT_RULE_BLOCKED}) == 1
+	# Every tap is still answered, and the refused approval can still be finished.
+	assert bot.texts().count(mn.MSG_UNVERIFIED_RULE_BLOCKED.format(rule=BLOCKING)) == 3
+	assert verify.blocked_proposal(BLOCKING, books, ACCOUNTANT_ID) == proposal.name
+
+
 # --- 2. the record ------------------------------------------------------------------------------
 
 
