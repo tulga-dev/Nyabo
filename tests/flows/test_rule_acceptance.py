@@ -265,6 +265,30 @@ def test_accepting_twice_is_not_a_second_decision(books: str):
 	assert first["event"]
 
 
+def test_two_taps_racing_on_one_card_leave_one_row_and_no_error(books: str, monkeypatch: pytest.MonkeyPatch):
+	"""MINOR 8: the losing tap was told its answer had not been recorded. It had.
+
+	The row is named ``company:kind:rule:fingerprint``, so when two taps race past the «already
+	accepted?» check the second insert raises ``DuplicateEntryError`` — which means the acceptance
+	exists, for this company, for this content: exactly what the tapper asked for. Calling that
+	``save_failed`` sent them looking for a fault while their answer sat in the database with
+	their colleague's name on it.
+	"""
+	first = verify.accept(verify.KIND_PATTERN, BLOCKING, books, "Administrator")
+	# The race, made deterministic: the pre-check misses the row that is already there.
+	monkeypatch.setattr(verify, "acceptance", lambda *args, **kwargs: None)
+
+	second = verify.accept(verify.KIND_PATTERN, BLOCKING, books, "tg-5001@nyabo.local")
+
+	assert second["ok"] is True and second["already"] is True
+	assert second.get("reason") is None
+	assert frappe.db.count(verify.ACCEPTANCE) == 1, "one decision, one row"
+	assert frappe.db.count("Nyabo Event", {"event_type": mn.EVENT_RULE_ACCEPTED}) == 1
+	assert frappe.db.get_value(verify.ACCEPTANCE, first["acceptance"], "accepted_by") == "Administrator"
+	monkeypatch.undo()
+	guard.require_verified(BLOCKING, company=books)
+
+
 def test_the_global_row_is_never_touched_by_an_acceptance(books: str):
 	"""A posting pattern is one row for the whole site; accepting it for one client is not a tick."""
 	verify.accept(verify.KIND_PATTERN, BLOCKING, books, "tg-5001@nyabo.local")

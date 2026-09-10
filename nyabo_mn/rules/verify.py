@@ -761,7 +761,9 @@ def accept(
 	texts, and rewriting the first would put this accountant's name against words they never saw.
 
 	Returns ``{"ok", "already", ...}`` rather than raising, exactly like ``verify``: every caller
-	is a tap that needs a sentence either way.
+	is a tap that needs a sentence either way. Idempotent both before and during the write: the
+	``acceptance`` check below answers a second tap, and two taps that race past it collide on the
+	document name, which says the acceptance exists — success, not a failure to report.
 	"""
 	doctype = doctype_for(kind)
 	if not doctype:
@@ -807,6 +809,24 @@ def accept(
 	doc.flags.ignore_permissions = True
 	try:
 		doc.insert()
+	except frappe.DuplicateEntryError:
+		# Two taps on the same card raced past the ``acceptance`` check above and the second one
+		# lost. The row is named ``company:kind:rule:fingerprint``, so what this exception says is
+		# that this company's acceptance of exactly this content already exists — which is what
+		# the tapper wanted. Reporting it as ``save_failed`` told them their answer had not been
+		# recorded while it sat in the database with their colleague's name on it, and sent them
+		# looking for a fault there is none of.
+		existing = acceptance(company, name, doctype) or {}
+		log_event("rules.verify.accept_raced", doctype=doctype, rule=name, company=company, user=user)
+		return {
+			"ok": True,
+			"already": True,
+			"rule": name,
+			"doctype": doctype,
+			"company": company,
+			"accepted_by": str(existing.get("accepted_by") or ""),
+			"accepted_at": str(existing.get("accepted_at") or ""),
+		}
 	except Exception as exc:  # noqa: BLE001 - every failure here has the same answer for the tapper
 		# ``accepted_by`` is a Link to User, so this raises for a session user with no User row —
 		# the same real state ``verify`` guards against. Nothing was written and nothing may post.
