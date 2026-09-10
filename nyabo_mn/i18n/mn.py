@@ -861,6 +861,13 @@ READINESS_DETAIL_RULES_VERIFIED = (
 	"{by_person} нь нэрлэсэн хүний баталгаажуулалтаар; "
 	"нэмж {accepted} дүрмийг {companies} компанийн нягтлан өөрийн бүртгэлдээ хамааруулсан"
 )
+# Acceptances the rule has since outgrown. They are not added to the number above - they clear
+# nothing and the guard refuses on them - but they are not dropped either: this is the queue of
+# rules an accountant has to look at again, and a page that hid it would hide work.
+READINESS_DETAIL_RULES_ACCEPTANCE_STALE = (
+	"; дүрэм өөрчлөгдсөнөөс хойш хүчингүй болсон {stale} хүлээн зөвшөөрөлт "
+	"нягтлангийн дахин хариултыг хүлээж байна"
+)
 READINESS_DETAIL_ERPNEXT_REPORT = "ERPNext-ийн стандарт тайлан ({report})"
 READINESS_DETAIL_HOOK = "Хук: {handler}"
 READINESS_DETAIL_COMPANIES = "Компани: {ok}/{total} тохируулсан"

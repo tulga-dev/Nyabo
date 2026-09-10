@@ -41,6 +41,8 @@ from tests.fixtures.telegram.fake_bot import (
 #: §3), so the seed ships this unverified and a non-VAT company meets it on every delivery
 #: against an advance. ``tests/flows/test_telegram_rules.py`` guards the same anchor.
 BLOCKING = "customer_prepayment_recognize_non_vat"
+#: A second unverified pattern, so a count can tell one accepted rule from two.
+STILL_BLOCKING = "bank_transfer_internal"
 #: A rule the citation pass verified in the repository: it must go on asking nobody anything.
 CITED = "purchase_expense_non_vat"
 
@@ -1049,11 +1051,56 @@ def test_the_audit_trail_tells_the_three_kinds_apart(books: str):
 	counts = verify.verified_counts(verify.PATTERN)
 	accepted = verify.accepted_counts(verify.PATTERN)
 	assert counts["by_person"] == 1 and counts["by_seed"] == counts["verified"] - 1
-	assert accepted == {"rules": 1, "companies": 1, "acceptances": 1}
+	assert accepted == {"rules": 1, "companies": 1, "acceptances": 1, "stale": 0}
 
 	# ...and so do the events: one type per claim, never one type with a flag inside it.
 	assert frappe.db.count("Nyabo Event", {"event_type": mn.EVENT_RULE_VERIFIED}) == 1
 	assert frappe.db.count("Nyabo Event", {"event_type": mn.EVENT_RULE_ACCEPTED}) == 1
+
+
+def test_the_readiness_page_counts_the_acceptances_that_are_in_force(books: str, company_v03: str):
+	"""MINOR 6: the compliance page reported more rules cleared than the guard would let post.
+
+	``accepted_counts`` counted every Nyabo Rule Acceptance row, including ones a deploy had
+	outrun. Those clear nothing — ``acceptance`` compares fingerprints and the guard refuses —
+	so the one page whose job is to be accurate about what may post was overstating it. The
+	outrun rows are not dropped either: they are the queue of rules an accountant has to answer
+	for a second time, so they are shown as their own number.
+	"""
+	from nyabo_mn.compliance import readiness
+
+	link_user(OTHER_ACCOUNTANT_ID, "Accountant", company_v03)
+	verify.accept(verify.KIND_PATTERN, BLOCKING, books, "tg-5001@nyabo.local")
+	verify.accept(verify.KIND_PATTERN, STILL_BLOCKING, company_v03, "tg-5002@nyabo.local")
+	assert verify.accepted_counts(verify.PATTERN) == {
+		"rules": 2,
+		"companies": 2,
+		"acceptances": 2,
+		"stale": 0,
+	}
+
+	_redeploy_with_a_different_debit()  # the deploy outruns the first of the two
+
+	assert verify.accepted_counts(verify.PATTERN) == {
+		"rules": 1,
+		"companies": 1,
+		"acceptances": 1,
+		"stale": 1,
+	}
+	with pytest.raises(guard.UnverifiedRuleError):
+		guard.require_verified(BLOCKING, company=books)
+	detail = next(row for row in readiness.checks() if row["key"] == "rules_verified")["detail"]
+	assert mn.READINESS_DETAIL_RULES_ACCEPTANCE_STALE.format(stale=1) in detail
+	assert (
+		mn.READINESS_DETAIL_RULES_VERIFIED.format(
+			count=verify.verified_counts(verify.PATTERN)["verified"],
+			by_seed=verify.verified_counts(verify.PATTERN)["by_seed"],
+			by_person=verify.verified_counts(verify.PATTERN)["by_person"],
+			accepted=1,
+			companies=1,
+		)
+		in detail
+	)
 
 
 def test_an_accepted_rule_card_names_the_company_and_the_person_not_a_citation(books: str):

@@ -259,23 +259,45 @@ def verified_counts(doctype: str) -> dict[str, int]:
 
 
 def accepted_counts(doctype: str) -> dict[str, int]:
-	"""``{"rules", "companies", "acceptances"}`` for one guarded DocType — the third provenance.
+	"""``{"rules", "companies", "acceptances", "stale"}`` for one guarded DocType — the third provenance.
 
 	Counted separately from ``verified_counts`` and never added to it: an acceptance says «this
 	company's accountant applies this rule to these books», which is a different claim from «the
 	law prints this entry», and a certification reader who saw one number would read the weaker
 	claim as the stronger one for every row in it.
+
+	The first three numbers count only what is **in force**: an acceptance whose fingerprint no
+	longer matches the rule covers nothing, the guard refuses on it, and counting it told the
+	compliance page more rules were cleared than are. ``stale`` is the rest of them, kept and
+	shown as its own number rather than dropped, because a row a deploy has outrun is a fact
+	about this site somebody has to answer for — it is exactly the queue of «rules an accountant
+	must look at again», and the ``rule_changed_after_acceptance`` events are its history.
 	"""
-	empty = {"rules": 0, "companies": 0, "acceptances": 0}
+	empty = {"rules": 0, "companies": 0, "acceptances": 0, "stale": 0}
 	if not frappe.db.exists("DocType", ACCEPTANCE):
 		return empty
-	rows = frappe.get_all(ACCEPTANCE, filters={"rule_doctype": doctype}, fields=["rule", "company"])
+	rows = frappe.get_all(
+		ACCEPTANCE, filters={"rule_doctype": doctype}, fields=["rule", "company", "rule_fingerprint"]
+	)
 	if not rows:
 		return empty
+	current: dict[str, str] = {}
+	live = []
+	stale = 0
+	for row in rows:
+		rule = str(row["rule"])
+		if rule not in current:
+			current[rule] = rule_fingerprint(doctype, rule)
+		fingerprint_now = current[rule]
+		if fingerprint_now and str(row.get("rule_fingerprint") or "") == fingerprint_now:
+			live.append(row)
+		else:
+			stale += 1
 	return {
-		"rules": len({row["rule"] for row in rows}),
-		"companies": len({row["company"] for row in rows}),
-		"acceptances": len(rows),
+		"rules": len({row["rule"] for row in live}),
+		"companies": len({row["company"] for row in live}),
+		"acceptances": len(live),
+		"stale": stale,
 	}
 
 
