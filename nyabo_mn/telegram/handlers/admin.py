@@ -133,10 +133,17 @@ def _accepting_company(ctx: Ctx, rule: str = "") -> str | None:
 	A site admin who keeps nobody's books gets ``None``, so their evidence card is drawn for no
 	company: it then asks the site-wide question (``CARD_RULE_ASK``) instead of «does this apply
 	to {company}?», which is a question they have no button to answer.
+
+	The other client wins only while it is still *waiting*. Once it has accepted this rule, an
+	acceptance for it would clear nothing, and going on answering with it stranded the very
+	persona this is for: clear a rule for client B, turn to client A where the same rule is still
+	blocking work, open it from ``/дүрэм`` — a list drawn for A — and the card said «already
+	accepted for B» with no button on it. A's books stayed refused with nothing left to tap.
 	"""
 	blocked = _deps.blocked_company(rule, ctx.telegram_id) if rule else None
 	if blocked and blocked != ctx.company and _keeps_books(ctx, blocked):
-		return blocked
+		if not _deps.rule_accepted(rule, blocked):
+			return blocked
 	return ctx.company if _keeps_books(ctx, ctx.company) else None
 
 

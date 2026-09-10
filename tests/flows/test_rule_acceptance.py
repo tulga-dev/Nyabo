@@ -555,6 +555,47 @@ def test_the_multi_client_accountant_is_offered_their_own_clients_rule_not_told_
 		guard.require_verified(BLOCKING, company=books)
 
 
+def test_after_clearing_one_client_the_accountant_can_clear_the_next(
+	books: str, company_v03: str, monkeypatch: pytest.MonkeyPatch
+):
+	"""The other half of the multi-client day: turning from the client you just cleared to the next.
+
+	``blocked_company`` answers «the client whose document is waiting», and it went on answering
+	after that client had been answered for. So the accountant cleared the rule for client B, ran
+	``/дүрэм`` on client A — a list drawn for A, with this rule on it because A's work is still
+	refused — opened it, and read «already accepted for B» over a card with no buttons. There was
+	nothing left to tap and A stayed blocked: a dead end reached by the most ordinary sequence
+	there is.
+	"""
+	posted = _guarded_post(monkeypatch)
+	link_user(MULTI_CLIENT_ID, "Accountant", books)
+	link_user(MULTI_CLIENT_ID, "Accountant", company_v03)
+	other = make_proposal(company_v03, posting_pattern=BLOCKING)
+	bot = FakeBotApi()
+	run(bot, callback_update(MULTI_CLIENT_ID, f"p:{other.name}:ap"))
+	_accept(bot, MULTI_CLIENT_ID)
+	assert [row["company"] for row in verify.acceptances(BLOCKING)] == [company_v03] and posted
+
+	# Same accountant, same quarter of an hour, now on their own active client's list.
+	bot.clear()
+	opened = run(
+		bot,
+		callback_update(
+			MULTI_CLIENT_ID, keyboards.rule_data(keyboards.VERIFY_OPEN, verify.KIND_PATTERN, BLOCKING)
+		),
+	)
+
+	assert opened["result"].get("already") is not True, "A has answered nothing; the card must ask"
+	assert bot.callback_datas(), "a card the accountant cannot answer is the dead end itself"
+	assert any(mn.CARD_RULE_ACCEPT_ASK.format(company=books) in text for text in bot.texts())
+
+	accepted = _accept(bot, MULTI_CLIENT_ID)
+
+	assert accepted["result"]["company"] == books
+	assert sorted(row["company"] for row in verify.acceptances(BLOCKING)) == sorted([books, company_v03])
+	guard.require_verified(BLOCKING, company=books)  # A may post now, and so may B
+
+
 def test_nobody_is_rung_about_a_block_of_their_own(books: str, monkeypatch: pytest.MonkeyPatch):
 	"""A rule name that is no row at all falls through to «who can clear this» — and the people
 	who can are this company's accountants, one of whom is the person who was just stopped.
