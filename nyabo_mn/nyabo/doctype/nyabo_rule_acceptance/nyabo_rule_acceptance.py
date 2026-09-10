@@ -15,9 +15,14 @@ enforced here rather than trusted to every caller.
   of the first — two decisions, taken on two texts.
 
 ``rules.verify.accept`` is the only writer, and nothing rewrites a row afterwards: it is
-append-only in this controller the way ``Nyabo Event`` is. The desk may still delete a row —
-that is how an acceptance is withdrawn, the rule stops posting again the moment it is, and the
-``rule_accepted_for_company`` event stays either way. That deletion is the one difference from
+append-only in this controller the way ``Nyabo Event`` is — which is also why there is no free
+text field on the row. A ``note`` column stood here that nothing could ever fill: ``accept`` never
+set it, no role held ``write``, and the ``validate`` below refuses every save that is not an
+insert. A schema that offers a place to record something, and then cannot hold anything there, is
+worse than not offering it.
+
+The desk may still delete a row — that is how an acceptance is withdrawn, the rule stops posting
+again the moment it is, and the ``rule_accepted_for_company`` event stays either way. That deletion is the one difference from
 Nyabo Event, and it is deliberate: an edit rewrites what a person read, a deletion does not
 claim they read anything.
 """

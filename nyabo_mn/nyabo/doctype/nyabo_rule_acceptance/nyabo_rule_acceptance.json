@@ -17,8 +17,7 @@
   "sb_acceptance",
   "accepted_by",
   "accepted_telegram_id",
-  "accepted_at",
-  "note"
+  "accepted_at"
  ],
  "fields": [
   {
@@ -104,11 +103,6 @@
    "reqd": 1,
    "read_only": 1,
    "in_list_view": 1
-  },
-  {
-   "fieldname": "note",
-   "fieldtype": "Small Text",
-   "label": "Тэмдэглэл"
   }
  ],
  "idx": 0,

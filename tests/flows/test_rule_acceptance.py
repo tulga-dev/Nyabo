@@ -636,17 +636,21 @@ def test_the_acceptance_cannot_be_edited_by_the_person_it_names(books: str):
 	result = verify.accept(verify.KIND_PATTERN, BLOCKING, books, "tg-5001@nyabo.local")
 	row = frappe.get_doc(verify.ACCEPTANCE, result["acceptance"])
 
-	row.note = "second thoughts"
+	row.rule_label = "second thoughts"
 	with pytest.raises(frappe.ValidationError) as exc:
 		row.save()
 
 	assert mn.MSG_ACCEPTANCE_APPEND_ONLY in str(exc.value)
-	assert not frappe.db.get_value(verify.ACCEPTANCE, result["acceptance"], "note")
+	assert frappe.db.get_value(verify.ACCEPTANCE, result["acceptance"], "rule_label") != "second thoughts"
 	# ...and no role carries a write it does not need. Deletion stays: it is how an acceptance is
 	# withdrawn in the desk, and the rule stops posting again the moment it is.
 	meta = frappe.get_meta(verify.ACCEPTANCE)
 	assert [p.role for p in meta.permissions if p.write] == []
 	assert sorted(p.role for p in meta.permissions if p.delete) == ["Nyabo Admin", "System Manager"]
+	# MINOR 7: and there is no field on the row that nothing can ever put anything in. `note` was
+	# writable in the schema, never set by `verify.accept`, granted to no role, and refused by the
+	# controller on any save that is not an insert — a column promising a record it could not hold.
+	assert "note" not in {field.fieldname for field in meta.fields}
 
 
 def test_withdrawing_an_acceptance_in_the_desk_stops_the_rule_posting_again(books: str):
