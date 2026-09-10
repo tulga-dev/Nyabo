@@ -140,6 +140,28 @@ def test_linking_writes_and_prunes_user_permissions(company):
 	) == [company]
 
 
+def test_one_clients_rule_acceptance_is_not_readable_by_another_clients_accountant(seeded, company):
+	"""«Who accepted what, for whom» names a colleague and a judgement; it is not shared reading.
+
+	The Telegram handlers already resolve the company on every tap, but an acceptance row is
+	exactly the kind of thing a curious ORM read would reach — so it is scoped by the same two
+	hooks as a proposal (DECISIONS ACC-01, REV-09).
+	"""
+	from nyabo_mn.rules import verify
+
+	other = _company_b()
+	_link(ACCOUNTANT_A, "8811", company)
+	_link(ACCOUNTANT_B, "8812", other)
+	result = verify.accept(verify.KIND_PATTERN, "bank_transfer_internal", company, ACCOUNTANT_A)
+	row = frappe.get_doc("Nyabo Rule Acceptance", result["acceptance"])
+
+	condition = permissions.query_conditions(ACCOUNTANT_B, doctype="Nyabo Rule Acceptance")
+	assert "`tabNyabo Rule Acceptance`.company" in condition
+	assert other in condition and company not in condition
+	assert permissions.has_permission(row, user=ACCOUNTANT_A) is True
+	assert permissions.has_permission(row, user=ACCOUNTANT_B) is False
+
+
 def test_every_scoped_doctype_is_registered_in_hooks():
 	from nyabo_mn import hooks
 

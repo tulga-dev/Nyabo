@@ -38,6 +38,10 @@ SCOPED_BY_COMPANY = (
 	"Nyabo Event",
 	"Nyabo Rule",
 	"Nyabo Account Alias",
+	# One accountant's judgement about one client, and the names behind it: a colleague keeping
+	# another company's books has no more business reading it through the ORM than they have
+	# reading that company's proposals (DECISIONS ACC-01, REV-09).
+	"Nyabo Rule Acceptance",
 	"Nyabo Inventory Intake",
 	"Nyabo Eval Case",
 	"Nyabo LLM Call",
