@@ -107,6 +107,46 @@ def test_a_layout_nobody_confirmed_imports_nothing_and_asks_the_accountant(books
 	assert [kw for kw in bot.sent("send_message") if kw["chat_id"] == 1001] == []
 
 
+def test_a_refused_layout_records_the_person_who_sent_it_not_the_chat(books):
+	"""MINOR 7: the telegram_id on a block row is a *person*, and in a group that is not the chat.
+
+	``run_import`` runs on the worker with only a chat id, and put that number in the field
+	``save_layout`` fills with ``ctx.telegram_id``. In a one-to-one chat the two are equal, so it
+	worked — and it would be wrong about who did what the moment a company keeps its books in a
+	group, which is where a shared bookkeeping chat ends up. The row is read back to finish that
+	person's own upload (``verify.blocked_document``), so a chat id there also hands one person's
+	stored file to whoever else taps the card.
+	"""
+	helpers.setup_banks(books)
+	helpers.register_layouts()
+	frappe.db.set_value("Nyabo Bank Layout", "test_khan_synthetic", "verified", 0)
+	filename, data = fixtures.khan_xlsx()
+	link_user(9310, "Accountant", books)
+	bot = FakeBotApi(files={"stmt": data})
+
+	run(
+		bot,
+		message_update(
+			9310,
+			chat_id=-1002000000,
+			document={"file_id": "stmt", "file_name": filename, "mime_type": XLSX_MIME, "file_size": 4096},
+		),
+	)
+
+	blocks = frappe.get_all(
+		"Nyabo Event",
+		filters={"event_type": mn.EVENT_RULE_BLOCKED},
+		fields=["actor_telegram_id", "company", "ref_name"],
+	)
+	assert [row["actor_telegram_id"] for row in blocks] == ["9310"]
+	assert blocks[0]["company"] == books
+	# ...and the file that person is waiting on is still found by their own id.
+	from nyabo_mn.rules import verify
+
+	assert verify.blocked_document("test_khan_synthetic", books, 9310) == blocks[0]["ref_name"]
+	assert verify.blocked_document("test_khan_synthetic", books, -1002000000) is None
+
+
 def test_the_accountant_confirms_the_layout_and_the_next_statement_imports(books):
 	"""ACC-02: the person who read the file confirms the mapping, and the file then goes in.
 

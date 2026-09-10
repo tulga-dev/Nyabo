@@ -128,7 +128,9 @@ def run_import(document_name: str, chat_id: int | str) -> dict[str, Any]:
 	if status == "unverified_layout":
 		layout_id = str(summary.get("layout") or "")
 		bot.send_message(chat_id, mn.MSG_STATEMENT_LAYOUT_UNVERIFIED.format(layout=layout_id))
-		_record_layout_block(layout_id, summary.get("company"), document_name, chat_id)
+		_record_layout_block(
+			layout_id, summary.get("company"), document_name, _sender_of(document_name) or chat_id
+		)
 		ask_layout_confirmation(bot, chat_id, layout_id, summary.get("company"))
 		return {"ok": True, "unverified": True, "layout": layout_id}
 	# The importer sets both keys; a caller (or a test double) may send only ``status``.
@@ -368,6 +370,26 @@ def save_layout(ctx: Ctx, payload: dict[str, Any]) -> Any:
 	)
 	log_event("telegram.layout.saved", layout=layout_id, document=payload.get("document"))
 	return {"layout": layout_id, "mapping": mapping}
+
+
+def _sender_of(document_name: str) -> str | None:
+	"""The Telegram id of the person who uploaded this document, or ``None``.
+
+	``run_import`` is a worker with a chat id and no ``Ctx``, and the chat id used to go into the
+	block row's ``telegram_id`` — the field ``save_layout`` fills with ``ctx.telegram_id``. In a
+	one-to-one chat the two numbers are equal, so it worked; in a group they are not, and the row
+	would then name a conversation where it claims to name a person. It is read back to finish
+	*that person's* own upload (``verify.blocked_document``), so the difference is not cosmetic.
+	``Nyabo Document.sender_telegram_id`` is who really sent the file.
+	"""
+	try:
+		sender = frappe.db.get_value("Nyabo Document", document_name, "sender_telegram_id")
+	except Exception as exc:  # noqa: BLE001 - a missing row must not lose the refusal itself
+		log_event(
+			"telegram.statement.sender_unknown", level="warning", document=document_name, error=repr(exc)
+		)
+		return None
+	return str(sender).strip() or None if sender else None
 
 
 def _record_layout_block(
