@@ -504,6 +504,29 @@ def rule_verified_source(verified_by: Any, verified_at: Any = "") -> str:
 	return mn.RULE_VERIFIED_SOURCE_PERSON.format(user=user, when=str(verified_at or "")[:16])
 
 
+def rule_changed_card(change: Any) -> str:
+	"""The two versions of a rule this company has already answered for, side by side.
+
+	It goes above the evidence card whenever an acceptance has been outrun by a deploy. «This
+	rule changed, accept it again» on its own would ask the accountant to take responsibility a
+	second time for a text they cannot see, so both versions are printed: what they answered for
+	and what the row says now (``rules.verify.RuleChange``).
+	"""
+	lines = [
+		mn.CARD_RULE_CHANGED_TITLE,
+		mn.CARD_RULE_CHANGED_WHEN.format(
+			user=str(change.accepted_by or mn.VALUE_UNKNOWN), when=str(change.accepted_at or "")[:16]
+		),
+		*(change.before or (mn.VALUE_UNKNOWN,)),
+		"",
+		mn.CARD_RULE_CHANGED_NOW,
+		*(change.after or (mn.VALUE_UNKNOWN,)),
+		"",
+		mn.CARD_RULE_CHANGED_ASK.format(company=change.company or mn.VALUE_UNKNOWN),
+	]
+	return "\n".join(lines)
+
+
 def rule_card(rule: Any) -> str:
 	"""One rule with its mechanics and its citation — or with the plain statement that it has none.
 

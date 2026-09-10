@@ -1,25 +1,56 @@
-"""One accountant's acceptance of one uncited rule for one company's books.
+"""One accountant's acceptance of one uncited rule for one company's books, as it then read.
 
-WHY a controller at all: the row is a compliance record, so the two things that make it one
-are enforced here rather than trusted to every caller — the rule it names must exist, and the
-name (``company:kind:rule``) must be unique, which is what makes the row a *fact* about a
-company rather than a pile of taps. ``rules.verify.accept`` is the only writer; the desk may
-delete a row (that is how an acceptance is withdrawn, and the Nyabo Event stays either way).
+WHY a controller at all: the row is a compliance record, so the things that make it one are
+enforced here rather than trusted to every caller.
+
+* The rule it names must exist, and its DocType is derived rather than accepted from the caller.
+* The rule's **content** is stamped on the row before it is named (``rule_fingerprint``,
+  ``rule_content_json``). An acceptance is one person saying «I have read this and these books
+  work this way», so it is about the debit and credit lines that were in front of them, not
+  about a rule id for ever. A later deploy that rewrites those lines leaves this row saying
+  exactly what it always said, and ``rules.verify.acceptance`` stops treating it as covering the
+  new content.
+* The name is ``company:kind:rule:fingerprint``, so one company answering for one version of one
+  rule is one row, and answering again for a changed version is a second row rather than an edit
+  of the first — two decisions, taken on two texts.
+
+``rules.verify.accept`` is the only writer; the desk may delete a row (that is how an acceptance
+is withdrawn, and the Nyabo Event stays either way).
 """
 
+from __future__ import annotations
+
+import json
+
+import frappe
 from frappe.model.document import Document
+
+from nyabo_mn.i18n import mn
 
 
 class NyaboRuleAcceptance(Document):
-	def validate(self) -> None:
-		import frappe
+	def before_insert(self) -> None:
+		"""Stamp the rule's DocType and the content being accepted, before the row is named.
 
-		from nyabo_mn.i18n import mn
+		Frappe runs ``before_insert`` ahead of naming, which is what lets the fingerprint be part
+		of the document name. It is computed here rather than trusted from the caller: the row is
+		the evidence, and evidence a caller can dictate is not evidence.
+		"""
+		from nyabo_mn.rules import verify
+
+		doctype = self._rule_doctype()
+		content = verify.rule_content(doctype, self.rule)
+		self.rule_doctype = doctype
+		self.rule_fingerprint = verify.fingerprint(content)
+		self.rule_content_json = json.dumps(content, ensure_ascii=False, sort_keys=True)
+
+	def validate(self) -> None:
+		self.rule_doctype = self._rule_doctype()
+
+	def _rule_doctype(self) -> str:
 		from nyabo_mn.rules import verify
 
 		doctype = verify.doctype_for(self.rule_kind)
-		if not doctype:
+		if not doctype or not frappe.db.exists(doctype, self.rule):
 			frappe.throw(mn.MSG_RULE_NOT_FOUND.format(rule=self.rule))
-		if not frappe.db.exists(doctype, self.rule):
-			frappe.throw(mn.MSG_RULE_NOT_FOUND.format(rule=self.rule))
-		self.rule_doctype = doctype
+		return doctype

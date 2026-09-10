@@ -476,6 +476,11 @@ EVENT_RULE_BLOCKED = "rule_blocked_posting"
 # so: it is the difference between what the human took responsibility for and what is on the row
 # now. A seeded flag needs no such row — the repository's own history is git.
 EVENT_RULE_CITATION_FILLED = "rule_citation_filled"
+# A deploy rewrote the posting lines of a rule some company's accountant had already accepted.
+# The acceptance was given for content, not for a name, so from that moment it covers nothing —
+# and an invalidation nobody is told about is the same silence as posting on content nobody read.
+# The row names the company, the rule, the person who had accepted it and both fingerprints.
+EVENT_RULE_CHANGED_AFTER_ACCEPTANCE = "rule_changed_after_acceptance"
 MSG_FX_RATES_IMPORTED = "Монголбанкны ханш: {count} мөр импортлолоо ({skipped} давхардсан)."
 MSG_FX_FETCH_DISABLED = "Монголбанкны ханш татах тохиргоо идэвхгүй (MONGOLBANK_FETCH_ENABLED)."
 
@@ -1478,6 +1483,16 @@ CARD_RULE_ACCEPT_RESPONSIBILITY = (
 	"Хэн, хэзээ хүлээн зөвшөөрсөн нь бүртгэгдэж, аудитын мөр үлдэнэ."
 )
 CARD_RULE_ACCEPT_ASK = "Энэ дүрэм {company}-ийн бүртгэлд хамаарах уу?"
+# The rule was rewritten after this company accepted it, so the acceptance covers nothing any
+# more. The accountant is not told «it stopped working»: they are shown the two versions side by
+# side, because what they answered for is the content and the content is what changed.
+CARD_RULE_CHANGED_TITLE = "⚠️ Дүрмийн бичилт өөрчлөгдсөн"
+CARD_RULE_CHANGED_WHEN = "Хүлээн зөвшөөрсөн хувилбар ({user} · {when}):"
+CARD_RULE_CHANGED_NOW = "Одоогийн хувилбар:"
+CARD_RULE_CHANGED_ASK = (
+	"Хуучин хүлээн зөвшөөрөлт шинэ агуулгад хамаарахгүй тул {company}-д энэ дүрмээр "
+	"бичилт хийхгүй. Шинэ хувилбарыг уншаад дахин хүлээн зөвшөөрнө үү."
+)
 CARD_RULE_ACCEPTED_BY = "✅ {company}-д хамаарна гэж хүлээн зөвшөөрсөн: {user} · {when}"
 # The same card for a rule that is already verified: it asks nothing, and it says who vouched
 # for it (cards.rule_verified_source) — the seed's citation and a person's tap are not the same

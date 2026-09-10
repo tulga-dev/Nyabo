@@ -329,6 +329,15 @@ def rule_evidence(kind: str, rule: str, company: str | None = None) -> Any:
 	return _call("nyabo_mn.rules.verify", "evidence", kind, rule, company)
 
 
+def rule_change(rule: str, company: str | None, doctype: str | None = None) -> Any:
+	"""``rules.verify.RuleChange`` when a deploy outran this company's acceptance, else None.
+
+	Only a company that already answered for this rule and is being refused anyway has something
+	to be told; every other refusal has nothing to explain.
+	"""
+	return _call("nyabo_mn.rules.verify", "rule_change", company, rule, doctype)
+
+
 def verify_rule(kind: str, rule: str, user: str, telegram_id: str | int | None = None) -> dict[str, Any]:
 	return _call("nyabo_mn.rules.verify", "verify", kind, rule, user, telegram_id=telegram_id)
 

@@ -12,6 +12,8 @@
   "rule_doctype",
   "rule_label",
   "had_citation",
+  "rule_fingerprint",
+  "rule_content_json",
   "sb_acceptance",
   "accepted_by",
   "accepted_telegram_id",
@@ -60,6 +62,20 @@
    "fieldtype": "Check",
    "label": "Ишлэлтэй байсан",
    "default": "0",
+   "read_only": 1
+  },
+  {
+   "fieldname": "rule_fingerprint",
+   "fieldtype": "Data",
+   "label": "Агуулгын хурууны хээ",
+   "reqd": 1,
+   "read_only": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "rule_content_json",
+   "fieldtype": "JSON",
+   "label": "Хүлээн зөвшөөрсөн агуулга",
    "read_only": 1
   },
   {
@@ -155,6 +171,6 @@
  "sort_order": "DESC",
  "states": [],
  "track_changes": 1,
- "autoname": "format:{company}:{rule_kind}:{rule}",
+ "autoname": "format:{company}:{rule_kind}:{rule}:{rule_fingerprint}",
  "naming_rule": "Expression"
 }

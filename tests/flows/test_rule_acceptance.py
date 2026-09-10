@@ -19,6 +19,7 @@ What is pinned here (DECISIONS ACC-01):
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import frappe
@@ -300,6 +301,120 @@ def test_the_list_drops_what_this_company_has_already_accepted(books: str, compa
 	assert BLOCKING not in {rule.name for rule in verify.pending(company=books)}
 	assert BLOCKING in {rule.name for rule in verify.pending(company=company_v03)}
 	assert BLOCKING in {rule.name for rule in verify.pending()}
+
+
+# --- 3b. the rule may not change underneath the acceptance ---------------------------------------
+
+
+def _redeploy_with_a_different_debit(rule: str = BLOCKING) -> str:
+	"""What a later deploy does: the same seed row, with its debit line rewritten.
+
+	`seed.upsert` is called exactly as `seed.sync` calls it — an unverified row is not protected
+	from a rewrite, and an accepted rule *is* unverified, which is the whole of this finding.
+	"""
+	import copy
+
+	from nyabo_mn.nyabo.seed import load_seed
+	from nyabo_mn.rules import seed
+
+	row = copy.deepcopy(next(r for r in load_seed("posting_patterns")["rows"] if r["pattern_id"] == rule))
+	row["lines"][0]["account_class"] = "31"
+	row["lines"][0]["class_name_mn"] = "Дансны өглөг"
+	return seed.upsert(
+		seed.POSTING_PATTERN, rule, seed.posting_pattern_values(row), force=False, child_field="lines"
+	)
+
+
+def test_a_deploy_that_rewrites_an_accepted_rule_stops_it_posting_again(
+	books: str, monkeypatch: pytest.MonkeyPatch
+):
+	"""An acceptance covers content, not a name — and an accepted rule is still an unverified row.
+
+	`seed.upsert` protects `verified = 1` from a rewrite; nothing protected the third provenance,
+	so a deploy could change the debit and credit lines while the acceptance stood, and the
+	company went on posting under that accountant's name on content they never saw.
+	"""
+	posted = _guarded_post(monkeypatch)
+	verify.accept(verify.KIND_PATTERN, BLOCKING, books, "tg-5001@nyabo.local")
+	guard.require_verified(BLOCKING, company=books)  # today it posts
+
+	assert _redeploy_with_a_different_debit() == "updated"
+
+	with pytest.raises(guard.UnverifiedRuleError):
+		guard.require_verified(BLOCKING, company=books)
+	assert posted == []
+	# ...and it is back on the list of what will refuse this company's postings.
+	assert BLOCKING in {rule.name for rule in verify.pending(company=books)}
+
+
+def test_the_change_is_on_the_record_before_anybody_is_refused(books: str):
+	"""«Do not silently invalidate» — the deploy that outran the acceptance writes its own row.
+
+	Without it the acceptance simply stops working and the only trace is a refusal in a chat.
+	The event names the company, the rule, who had accepted it, and both fingerprints, so an
+	auditor can see what the acceptance covered and what the row says now.
+	"""
+	result = verify.accept(verify.KIND_PATTERN, BLOCKING, books, "tg-5001@nyabo.local")
+	before = frappe.db.get_value(verify.ACCEPTANCE, result["acceptance"], "rule_fingerprint")
+	assert before, "the acceptance records the content it was given for"
+
+	_redeploy_with_a_different_debit()
+
+	events = frappe.get_all(
+		"Nyabo Event",
+		filters={"event_type": mn.EVENT_RULE_CHANGED_AFTER_ACCEPTANCE},
+		fields=["name", "company", "ref_name", "payload_json"],
+	)
+	assert len(events) == 1
+	event = events[0]
+	assert event["company"] == books and event["ref_name"] == BLOCKING
+	payload = (
+		json.loads(event["payload_json"]) if isinstance(event["payload_json"], str) else event["payload_json"]
+	)
+	assert payload["accepted_by"] == "tg-5001@nyabo.local"
+	assert payload["accepted_fingerprint"] == before and payload["fingerprint"] != before
+	# The acceptance row itself is untouched: it is the record of what that person read.
+	assert frappe.db.get_value(verify.ACCEPTANCE, result["acceptance"], "rule_fingerprint") == before
+
+
+def test_the_accountant_is_told_what_changed_and_accepts_the_new_version(
+	books: str, monkeypatch: pytest.MonkeyPatch
+):
+	"""Refuse again, say plainly what changed, ask for the new version — not silence either way."""
+	posted = _guarded_post(monkeypatch)
+	verify.accept(verify.KIND_PATTERN, BLOCKING, books, "tg-5001@nyabo.local")
+	_redeploy_with_a_different_debit()
+	proposal = make_proposal(books, posting_pattern=BLOCKING)
+	bot = FakeBotApi()
+
+	refused = run(bot, callback_update(ACCOUNTANT_ID, f"p:{proposal.name}:ap"))
+
+	assert refused["result"]["unverified_rule"] == BLOCKING and posted == []
+	told = "\n".join(bot.texts())
+	assert mn.CARD_RULE_CHANGED_TITLE in told
+	assert "Дансны өглөг" in told, "the line as it reads now"
+	assert "Бусад өглөг, урьдчилан төлөгдсөн орлого" in told, "and the line they had accepted"
+
+	outcome = _accept(bot, ACCOUNTANT_ID)
+
+	assert outcome["result"]["accepted"] is True and posted == ["JE-00000"]
+	# Two rows, because there were two decisions: what was accepted before the change is not
+	# rewritten to say the accountant read something they never saw.
+	rows = verify.acceptances(BLOCKING)
+	assert len(rows) == 2 and {row["company"] for row in rows} == {books}
+	assert frappe.db.count("Nyabo Event", {"event_type": mn.EVENT_RULE_ACCEPTED}) == 2
+
+
+def test_a_deploy_that_changes_nothing_leaves_every_acceptance_standing(books: str):
+	"""The everyday migrate: `sync` runs on every deploy and must not cry wolf."""
+	from nyabo_mn.rules import seed
+
+	verify.accept(verify.KIND_PATTERN, BLOCKING, books, "tg-5001@nyabo.local")
+
+	seed.sync()
+
+	guard.require_verified(BLOCKING, company=books)
+	assert frappe.db.count("Nyabo Event", {"event_type": mn.EVENT_RULE_CHANGED_AFTER_ACCEPTANCE}) == 0
 
 
 # --- 4. who may take the decision -----------------------------------------------------------------

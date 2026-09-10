@@ -262,29 +262,307 @@ def doctype_for(kind: str) -> str | None:
 	return DOCTYPES.get(kind)
 
 
+# --- what an acceptance was given for -----------------------------------------------------------
+
+#: How many hex characters of the sha256 an acceptance stores and its document name carries.
+#: WHY a hash and not a version number or a stored copy compared field by field: the question is
+#: «is this the same content the accountant read», it has to be answerable in one indexed
+#: comparison on every posting, and a number somebody has to remember to bump is a number a
+#: deploy forgets. WHY truncated: this is not an adversarial signature — nobody is trying to
+#: forge posting lines that collide — it is a change detector, and 64 bits makes an accidental
+#: collision impossible in practice while keeping the row's name inside Frappe's 140 characters
+#: and readable in the desk. The full canonical content is stored beside it (``rule_content_json``)
+#: so a refusal can say *what* changed and not merely that something did.
+FINGERPRINT_CHARS = 16
+
+#: The fields of each guarded DocType that decide what actually gets posted. Everything else on a
+#: row — the Mongolian name, the citation, the notes — may be corrected by a deploy without the
+#: accountant's acceptance meaning anything different, and treating those as content would refuse
+#: real work every time a typo was fixed.
+CONTENT_FIELDS: dict[str, tuple[str, ...]] = {
+	PATTERN: ("applies_to_vat", "applies_to_cit", "document_types", "enabled"),
+	PARAMETER: ("value_json", "unit", "effective_from", "effective_to", "status"),
+	LAYOUT: ("column_map_json", "amount_style", "header_row_hint", "currency_default"),
+}
+
+#: A posting pattern's lines, in order: the debit and the credit themselves. This is the thing
+#: MAJOR 2 is about — a deploy that changes them changes what the company posts under the
+#: accountant's name.
+CONTENT_LINE_FIELDS: tuple[str, ...] = (
+	"side",
+	"account_class",
+	"class_name_mn",
+	"sub_account_mn",
+	"amount_kind",
+	"role",
+	"optional",
+	"v1_code_hint",
+	"v1_code_range",
+)
+
+
+def rule_content(doctype: str | None, name: str) -> dict[str, Any]:
+	"""The part of a rule an acceptance is *about*, canonically, or ``{}`` when the row is gone."""
+	if not doctype or not name or not frappe.db.exists(doctype, name):
+		return {}
+	doc = frappe.get_doc(doctype, name)
+	content: dict[str, Any] = {
+		field: _content_value(doc.get(field)) for field in CONTENT_FIELDS.get(doctype, ())
+	}
+	if doctype == PATTERN:
+		content["lines"] = [
+			{field: _content_value(line.get(field)) for field in CONTENT_LINE_FIELDS}
+			for line in doc.get("lines") or []
+		]
+	return content
+
+
+def _content_value(value: Any) -> Any:
+	"""Normalise for comparison: a JSON column reparsed, a check as 0/1, everything else as text.
+
+	Without this the fingerprint would change when a column's storage did — a JSON field written
+	with different key order, an Int read back as a string — and every company would be refused
+	work by a migration that changed nothing anybody reads.
+	"""
+	if value in (None, ""):
+		return None
+	if isinstance(value, str):
+		text = value.strip()
+		if text.startswith(("{", "[")):
+			try:
+				return json.loads(text)
+			except ValueError:
+				return text
+		return text
+	if isinstance(value, bool):
+		return int(value)
+	if isinstance(value, (dict, list, int, float)):
+		return value
+	return str(value)
+
+
+def fingerprint(content: dict[str, Any]) -> str:
+	"""``FINGERPRINT_CHARS`` hex characters over the canonical content; ``""`` for nothing."""
+	if not content:
+		return ""
+	import hashlib
+
+	canonical = json.dumps(content, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+	return hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:FINGERPRINT_CHARS]
+
+
+def rule_fingerprint(doctype: str | None, name: str) -> str:
+	"""The fingerprint of the row as it reads *now* — the thing an acceptance is compared against."""
+	return fingerprint(rule_content(doctype, name))
+
+
+def content_lines(doctype: str | None, content: dict[str, Any]) -> tuple[str, ...]:
+	"""One readable line per thing the content says, in the words the rule card already uses.
+
+	The refusal has to say *what* changed, not that something did: «the rule changed, accept it
+	again» with nothing beside it asks the accountant to take responsibility twice for a text
+	they cannot see.
+	"""
+	if not content:
+		return ()
+	if doctype == PATTERN:
+		return tuple(_pattern_content_line(line) for line in content.get("lines") or ())
+	if doctype == PARAMETER:
+		value = content.get("value_json")
+		return (
+			mn.CARD_RULE_VALUE.format(
+				value=_value_text(value) if value is not None else mn.VALUE_UNKNOWN,
+				unit=str(content.get("unit") or mn.VALUE_UNKNOWN),
+			),
+			mn.CARD_RULE_EFFECTIVE.format(
+				effective_from=content.get("effective_from") or mn.VALUE_UNKNOWN,
+				effective_to=content.get("effective_to") or mn.CARD_RULE_OPEN_ENDED,
+			),
+		)
+	mapping = content.get("column_map_json") or {}
+	if not isinstance(mapping, dict):
+		return ()
+	return tuple(f"{mn.COLUMN_ROLES.get(role, role)} = «{header}»" for role, header in mapping.items())
+
+
+def _pattern_content_line(line: dict[str, Any]) -> str:
+	side = mn.CARD_RULE_SIDE_LABELS.get(str(line.get("side") or ""), mn.VALUE_UNKNOWN)
+	amount = mn.CARD_RULE_AMOUNT_LABELS.get(
+		str(line.get("amount_kind") or ""), mn.CARD_RULE_AMOUNT_LABELS[""]
+	)
+	if line.get("optional"):
+		amount = f"{amount} ({mn.CARD_RULE_LINE_OPTIONAL})"
+	account = _account_label(
+		{
+			"account_class": line.get("account_class"),
+			"class_name_mn": line.get("class_name_mn"),
+			"v1_code_hint": line.get("v1_code_hint"),
+			"v1_code_range": line.get("v1_code_range"),
+		}
+	)
+	return mn.CARD_RULE_ENTRY_LINE.format(side=side, account=account, amount=amount)
+
+
+@dataclasses.dataclass(frozen=True)
+class RuleChange:
+	"""An acceptance the rule has outgrown: who accepted what, and what the row says now.
+
+	It is not an error state and not a workflow — it is the sentence the accountant is owed
+	before being asked the same question a second time.
+	"""
+
+	rule: str
+	doctype: str
+	company: str
+	accepted_by: str
+	accepted_at: str
+	accepted_fingerprint: str
+	current_fingerprint: str
+	before: tuple[str, ...]
+	after: tuple[str, ...]
+
+
 # --- the accountant's acceptance, per company ---------------------------------------------------
 
 
+ACCEPTANCE_FIELDS = (
+	"name",
+	"company",
+	"rule",
+	"rule_doctype",
+	"accepted_by",
+	"accepted_at",
+	"had_citation",
+	"rule_fingerprint",
+	"rule_content_json",
+)
+
+
 def acceptance(company: str | None, rule: str, doctype: str | None = None) -> dict[str, Any] | None:
-	"""``company``'s acceptance of ``rule``, or ``None``. The question ``rules.guard`` asks.
+	"""``company``'s acceptance of ``rule`` **as the rule reads now**, or ``None``.
+
+	The question ``rules.guard`` asks, and the reason it names the content: an acceptance is one
+	person saying «I have read this and these books work this way», so it covers the debit and
+	credit lines that were in front of them and not a rule id for ever. A deploy that rewrites
+	those lines leaves the row standing and the acceptance meaning nothing (MAJOR 2), and this is
+	where that is noticed — before anything posts, on every posting.
 
 	``doctype`` narrows the lookup when the caller knows which kind of rule it holds; without it
 	any acceptance of that name for that company counts, which is right because a pattern id, a
 	layout id and a ``key:effective_from`` never collide.
 	"""
+	current = rule_fingerprint(doctype or _acceptance_doctype(company, rule), rule)
+	for row in _acceptance_rows(company, rule, doctype):
+		if current and str(row.get("rule_fingerprint") or "") == current:
+			return row
+	return None
+
+
+def _acceptance_rows(company: str | None, rule: str, doctype: str | None = None) -> list[dict[str, Any]]:
+	"""Every acceptance this company has ever made of this rule, newest first."""
 	if not company or not rule or not frappe.db.exists("DocType", ACCEPTANCE):
-		return None
+		return []
 	filters: dict[str, Any] = {"company": company, "rule": rule}
 	if doctype:
 		filters["rule_doctype"] = doctype
+	return [
+		dict(row)
+		for row in frappe.get_all(
+			ACCEPTANCE, filters=filters, fields=list(ACCEPTANCE_FIELDS), order_by="creation desc"
+		)
+	]
+
+
+def _acceptance_doctype(company: str | None, rule: str) -> str | None:
+	"""Which guarded DocType this rule is, read off the acceptance when the caller did not say."""
+	rows = _acceptance_rows(company, rule)
+	return str(rows[0].get("rule_doctype") or "") or None if rows else None
+
+
+def rule_change(company: str | None, rule: str, doctype: str | None = None) -> RuleChange | None:
+	"""The acceptance this rule has outgrown, with both versions spelled out — or ``None``.
+
+	``None`` covers both good states and they are not the same: no acceptance at all (the
+	ordinary refusal, which has nothing to explain), and an acceptance that still covers the
+	content (nothing to refuse). Only a company that *did* answer for this rule and is being
+	refused anyway has something to be told.
+	"""
+	rows = _acceptance_rows(company, rule, doctype)
+	if not rows:
+		return None
+	doctype = doctype or str(rows[0].get("rule_doctype") or "") or None
+	current = rule_content(doctype, rule)
+	current_fingerprint = fingerprint(current)
+	if any(
+		str(row.get("rule_fingerprint") or "") == current_fingerprint for row in rows if current_fingerprint
+	):
+		return None
+	row = rows[0]  # the newest answer this company gave, which is the one that was outrun
+	return RuleChange(
+		rule=rule,
+		doctype=str(doctype or ""),
+		company=str(company or ""),
+		accepted_by=str(row.get("accepted_by") or ""),
+		accepted_at=str(row.get("accepted_at") or ""),
+		accepted_fingerprint=str(row.get("rule_fingerprint") or ""),
+		current_fingerprint=current_fingerprint,
+		before=content_lines(doctype, _stored_content(row)),
+		after=content_lines(doctype, current),
+	)
+
+
+def _stored_content(row: dict[str, Any]) -> dict[str, Any]:
+	content = row.get("rule_content_json")
+	if isinstance(content, str):
+		try:
+			content = json.loads(content) if content.strip() else {}
+		except ValueError:
+			return {}
+	return content if isinstance(content, dict) else {}
+
+
+def note_rule_changed(doctype: str, name: str) -> int:
+	"""Write one Nyabo Event per acceptance a change to this rule has just outrun; returns how many.
+
+	Called by ``rules.seed`` the moment a deploy rewrites a row, because that is when it happens
+	and nobody is in the chat to be told. «Do not silently invalidate» is the requirement: the
+	guard will refuse and the accountant will be shown both versions the next time they post, but
+	the record of *when the content moved out from under their name* belongs to the deploy.
+	"""
+	if not frappe.db.exists("DocType", ACCEPTANCE):
+		return 0
+	current = rule_fingerprint(doctype, name)
 	rows = frappe.get_all(
 		ACCEPTANCE,
-		filters=filters,
-		fields=["name", "company", "rule", "rule_doctype", "accepted_by", "accepted_at", "had_citation"],
-		order_by="creation asc",
-		limit=1,
+		filters={"rule": name, "rule_doctype": doctype},
+		fields=["name", "company", "accepted_by", "accepted_at", "rule_fingerprint"],
 	)
-	return dict(rows[0]) if rows else None
+	written = 0
+	for row in rows:
+		accepted = str(row.get("rule_fingerprint") or "")
+		if not accepted or accepted == current:
+			continue
+		events.log(
+			mn.EVENT_RULE_CHANGED_AFTER_ACCEPTANCE,
+			company=str(row.get("company") or "") or None,
+			ref_doctype=doctype,
+			ref_name=name,
+			reason=name,
+			payload={
+				"doctype": doctype,
+				"rule": name,
+				"company": row.get("company"),
+				"acceptance": row.get("name"),
+				"accepted_by": row.get("accepted_by"),
+				"accepted_at": str(row.get("accepted_at") or ""),
+				"accepted_fingerprint": accepted,
+				"fingerprint": current,
+			},
+		)
+		written += 1
+	if written:
+		log_event("rules.verify.changed_after_acceptance", doctype=doctype, rule=name, acceptances=written)
+	return written
 
 
 def acceptances(rule: str) -> list[dict[str, Any]]:
@@ -314,6 +592,13 @@ def accept(
 	does **not** touch ``verified``: the global row is one row for the whole site, and this
 	accountant speaks only for their own client (DECISIONS ACC-01).
 
+	The row records the rule's *content* as well as its name (``rule_fingerprint``,
+	``rule_content_json``), because that is what the person actually read. A later deploy that
+	rewrites the posting lines therefore leaves this row saying exactly what it always said, and
+	the guard stops treating it as covering the new content (MAJOR 2). Re-accepting the changed
+	rule writes a second row rather than editing this one: there were two decisions, made on two
+	texts, and rewriting the first would put this accountant's name against words they never saw.
+
 	Returns ``{"ok", "already", ...}`` rather than raising, exactly like ``verify``: every caller
 	is a tap that needs a sentence either way.
 	"""
@@ -341,6 +626,7 @@ def accept(
 
 	found = evidence(kind, name)
 	accepted_at = now_datetime()
+	content = rule_content(doctype, name)
 	doc = frappe.get_doc(
 		{
 			"doctype": ACCEPTANCE,
@@ -350,6 +636,8 @@ def accept(
 			"rule_doctype": doctype,
 			"rule_label": found.label if found is not None else name,
 			"had_citation": 1 if (found is not None and found.has_citation) else 0,
+			"rule_fingerprint": fingerprint(content),
+			"rule_content_json": json.dumps(content, ensure_ascii=False, sort_keys=True),
 			"accepted_by": user,
 			"accepted_telegram_id": str(telegram_id) if telegram_id is not None else None,
 			"accepted_at": accepted_at,
@@ -414,16 +702,11 @@ def pending(limit: int | None = None, company: str | None = None) -> list[Pendin
 	"""
 	rules = [*_pending_patterns(), *_pending_parameters()]
 	if company:
-		accepted = {row["rule"] for row in _accepted_rules(company)}
-		rules = [rule for rule in rules if rule.name not in accepted]
+		# ``acceptance`` and not «has a row»: an acceptance the rule has since outgrown clears
+		# nothing, so the rule is back on the list of what will refuse this company's postings.
+		rules = [rule for rule in rules if acceptance(company, rule.name, rule.doctype) is None]
 	rules.sort(key=lambda rule: rule.sort_key)
 	return rules[:limit] if limit else rules
-
-
-def _accepted_rules(company: str) -> list[dict[str, Any]]:
-	if not frappe.db.exists("DocType", ACCEPTANCE):
-		return []
-	return [dict(row) for row in frappe.get_all(ACCEPTANCE, filters={"company": company}, fields=["rule"])]
 
 
 def _pending_patterns() -> list[PendingRule]:

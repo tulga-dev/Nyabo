@@ -272,6 +272,11 @@ def offer_decision(ctx: Ctx, kind: str, evidence: Any) -> bool:
 	"""
 	company = str(getattr(evidence, "company", "") or "")
 	may_accept = _keeps_books(ctx, company)
+	# An acceptance this company made that the rule has since outgrown: say what changed, above
+	# the evidence, before asking the same question a second time (MAJOR 2).
+	changed = _deps.rule_change(evidence.name, company, evidence.doctype) if company else None
+	if changed is not None:
+		ctx.reply(cards.rule_changed_card(changed))
 	markup = keyboards.rule_decision(kind, evidence.name, may_verify=ctx.is_site_admin, may_accept=may_accept)
 	ctx.reply(cards.rule_card(evidence), markup)
 	if not markup.get("inline_keyboard"):
