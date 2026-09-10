@@ -166,7 +166,7 @@ def test_a_follow_up_button_re_reads_the_ledger_and_edits_the_card(run_receipt, 
 	outcome = run(bot, callback_update(9004, f"q:{SPEND}:6210:2026-09", message_id=555))
 
 	assert bot.sent("answer_callback_query"), "the spinner is stopped before the ledger is read"
-	edit = bot.sent("edit_message_text")[-1]
+	edit = bot.sent("edit_rich_message")[-1]
 	assert edit["message_id"] == 555 and fmt_mnt("77272.73") in edit["text"]
 	assert edit["text"].endswith(mn.MSG_QUESTION_SUBJECT.format(subject="6210 · 2026 оны 9-р сар"))
 	assert frappe.db.count("Nyabo LLM Call") == before
@@ -181,7 +181,7 @@ def test_the_breakdown_button_shows_the_entries_behind_the_figure(run_receipt, b
 	link_user(9005, "Accountant", books)
 	bot = FakeBotApi()
 	run(bot, callback_update(9005, f"q:{LEDGER}:6210:2026-09"))
-	text = bot.sent("edit_message_text")[-1]["text"]
+	text = bot.sent("edit_rich_message")[-1]["text"]
 	assert posted["posted_name"] in text and fmt_mnt("77272.73") in text
 
 
@@ -218,7 +218,7 @@ def test_a_button_for_a_supplier_the_books_do_not_have_offers_a_person(books, mo
 	outcome = run(bot, callback_update(9017, f"q:{ENT}:Хэн ч биш ХХК", message_id=777))
 
 	assert outcome["result"]["buttons"] == [questions.VERB_ESCALATE, questions.VERB_MENU]
-	text = bot.sent("edit_message_text")[-1]["text"]
+	text = bot.sent("edit_rich_message")[-1]["text"]
 	assert text.startswith(mn.SUPPLIER_NOT_FOUND_ANSWER.format(supplier="Хэн ч биш ХХК"))
 	assert mn.MSG_QUESTION_SUBJECT.format(subject="Хэн ч биш ХХК") not in text
 	assert chat_state.get_question_memory(9017) == {}
@@ -238,7 +238,7 @@ def test_a_refused_query_leaves_the_card_and_offers_a_person(books):
 	bot = FakeBotApi()
 	outcome = run(bot, callback_update(9008, f"q:{SPEND}:4242:2026-09"))
 	assert outcome["result"] == {"error": "unknown_account"}
-	assert bot.sent("edit_message_text") == []
+	assert bot.sent("edit_rich_message") == []
 	assert mn.MSG_QUESTION_TRY_REPHRASE in bot.last_text
 	assert bot.callback_datas() == [f"q:{questions.VERB_ESCALATE}", f"q:{questions.VERB_MENU}"]
 

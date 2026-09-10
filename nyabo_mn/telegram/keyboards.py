@@ -44,6 +44,7 @@ PREFIX_LAYOUT = "l"  # statement column mapping; not in §5.1, listed in the mod
 PREFIX_QUESTION = "q"  # q:<verb>[:<arg>…] — the next read offered under an answer (§5.7)
 PREFIX_VERIFY = "v"  # v:<action>:<kind>:<company?>:<rule…> — the door onto an unverified rule (§1.2)
 PREFIX_ESCAPE = "e"  # e:<scope>:cancel|back|skip|menu:<step> — the way out of a waiting step (UX-13)
+PREFIX_DASHBOARD = "d"  # d:<view>[:<period>] — the dashboard and the report cards it opens (richcards)
 
 # Escape verbs. The scope and step beside them are the conversation state the button was drawn
 # for, so a tap on a card scrolled far up can be recognised as stale instead of moving the step

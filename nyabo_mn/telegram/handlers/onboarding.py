@@ -21,7 +21,7 @@ from frappe.utils import getdate, today
 from nyabo_mn.core.models import Regime
 from nyabo_mn.i18n import mn
 from nyabo_mn.log import log_error, log_event
-from nyabo_mn.telegram import _deps, cards, files, keyboards
+from nyabo_mn.telegram import _deps, cards, files, keyboards, richcards
 from nyabo_mn.telegram._deps import DependencyMissing
 from nyabo_mn.telegram.context import Ctx
 
@@ -65,11 +65,16 @@ def start(ctx: Ctx, force: bool = False) -> Any:
 	if settings.onboarding_completed and not force:
 		ctx.reply(mn.MSG_ONBOARDING_ALREADY_DONE)
 		return {"already": True}
-	ctx.set_state(_state("vat"), {"company": ctx.company, "banks": []})
-	_set_progress(settings, "vat")
-	ctx.reply(mn.ONB_START.format(company=ctx.company))
+	payload: dict[str, Any] = {"company": ctx.company, "banks": []}
 	# The first question has no step behind it, so it is drawn without Буцах (UX-13).
-	ctx.reply(mn.ONB_ASK_VAT, keyboards.onboarding_yes_no("vat", back=False))
+	_ask(
+		ctx,
+		payload,
+		"vat",
+		mn.ONB_ASK_VAT,
+		keyboards.onboarding_yes_no("vat", back=False),
+		note=mn.ONB_START.format(company=ctx.company),
+	)
 	return {"step": "vat"}
 
 
@@ -87,6 +92,93 @@ def _set_progress(settings: Any, step: str | None) -> None:
 	settings.onboarding_state = step
 	settings.flags.ignore_permissions = True
 	settings.save()
+
+
+def _answered(payload: dict[str, Any], step: str) -> list[str]:
+	"""The answers so far, one line each, in the order they were given.
+
+	On the summary step the lines are the whole summary (``cards.onboarding_summary_parts``):
+	the regime the answers add up to, the banks with their currencies, the stock as the ledger
+	will hold it, the accountant of record — what «Баталгаажуулах» files.
+	"""
+	parts = cards.onboarding_summary_parts(payload)
+	if step == "summary":
+		return [
+			f"{mn.LBL_REGIME}: {parts['regime']}",
+			mn.ONB_A_BANKS.format(banks=parts["banks"]),
+			mn.ONB_A_INVENTORY.format(inventory=parts["inventory"]),
+			mn.ONB_A_ACCOUNTANT.format(accountant=parts["accountant"]),
+		]
+	out: list[str] = []
+	if "vat_registered" in payload:
+		out.append(mn.ONB_A_VAT.format(answer=mn.BTN_YES if payload["vat_registered"] else mn.BTN_NO))
+	if "under_400m" in payload:
+		out.append(mn.ONB_A_400M.format(answer=mn.BTN_YES if payload["under_400m"] else mn.BTN_NO))
+	if "selected_banks" in payload and step not in ("banks",):
+		names = [mn.BANK_NAMES_MN.get(b, b) for b in payload.get("selected_banks") or []]
+		out.append(mn.ONB_A_BANKS.format(banks=", ".join(names) or mn.ONB_SUMMARY_BANKS_NONE))
+	for bank in payload.get("banks") or []:
+		if not bank.get("currencies"):
+			continue
+		accounts = bank.get("accounts") or {}
+		currencies = ", ".join(
+			f"{currency} …{accounts[currency][-4:]}" if accounts.get(currency) else currency
+			for currency in bank["currencies"]
+		)
+		out.append(
+			mn.ONB_A_BANK_CURRENCIES.format(
+				bank=mn.BANK_NAMES_MN.get(bank["bank"], bank["bank"]), currencies=currencies
+			)
+		)
+	if "has_inventory" in payload and step not in ("inv", "inv_wait", "inv_confirm"):
+		out.append(mn.ONB_A_INVENTORY.format(inventory=parts["inventory"]))
+	if payload.get("accountant_name") and step not in ("acc_name",):
+		out.append(mn.ONB_A_ACCOUNTANT.format(accountant=parts["accountant"]))
+	return out
+
+
+def _retire_card(ctx: Ctx, message_id: int) -> None:
+	"""Drop the buttons off a wizard card that is about to be replaced by a fresh one."""
+	try:
+		ctx.bot.edit_message_reply_markup(ctx.chat_id, message_id, keyboards.empty_markup())
+	except Exception as exc:  # noqa: BLE001 - cosmetic; the next question still has to be asked
+		log_event("telegram.onboarding.retire_failed", level="warning", error=type(exc).__name__)
+
+
+def _ask(
+	ctx: Ctx,
+	payload: dict[str, Any],
+	step: str,
+	question: str,
+	keyboard: dict[str, Any],
+	note: str | None = None,
+) -> None:
+	"""Draw the wizard card for ``step`` and move the conversation there.
+
+	One card, redrawn in place while the accountant answers by tapping it: the question
+	changes, the strip advances, the answer joins the folded list, and the chat does not fill
+	with a message per question. When the answer was typed — a bank account number, the
+	accountant's name, a stock list — the card is above the accountant's own message, so it is
+	retired (buttons off) and a fresh one is sent below, where the eye is.
+
+	The keyboard stays an ordinary inline keyboard under the card rather than the card's own
+	buttons, because the bank and currency toggles redraw it with ``editMessageReplyMarkup``.
+	"""
+	company = payload.get("company") or ctx.company or ""
+	card = richcards.wizard_card(
+		company, step, _answered(payload, step), question, note, open_answers=step == "summary"
+	)
+	previous = payload.get("card_message_id")
+	in_place = ctx.is_callback and previous is not None and ctx.callback_message_id == previous
+	if in_place:
+		sent = ctx.edit_card(previous, card, reply_markup=keyboard)
+	else:
+		if previous is not None:
+			_retire_card(ctx, previous)
+		sent = ctx.reply_card(card, reply_markup=keyboard)
+	message_id = (sent or {}).get("message_id") if isinstance(sent, dict) else None
+	payload["card_message_id"] = message_id or previous
+	_advance(ctx, payload, step)
 
 
 def _advance(ctx: Ctx, payload: dict[str, Any], step: str) -> None:
@@ -126,27 +218,21 @@ def handle_callback(ctx: Ctx, parts: list[str]) -> Any:
 
 def _on_vat(ctx: Ctx, payload: dict[str, Any], value: str) -> Any:
 	payload["vat_registered"] = value == "yes"
-	ctx.edit(
-		ctx.callback_message_id,
-		mn.ONB_ASK_VAT + " " + (mn.BTN_YES if value == "yes" else mn.BTN_NO),
-		keyboards.empty_markup(),
+	_ask(
+		ctx,
+		payload,
+		"400m",
+		mn.ONB_ASK_UNDER_400M,
+		keyboards.onboarding_yes_no("400m"),
+		note=mn.ONB_VAT_YES_NOTE if payload["vat_registered"] else mn.ONB_VAT_NO_NOTE,
 	)
-	ctx.reply(mn.ONB_VAT_YES_NOTE if payload["vat_registered"] else mn.ONB_VAT_NO_NOTE)
-	_advance(ctx, payload, "400m")
-	ctx.reply(mn.ONB_ASK_UNDER_400M, keyboards.onboarding_yes_no("400m"))
 	return {"vat_registered": payload["vat_registered"]}
 
 
 def _on_400m(ctx: Ctx, payload: dict[str, Any], value: str) -> Any:
 	payload["under_400m"] = value == "yes"
-	ctx.edit(
-		ctx.callback_message_id,
-		mn.ONB_ASK_UNDER_400M + " " + (mn.BTN_YES if value == "yes" else mn.BTN_NO),
-		keyboards.empty_markup(),
-	)
 	payload["selected_banks"] = []
-	_advance(ctx, payload, "banks")
-	ctx.reply(mn.ONB_ASK_BANKS, keyboards.onboarding_banks([]))
+	_ask(ctx, payload, "banks", mn.ONB_ASK_BANKS, keyboards.onboarding_banks([]))
 	return {"under_400m": payload["under_400m"]}
 
 
@@ -166,11 +252,6 @@ def _on_banks(ctx: Ctx, payload: dict[str, Any], value: str) -> Any:
 			ctx.chat_id, ctx.callback_message_id, keyboards.onboarding_banks(selected)
 		)
 		return {"selected": selected}
-	ctx.edit(
-		ctx.callback_message_id,
-		mn.ONB_ASK_BANKS + " " + (", ".join(selected) or mn.ONB_SUMMARY_BANKS_NONE),
-		keyboards.empty_markup(),
-	)
 	payload["banks"] = [{"bank": b, "currencies": [], "accounts": {}} for b in selected]
 	payload["bank_index"] = 0
 	return _ask_currencies(ctx, payload)
@@ -185,16 +266,20 @@ def _ask_currencies(ctx: Ctx, payload: dict[str, Any]) -> Any:
 	# bank says nothing about the next one.
 	payload["cur_selected"] = []
 	payload["cur_custom"] = []
-	_advance(ctx, payload, "cur")
-	ctx.reply(mn.ONB_ASK_CURRENCIES.format(bank=banks[index]["bank"]), keyboards.onboarding_currencies([]))
+	_ask(
+		ctx,
+		payload,
+		"cur",
+		mn.ONB_ASK_CURRENCIES.format(bank=banks[index]["bank"]),
+		keyboards.onboarding_currencies([]),
+	)
 	return {"step": "cur", "bank": banks[index]["bank"]}
 
 
 def _on_currency(ctx: Ctx, payload: dict[str, Any], value: str) -> Any:
 	selected: list[str] = list(payload.get("cur_selected") or [])
 	if value == "other":
-		_advance(ctx, payload, "cur_other")
-		ctx.reply(mn.ONB_ASK_CURRENCY_CODE, keyboards.onboarding_text_step("cur_other"))
+		_ask(ctx, payload, "cur_other", mn.ONB_ASK_CURRENCY_CODE, keyboards.onboarding_text_step("cur_other"))
 		return None
 	if value != "done":
 		if value in selected:
@@ -211,11 +296,6 @@ def _on_currency(ctx: Ctx, payload: dict[str, Any], value: str) -> Any:
 		return {"selected": selected}
 	bank = payload["banks"][payload["bank_index"]]
 	bank["currencies"] = selected or [DEFAULT_CURRENCY]
-	ctx.edit(
-		ctx.callback_message_id,
-		mn.ONB_ASK_CURRENCIES.format(bank=bank["bank"]) + " " + "/".join(bank["currencies"]),
-		keyboards.empty_markup(),
-	)
 	payload["acct_queue"] = list(bank["currencies"])
 	return _ask_account_number(ctx, payload)
 
@@ -226,8 +306,10 @@ def _ask_account_number(ctx: Ctx, payload: dict[str, Any]) -> Any:
 	if not queue:
 		payload["bank_index"] = payload.get("bank_index", 0) + 1
 		return _ask_currencies(ctx, payload)
-	_advance(ctx, payload, "acct")
-	ctx.reply(
+	_ask(
+		ctx,
+		payload,
+		"acct",
 		mn.ONB_ASK_ACCOUNT_NUMBER.format(bank=bank["bank"], currency=queue[0]),
 		keyboards.onboarding_skip("acct"),
 	)
@@ -246,13 +328,11 @@ def _store_account_number(ctx: Ctx, payload: dict[str, Any], number: str | None)
 
 
 def _on_account_skip(ctx: Ctx, payload: dict[str, Any], value: str) -> Any:
-	ctx.bot.edit_message_reply_markup(ctx.chat_id, ctx.callback_message_id, keyboards.empty_markup())
 	return _store_account_number(ctx, payload, None)
 
 
 def _ask_inventory(ctx: Ctx, payload: dict[str, Any]) -> Any:
-	_advance(ctx, payload, "inv")
-	ctx.reply(mn.ONB_ASK_INVENTORY, keyboards.onboarding_yes_no("inv"))
+	_ask(ctx, payload, "inv", mn.ONB_ASK_INVENTORY, keyboards.onboarding_yes_no("inv"))
 	return {"step": "inv"}
 
 
@@ -270,7 +350,6 @@ def _on_inventory(ctx: Ctx, payload: dict[str, Any], value: str) -> Any:
 	opening stock to file may still send another list. Adding is not undoing.
 	"""
 	if payload.get("inventory_posted") and value != "yes":
-		ctx.bot.edit_message_reply_markup(ctx.chat_id, ctx.callback_message_id, keyboards.empty_markup())
 		ctx.reply(mn.ONB_INVENTORY_ALREADY_POSTED)
 		# The answer stands as the ledger has it.
 		payload["has_inventory"] = True
@@ -289,11 +368,6 @@ def _on_inventory(ctx: Ctx, payload: dict[str, Any], value: str) -> Any:
 	# for later on books that hold no stock at all.
 	payload.pop("inventory_skipped", None)
 	payload["has_inventory"] = value == "yes"
-	ctx.edit(
-		ctx.callback_message_id,
-		mn.ONB_ASK_INVENTORY + " " + (mn.BTN_YES if value == "yes" else mn.BTN_NO),
-		keyboards.empty_markup(),
-	)
 	if payload["has_inventory"]:
 		return _ask_inventory_list(ctx, payload)
 	return _ask_accountant(ctx, payload)
@@ -342,31 +416,34 @@ def _forget_inventory_list(ctx: Ctx, payload: dict[str, Any]) -> None:
 
 def _ask_inventory_list(ctx: Ctx, payload: dict[str, Any]) -> Any:
 	"""The step the founder was trapped in: optional, so it is drawn with Алгасах and Буцах."""
-	_advance(ctx, payload, "inv_wait")
-	ctx.reply(mn.ONB_INVENTORY_HOW, keyboards.onboarding_text_step("inv_wait", back=True, skip=True))
+	_ask(
+		ctx,
+		payload,
+		"inv_wait",
+		mn.ONB_INVENTORY_HOW,
+		keyboards.onboarding_text_step("inv_wait", back=True, skip=True),
+	)
 	return {"step": "inv_wait"}
 
 
 def _ask_accountant(ctx: Ctx, payload: dict[str, Any]) -> Any:
-	_advance(ctx, payload, "acc_name")
-	ctx.reply(mn.ONB_ASK_ACCOUNTANT_NAME, keyboards.onboarding_text_step("acc_name", skip=True))
+	_ask(
+		ctx,
+		payload,
+		"acc_name",
+		mn.ONB_ASK_ACCOUNTANT_NAME,
+		keyboards.onboarding_text_step("acc_name", skip=True),
+	)
 	return {"step": "acc_name"}
 
 
 def _on_micpa_skip(ctx: Ctx, payload: dict[str, Any], value: str) -> Any:
-	ctx.bot.edit_message_reply_markup(ctx.chat_id, ctx.callback_message_id, keyboards.empty_markup())
 	payload["micpa"] = ""
 	return _show_summary(ctx, payload)
 
 
 def _show_summary(ctx: Ctx, payload: dict[str, Any]) -> Any:
-	_advance(ctx, payload, "summary")
-	ctx.reply(
-		cards.onboarding_summary(payload, payload.get("company") or ctx.company or "")
-		+ "\n"
-		+ mn.ONB_CONFIRM_SUMMARY,
-		keyboards.onboarding_confirm("summary"),
-	)
+	_ask(ctx, payload, "summary", mn.ONB_CONFIRM_SUMMARY, keyboards.onboarding_confirm("summary"))
 	return {"step": "summary"}
 
 
@@ -553,8 +630,14 @@ def handle_state(ctx: Ctx, state: str, payload: dict[str, Any]) -> Any:
 		custom = list(payload.get("cur_custom") or [])
 		bank = payload["banks"][payload["bank_index"]]["bank"]
 		if not code:
-			_advance(ctx, payload, "cur")
-			ctx.reply(mn.ONB_CURRENCY_CODE_INVALID, keyboards.onboarding_currencies(selected, custom))
+			_ask(
+				ctx,
+				payload,
+				"cur",
+				mn.ONB_ASK_CURRENCIES.format(bank=bank),
+				keyboards.onboarding_currencies(selected, custom),
+				note=mn.ONB_CURRENCY_CODE_INVALID,
+			)
 			return {"selected": selected}
 		if code not in selected:
 			selected.append(code)
@@ -562,11 +645,14 @@ def handle_state(ctx: Ctx, state: str, payload: dict[str, Any]) -> Any:
 			custom.append(code)
 		payload["cur_selected"] = selected
 		payload["cur_custom"] = custom
-		_advance(ctx, payload, "cur")
 		# UX-11: say the code landed, and redraw the keyboard so it is there to untoggle.
-		ctx.reply(
-			mn.ONB_CURRENCY_ADDED.format(currency=code) + "\n" + mn.ONB_ASK_CURRENCIES.format(bank=bank),
+		_ask(
+			ctx,
+			payload,
+			"cur",
+			mn.ONB_ASK_CURRENCIES.format(bank=bank),
 			keyboards.onboarding_currencies(selected, custom),
+			note=mn.ONB_CURRENCY_ADDED.format(currency=code),
 		)
 		return {"selected": selected}
 	if step == "inv_wait":
@@ -582,8 +668,7 @@ def handle_state(ctx: Ctx, state: str, payload: dict[str, Any]) -> Any:
 
 
 def _ask_micpa(ctx: Ctx, payload: dict[str, Any]) -> Any:
-	_advance(ctx, payload, "micpa")
-	ctx.reply(mn.ONB_ASK_MICPA, keyboards.onboarding_skip("micpa"))
+	_ask(ctx, payload, "micpa", mn.ONB_ASK_MICPA, keyboards.onboarding_skip("micpa"))
 	return {"step": "micpa"}
 
 
@@ -595,38 +680,63 @@ def _repeat(ctx: Ctx, step: str, payload: dict[str, Any]) -> Any:
 	a message they have no way to answer (UX-13).
 	"""
 	if step == "vat":
-		ctx.reply(mn.ONB_ASK_VAT, keyboards.onboarding_yes_no("vat", back=False))
+		_ask(ctx, payload, step, mn.ONB_ASK_VAT, keyboards.onboarding_yes_no("vat", back=False))
 	elif step == "400m":
-		ctx.reply(mn.ONB_ASK_UNDER_400M, keyboards.onboarding_yes_no("400m"))
+		_ask(ctx, payload, step, mn.ONB_ASK_UNDER_400M, keyboards.onboarding_yes_no("400m"))
 	elif step == "banks":
-		ctx.reply(mn.ONB_ASK_BANKS, keyboards.onboarding_banks(payload.get("selected_banks") or []))
+		_ask(
+			ctx,
+			payload,
+			step,
+			mn.ONB_ASK_BANKS,
+			keyboards.onboarding_banks(payload.get("selected_banks") or []),
+		)
 	elif step == "cur":
 		bank = payload["banks"][payload["bank_index"]]["bank"]
-		ctx.reply(
+		_ask(
+			ctx,
+			payload,
+			step,
 			mn.ONB_ASK_CURRENCIES.format(bank=bank),
 			keyboards.onboarding_currencies(
 				payload.get("cur_selected") or [], payload.get("cur_custom") or []
 			),
 		)
 	elif step == "cur_other":
-		ctx.reply(mn.ONB_ASK_CURRENCY_CODE, keyboards.onboarding_text_step("cur_other"))
+		_ask(ctx, payload, step, mn.ONB_ASK_CURRENCY_CODE, keyboards.onboarding_text_step("cur_other"))
 	elif step == "acct":
 		queue: list[str] = payload.get("acct_queue") or []
 		bank = payload["banks"][payload.get("bank_index", 0)]["bank"]
-		ctx.reply(
+		_ask(
+			ctx,
+			payload,
+			step,
 			mn.ONB_ASK_ACCOUNT_NUMBER.format(bank=bank, currency=queue[0] if queue else DEFAULT_CURRENCY),
 			keyboards.onboarding_skip("acct"),
 		)
 	elif step == "inv":
-		ctx.reply(mn.ONB_ASK_INVENTORY, keyboards.onboarding_yes_no("inv"))
+		_ask(ctx, payload, step, mn.ONB_ASK_INVENTORY, keyboards.onboarding_yes_no("inv"))
 	elif step == "inv_wait":
-		ctx.reply(mn.ONB_INVENTORY_HOW, keyboards.onboarding_text_step("inv_wait", back=True, skip=True))
+		_ask(
+			ctx,
+			payload,
+			step,
+			mn.ONB_INVENTORY_HOW,
+			keyboards.onboarding_text_step("inv_wait", back=True, skip=True),
+		)
 	elif step == "inv_confirm":
+		# The preview card, not the wizard card: the list on it is what is being confirmed.
 		ctx.reply(mn.ONB_CONFIRM_SUMMARY, keyboards.intake_confirm(payload.get("intake", "")))
 	elif step == "acc_name":
-		ctx.reply(mn.ONB_ASK_ACCOUNTANT_NAME, keyboards.onboarding_text_step("acc_name", skip=True))
+		_ask(
+			ctx,
+			payload,
+			step,
+			mn.ONB_ASK_ACCOUNTANT_NAME,
+			keyboards.onboarding_text_step("acc_name", skip=True),
+		)
 	elif step == "micpa":
-		ctx.reply(mn.ONB_ASK_MICPA, keyboards.onboarding_skip("micpa"))
+		_ask(ctx, payload, step, mn.ONB_ASK_MICPA, keyboards.onboarding_skip("micpa"))
 	elif step == "summary":
 		return _show_summary(ctx, payload)
 	else:
@@ -837,6 +947,6 @@ def finish(ctx: Ctx, payload: dict[str, Any]) -> Any:
 	except DependencyMissing as exc:
 		log_event("telegram.onboarding.apply_missing", level="warning", company=company, error=str(exc))
 		ctx.reply(mn.MSG_ONBOARDING_APPLY_PENDING)
-	ctx.reply(cards.onboarding_summary(payload, company))
+	ctx.reply_card(richcards.wizard_done_card(cards.onboarding_summary(payload, company)))
 	log_event("telegram.onboarding.done", company=company, user=ctx.user, applied=bool(applied))
 	return {"company": company, "applied": applied, "payload": payload}

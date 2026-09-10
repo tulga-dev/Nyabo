@@ -56,7 +56,7 @@ def test_admin_link_issues_code_and_user_consumes_it(company):
 	assert frappe.db.get_value("Nyabo Link Code", code, "used_by_telegram_id") == "4242"
 	assert mn.MSG_LINKED.format(role=mn.ROLE_LABELS["Accountant"], company=company) in bot.texts()
 	# first accountant on a company without settings is sent into onboarding
-	assert mn.ONB_ASK_VAT in bot.texts()
+	assert bot.last_text.endswith(mn.ONB_ASK_VAT)
 	settings_name = frappe.db.exists("Nyabo Company Settings", {"company": company})
 	assert frappe.db.get_value("Nyabo Company Settings", settings_name, "accountant_telegram_id") == "4242"
 

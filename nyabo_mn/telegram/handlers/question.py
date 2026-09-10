@@ -22,6 +22,7 @@ escalation event the user asked for by tapping [Админаас асуух].
 from __future__ import annotations
 
 import datetime as dt
+import time
 from collections.abc import Callable
 from typing import Any
 
@@ -29,7 +30,7 @@ from nyabo_mn.agent import questions
 from nyabo_mn.agent.llm_client import ToolCall
 from nyabo_mn.i18n import mn
 from nyabo_mn.log import log_event
-from nyabo_mn.telegram import _deps, cards, keyboards
+from nyabo_mn.telegram import _deps, cards, keyboards, richcards
 from nyabo_mn.telegram import state as chat_state
 from nyabo_mn.telegram.context import Ctx
 
@@ -62,14 +63,40 @@ def _company(ctx: Ctx) -> str | None:
 
 
 def _send(ctx: Ctx, reply: questions.Reply, message_id: int | None = None) -> dict[str, Any]:
-	"""Draw the answer and its buttons, editing the card the tap came from when there is one."""
-	text = cards.question_card(reply.text, reply.subject)
-	markup = keyboards.question_keyboard(reply.follow_ups) if reply.follow_ups else None
+	"""Draw the answer and its buttons, editing the card the tap came from when there is one.
+
+	The card is a rich message (``richcards.answer_card``): the sentence, the handler's rows
+	as a table, the next reads as buttons, the subject line as the footer. Its plain twin is
+	what a client that cannot draw one receives, and it ends with the same subject line.
+	"""
+	card = richcards.answer_card(reply.text, reply.subject, reply.follow_ups, reply.facts)
 	if message_id is None:
-		ctx.reply(text, markup)
+		ctx.reply_card(card)
 	else:
-		ctx.edit(message_id, text, markup)
+		ctx.edit_card(message_id, card)
 	return {"answer": reply.text, "buttons": [f.verb for f in reply.follow_ups]}
+
+
+def _draft_id() -> int:
+	"""A fresh ``draft_id`` for ``sendRichMessageDraft``: one per question, never reused."""
+	return int(time.time() * 1000) & 0x7FFFFFFF
+
+
+def _thinking(ctx: Ctx, beat: Callable[[], None]) -> Callable[[], None]:
+	"""«Бодож байна…» in the chat while the model works — a streamed draft, refreshed per turn.
+
+	``sendRichMessageDraft`` shows "a temporary 30-second preview" (Bot API 10.1), so the
+	draft is re-sent on every tool dispatch with the reading step named; the typing action
+	still beats beside it for clients that cannot draw a draft. A refused draft costs nothing.
+	"""
+	draft_id = _draft_id()
+
+	def pulse() -> None:
+		beat()
+		ctx.draft(richcards.thinking_card(mn.CARD_THINKING_READING), draft_id)
+
+	ctx.draft(richcards.thinking_card(mn.CARD_THINKING), draft_id)
+	return pulse
 
 
 def _typing(ctx: Ctx) -> Callable[[], None]:
@@ -108,8 +135,9 @@ def handle_text(ctx: Ctx) -> Any:
 		return None
 	beat = _typing(ctx)
 	beat()
+	pulse = _thinking(ctx, beat)
 	memory = chat_state.get_question_memory(ctx.chat_id)
-	reply = _deps.answer_question(ctx.user, company, ctx.text, memory, on_turn=beat)
+	reply = _deps.answer_question(ctx.user, company, ctx.text, memory, on_turn=pulse)
 	chat_state.set_question_memory(ctx.chat_id, reply.memory, telegram_id=ctx.telegram_id)
 	return _send(ctx, reply)
 
@@ -169,6 +197,7 @@ def handle_callback(ctx: Ctx, parts: list[str]) -> Any:
 		follow_ups=questions.follow_ups(trace, now=now, answered=answered),
 		memory=questions.remember(_question_of(ctx, company), trace, company=company, now=now),
 		subject=questions.subject_label(subject),
+		facts=result,
 	)
 	chat_state.set_question_memory(ctx.chat_id, reply.memory, telegram_id=ctx.telegram_id)
 	return _send(ctx, reply, message_id=ctx.callback_message_id)

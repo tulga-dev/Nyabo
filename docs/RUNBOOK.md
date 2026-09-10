@@ -117,8 +117,11 @@ bot and sees `✅ Холбогдлоо`. Owners: `/link эзэмшигч <compan
 
 Either provision from the desk console (see README) or let the accountant run `/эхлэх`
 in Telegram: VAT payer yes/no, banks (Khan, TDB, Golomt, Trans, Xac) and currencies,
-inventory yes/no with an Excel or text list, accountant of record. You should see: the
-summary card `✅ Тохиргоо дууслаа` and, in the desk, a Nyabo Company Settings record.
+inventory yes/no with an Excel or text list, accountant of record. The wizard is one card
+(`Тохиргоо · <company>`, step strip 1/7 … 7/7, the answers so far folded under «Хариулсан»)
+that is redrawn in place while the accountant taps; a typed answer gets a fresh card below
+it. You should see: the `Тохиргоо дууслаа` card with the summary and a [Самбар] button, and,
+in the desk, a Nyabo Company Settings record.
 
 ## 6. Daily operation
 
@@ -136,7 +139,25 @@ summary card `✅ Тохиргоо дууслаа` and, in the desk, a Nyabo Com
     back to Unpaid and the statement line back to Unreconciled, ready to settle again.
 - Month end: `/хаалт 2026-09` → checklist → summaries as PDF → **Хаах**.
 - Corrections: on a posted entry's card, **Засах** → reason → reversal + new proposal.
-- Questions: type a sentence; the answer comes from the books, read-only.
+- Questions: type a sentence; the answer comes from the books, read-only. While the model
+  works the chat shows a streamed «Бодож байна…» draft (Bot API `sendRichMessageDraft`); the
+  answer card carries the handler's rows as a table and the next reads as buttons.
+- Dashboard: `/меню` (or [Самбар] on any card) draws the month's revenue/expense/profit
+  against last month, the bank balances with their reconciliation state, and what waits on a
+  tap. Its buttons open the transactions of a month, the bank balances, the reports menu
+  (trial balance with PDF/Excel, revenue and expense, revenue trend, biggest cost, stock,
+  unmatched lines) and the pending proposals; every card edits itself in place and pages by
+  month. Every figure is read from the ledger on the tap — nothing is cached.
+
+### Rich cards and old clients
+
+Cards are Bot API 10.3 rich messages (`sendRichMessage`, HTML body: headings, tables,
+`details`, styled `<tg-button>` rows). Every card also has a plain-text twin, and the bot
+sends that instead when Telegram refuses the rich one: a 404 (a bot server older than
+10.1) is learned once per process and logged as `telegram.rich.unsupported`; a 400 is our
+own HTML being refused, logged as `telegram.rich.rejected` with Telegram's description —
+that card goes out plain, the next one is tried rich again. Grep `nyabo.log` for
+`telegram.rich.` after a deploy.
 
 ## 7. Logs and errors
 
@@ -187,6 +208,7 @@ bench --site nyabo.s.frappe.cloud execute nyabo_mn.simulator.run.run --kwargs '{
 | Symptom | Cause | Fix |
 |---|---|---|
 | Bot silent after `/start` | webhook not set or secret mismatch | run step 3; check Site Config keys |
+| Cards arrive as plain text with buttons underneath | Telegram refused the rich message | `nyabo.log`: `telegram.rich.unsupported` (bot server predates Bot API 10.1: nothing to fix on our side) or `telegram.rich.rejected` (our HTML; the `description` names the tag) |
 | Card says ⚠️ Дүрэм баталгаажаагүй | the rule is uncited and this company has not accepted it | the accountant runs `/дүрэм`, reads the rule and taps [Манай компанид хамаарна] — it clears that company only, and the refused [Батлах] finishes itself (ACC-01). A site admin in `ADMIN_TELEGRAM_IDS` may instead tap [Сайт даяар баталгаажуулах] once a citation is found (VER-08); nobody needs the desk. |
 | Card still says ⚠️ after the accountant accepted | a deploy rewrote the rule's posting lines, so the acceptance no longer covers them | expected: the chat shows both versions and asks for the new one. `Nyabo Event` filtered to `rule_changed_after_acceptance` says when it moved and whose name was on the old content. |
 | `Site config is missing OPENAI_API_KEY` | secret missing | step 2 |

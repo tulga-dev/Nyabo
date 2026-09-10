@@ -9,11 +9,16 @@ from nyabo_mn.telegram.context import Ctx
 
 
 def handle_start(ctx: Ctx) -> Any:
-	"""Welcome; unlinked senders are told how to get a code, linked ones get the menu."""
+	"""Welcome; unlinked senders are told how to get a code, linked ones get the dashboard."""
 	if ctx.link is None:
-		ctx.reply(mn.MSG_WELCOME + "\n\n" + mn.MSG_NOT_LINKED)
+		from nyabo_mn.telegram import richcards
+
+		ctx.reply_card(richcards.welcome_card())
 		return {"linked": False}
-	ctx.reply(mn.MSG_WELCOME + "\n\n" + mn.MSG_MENU)
+	from nyabo_mn.telegram.handlers import menu
+
+	ctx.reply(mn.MSG_WELCOME)
+	menu.handle_menu(ctx)
 	return {"linked": True}
 
 

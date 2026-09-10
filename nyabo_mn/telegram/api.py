@@ -193,6 +193,87 @@ class BotApi:
 			files={"photo": (filename, content)},
 		)
 
+	# --- rich messages (Bot API 10.1+, read 2026-09-10) ----------------------------------------
+	#
+	# ``sendRichMessage`` takes ``rich_message`` (InputRichMessage: "Exactly one of the fields
+	# html, markdown, or blocks must be used") and returns the Message; ``editMessageText``
+	# accepts the same ``rich_message`` in place of ``text``; ``sendRichMessageDraft`` streams
+	# "a temporary 30-second preview" under ``draft_id`` and "once the output is finalized, you
+	# must call sendRichMessage with the complete message to persist it". Every rich send here
+	# carries the card's plain-text twin (``rich.render_text``), because a card the user never
+	# sees is worse than a plain one: a bot server older than 10.1 answers 404 to the method,
+	# and a malformed body answers 400. The 404 is learned once per process; a 400 is logged
+	# with Telegram's description and that one message goes out plain.
+
+	def send_rich_message(
+		self,
+		chat_id: int | str,
+		html: str,
+		*,
+		fallback_text: str,
+		fallback_markup: dict[str, Any] | None = None,
+		reply_markup: dict[str, Any] | None = None,
+	) -> dict[str, Any]:
+		"""``reply_markup`` is an ordinary inline keyboard under the rich body (``sendRichMessage``
+		and ``editMessageText`` both take one); the wizard uses it so its toggle buttons keep going
+		through ``editMessageReplyMarkup``. In the plain fallback it is the keyboard, unless the
+		card's own buttons (``fallback_markup``) already are."""
+		if not _rich_unsupported():
+			try:
+				return self.call(
+					"sendRichMessage",
+					{"chat_id": chat_id, "rich_message": {"html": html}, "reply_markup": reply_markup},
+				)
+			except TelegramApiError as exc:
+				_note_rich_refusal(exc, "sendRichMessage")
+		return self.send_message(chat_id, fallback_text, reply_markup=fallback_markup or reply_markup)
+
+	def edit_rich_message(
+		self,
+		chat_id: int | str,
+		message_id: int,
+		html: str,
+		*,
+		fallback_text: str,
+		fallback_markup: dict[str, Any] | None = None,
+		reply_markup: dict[str, Any] | None = None,
+	) -> Any:
+		if not _rich_unsupported():
+			try:
+				return self.call(
+					"editMessageText",
+					{
+						"chat_id": chat_id,
+						"message_id": message_id,
+						"rich_message": {"html": html},
+						"reply_markup": reply_markup,
+					},
+				)
+			except TelegramApiError as exc:
+				_note_rich_refusal(exc, "editMessageText")
+		return self.edit_message_text(
+			chat_id, message_id, fallback_text, reply_markup=fallback_markup or reply_markup
+		)
+
+	def send_rich_draft(self, chat_id: int | str, draft_id: int, html: str, can_stop: bool = False) -> bool:
+		"""A streamed preview under ``draft_id``; never raises, because it is only a sign of life."""
+		if _rich_unsupported():
+			return False
+		try:
+			self.call(
+				"sendRichMessageDraft",
+				{
+					"chat_id": chat_id,
+					"draft_id": draft_id,
+					"rich_message": {"html": html},
+					"can_stop": can_stop,
+				},
+			)
+			return True
+		except TelegramApiError as exc:
+			_note_rich_refusal(exc, "sendRichMessageDraft")
+			return False
+
 	# --- files ---------------------------------------------------------------------------------
 
 	def get_file(self, file_id: str) -> dict[str, Any]:
@@ -269,6 +350,40 @@ class BotApi:
 			"setChatMenuButton",
 			{"chat_id": chat_id, "menu_button": menu_button or {"type": "commands"}},
 		)
+
+
+# --- rich message support, learned at runtime -----------------------------------------------------
+
+_rich_refused_for_process = False
+
+
+def _rich_unsupported() -> bool:
+	return _rich_refused_for_process
+
+
+def forget_rich_refusal() -> None:
+	"""Clear what has been learned. For tests; a process learns this once and keeps it."""
+	global _rich_refused_for_process
+	_rich_refused_for_process = False
+
+
+def _note_rich_refusal(exc: TelegramApiError, method: str) -> None:
+	"""404 means the bot server predates the method: stop asking. Anything else: this card only.
+
+	A 400 is almost always our HTML (a tag the reference does not list, a table cell with a
+	block in it), so the description is logged in full — it is Telegram's own text, and it is
+	what fixes the card. A rate limit or a server error is re-raised: the plain send would
+	meet the same wall, and the caller's retry policy is the right one for it.
+	"""
+	global _rich_refused_for_process
+	if exc.error_code == 404:
+		_rich_refused_for_process = True
+		log_event("telegram.rich.unsupported", level="warning", method=method, description=exc.description)
+		return
+	if exc.error_code == 400:
+		log_event("telegram.rich.rejected", level="warning", method=method, description=exc.description)
+		return
+	raise exc
 
 
 # --- site-level accessor --------------------------------------------------------------------------

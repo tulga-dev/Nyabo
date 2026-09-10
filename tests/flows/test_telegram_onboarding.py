@@ -48,12 +48,12 @@ def test_full_onboarding_stores_settings(company, monkeypatch):
 	bot = FakeBotApi()
 	run(bot, message_update(uid, "/эхлэх"))
 	assert _state(uid) == "onb:vat"
-	assert mn.ONB_ASK_VAT in bot.texts()
+	assert bot.last_text.endswith(mn.ONB_ASK_VAT)
 	# The first question has no step behind it, so Буцах is absent and Цуцлах is not (UX-13).
 	assert bot.callback_datas() == ["o:vat:yes", "o:vat:no", "e:onb:cancel:vat"]
 
 	run(bot, callback_update(uid, "o:vat:no"))
-	assert mn.ONB_VAT_NO_NOTE in bot.texts()
+	assert mn.ONB_VAT_NO_NOTE in bot.last_text
 	assert _state(uid) == "onb:400m"
 	run(bot, callback_update(uid, "o:400m:yes"))
 	assert _state(uid) == "onb:banks"
@@ -74,14 +74,14 @@ def test_full_onboarding_stores_settings(company, monkeypatch):
 	run(bot, callback_update(uid, "o:cur:USD"))
 	run(bot, callback_update(uid, "o:cur:done"))
 	assert _state(uid) == "onb:acct"
-	assert bot.last_text == mn.ONB_ASK_ACCOUNT_NUMBER.format(bank="Khan Bank", currency="MNT")
+	assert bot.last_text.endswith(mn.ONB_ASK_ACCOUNT_NUMBER.format(bank="Khan Bank", currency="MNT"))
 	run(bot, message_update(uid, "5001234567"))
-	assert bot.last_text == mn.ONB_ASK_ACCOUNT_NUMBER.format(bank="Khan Bank", currency="USD")
+	assert bot.last_text.endswith(mn.ONB_ASK_ACCOUNT_NUMBER.format(bank="Khan Bank", currency="USD"))
 	run(bot, callback_update(uid, "o:acct:skip"))
 	assert _state(uid) == "onb:inv"
 
 	run(bot, callback_update(uid, "o:inv:yes"))
-	assert _state(uid) == "onb:inv_wait" and bot.last_text == mn.ONB_INVENTORY_HOW
+	assert _state(uid) == "onb:inv_wait" and bot.last_text.endswith(mn.ONB_INVENTORY_HOW)
 	run(bot, message_update(uid, "Принтерийн хор, 5, 45000\nЦаас, 10, 12000"))
 	# A typed list has no file behind it; the intake's own rows are the record.
 	assert intakes and intakes[0][0] == company and intakes[0][2] == "text" and intakes[0][4] is None
@@ -142,7 +142,7 @@ def test_vat_yes_no_banks_no_inventory(company):
 	bot = FakeBotApi()
 	run(bot, message_update(uid, "/эхлэх"))
 	run(bot, callback_update(uid, "o:vat:yes"))
-	assert mn.ONB_VAT_YES_NOTE in bot.texts()
+	assert mn.ONB_VAT_YES_NOTE in bot.last_text
 	run(bot, callback_update(uid, "o:400m:no"))
 	run(bot, callback_update(uid, "o:banks:done"))
 	assert _state(uid) == "onb:inv"
@@ -179,7 +179,7 @@ def test_text_during_button_step_repeats_question(company):
 	run(bot, message_update(9003, "/эхлэх"))
 	bot.clear()
 	run(bot, message_update(9003, "тийм"))
-	assert bot.last_text == mn.ONB_ASK_VAT
+	assert bot.last_text.endswith(mn.ONB_ASK_VAT)
 	assert bot.callback_datas() == ["o:vat:yes", "o:vat:no", "e:onb:cancel:vat"]
 
 
@@ -196,7 +196,7 @@ def test_custom_currency_is_shown_and_can_be_removed(company):
 	run(bot, callback_update(uid, "o:cur:MNT"))
 
 	run(bot, callback_update(uid, "o:cur:other"))
-	assert bot.last_text == mn.ONB_ASK_CURRENCY_CODE
+	assert bot.last_text.endswith(mn.ONB_ASK_CURRENCY_CODE)
 	run(bot, message_update(uid, " cny "))
 	assert mn.ONB_CURRENCY_ADDED.format(currency="CNY") in bot.last_text
 	labels = [b["text"] for row in bot.last_markup()["inline_keyboard"] for b in row]
@@ -211,7 +211,7 @@ def test_custom_currency_is_shown_and_can_be_removed(company):
 	assert mn.ONB_BANK_TOGGLE_OFF.format(bank="CNY") in labels
 	run(bot, callback_update(uid, "o:cur:CNY"))
 	run(bot, callback_update(uid, "o:cur:done"))
-	assert bot.last_text == mn.ONB_ASK_ACCOUNT_NUMBER.format(bank="Khan Bank", currency="MNT")
+	assert bot.last_text.endswith(mn.ONB_ASK_ACCOUNT_NUMBER.format(bank="Khan Bank", currency="MNT"))
 
 	# …and the code reaches the summary the accountant confirms.
 	run(bot, callback_update(uid, "o:acct:skip"))
@@ -418,7 +418,7 @@ def test_posted_opening_stock_cannot_be_answered_away(company, monkeypatch):
 	run(bot, callback_update(uid, "o:inv:no"))
 	assert mn.ONB_INVENTORY_ALREADY_POSTED in bot.texts()
 	# The step is re-offered, not walked past: there is still something on screen to answer.
-	assert bot.last_text == mn.ONB_ASK_INVENTORY
+	assert bot.last_text.endswith(mn.ONB_ASK_INVENTORY)
 	assert bot.callback_datas() == ["o:inv:yes", "o:inv:no", "e:onb:back:inv", "e:onb:cancel:inv"]
 	assert _state(uid) == "onb:inv"
 	assert calls["cancelled"] == []  # the filed intake is not touched by a refused answer
@@ -518,3 +518,89 @@ def test_a_draft_made_after_a_posted_one_is_still_cancelled_on_leaving(company, 
 	assert _state(uid) in (None, "")
 	# The second draft goes; the posted one is left exactly where it is.
 	assert calls["cancelled"] == ["NYI-0001-2"]
+
+
+# --- the wizard as one card ------------------------------------------------------------------------------
+
+
+def test_tapped_answers_redraw_one_card_and_typed_ones_get_a_fresh_one(company):
+	"""The founder's onboarding: a strip, the answers so far, the question — in one bubble.
+
+	A tap on the card edits that card (the chat does not fill with a message per question); a
+	typed answer sits below the card, so the next question is sent fresh and the old card's
+	buttons are taken off.
+	"""
+	link_user(9011, "Accountant", company)
+	uid = 9011
+	bot = FakeBotApi()
+	run(bot, message_update(uid, "/эхлэх"))
+	first = bot.sent("send_rich_message")[-1]
+	assert first["text"].startswith(mn.ONB_CARD_TITLE.format(company=company))
+	assert mn.ONB_CARD_STEP.format(n=1, total=7) in first["text"]
+	assert mn.ONB_START.format(company=company) in first["text"]
+	assert first["text"].endswith(mn.ONB_ASK_VAT)
+	assert f"<b>{mn.ONB_STEP_LABELS[0]}</b>" in first["html"], "the current step is the bold one"
+	card_id = 101  # what callback_update carries as the tapped message
+
+	run(bot, callback_update(uid, "o:vat:no", message_id=card_id))
+	edit = bot.sent("edit_rich_message")[-1]
+	assert edit["message_id"] == card_id and edit["text"].endswith(mn.ONB_ASK_UNDER_400M)
+	assert mn.ONB_A_VAT.format(answer=mn.BTN_NO) in edit["text"]
+	assert f"<details><summary>{mn.ONB_ANSWERED}</summary>" in edit["html"]
+	assert mn.ONB_VAT_NO_NOTE in edit["text"]
+	assert bot.sent("send_rich_message") == [first], "no second card for a tapped answer"
+
+	run(bot, callback_update(uid, "o:400m:yes", message_id=card_id))
+	run(bot, callback_update(uid, "o:banks:Khan_Bank", message_id=card_id))
+	run(bot, callback_update(uid, "o:banks:done", message_id=card_id))
+	run(bot, callback_update(uid, "o:cur:MNT", message_id=card_id))
+	run(bot, callback_update(uid, "o:cur:done", message_id=card_id))
+	edit = bot.sent("edit_rich_message")[-1]
+	assert edit["text"].endswith(mn.ONB_ASK_ACCOUNT_NUMBER.format(bank="Khan Bank", currency="MNT"))
+	assert mn.ONB_A_BANKS.format(banks="Хаан банк") in edit["text"]
+	assert len(bot.sent("send_rich_message")) == 1
+
+	run(bot, message_update(uid, "5001234567"))  # typed: the card is above the accountant's message
+	assert len(bot.sent("send_rich_message")) == 2
+	fresh = bot.sent("send_rich_message")[-1]
+	assert fresh["text"].endswith(mn.ONB_ASK_INVENTORY)
+	assert mn.ONB_A_BANK_CURRENCIES.format(bank="Хаан банк", currencies="MNT …4567") in fresh["text"]
+	assert mn.ONB_CARD_STEP.format(n=5, total=7) in fresh["text"]
+	retired = bot.sent("edit_message_reply_markup")[-1]
+	assert retired["message_id"] == card_id and retired["reply_markup"] == {"inline_keyboard": []}
+	assert bot.callback_datas() == ["o:inv:yes", "o:inv:no", "e:onb:back:inv", "e:onb:cancel:inv"]
+
+
+def test_the_summary_step_opens_the_answers_and_done_offers_the_dashboard(company):
+	link_user(9012, "Accountant", company)
+	uid = 9012
+	bot = FakeBotApi()
+	run(bot, message_update(uid, "/эхлэх"))
+	run(bot, callback_update(uid, "o:vat:yes"))
+	run(bot, callback_update(uid, "o:400m:no"))
+	run(bot, callback_update(uid, "o:banks:done"))
+	run(bot, callback_update(uid, "o:inv:no"))
+	run(bot, message_update(uid, "Дорж"))
+	run(bot, callback_update(uid, "o:micpa:skip"))
+	summary = bot.sent("send_rich_message")[-1]
+	assert summary["text"].endswith(mn.ONB_CONFIRM_SUMMARY)
+	assert f"<details open><summary>{mn.ONB_ANSWERED}</summary>" in summary["html"]
+	assert f"{mn.LBL_REGIME}: {mn.ONB_SUMMARY_REGIME_VAT}" in summary["text"]
+	assert mn.ONB_A_ACCOUNTANT.format(accountant="Дорж") in summary["text"]
+	assert bot.callback_datas() == ["o:summary:confirm", "e:onb:back:summary", "e:onb:cancel:summary"]
+
+	run(bot, callback_update(uid, "o:summary:confirm"))
+	done = bot.sent("send_rich_message")[-1]
+	assert done["text"].startswith(mn.ONB_DONE_TITLE)
+	assert mn.ONB_SUMMARY_REGIME_VAT in done["text"] and mn.ONB_DONE_NEXT in done["text"]
+	assert bot.callback_datas() == ["d:home"]
+
+
+def test_start_before_a_link_is_the_welcome_card(company):
+	bot = FakeBotApi()
+	run(bot, message_update(9013, "/start"))
+	card = bot.sent("send_rich_message")[-1]
+	assert card["text"].startswith(mn.WELCOME_TITLE)
+	assert mn.MSG_WELCOME in card["text"] and card["text"].endswith(mn.MSG_NOT_LINKED)
+	assert all(you in card["text"] and nyabo in card["text"] for you, nyabo in mn.WELCOME_STEPS)
+	assert "<table compact>" in card["html"]

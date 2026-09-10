@@ -329,6 +329,11 @@ def close_card(company: str, period: str, checklist: dict[str, Any], summaries: 
 
 
 def onboarding_summary(payload: dict[str, Any], company: str) -> str:
+	return mn.ONB_DONE.format(company=company, **onboarding_summary_parts(payload))
+
+
+def onboarding_summary_parts(payload: dict[str, Any]) -> dict[str, str]:
+	"""``{regime, banks, inventory, accountant}`` as the summary prints them (and the wizard card)."""
 	regime = mn.ONB_SUMMARY_REGIME_VAT if payload.get("vat_registered") else mn.ONB_SUMMARY_REGIME_SIMPLIFIED
 	banks = payload.get("banks") or []
 	bank_text = (
@@ -358,9 +363,7 @@ def onboarding_summary(payload: dict[str, Any], company: str) -> str:
 	accountant = payload.get("accountant_name") or mn.ONB_SUMMARY_ACCOUNTANT_NONE
 	if payload.get("micpa"):
 		accountant = f"{accountant} ({payload['micpa']})"
-	return mn.ONB_DONE.format(
-		company=company, regime=regime, banks=bank_text, inventory=inventory, accountant=accountant
-	)
+	return {"regime": regime, "banks": bank_text, "inventory": inventory, "accountant": accountant}
 
 
 def inventory_total(items: list[dict[str, Any]]) -> Decimal:

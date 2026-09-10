@@ -29,9 +29,20 @@ class FakeBotApi:
 	def sent(self, method: str) -> list[dict[str, Any]]:
 		return [kw for m, kw in self.calls if m == method]
 
+	TEXT_METHODS = ("send_message", "edit_message_text", "send_rich_message", "edit_rich_message")
+
 	def texts(self) -> list[str]:
-		"""Every text the user saw, in order (sends and edits)."""
-		return [kw["text"] for m, kw in self.calls if m in ("send_message", "edit_message_text")]
+		"""Every text the user saw, in order (sends and edits; a rich card by its plain twin)."""
+		return [kw["text"] for m, kw in self.calls if m in self.TEXT_METHODS]
+
+	def htmls(self) -> list[str]:
+		"""Every rich card, as the HTML Telegram was handed (sends and edits)."""
+		return [kw["html"] for m, kw in self.calls if m in ("send_rich_message", "edit_rich_message")]
+
+	@property
+	def last_html(self) -> str:
+		htmls = self.htmls()
+		return htmls[-1] if htmls else ""
 
 	@property
 	def last_text(self) -> str:
@@ -40,9 +51,7 @@ class FakeBotApi:
 
 	def last_markup(self) -> dict[str, Any] | None:
 		for m, kw in reversed(self.calls):
-			if m in ("send_message", "edit_message_text", "edit_message_reply_markup") and kw.get(
-				"reply_markup"
-			):
+			if m in (*self.TEXT_METHODS, "edit_message_reply_markup") and kw.get("reply_markup"):
 				return kw["reply_markup"]
 		return None
 
@@ -65,6 +74,34 @@ class FakeBotApi:
 			"edit_message_text", chat_id=chat_id, message_id=message_id, text=text, reply_markup=reply_markup
 		)
 		return {"message_id": message_id, "chat": {"id": chat_id}, "text": text}
+
+	def send_rich_message(self, chat_id, html, fallback_text, fallback_markup=None, reply_markup=None):
+		self._next_message_id += 1
+		self._record(
+			"send_rich_message",
+			chat_id=chat_id,
+			html=html,
+			text=fallback_text,
+			reply_markup=reply_markup or fallback_markup,
+		)
+		return {"message_id": self._next_message_id, "chat": {"id": chat_id}}
+
+	def edit_rich_message(
+		self, chat_id, message_id, html, fallback_text, fallback_markup=None, reply_markup=None
+	):
+		self._record(
+			"edit_rich_message",
+			chat_id=chat_id,
+			message_id=message_id,
+			html=html,
+			text=fallback_text,
+			reply_markup=reply_markup or fallback_markup,
+		)
+		return {"message_id": message_id, "chat": {"id": chat_id}}
+
+	def send_rich_draft(self, chat_id, draft_id, html, can_stop=False):
+		self._record("send_rich_draft", chat_id=chat_id, draft_id=draft_id, html=html, can_stop=can_stop)
+		return True
 
 	def edit_message_reply_markup(self, chat_id, message_id, reply_markup):
 		self._record(

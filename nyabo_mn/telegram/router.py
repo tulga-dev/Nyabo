@@ -103,6 +103,7 @@ def _callback_handlers() -> dict[str, Callable[[Ctx, list[str]], Any]]:
 		close,
 		company,
 		correct,
+		dashboard,
 		escape,
 		onboarding,
 		question,
@@ -110,6 +111,7 @@ def _callback_handlers() -> dict[str, Callable[[Ctx, list[str]], Any]]:
 	)
 
 	return {
+		keyboards.PREFIX_DASHBOARD: dashboard.handle_callback,
 		keyboards.PREFIX_VERIFY: admin.handle_callback,
 		keyboards.PREFIX_PROPOSAL: approve.handle_callback,
 		keyboards.PREFIX_BANK: bank.handle_callback,

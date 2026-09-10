@@ -811,15 +811,20 @@ class Reply:
 	memory: dict[str, Any] | None = None
 	needs_escalation: bool = False
 	subject: str = ""
+	# The last successful books read, as the handler returned it: the rows behind the sentence,
+	# which the card draws as a table. Figures only ever come from here, never from the text.
+	facts: Mapping[str, Any] | None = None
 
 
 def reply_of(outcome: AnswerOutcome) -> Reply:
+	books_call = _last_books_call(outcome.llm.tool_calls) if outcome.llm is not None else None
 	return Reply(
 		text=outcome.answer.answer_mn,
 		follow_ups=outcome.follow_ups,
 		memory=outcome.memory,
 		needs_escalation=outcome.answer.needs_escalation,
 		subject=subject_label(outcome.subject),
+		facts=dict(books_call.result) if books_call is not None and books_call.result else None,
 	)
 
 

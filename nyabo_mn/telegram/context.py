@@ -135,6 +135,54 @@ class Ctx:
 			log_event("telegram.edit_failed", level="warning", message_id=message_id, error=repr(exc))
 			return self.reply(text, reply_markup)
 
+	# --- rich cards (telegram.rich) ---------------------------------------------------------------
+
+	def reply_card(self, card: Any, reply_markup: dict[str, Any] | None = None) -> dict[str, Any]:
+		"""Send a ``rich.Card``; the bot falls back to its plain-text twin when it has to.
+
+		``reply_markup`` is a classic inline keyboard under the card, for a card whose buttons
+		are toggled with ``editMessageReplyMarkup`` (the onboarding wizard); most cards carry
+		their buttons in the body instead.
+		"""
+		from nyabo_mn.telegram import rich
+
+		text, markup = rich.render_text(card)
+		return self.bot.send_rich_message(
+			self.chat_id,
+			rich.render_html(card),
+			fallback_text=text,
+			fallback_markup=markup,
+			reply_markup=reply_markup,
+		)
+
+	def edit_card(self, message_id: int | None, card: Any, reply_markup: dict[str, Any] | None = None) -> Any:
+		"""Redraw a card in place, else send it fresh — the same rule as ``edit``."""
+		from nyabo_mn.telegram import rich
+
+		if message_id is None:
+			return self.reply_card(card, reply_markup)
+		text, markup = rich.render_text(card)
+		try:
+			return self.bot.edit_rich_message(
+				self.chat_id,
+				message_id,
+				rich.render_html(card),
+				fallback_text=text,
+				fallback_markup=markup,
+				reply_markup=reply_markup,
+			)
+		except Exception as exc:  # TelegramApiError or a transport failure: never lose the reply
+			from nyabo_mn.log import log_event
+
+			log_event("telegram.edit_failed", level="warning", message_id=message_id, error=repr(exc))
+			return self.reply_card(card, reply_markup)
+
+	def draft(self, card: Any, draft_id: int, can_stop: bool = False) -> bool:
+		"""Stream a preview (``sendRichMessageDraft``); a refusal costs nothing but the preview."""
+		from nyabo_mn.telegram import rich
+
+		return bool(self.bot.send_rich_draft(self.chat_id, draft_id, rich.render_html(card), can_stop))
+
 	def send_document(self, content: bytes, filename: str, caption: str | None = None) -> Any:
 		return self.bot.send_document(self.chat_id, content, filename, caption=caption)
 

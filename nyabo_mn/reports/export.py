@@ -86,6 +86,25 @@ def render_report_html(
 	signatures: list[tuple[str, str]] | None = None,
 ) -> str:
 	columns, rows = run_report(report_name, filters)
+	return render_rows_html(report_name, columns, rows, filters, title_mn, company, period, signatures)
+
+
+def render_rows_html(
+	report_name: str,
+	columns: list[Any],
+	rows: list[Any],
+	filters: dict[str, Any],
+	title_mn: str,
+	company: str,
+	period: str,
+	signatures: list[tuple[str, str]] | None = None,
+) -> str:
+	"""The same form as a script report, from columns and rows the caller already has.
+
+	The trial balance card uses this: its rows come from ``month_end.trial_balance`` (ERPNext's
+	report when it runs, the GL aggregation when it does not), so there is no report name to
+	run — only the sheet to print.
+	"""
 	cols = [_column(c) for c in columns]
 	signature_lines = signatures or [(mn.JOURNAL_KEPT_BY, ""), (mn.JOURNAL_CHECKED_BY, "")]
 	context = {
@@ -132,11 +151,24 @@ def report_to_pdf(
 	return get_pdf(html, options={"orientation": "Landscape", "page-size": "A4"})
 
 
+def rows_to_pdf(
+	title_mn: str, company: str, period: str, columns: list[Any], rows: list[Any], filters: dict[str, Any]
+) -> bytes:
+	from frappe.utils.pdf import get_pdf
+
+	html = render_rows_html(title_mn, columns, rows, filters, title_mn, company, period)
+	return get_pdf(html, options={"orientation": "Landscape", "page-size": "A4"})
+
+
 def report_to_xlsx(report_name: str, filters: dict[str, Any]) -> bytes:
 	"""Header row + data rows as an .xlsx (bytes) via frappe.utils.xlsxutils.make_xlsx."""
+	columns, rows = run_report(report_name, filters)
+	return rows_to_xlsx(report_name, columns, rows)
+
+
+def rows_to_xlsx(sheet_name: str, columns: list[Any], rows: list[Any]) -> bytes:
 	from frappe.utils.xlsxutils import make_xlsx
 
-	columns, rows = run_report(report_name, filters)
 	cols = [_column(c) for c in columns]
 	data: list[list[Any]] = [[c["label"] for c in cols]]
 	for row in rows:
@@ -144,7 +176,7 @@ def report_to_xlsx(report_name: str, filters: dict[str, Any]) -> bytes:
 			data.append([_plain(row.get(c["fieldname"])) for c in cols])
 		else:
 			data.append([_plain(v) for v in row])
-	return make_xlsx(data, report_name[:31]).getvalue()
+	return make_xlsx(data, sheet_name[:31]).getvalue()
 
 
 def _plain(value: Any) -> Any:

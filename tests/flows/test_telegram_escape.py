@@ -78,7 +78,7 @@ def test_typing_skip_in_the_inventory_step_advances_the_wizard(company, monkeypa
 	assert parsed == [], "«алгасах» must never reach the step's own parser"
 	assert mn.ONB_INVENTORY_SKIPPED in bot.texts()
 	assert _state(9201) == "onb:acc_name"
-	assert bot.last_text == mn.ONB_ASK_ACCOUNTANT_NAME
+	assert bot.last_text.endswith(mn.ONB_ASK_ACCOUNTANT_NAME)
 
 
 def test_tapping_skip_in_the_inventory_step_does_the_same(company, monkeypatch):
@@ -672,11 +672,11 @@ def test_back_returns_to_the_previous_question(company, monkeypatch):
 
 	run(bot, callback_update(9270, "e:onb:back"))
 	assert _state(9270) == "onb:inv"
-	assert bot.last_text == mn.ONB_ASK_INVENTORY
+	assert bot.last_text.endswith(mn.ONB_ASK_INVENTORY)
 
 	run(bot, message_update(9270, "буцах"))
 	assert _state(9270) == "onb:banks"
-	assert bot.last_text == mn.ONB_ASK_BANKS
+	assert bot.last_text.endswith(mn.ONB_ASK_BANKS)
 
 
 def test_back_on_the_first_question_says_so_and_leaves_the_step_standing(company, monkeypatch):
@@ -863,7 +863,7 @@ def test_back_from_the_accountant_name_returns_to_the_inventory_branch(company, 
 
 	run(bot, callback_update(9287, back))
 	assert _state(9287) == "onb:inv_wait"
-	assert bot.last_text == mn.ONB_INVENTORY_HOW
+	assert bot.last_text.endswith(mn.ONB_INVENTORY_HOW)
 
 	# …and with no stock at all, back is the Тийм/Үгүй question it really came from.
 	monkeypatch.setattr(_deps, "apply_onboarding", lambda *args: {"ok": True})
@@ -877,7 +877,7 @@ def test_back_from_the_accountant_name_returns_to_the_inventory_branch(company, 
 	assert _state(9288) == "onb:acc_name"
 	run(other, callback_update(9288, _escape_datum(other.last_markup(), keyboards.ESCAPE_BACK)))
 	assert _state(9288) == "onb:inv"
-	assert other.last_text == mn.ONB_ASK_INVENTORY
+	assert other.last_text.endswith(mn.ONB_ASK_INVENTORY)
 
 
 def test_leaving_the_account_search_gives_the_card_its_own_buttons_back(company, monkeypatch):

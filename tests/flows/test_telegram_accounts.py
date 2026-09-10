@@ -14,8 +14,10 @@ from decimal import Decimal
 
 import pytest
 
+from nyabo_mn.core.money import fmt_mnt
 from nyabo_mn.i18n import mn
 from nyabo_mn.matching import bank_import, status
+from nyabo_mn.telegram import richcards
 from tests.fixtures.statements import make_fixtures as fixtures
 from tests.fixtures.telegram.fake_bot import FakeBotApi, link_user, message_update, run
 from tests.flows import bank_helpers as helpers
@@ -45,23 +47,33 @@ def test_dans_prints_the_closing_balance_against_the_ledger(imported):
 	outcome = run(bot, message_update(9201, "/данс"))
 	text = bot.last_text
 	lines = text.split("\n")
-	assert outcome["result"]["company"] == imported and outcome["result"]["text"] == text
-	assert lines[0] == mn.MSG_RECON_STATUS_HEADER.format(company=imported)
-	# The bank printed 1 905 000₮ as its closing balance; summing the imported lines would
-	# give 905 000₮ (the file opens at 1 000 000₮), and that is not what the account holds.
-	assert lines[1] == "Хаан банк MNT: хуулга 1 905 000₮ · дэвтэр -93 500₮ · зөрүү 1 998 500₮ · тулгаагүй 4"
-	assert lines[2].startswith("Худалдаа хөгжлийн банк MNT: хуулга 0₮ · дэвтэр 0₮")
+	assert outcome["result"] == {"company": imported, "accounts": 2}
+	assert lines[0] == mn.CARD_BANK_TITLE.format(date=dt.date.today().isoformat())
+	assert lines[1] == " | ".join(
+		(mn.COL_ACCOUNT, mn.CARD_COL_LEDGER, mn.CARD_COL_STATEMENT, mn.CARD_COL_DIFF)
+	)
+	# The bank printed 1 905 000₮ as its closing balance; summing the imported lines would
+	# give 905 000₮ (the file opens at 1 000 000₮), and that is not what the account holds.
+	assert lines[2].startswith("Хаан банк")
+	assert lines[2].endswith(f" | {fmt_mnt(-93500)} | {fmt_mnt(1905000)} | {fmt_mnt(1998500)}")
+	assert lines[3].startswith("Худалдаа хөгжлийн банк") and lines[3].endswith(f" | {fmt_mnt(0)}")
+	note = mn.CARD_BANK_DIFF_NOTE.format(bank="", diff=fmt_mnt(1998500), count=4)
+	assert any(line.startswith("Хаан банк") and line.endswith(note) for line in lines)
 	# The report is dated: the unimported second account is only current as of today.
-	assert lines[-1] == mn.MSG_RECON_AS_OF.format(date=dt.date.today().isoformat())
+	assert lines[-1] == mn.CARD_BANK_SOURCE.format(date=dt.date.today().isoformat())
 	assert "Khan Bank" not in text and "TDB" not in text  # the accountant reads Mongolian names
+	# Four lines wait on the accountant, so the card offers to bring them up.
+	assert bot.callback_datas()[0] == f"d:{richcards.VIEW_UNMATCHED}"
 
 
 def test_the_card_is_the_matching_modules_own_report(imported):
-	"""One renderer only: the card the bot sends is what ``status.render`` produces."""
+	"""One source of numbers: the card shows what ``status.summary`` computes."""
 	link_user(9202, "Accountant", imported)
 	bot = FakeBotApi()
 	run(bot, message_update(9202, "/данс"))
-	assert bot.last_text == status.render(imported)
+	khan = status.summary(imported, today=dt.date.today())[0]
+	assert fmt_mnt(khan["statement_balance"]) in bot.last_html
+	assert fmt_mnt(khan["ledger_balance"]) in bot.last_html
 	khan = status.summary(imported, today=dt.date(2026, 9, 30))[0]
 	assert khan["statement_balance"] == Decimal("1905000.00") and khan["unmatched"] == 4
 

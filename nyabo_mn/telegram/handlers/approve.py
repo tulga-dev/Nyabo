@@ -115,6 +115,13 @@ def handle_callback(ctx: Ctx, parts: list[str]) -> Any:
 			ctx.chat_id, ctx.callback_message_id, keyboards.receipt_keyboard(name)
 		)
 		return None
+	if action == "sh":
+		# «Харах» on the dashboard's pending list: the proposal's own card comes back with the
+		# buttons its status allows, so approval still runs through the guards above.
+		ctx.answer()
+		text, markup = receipt.card_for(proposal)
+		ctx.reply(text, markup)
+		return {"shown": name, "status": proposal.status}
 	log_event("telegram.callback.unknown", level="warning", data=ctx.callback_data[:64])
 	return None
 
