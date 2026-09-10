@@ -30,6 +30,7 @@ from nyabo_mn.reports import accounts as report_accounts
 
 DEMO_TAG = "ДЕМО"
 EVENT_SEEDED = "demo_seeded"
+EVENT_UNSEEDED = "demo_unseeded"
 MONTHS = 6
 
 # (customer, base amount); the amount grows month over month so the trend has a shape.
@@ -66,10 +67,33 @@ def _ref(what: str) -> str:
 
 
 def already_seeded(company: str) -> bool:
-	return bool(
-		frappe.db.exists("DocType", "Nyabo Event")
-		and frappe.db.exists("Nyabo Event", {"event_type": EVENT_SEEDED, "company": company})
+	"""True when the newest demo event says seeded — an unseed since then reopens the company."""
+	if not frappe.db.exists("DocType", "Nyabo Event"):
+		return False
+	latest = frappe.get_all(
+		"Nyabo Event",
+		filters={"event_type": ["in", [EVENT_SEEDED, EVENT_UNSEEDED]], "company": company},
+		fields=["event_type"],
+		order_by="creation desc, name desc",
+		limit=1,
 	)
+	return bool(latest) and latest[0]["event_type"] == EVENT_SEEDED
+
+
+def _configured_bank_gl(company: str) -> str | None:
+	"""The GL account behind the first configured bank account, so the bank card and the
+	demo vouchers speak of the same money; None when no bank is configured."""
+	from nyabo_mn.matching import common
+
+	for row in common.bank_rows(company):
+		gl = row.get("gl_account") or (
+			common.gl_account_of(str(row["erpnext_bank_account"]))
+			if row.get("erpnext_bank_account")
+			else None
+		)
+		if gl:
+			return str(gl)
+	return None
 
 
 def _ledger_is_empty(company: str) -> bool:
@@ -92,7 +116,7 @@ def _expense_leaf(company: str, kind: str, default: str) -> str:
 def _accounts(company: str) -> dict[str, str]:
 	default_expense = report_accounts.role_account(company, "default_expense")
 	out = {
-		"bank": report_accounts.role_account(company, "bank"),
+		"bank": _configured_bank_gl(company) or report_accounts.role_account(company, "bank"),
 		"cash": report_accounts.role_account(company, "cash"),
 		"revenue": report_accounts.role_account_or_none(company, "revenue_sales")
 		or report_accounts.role_account(company, "revenue_services"),
@@ -320,4 +344,41 @@ def seed(
 	}
 
 
-__all__ = ["DEMO_TAG", "DemoRefused", "already_seeded", "seed"]
+def _cancel_all(doctype: str, filters: dict[str, Any]) -> list[str]:
+	names = frappe.get_all(doctype, filters={**filters, "docstatus": 1}, pluck="name")
+	for name in names:
+		doc = frappe.get_doc(doctype, name)
+		doc.flags.ignore_permissions = True
+		doc.cancel()
+	return names
+
+
+def unseed(company: str, user: str | None = None) -> dict[str, Any]:
+	"""Cancel every demo voucher and bank line of the company; the rows stay, cancelled (art. 11.1).
+
+	Cancelled, not deleted: a posted document Nyabo wrote is never removed, and the demo ones
+	are no exception — the trail shows what was there and that it was taken back. Nothing that
+	is not tagged «ДЕМО» is touched.
+	"""
+	user = user or frappe.session.user
+	if not frappe.db.exists("Company", company):
+		raise DemoRefused(mn.MSG_DEMO_NO_COMPANY.format(company=company))
+	cancelled = {
+		"journal_entries": _cancel_all(
+			"Journal Entry", {"company": company, "user_remark": ["like", f"{DEMO_TAG}:%"]}
+		),
+		"purchase_invoices": _cancel_all(
+			"Purchase Invoice", {"company": company, "bill_no": ["like", f"{DEMO_TAG}-%"]}
+		),
+		"bank_transactions": _cancel_all(
+			"Bank Transaction", {"company": company, "reference_number": ["like", f"{DEMO_TAG}-%"]}
+		),
+	}
+	from nyabo_mn.matching import common
+
+	common.write_event(EVENT_UNSEEDED, company=company, payload=cancelled, actor_user=user)
+	log_event("demo.unseeded", company=company, user=user, **{k: len(v) for k, v in cancelled.items()})
+	return {"company": company, **{k: len(v) for k, v in cancelled.items()}}
+
+
+__all__ = ["DEMO_TAG", "DemoRefused", "already_seeded", "seed", "unseed"]

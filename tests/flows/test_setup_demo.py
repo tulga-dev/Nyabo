@@ -58,6 +58,23 @@ def test_a_second_run_changes_nothing(books):
 	assert frappe.db.count("GL Entry", {"company": books, "is_cancelled": 0}) == before
 
 
+def test_unseed_cancels_every_demo_voucher_and_nothing_else(run_receipt, books):
+	proposal = run_receipt("petrovis_fuel", date=TODAY.isoformat())
+	real = post.post_proposal(proposal.name, ACCOUNTANT)["posted_name"]
+	helpers.setup_banks(books)
+	demo.seed(books, today=TODAY, allow_existing_postings=True)
+	report = demo.unseed(books)
+	assert report["journal_entries"] + report["purchase_invoices"] == demo.MONTHS * 8
+	assert report["bank_transactions"] == 2
+	assert frappe.db.get_value("Purchase Invoice", real, "docstatus") == 1, "the real posting stands"
+	live = frappe.get_all("GL Entry", filters={"company": books, "is_cancelled": 0}, pluck="voucher_no")
+	assert set(live) == {real}
+	assert not demo.already_seeded(books)
+	# …and the company can be seeded again, on the same rule as the first time.
+	assert demo.seed(books, today=TODAY, allow_existing_postings=True)["vouchers"] == demo.MONTHS * 8
+	assert demo.already_seeded(books)
+
+
 def test_a_ledger_with_a_real_posting_is_refused(run_receipt, books):
 	proposal = run_receipt("petrovis_fuel", date=TODAY.isoformat())
 	post.post_proposal(proposal.name, ACCOUNTANT)
@@ -79,6 +96,9 @@ def test_with_a_bank_account_two_lines_wait_and_the_statement_balance_is_printed
 	khan = next(r for r in rows if r["bank_account"] == banks["khan"])
 	assert khan["unmatched"] == 2
 	assert khan["diff"] == sum(amount for _d, amount in demo.UNMATCHED)
+	# The money went through the configured bank's own GL account, so its ledger balance is
+	# the demo months' net — not zero beside a statement that says otherwise.
+	assert khan["ledger_balance"] > 0 and khan["statement_balance"] == khan["ledger_balance"] + khan["diff"]
 	link_user(9402, "Accountant", books)
 	bot = FakeBotApi()
 	run(bot, message_update(9402, "/данс"))

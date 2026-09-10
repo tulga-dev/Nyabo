@@ -89,3 +89,16 @@ def seed_demo(company: str, allow_existing_postings: int | str = 0) -> dict[str,
 	except demo.DemoRefused as exc:
 		frappe.throw(str(exc))
 		raise  # unreachable
+
+
+@frappe.whitelist(methods=["POST"])
+def unseed_demo(company: str) -> dict[str, Any]:
+	"""Cancel the demo vouchers ``seed_demo`` wrote (they stay, cancelled); nothing else is touched."""
+	_only_system_manager()
+	from nyabo_mn.setup import demo
+
+	try:
+		return demo.unseed(company)
+	except demo.DemoRefused as exc:
+		frappe.throw(str(exc))
+		raise  # unreachable

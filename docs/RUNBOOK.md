@@ -138,7 +138,9 @@ Every voucher carries `nyabo_primary_document_ref` = «ДЕМО: …», so nothi
 paper document. The call refuses a company whose ledger already holds a posting and answers
 `already: true` on a second run — it can never double a real ledger. For the founder's own
 test company, whose trial receipts are already in it, pass `allow_existing_postings: 1` as
-well; the demo vouchers go in beside them, each one tagged «ДЕМО».
+well; the demo vouchers go in beside them, each one tagged «ДЕМО». To take them out again,
+`frappe.call("nyabo_mn.api.unseed_demo", {company: "Тест ХХК"})` cancels every demo voucher
+and bank line (they stay in the desk, cancelled — art. 11.1) and touches nothing else.
 
 ## 6. Daily operation
 
