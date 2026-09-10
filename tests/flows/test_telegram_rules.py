@@ -23,7 +23,7 @@ import pytest
 from nyabo_mn.i18n import mn
 from nyabo_mn.nyabo.seed import load_seed
 from nyabo_mn.rules import guard, verify
-from nyabo_mn.telegram import _deps, keyboards
+from nyabo_mn.telegram import _deps, cards, keyboards
 from nyabo_mn.telegram.api import MAX_CALLBACK_DATA_BYTES
 from tests.fixtures.telegram.fake_bot import (
 	FakeBotApi,
@@ -190,11 +190,15 @@ def test_the_rule_card_shows_the_entry_and_says_plainly_that_there_is_no_citatio
 
 
 def test_the_card_shows_the_briefing_the_seed_wrote_for_whoever_taps_the_button(rules_site: str):
-	"""CORE-18: an unverifiable row's note says what an admin would be vouching for. Show it.
+	"""CORE-18: an unverifiable row's note says what the accountant would be vouching for. Show it.
 
 	The nine patterns Order 116 does not print each carry that sentence, and the card is the one
-	screen where the decision is actually taken — an admin who only reads «no citation» is being
-	asked to take responsibility for something nobody named to them.
+	screen where the decision is actually taken — an accountant who only reads «no citation» is
+	being asked to take responsibility for something nobody named to them.
+
+	It is the Mongolian half of the note, verbatim: the sentence is the most important one in the
+	flow and the person reading it is a Mongolian bookkeeper, so the seed carries it in their
+	language and the card prints it rather than paraphrasing anything at render time.
 	"""
 	seed_note = next(
 		row["notes"] for row in load_seed("posting_patterns")["rows"] if row["pattern_id"] == BLOCKING
@@ -207,10 +211,12 @@ def test_the_card_shows_the_briefing_the_seed_wrote_for_whoever_taps_the_button(
 
 	text = bot.last_text
 	assert mn.CARD_RULE_BRIEFING_TITLE in text
-	briefing = seed_note[seed_note.index("WHAT AN ADMIN WOULD BE VOUCHING FOR") :]
+	briefing = seed_note[seed_note.index("НЯГТЛАН ЮУГ ХАРИУЦАХ ВЭ:") :]
 	assert briefing in text, "the seed's own sentence, not a paraphrase of it"
-	assert "IFRS for SMEs s.23" in text  # the other authority the tick would rest on
-	# The reader provenance above that sentence stays in the repository; it is not evidence.
+	assert "IFRS for SMEs s.23" in text  # the other authority the acceptance would rest on
+	# The English half is the repository's record and the reader provenance above it is not
+	# evidence at all; neither belongs on the screen where a Mongolian accountant decides.
+	assert "WHAT AN ADMIN WOULD BE VOUCHING FOR" not in text
 	assert "re-checked 2026-09-09" not in text
 	assert mn.CARD_RULE_NOTE_CUT not in text, "this briefing fits whole"
 
@@ -226,17 +232,48 @@ def test_a_pending_tax_parameter_card_says_what_would_unblock_it(rules_site: str
 
 	text = bot.last_text
 	assert mn.CARD_RULE_BRIEFING_TITLE in text
-	assert "DAILY USE:" in text and "WHAT UNBLOCKS IT" in text
+	assert "ӨДӨР ТУТМЫН ХЭРЭГЛЭЭ:" in text and "ЮУ БОЛВОЛ ЭНЭ ДҮРЭМ НЭЭГДЭХ ВЭ:" in text
+	assert "DAILY USE:" not in text and "WHAT UNBLOCKS IT" not in text
 
 
-def test_the_briefing_says_in_mongolian_that_the_paragraph_under_it_is_english(rules_site: str):
-	"""The card is Mongolian; the seed's briefing is not, and it is the sentence being vouched for.
+def test_no_briefing_a_seeded_rule_can_show_is_in_english_or_speaks_about_an_admin(rules_site: str):
+	"""MINOR 4: the one sentence that says what you are taking responsibility for, in the reader's language.
 
-	It is left in the English it was reviewed in on purpose (VER-10) — a re-worded Mongolian
-	caveat about the law would be a new claim nobody checked. What must not happen is a
-	Mongolian-speaking bookkeeper meeting an unreadable paragraph directly under the verify
-	button with nothing telling them what it is or what to do instead.
+	The heading above it was Mongolian and the body under it read «WHAT AN ADMIN WOULD BE
+	VOUCHING FOR if they tick it», in English, on the screen where a Mongolian accountant decides
+	— and it named a person who no longer takes this decision at all (ACC-01). Every rule the
+	chat can reach is walked here rather than one of them, because a single row translated and
+	the rest left behind is the same screen with a smaller chance of being seen.
+
+	The English is still in the note: it is the repository's record, ``docs/legal`` quotes it and
+	``tests/unit/test_seed_citations.py`` pins it. What changed is which half reaches the card.
 	"""
+	for kind, name in [(verify.KIND_PATTERN, rule.name) for rule in verify.pending()] + [
+		(verify.KIND_PATTERN, "purchase_expense_non_vat"),
+		(verify.KIND_PATTERN, "bank_line_expense"),
+	]:
+		found = verify.evidence(kind, name, rules_site) or verify.evidence(verify.KIND_PARAMETER, name)
+		assert found is not None, name
+		if not found.note:
+			continue
+		card = cards.rule_card(found)
+		assert found.note_mn, f"{name}: the briefing on the card is not the accountant's own language"
+		for marker in verify.BRIEFING_MARKERS:
+			assert marker not in card, f"{name}: {marker} reached the card"
+		assert mn.CARD_RULE_BRIEFING_LANGUAGE not in card, f"{name}: the English fallback is still shown"
+		assert mn.CARD_RULE_BRIEFING_LANGUAGE_VERIFIED not in card, name
+		assert "admin" not in card.lower(), f"{name}: the briefing still names an admin"
+
+
+def test_a_briefing_the_seed_has_not_translated_yet_still_says_what_it_is(rules_site: str):
+	"""The fallback VER-10 built, kept for the row that has not been translated yet.
+
+	A rule added by hand in the desk, or a citation pass that got as far as the English, must not
+	put an unreadable paragraph directly under the button with nothing telling the reader what it
+	is or what to do instead. They either tap blindly or give up, and both are worse.
+	"""
+	only_english = "WHAT AN ADMIN WOULD BE VOUCHING FOR if they tick it: plain double entry."
+	frappe.db.set_value(verify.PATTERN, BLOCKING, "notes", only_english)
 	bot = FakeBotApi()
 	run(
 		bot,
@@ -313,7 +350,7 @@ def test_the_scope_caveat_reaches_the_card_of_a_rule_broader_than_its_quote(rule
 
 	text = bot.last_text
 	assert mn.CARD_RULE_BRIEFING_TITLE in text
-	assert "SCOPE OF THIS CITATION" in text and "outside services" in text
+	assert "ЭНЭ ИШЛЭЛИЙН ХАМРАХ ХҮРЭЭ:" in text and "гадны үйлчилгээний хөлс" in text
 
 
 def test_a_quote_that_fits_is_not_marked_cut(rules_site: str):
@@ -532,7 +569,7 @@ def test_a_verified_rule_can_still_be_read_and_asks_nothing(rules_site: str):
 	)
 
 	text = bot.last_text
-	assert "SCOPE OF THIS CITATION" in text and "12.2.2 А" in text
+	assert "ЭНЭ ИШЛЭЛИЙН ХАМРАХ ХҮРЭЭ:" in text and "12.2.2 А" in text
 	# It is read, not decided: no question, no buttons, and the flag names its own provenance.
 	assert mn.CARD_RULE_ASK not in text
 	assert mn.CARD_RULE_BRIEFING_TITLE_VERIFIED in text and mn.CARD_RULE_BRIEFING_TITLE not in text

@@ -218,12 +218,27 @@ def test_a_citation_narrower_than_its_pattern_says_so_in_the_note(pattern_rows):
 		assert "12.2.2 А" in row["citation"]["section"], pattern_id
 
 
+def _english_briefing(note: str) -> str:
+	"""The English half of a note: from its first English marker to where the Mongolian begins.
+
+	The Mongolian paragraph the card shows is appended after the English one (MINOR 4), so
+	«to the end of the note» is no longer the English paragraph and would never match the
+	document. ``docs/legal`` quotes the English, which is the repository's own record.
+	"""
+	from nyabo_mn.rules.verify import BRIEFING_MARKERS, BRIEFING_MARKERS_MN
+
+	starts = [note.find(marker) for marker in BRIEFING_MARKERS]
+	ends = [note.find(marker) for marker in BRIEFING_MARKERS_MN]
+	start = min(offset for offset in starts if offset >= 0)
+	tail = [offset for offset in ends if offset >= 0]
+	return note[start : min(tail)] if tail else note[start:]
+
+
 def test_the_scope_paragraph_is_reproduced_in_the_legal_folder(pattern_rows, order116_doc):
 	"""docs/legal is what the accountant and the ministry reviewer read; it must carry the caveat."""
 	by_id = {r["pattern_id"]: r for r in pattern_rows}
 	for pattern_id in BROADER_THAN_THEIR_QUOTE:
-		scope = by_id[pattern_id]["notes"]
-		scope = scope[scope.index("SCOPE OF THIS CITATION") :]
+		scope = _english_briefing(by_id[pattern_id]["notes"])
 		assert _norm(scope) in order116_doc, f"{pattern_id}: scope paragraph missing from order116.md"
 
 
@@ -296,6 +311,30 @@ def test_unverifiable_patterns_say_what_an_admin_would_be_vouching_for(pattern_r
 	by_id = {r["pattern_id"]: r for r in pattern_rows}
 	for pid in NOT_PRESCRIBED + PARTLY_PRINTED:
 		assert "VOUCHING FOR" in by_id[pid]["notes"], f"{pid}: unverifiable without a briefing"
+
+
+def test_every_briefing_carries_the_mongolian_the_accountant_actually_reads(pattern_rows, tax_rows):
+	"""MINOR 4: the English half is the repository's record; the accountant's card needs their own.
+
+	`rules.verify._briefing` prefers the Mongolian block and falls back to the English one, and
+	the fallback prints a line saying «this paragraph is in a language you may not read». That
+	line is honest and it is not where this should end up: the sentence saying what a person is
+	taking responsibility for must be in the language of the person taking it. So a note with an
+	English briefing and no Mongolian one fails here rather than quietly reaching a card.
+	"""
+	from nyabo_mn.rules.verify import BRIEFING_MARKERS, BRIEFING_MARKERS_MN
+
+	missing = [
+		row.get("pattern_id") or f"{row['key']}:{row['effective_from']}"
+		for row in list(pattern_rows) + list(tax_rows)
+		for note in [str(row.get("notes") or row.get("note") or "")]
+		if any(marker in note for marker in BRIEFING_MARKERS)
+		and not any(marker in note for marker in BRIEFING_MARKERS_MN)
+	]
+	assert missing == [], (
+		"these rows brief the reader in English only; add the Mongolian block after it "
+		f"(rules.verify.BRIEFING_MARKERS_MN): {missing}"
+	)
 
 
 def test_the_everyday_non_vat_receipt_can_post(pattern_rows):

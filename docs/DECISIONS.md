@@ -1166,6 +1166,19 @@ the paragraph cannot be read, which is the safe answer: an unverified rule refus
 a wrongly verified one does not. Reverse this when the notes themselves are translated and
 re-reviewed in Mongolian — at which point the line is untrue and must go.
 
+**Reversed, as that paragraph said to.** ACC-01 moved the decision to the accountant, and the
+body then read «WHAT AN ADMIN WOULD BE VOUCHING FOR if they tick it», in English, naming a person
+who no longer takes it — the single most important sentence in the flow, in the wrong language and
+about the wrong reader. The condition VER-10 set is met the only way it could be: the Mongolian is
+**in the seed**, appended to each note after the English one, so it was written and reviewed with
+the rest of the note and there is one text rather than a rendering-time paraphrase of another. The
+English half stays where it was — `docs/legal` quotes it verbatim, `tests/unit/test_seed_citations.py`
+pins it, and it is what a later reader checks the Mongolian against — but only the Mongolian reaches
+the card (`rules.verify.BRIEFING_MARKERS_MN`, whose wording lives in `i18n.mn` like every other
+string a user reads). `CARD_RULE_BRIEFING_LANGUAGE` stays as the fallback for a row nobody has
+translated yet — a rule added by hand in the desk — because the argument for it is unchanged for
+that row; a seeded row that reaches it now fails a test instead.
+
 ## the accountant is the main user (the founder's decision on who confirms an intake)
 
 ### ACC-01 An accountant accepts an uncited rule for their own company; it is not a verification

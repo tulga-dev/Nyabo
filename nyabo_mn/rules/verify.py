@@ -114,6 +114,24 @@ BRIEFING_MARKERS: tuple[str, ...] = (
 	"WHAT UNBLOCKS IT",
 )
 
+#: The same paragraph in Mongolian, written for the accountant who is actually at the button, and
+#: appended to each note after the English one. This is the sentence the card shows.
+#:
+#: WHY it exists (reversing VER-10): everything else on the card is Mongolian and this — the one
+#: sentence that says what the person is taking responsibility for — was English and addressed to
+#: an admin, on the screen where a Mongolian accountant decides. VER-10 left it untranslated
+#: because a second, unreviewed Mongolian wording of a legal caveat would be a new claim about the
+#: law with nobody's name on it, and said in as many words to reverse it once the notes themselves
+#: were translated. They now are: the Mongolian is in the seed beside the English, reviewed with
+#: it, so there is one text and not a rendering-time paraphrase of another.
+#:
+#: The English stays in the note above it. It is the repository's own record — ``docs/legal``
+#: quotes those paragraphs verbatim and ``tests/unit/test_seed_citations.py`` pins them — and it
+#: is what a later reader compares the Mongolian against. Only the Mongolian reaches the card.
+#: The wording itself is in ``i18n.mn`` with the rest of what the card says: these headings are
+#: printed as well as searched for, and every string a user reads lives there (UX-08).
+BRIEFING_MARKERS_MN: tuple[str, ...] = mn.RULE_BRIEFING_MARKERS_MN
+
 #: ``Nyabo Posting Pattern.applies_to_vat`` -> the Mongolian scope on the card. The VAT-payer key
 #: is the regime name, so it comes from ``rules.regime`` rather than being spelled again (F-12).
 SCOPE_ANY = "any"
@@ -180,9 +198,12 @@ class RuleEvidence:
 	#: whole one.
 	quote_truncated: bool = False
 	url: str = ""
-	#: What the seed says an admin would be taking responsibility for; see `_briefing`.
+	#: What the seed says the accountant would be taking responsibility for; see `_briefing`.
 	note: str = ""
 	note_truncated: bool = False
+	#: True when ``note`` is the Mongolian paragraph written for the reader at the button. False
+	#: means the card is falling back to the English one and owes them the line that says so.
+	note_mn: bool = False
 	#: The company this card was drawn for, and that company's acceptance if it has one. Empty on
 	#: a card drawn for no particular company (``/дүрэм`` lists the site's rules, not one client's).
 	company: str = ""
@@ -901,21 +922,28 @@ def _cut(text: str, limit: int) -> tuple[str, bool]:
 	return text[:limit].rstrip(), True
 
 
-def _briefing(note: Any) -> tuple[str, bool]:
-	"""The part of a seed note addressed to whoever is asked to tick the box, and whether it was cut.
+def _briefing(note: Any) -> tuple[str, bool, bool]:
+	"""``(the paragraph, was it cut, is it Mongolian)`` — what the reader at the button is shown.
 
-	An unverifiable row's note ends with the sentence CORE-18 / CORE-19 require — what an admin
-	would be vouching for, or what would unblock the row. That sentence was written for this exact
-	screen, so the card shows it; the research provenance above it (which reader, which fetch) is
-	for the repository. A note with no marker at all yields nothing rather than a paragraph of
-	notes-to-self, and `tests/unit/test_seed_citations.py` is what keeps the markers there.
+	An unverifiable row's note ends with the sentence CORE-18 / CORE-19 require — what the
+	accountant would be vouching for, or what would unblock the row — first in the English the
+	citation pass wrote for the repository, then in the Mongolian written for the person at the
+	button. The Mongolian is what the card shows, and it is last in the note, so «from the first
+	Mongolian marker to the end» is the whole of it and nothing English trails after it.
+
+	A row with no Mongolian block yet falls back to the English one and says so through the third
+	return value, which is what puts ``CARD_RULE_BRIEFING_LANGUAGE`` on the card: a reader who
+	meets a paragraph they cannot read, on the screen where they take responsibility, must at
+	least be told what it is. A note with no marker at all yields nothing rather than a paragraph
+	of notes-to-self, and `tests/unit/test_seed_citations.py` is what keeps both sets there.
 	"""
 	text = " ".join(str(note or "").split())
-	starts = [text.find(marker) for marker in BRIEFING_MARKERS]
-	found = [start for start in starts if start >= 0]
-	if not found:
-		return "", False
-	return _cut(text[min(found) :], NOTE_MAX_CHARS)
+	for markers, in_mongolian in ((BRIEFING_MARKERS_MN, True), (BRIEFING_MARKERS, False)):
+		found = [start for start in (text.find(marker) for marker in markers) if start >= 0]
+		if found:
+			body, cut = _cut(text[min(found) :], NOTE_MAX_CHARS)
+			return body, cut, in_mongolian
+	return "", False, False
 
 
 # --- the evidence behind one rule ---------------------------------------------------------------
@@ -953,7 +981,7 @@ def _with_acceptance(found: RuleEvidence, company: str | None) -> RuleEvidence:
 
 def _pattern_evidence(doc: Any) -> RuleEvidence:
 	citation_section = str(doc.get("citation_section") or "").strip()
-	note, note_cut = _briefing(doc.get("notes"))
+	note, note_cut, note_mn = _briefing(doc.get("notes"))
 	quote, quote_cut = _cut(doc.get("citation_quote"), QUOTE_MAX_CHARS)
 	return RuleEvidence(
 		kind=KIND_PATTERN,
@@ -987,6 +1015,7 @@ def _pattern_evidence(doc: Any) -> RuleEvidence:
 		url=str(doc.get("citation_url") or ""),
 		note=note,
 		note_truncated=note_cut,
+		note_mn=note_mn,
 	)
 
 
@@ -1055,7 +1084,7 @@ def _parameter_source(source_text: Any, article: Any) -> tuple[str, str]:
 
 
 def _parameter_evidence(doc: Any) -> RuleEvidence:
-	note, note_cut = _briefing(doc.get("note"))
+	note, note_cut, note_mn = _briefing(doc.get("note"))
 	quote, quote_cut = _cut(doc.get("quote_mn"), QUOTE_MAX_CHARS)
 	instrument, section = _parameter_source(doc.get("source_text"), doc.get("article"))
 	return RuleEvidence(
@@ -1084,6 +1113,7 @@ def _parameter_evidence(doc: Any) -> RuleEvidence:
 		url=str(doc.get("source_url") or ""),
 		note=note,
 		note_truncated=note_cut,
+		note_mn=note_mn,
 	)
 
 

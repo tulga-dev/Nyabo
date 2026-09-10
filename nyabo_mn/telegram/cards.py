@@ -609,19 +609,27 @@ def _rule_briefing(rule: Any) -> list[str]:
 	a verify button with nothing but «no citation» beside it — while the seed has a sentence
 	naming the other instrument, or saying that the entry is plain double-entry mechanics.
 
-	The body is that sentence verbatim, and the seed writes its notes in English, so the card
-	says so in Mongolian first (VER-10): the admin reading this is a Mongolian bookkeeper, and a
-	paragraph they cannot read must not sit unlabelled under a button they are about to press.
+	The body is that sentence verbatim, in the Mongolian the seed now carries beside the English
+	one and addressed to the accountant who is at the button. Nothing is translated here: this is
+	the most important sentence in the flow, and a rendering-time paraphrase of a legal caveat
+	would be a claim about the law that no reviewer ever saw. A row whose Mongolian block has not
+	been written yet falls back to the English and keeps the line that says what it is and what to
+	do instead — a paragraph the reader cannot read must never sit unlabelled under a button.
 	"""
 	note = getattr(rule, "note", "")
 	if not note:
 		return []
+	in_mongolian = bool(getattr(rule, "note_mn", False))
 	if getattr(rule, "verified", False):
 		# Nothing is being decided on this card, so the heading does not ask what the reader
 		# would be accepting and the note does not tell them not to verify it.
-		heading = [mn.CARD_RULE_BRIEFING_TITLE_VERIFIED, mn.CARD_RULE_BRIEFING_LANGUAGE_VERIFIED]
+		heading = [mn.CARD_RULE_BRIEFING_TITLE_VERIFIED]
+		if not in_mongolian:
+			heading.append(mn.CARD_RULE_BRIEFING_LANGUAGE_VERIFIED)
 	else:
-		heading = [mn.CARD_RULE_BRIEFING_TITLE, mn.CARD_RULE_BRIEFING_LANGUAGE]
+		heading = [mn.CARD_RULE_BRIEFING_TITLE]
+		if not in_mongolian:
+			heading.append(mn.CARD_RULE_BRIEFING_LANGUAGE)
 	lines = ["", *heading, note]
 	if getattr(rule, "note_truncated", False):
 		lines.append(mn.CARD_RULE_NOTE_CUT)

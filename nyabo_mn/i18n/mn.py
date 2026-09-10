@@ -1475,22 +1475,37 @@ CARD_RULE_QUOTE_CUT_NOTE = (
 )
 CARD_RULE_SOURCE_URL = "🔗 {url}"
 # The seed's own briefing for whoever is at the verify button (DECISIONS CORE-18, CORE-19).
-# Only the heading is translated: the body is the seed note verbatim, and the seed writes its
-# notes in English for the repository's readers. Paraphrasing it here would put a second,
-# unreviewed wording of a legal caveat in front of the person taking responsibility for it.
+# The body is the seed note verbatim - the Mongolian paragraph the seed now carries beside the
+# English one, written for the accountant who is actually at the button and reviewed with the
+# rest of the note. Nothing is paraphrased at render time: a second, unreviewed wording of a
+# legal caveat would be a new claim about the law in front of the person taking responsibility
+# for it, which is what DECISIONS VER-10 refused and why the translation lives in the seed.
 CARD_RULE_BRIEFING_TITLE = "📝 Баталгаажуулбал юуг хүлээн зөвшөөрөх вэ:"
-# ...and the card says so, in Mongolian, before the English begins (DECISIONS VER-10). Everything
-# else on this card is Mongolian; a reader who meets a paragraph they cannot read on the screen
-# where they take responsibility either taps blindly or gives up, and both are worse than being
-# told plainly what the paragraph is and what to do instead.
+# The headings the seed's Mongolian briefing is built from. They are read (rules.verify._briefing
+# finds where the paragraph for the accountant begins) and printed (they are the first words of
+# it), which is why the wording lives here with the rest of what the card says rather than beside
+# the code that looks for it. The English ones stay in rules.verify: they are markers in the
+# repository's own record and no accountant ever sees them.
+RULE_BRIEFING_MARKERS_MN: tuple[str, ...] = (
+	"ӨДӨР ТУТМЫН ХЭРЭГЛЭЭ:",
+	"ЭНЭ ИШЛЭЛИЙН ХАМРАХ ХҮРЭЭ:",
+	"НЯГТЛАН ЮУГ ХАРИУЦАХ ВЭ:",
+	"ЮУ БОЛВОЛ ЭНЭ ДҮРЭМ НЭЭГДЭХ ВЭ:",
+	"ТЭМДЭГЛЭВЭЛ ЮУ БУРУУ БОЛОХ ВЭ:",
+)
+# The fallback for a row whose Mongolian block has not been written yet - a rule added by hand in
+# the desk, or a citation pass that got as far as the English. Everything else on this card is
+# Mongolian; a reader who meets a paragraph they cannot read on the screen where they take
+# responsibility either taps blindly or gives up, and both are worse than being told plainly what
+# the paragraph is and what to do instead.
 CARD_RULE_BRIEFING_LANGUAGE = (
 	"(Тайлбарыг эх сурвалж судалсан хүн англиар бичсэн. Орчуулбал хуулийн агуулга гуйвах "
 	"эрсдэлтэй тул хэвээр нь тавив. Уншиж ойлгохгүй бол битгий баталгаажуулаарай — "
 	"ERPNext дэск дэх дүрмийн бичлэгээс, эсвэл эх сурвалжийг нь мэддэг хүнээр шалгуулна уу.)"
 )
 # The same two lines on a rule that is already verified, where nothing is being decided: the
-# heading no longer asks what the reader would be accepting, and the note drops the «do not
-# verify» advice, which would be an instruction about a decision that has already been taken.
+# heading no longer asks what the reader would be accepting, and the language fallback drops the
+# «do not verify» advice, which would be an instruction about a decision already taken.
 CARD_RULE_BRIEFING_TITLE_VERIFIED = "📝 Энэ дүрмийн тайлбар, ишлэлийн хамрах хүрээ:"
 CARD_RULE_BRIEFING_LANGUAGE_VERIFIED = (
 	"(Тайлбарыг эх сурвалж судалсан хүн англиар бичсэн; орчуулбал хуулийн агуулга гуйвах "
