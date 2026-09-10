@@ -444,6 +444,62 @@ def test_the_change_is_on_the_record_before_anybody_is_refused(books: str):
 	assert frappe.db.get_value(verify.ACCEPTANCE, result["acceptance"], "rule_fingerprint") == before
 
 
+def test_a_rule_edited_by_hand_in_the_desk_leaves_the_same_record_a_deploy_does(books: str):
+	"""MAJOR 3: the notice hung off the deploy, so half the ways a rule changes wrote nothing.
+
+	``verify.note_rule_changed`` was called from ``seed.upsert``'s update branch alone. A rule
+	edited in the ERPNext desk — a site admin fixing an account class, a bench console, a patch —
+	moved the content just the same: the fingerprint stopped matching, every acceptance silently
+	stopped covering the rule, and the accountant watched a rule they had cleared start refusing
+	again with nothing anywhere saying why. The notice belongs where the change happens, so it is
+	on ``on_update`` of the guarded DocTypes and every writer goes through it.
+	"""
+	result = verify.accept(verify.KIND_PATTERN, BLOCKING, books, "tg-5001@nyabo.local")
+	before = frappe.db.get_value(verify.ACCEPTANCE, result["acceptance"], "rule_fingerprint")
+	guard.require_verified(BLOCKING, company=books)
+
+	# Nobody's deploy: the row opened and saved, the way a site admin fixes one in the desk.
+	pattern = frappe.get_doc(verify.PATTERN, BLOCKING)
+	pattern.lines[0].account_class = "31"
+	pattern.flags.ignore_permissions = True
+	pattern.save()
+
+	with pytest.raises(guard.UnverifiedRuleError):
+		guard.require_verified(BLOCKING, company=books)
+	events = frappe.get_all(
+		"Nyabo Event",
+		filters={"event_type": mn.EVENT_RULE_CHANGED_AFTER_ACCEPTANCE},
+		fields=["company", "ref_name", "payload_json"],
+	)
+	assert len(events) == 1, "a desk edit is a change, and a change that invalidates is never silent"
+	payload = (
+		json.loads(events[0]["payload_json"])
+		if isinstance(events[0]["payload_json"], str)
+		else events[0]["payload_json"]
+	)
+	assert events[0]["company"] == books and events[0]["ref_name"] == BLOCKING
+	assert payload["accepted_by"] == "tg-5001@nyabo.local"
+	assert payload["accepted_fingerprint"] == before and payload["fingerprint"] != before
+
+
+def test_saving_a_rule_that_changed_nothing_writes_no_notice(books: str):
+	"""The hook fires on every save, and a save is not a change: an evidence pass must not cry wolf.
+
+	`seed._fill_evidence` writes a citation onto a verified row on every deploy, and the desk
+	saves a row whenever anybody opens and closes it. Neither moves the content, so neither owes
+	the accountant a notice — the fingerprint is what decides, not the fact of a write.
+	"""
+	verify.accept(verify.KIND_PATTERN, BLOCKING, books, "tg-5001@nyabo.local")
+
+	pattern = frappe.get_doc(verify.PATTERN, BLOCKING)
+	pattern.citation_url = "https://legalinfo.mn/mn/detail/0"
+	pattern.flags.ignore_permissions = True
+	pattern.save()
+
+	assert frappe.db.count("Nyabo Event", {"event_type": mn.EVENT_RULE_CHANGED_AFTER_ACCEPTANCE}) == 0
+	guard.require_verified(BLOCKING, company=books)  # and it still posts, because nothing moved
+
+
 def test_the_accountant_is_told_what_changed_and_accepts_the_new_version(
 	books: str, monkeypatch: pytest.MonkeyPatch
 ):

@@ -211,32 +211,10 @@ def upsert(
 	doc.update(dict(values))
 	doc.flags.ignore_permissions = True
 	doc.save()
-	_note_acceptances_outrun(doc)
+	# The Nyabo Event saying this rewrite has outrun somebody's acceptance is not written here:
+	# `verify.note_rule_changed_after_save` is on `on_update` for all three guarded DocTypes, so
+	# a hand edit in the ERPNext desk leaves the same record a deploy does (MAJOR 3).
 	return "updated"
-
-
-def _note_acceptances_outrun(doc: Any) -> None:
-	"""Say so when this rewrite has just outrun somebody's acceptance of the row.
-
-	`verified = 1` is protected above; an *accepted* rule is not verified — it is unverified with
-	a `Nyabo Rule Acceptance` beside it — so this branch is exactly where a deploy could change
-	a company's debit and credit lines while the acceptance stood. The guard stops honouring the
-	acceptance the moment the content moves (`rules.verify.acceptance` compares fingerprints), and
-	this writes the Nyabo Event that says when it moved and whose name was on the old content.
-	Failures are swallowed: the row is already saved, and a migrate must not be left half-done.
-	"""
-	try:
-		from nyabo_mn.rules import verify
-
-		verify.note_rule_changed(doc.doctype, doc.name)
-	except Exception as exc:  # noqa: BLE001 - the rewrite stands; the note about it may fail
-		log_event(
-			"rules.seed.acceptance_note_failed",
-			level="error",
-			doctype=doc.doctype,
-			rule=doc.name,
-			error=type(exc).__name__,
-		)
 
 
 def _fill_evidence(doc: Any, values: Mapping[str, Any]) -> str:

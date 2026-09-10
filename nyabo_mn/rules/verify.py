@@ -596,13 +596,44 @@ def _stored_content(row: dict[str, Any]) -> dict[str, Any]:
 	return content if isinstance(content, dict) else {}
 
 
+def note_rule_changed_after_save(doc: Any, method: str | None = None) -> None:
+	"""``on_update`` on every guarded DocType: say so when a save has outrun somebody's acceptance.
+
+	WHY the hook and not the caller: this used to be called from ``rules.seed``'s update branch
+	only, so a deploy was covered and a rule edited by hand in the ERPNext desk was not. The
+	fingerprint stopped matching, every acceptance silently stopped covering the rule, and nothing
+	was written saying why — an accountant watched a rule they had cleared start refusing again
+	with no explanation anywhere. The notice belongs where the change happens, and the one place
+	every change goes through is the save itself: a migrate, a desk edit, a bench console, a
+	patch. ``doc_events`` is Frappe's own name for «whenever this document is written».
+
+	Failures are swallowed and logged: the row is already saved, and neither a migrate nor an
+	accountant's edit in the desk may be left half-done by the note about it. An error in the log
+	is not the silence this exists to remove.
+	"""
+	try:
+		note_rule_changed(doc.doctype, doc.name)
+	except Exception as exc:  # noqa: BLE001 - the save stands; the note about it may fail
+		log_event(
+			"rules.verify.changed_note_failed",
+			level="error",
+			doctype=getattr(doc, "doctype", ""),
+			rule=getattr(doc, "name", ""),
+			error=type(exc).__name__,
+		)
+
+
 def note_rule_changed(doctype: str, name: str) -> int:
 	"""Write one Nyabo Event per acceptance a change to this rule has just outrun; returns how many.
 
-	Called by ``rules.seed`` the moment a deploy rewrites a row, because that is when it happens
-	and nobody is in the chat to be told. «Do not silently invalidate» is the requirement: the
-	guard will refuse and the accountant will be shown both versions the next time they post, but
-	the record of *when the content moved out from under their name* belongs to the deploy.
+	Called from ``note_rule_changed_after_save`` on every save of a guarded row, because that is
+	when it happens and nobody is in the chat to be told. «Do not silently invalidate» is the
+	requirement: the guard will refuse and the accountant will be shown both versions the next
+	time they post, but the record of *when the content moved out from under their name* belongs
+	to the moment it moved.
+
+	A row that has just been inserted has no acceptances to outrun, so the hook is a no-op there
+	without needing to ask Frappe whether it is inside an insert.
 	"""
 	if not frappe.db.exists("DocType", ACCEPTANCE):
 		return 0

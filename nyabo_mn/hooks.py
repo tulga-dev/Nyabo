@@ -74,6 +74,15 @@ doc_events = {
 		"before_save": "nyabo_mn.compliance.events.enforce_append_only",
 		"on_trash": "nyabo_mn.compliance.events.block_delete",
 	},
+	# The three guarded rule DocTypes. An accountant's acceptance covers a rule's *content*, so
+	# any save that moves that content stops every acceptance of it from covering anything - and
+	# «do not silently invalidate» means the record of when that happened is written where the
+	# change happens, not where one kind of change happens. The notice hung off rules.seed's
+	# update branch, so a deploy was covered and a rule edited by hand in the desk was not: the
+	# accountant simply watched a rule they had cleared start refusing again (MAJOR 3).
+	("Nyabo Posting Pattern", "Nyabo Tax Parameter", "Nyabo Bank Layout"): {
+		"on_update": "nyabo_mn.rules.verify.note_rule_changed_after_save",
+	},
 	"Accounting Period": {
 		"on_update": "nyabo_mn.compliance.period.log_period_change",
 		"on_trash": "nyabo_mn.compliance.period.log_period_delete",
