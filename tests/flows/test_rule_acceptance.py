@@ -417,6 +417,43 @@ def test_a_deploy_that_changes_nothing_leaves_every_acceptance_standing(books: s
 	assert frappe.db.count("Nyabo Event", {"event_type": mn.EVENT_RULE_CHANGED_AFTER_ACCEPTANCE}) == 0
 
 
+def test_the_acceptance_cannot_be_edited_by_the_person_it_names(books: str):
+	"""A compliance record the accountant it names could rewrite is not a record (MINOR 5).
+
+	`Nyabo Accountant` held `write` and the identifying fields were only read-only in the UI, so
+	the person an acceptance names could change the rule, the company or the date afterwards with
+	no matching event. Append-only, in the controller, the way Nyabo Event is — a site whose roles
+	were changed in the desk must still not be able to rewrite it.
+	"""
+	result = verify.accept(verify.KIND_PATTERN, BLOCKING, books, "tg-5001@nyabo.local")
+	row = frappe.get_doc(verify.ACCEPTANCE, result["acceptance"])
+
+	row.note = "second thoughts"
+	with pytest.raises(frappe.ValidationError) as exc:
+		row.save()
+
+	assert mn.MSG_ACCEPTANCE_APPEND_ONLY in str(exc.value)
+	assert not frappe.db.get_value(verify.ACCEPTANCE, result["acceptance"], "note")
+	# ...and no role carries a write it does not need. Deletion stays: it is how an acceptance is
+	# withdrawn in the desk, and the rule stops posting again the moment it is.
+	meta = frappe.get_meta(verify.ACCEPTANCE)
+	assert [p.role for p in meta.permissions if p.write] == []
+	assert sorted(p.role for p in meta.permissions if p.delete) == ["Nyabo Admin", "System Manager"]
+
+
+def test_withdrawing_an_acceptance_in_the_desk_stops_the_rule_posting_again(books: str):
+	"""The correction path the module docstring promises, kept working by the append-only rule."""
+	result = verify.accept(verify.KIND_PATTERN, BLOCKING, books, "tg-5001@nyabo.local")
+	guard.require_verified(BLOCKING, company=books)
+
+	frappe.delete_doc(verify.ACCEPTANCE, result["acceptance"])
+
+	with pytest.raises(guard.UnverifiedRuleError):
+		guard.require_verified(BLOCKING, company=books)
+	# The event stays: what happened, happened.
+	assert frappe.db.count("Nyabo Event", {"event_type": mn.EVENT_RULE_ACCEPTED}) == 1
+
+
 # --- 4. who may take the decision -----------------------------------------------------------------
 
 

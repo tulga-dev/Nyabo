@@ -124,7 +124,7 @@
   {
    "role": "System Manager",
    "read": 1,
-   "write": 1,
+   "write": 0,
    "create": 1,
    "delete": 1,
    "submit": 0,
@@ -139,7 +139,7 @@
   {
    "role": "Nyabo Admin",
    "read": 1,
-   "write": 1,
+   "write": 0,
    "create": 1,
    "delete": 1,
    "submit": 0,
@@ -154,7 +154,7 @@
   {
    "role": "Nyabo Accountant",
    "read": 1,
-   "write": 1,
+   "write": 0,
    "create": 1,
    "delete": 0,
    "submit": 0,

@@ -14,8 +14,12 @@ enforced here rather than trusted to every caller.
   rule is one row, and answering again for a changed version is a second row rather than an edit
   of the first — two decisions, taken on two texts.
 
-``rules.verify.accept`` is the only writer; the desk may delete a row (that is how an acceptance
-is withdrawn, and the Nyabo Event stays either way).
+``rules.verify.accept`` is the only writer, and nothing rewrites a row afterwards: it is
+append-only in this controller the way ``Nyabo Event`` is. The desk may still delete a row —
+that is how an acceptance is withdrawn, the rule stops posting again the moment it is, and the
+``rule_accepted_for_company`` event stays either way. That deletion is the one difference from
+Nyabo Event, and it is deliberate: an edit rewrites what a person read, a deletion does not
+claim they read anything.
 """
 
 from __future__ import annotations
@@ -45,6 +49,16 @@ class NyaboRuleAcceptance(Document):
 		self.rule_content_json = json.dumps(content, ensure_ascii=False, sort_keys=True)
 
 	def validate(self) -> None:
+		"""Append-only: what a named person took responsibility for cannot be edited afterwards.
+
+		``Nyabo Accountant`` held ``write`` and the identifying fields were only read-only in the
+		UI, so the accountant an acceptance names could change the rule, the company or the date
+		with nothing in the record marking it. The permissions no longer grant ``write`` to
+		anybody, and this refuses the save as well, because a compliance record must not depend
+		on a role table somebody may edit in the desk.
+		"""
+		if not self.is_new():
+			frappe.throw(mn.MSG_ACCEPTANCE_APPEND_ONLY)
 		self.rule_doctype = self._rule_doctype()
 
 	def _rule_doctype(self) -> str:

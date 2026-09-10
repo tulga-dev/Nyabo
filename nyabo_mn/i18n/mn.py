@@ -429,6 +429,15 @@ MSG_RETAINED_DOCUMENT_DELETE_BLOCKED = (
 )
 MSG_POSTED_DELETE_BLOCKED = "Бүртгэгдсэн баримтыг устгахгүй; залруулгыг буцаалтаар хийнэ (Хууль 15)."
 MSG_EVENT_APPEND_ONLY = "Үйл явдлын бүртгэлийг өөрчлөх, устгах боломжгүй."
+# An acceptance says what one named person read and took responsibility for on one day. Editing
+# it afterwards would put their name against words they never saw, so it is refused — but the row
+# may still be deleted in the desk, which is how an acceptance is withdrawn and what the sentence
+# names, because a refusal that leaves no way to correct a mistake is its own dead end.
+MSG_ACCEPTANCE_APPEND_ONLY = (
+	"Дүрмийн хүлээн зөвшөөрөлтийг өөрчлөх боломжгүй — энэ нь хэн, юуг уншиж хариуцлага "
+	"хүлээснийг тэмдэглэсэн бичлэг. Буруу бол ERPNext дэсктээс тухайн мөрийг устгаж, "
+	"дүрмийг дахин уншаад хүлээн зөвшөөрнө үү."
+)
 # The accountant is the professional who signs these books, so the refusal names what THEY can
 # do now (DECISIONS ACC-01) instead of sending them to wait for an admin. The wording stays true
 # wherever the guard raises — a report, a desk call — because reading the rule and accepting it
