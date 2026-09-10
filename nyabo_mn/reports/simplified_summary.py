@@ -122,7 +122,7 @@ def eligibility(company: str, end: dt.date) -> dict[str, Any]:
 				)
 			)
 	return {
-		"rows": {key: rules_bridge.row_summary(row) for key, row in rows.items()},
+		"rows": {key: rules_bridge.row_summary(row, company) for key, row in rows.items()},
 		"is_vat_payer": vat_payer,
 		"threshold": amount,
 		"comparator": comparator,
@@ -174,7 +174,7 @@ def compute(company: str, quarter: str) -> dict[str, Any]:
 		"revenue": revenue,
 		"tax_1pct": quantize(revenue * rate),
 		"rate": rate,
-		"rate_row": rules_bridge.row_summary(rate_row),
+		"rate_row": rules_bridge.row_summary(rate_row, company),
 		"eligibility": eligible,
 		"revenue_accounts": base_accounts,
 		"excluded_revenue": excluded,

@@ -71,7 +71,16 @@ def require_verified(row: ParameterRow, company: str | None = None) -> None:
 	guard.require_verified(row, company=company)
 
 
-def row_summary(row: ParameterRow) -> dict[str, Any]:
+def row_summary(row: ParameterRow, company: str | None = None) -> dict[str, Any]:
+	"""The row as a report prints it, including *which* of the two clearances let it through.
+
+	``verified`` alone stopped being the whole answer with DECISIONS ACC-01. The report renders
+	only figures ``require_verified`` let through, so an unverified row reaching it is one this
+	company's accountant accepted — and printing «Баталгаажаагүй» beside it told the reader the
+	number rests on nothing, in the one artefact a tax reviewer actually reads. ``accepted`` is
+	what makes the third provenance visible (VER-07); without a company it stays False, which is
+	what a core-only or site-wide caller means.
+	"""
 	return {
 		"key": row.key,
 		"value": row.value,
@@ -79,6 +88,7 @@ def row_summary(row: ParameterRow) -> dict[str, Any]:
 		"effective_from": row.effective_from.isoformat(),
 		"effective_to": row.effective_to.isoformat() if row.effective_to else None,
 		"verified": bool(row.verified),
+		"accepted": bool(company) and not row.verified and guard.accepted_for(row, company),
 		"source_text": row.source_text,
 		"article": row.article,
 	}

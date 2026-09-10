@@ -757,6 +757,12 @@ LBL_TAX_PARAMETER_ROW = "Татварын параметр"
 LBL_REGIME_CONDITION = "Горимын нөхцөл"
 LBL_VERIFIED = "Баталгаажсан"
 LBL_UNVERIFIED = "Баталгаажаагүй"
+# The third provenance (DECISIONS ACC-01, VER-07). A report renders only figures the guard let
+# through, so an unverified row on a printed page is one this company's accountant accepted for
+# these books — and «Баталгаажаагүй» beside such a figure tells a tax reviewer the number rests
+# on nothing, when it rests on a named person. It is not «Баталгаажсан» either: that is the
+# site-wide claim about the law, and this one is about these books.
+LBL_ACCEPTED_FOR_COMPANY = "Нягтлан хүлээн зөвшөөрсөн"
 LBL_SIMULATION = "Симуляц (баталгаажаагүй дүрэм)"
 REPORT_PDF_FOOTER = "Нябо · ERPNext. Маягтын эх сурвалж: {source}."
 

@@ -197,6 +197,40 @@ def test_one_percent_base_is_sales_revenue_not_class_84_gains(books):
 	)
 
 
+def test_the_report_says_the_accountant_cleared_the_figure_and_not_that_nothing_did(books):
+	"""ACC-01 reaches the printed page: an accepted parameter is not «Баталгаажаагүй».
+
+	The guard refuses an uncleared row before the report renders anything, so outside a
+	simulation an unverified row on this page is one this company's accountant accepted for these
+	books. Printing «Баталгаажаагүй» beside the figure told a tax reviewer the number rested on
+	nothing, when it rested on a named person — the founder's own complaint, in the artefact that
+	leaves the building.
+	"""
+	from frappe.desk import query_report
+
+	from nyabo_mn.rules import verify
+
+	_settings(books, "simplified_1pct")
+	_rate_row(verified=0)
+	verify.accept(verify.KIND_PARAMETER, "simplified.rate:2026-01-01", books, "Administrator")
+	for key in simplified_summary.ELIGIBILITY_KEYS:
+		name = frappe.db.get_value("Nyabo Tax Parameter", {"key": key}, "name")
+		frappe.db.set_value("Nyabo Tax Parameter", name, "verified", 0)
+		verify.accept(verify.KIND_PARAMETER, name, books, "Administrator")
+
+	summary = simplified_summary.compute(books, "2026-Q1")
+	assert summary["rate_row"]["verified"] is False and summary["rate_row"]["accepted"] is True
+
+	result = query_report.run(
+		"Nyabo Simplified Tax Summary",
+		filters={"company": books, "from_date": "2026-01-01", "to_date": "2026-03-31"},
+		ignore_prepared_report=True,
+	)
+	total = next(r for r in result["result"] if r["label"] == mn.LBL_TOTAL)
+	assert mn.LBL_ACCEPTED_FOR_COMPANY in total["parameter"]
+	assert mn.LBL_UNVERIFIED not in total["parameter"]
+
+
 def test_report_filter_cannot_switch_off_the_verified_guard(books, frappe_flags):
 	"""F-11: the 1% rate guard answers to frappe.flags.nyabo_simulation only, never to user input."""
 	from frappe.desk import query_report
