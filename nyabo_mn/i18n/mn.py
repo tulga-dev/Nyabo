@@ -131,7 +131,13 @@ MSG_NO_PERMISSION = "Танд энэ үйлдлийг хийх эрх байхг
 MSG_UNKNOWN_COMMAND = "Ойлгосонгүй. /тусламж гэж бичнэ үү."
 MSG_CHOOSE_COMPANY = "Компаниа сонгоно уу:"
 MSG_ACTIVE_COMPANY = "Идэвхтэй компани: {company}"
-MSG_NO_COMPANY = "Танд холбогдсон компани алга. Админд хандана уу."
+# On an intake path (a photo or a statement arrives before any company is linked). Linking a
+# person to a company really is an admin action — `/link` issues the code — so the sentence
+# names that person and the command they run, instead of «ask an admin» and a dead end.
+MSG_NO_COMPANY = (
+	"Танд холбогдсон компани алга тул баримт бүртгэх боломжгүй. Нябог тохируулсан хүнээс "
+	"«/link нягтлан <компанийн нэр>» командаар холболтын код авч, энд бичнэ үү."
+)
 MSG_PROPOSAL_NOT_FOUND = "Санал олдсонгүй эсвэл аль хэдийн шийдвэрлэгдсэн."
 MSG_PROPOSAL_ALREADY_DECIDED = "Энэ санал аль хэдийн {status} төлөвтэй."
 MSG_PROCESSING_TAKES_LONG = "Боловсруулалт удаж байна, түр хүлээнэ үү…"
@@ -1070,7 +1076,15 @@ MSG_ENTRY_NEGATIVE_AMOUNT = "{account} дансны мөрийн дүн сөрө
 MSG_ACCOUNT_UNKNOWN = "{account} данс дансны төлөвлөгөөнд алга."
 MSG_RULE_MISSING = "«{key}» дүрэм {date} огноонд тодорхойлогдоогүй байна; нягтлан шалгана уу."
 MSG_RULE_PENDING = "«{key}» дүрэм {date} огноонд хараахан баталгаажаагүй (хүлээгдэж буй) тул тооцоолохгүй; нягтлан шалгана уу."
-MSG_RULE_AMBIGUOUS = "«{key}» дүрэм {date} огноонд давхардсан байна; админ шалгана уу."
+# Two rows of one tax parameter in force on the same day is a site-wide data fault, not a
+# reading the accountant can accept for their own company: whichever row wins would win for
+# every client. So this is one of the few places an admin genuinely is needed, and it says
+# which one and what they have to do.
+MSG_RULE_AMBIGUOUS = (
+	"«{key}» дүрэм {date} огноонд хоёр мөрөөр давхардсан байна. Энэ нь сайт даяарх өгөгдлийн "
+	"алдаа тул нэг компанийн хэмжээнд засах боломжгүй. Нябог тохируулсан хүнд хандаж, ERPNext "
+	"дэск дэх «Nyabo Tax Parameter» бичлэгүүдийн хүчинтэй хугацааг залруулуулна уу."
+)
 MSG_REGIME_MISSING = (
 	"{date} огноонд компанийн татварын горим тохируулаагүй байна. /эхлэх командаар тохируулна уу."
 )
@@ -1164,8 +1178,12 @@ MSG_BANK_SETTLE_OVER_ALLOCATION = (
 	"Гүйлгээний дүн {amount}₮ нь {name} нэхэмжлэхийн үлдэгдэл {outstanding}₮-оос их байна. "
 	"Өөр баримт сонгох эсвэл нягтлан гараар хуваан бүртгэнэ үү."
 )
+# A genuinely administrative gap, and a rare one: TG-05 grants the ERPNext roles at link
+# time, so this only reaches somebody linked before that existed. Re-linking is the fix they
+# can ask for, and it names who can give it.
 MSG_BANK_SETTLE_ERPNEXT_PERMISSION = (
-	"Төлбөрийн баримт үүсгэх ERPNext эрх (Accounts User) байхгүй байна. Админд хандана уу."
+	"Төлбөрийн баримт үүсгэх ERPNext эрх (Accounts User) таны хэрэглэгчид олгогдоогүй байна. "
+	"Нябог тохируулсан хүнээс шинэ холболтын код авч дахин холбогдоно уу; эрх автоматаар олгогдоно."
 )
 MSG_BANK_SETTLE_WRONG_DIRECTION = (
 	"Зарлагын гүйлгээгээр зөвхөн худалдан авалтын нэхэмжлэх, орлогын гүйлгээгээр зөвхөн "
@@ -1178,8 +1196,11 @@ MSG_BANK_SETTLE_CURRENCY_MISMATCH = (
 MSG_BANK_SETTLE_ALREADY_PROPOSED = (
 	"Энэ гүйлгээнд аль хэдийн бичилтийн санал ({proposal}) байна; банкны данс дахин кредитлэгдэхгүй."
 )
+# The accountant configures the bank accounts themselves in `/эхлэх`, so the step is named
+# rather than handed to somebody else.
 MSG_BANK_SETTLE_NO_BANK_ACCOUNT = (
-	"Энэ гүйлгээний банкны дансанд ерөнхий дэвтрийн данс тохируулаагүй байна. Админд хандана уу."
+	"Энэ гүйлгээний банкны дансанд ерөнхий дэвтрийн данс тохируулаагүй байна. "
+	"/эхлэх командаар банкны дансаа тохируулаад дахин оролдоно уу."
 )
 MSG_BANK_SETTLE_REVERSED = "{doctype} {name} буцаагдсан/залруулагдсан тул төлбөр бүртгэх боломжгүй."
 MSG_BANK_SETTLED = "💸 Төлбөр бүртгэлээ: {payment} · {voucher}"

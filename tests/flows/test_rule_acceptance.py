@@ -374,9 +374,25 @@ INTAKE_PATH_STRINGS = (
 	"CARD_RULE_NO_CITATION",
 	"CARD_RULE_LAYOUT_SOURCE",
 	"BTN_RULE_ACCEPT",
+	"MSG_STATEMENT_LAYOUT_REIMPORTING",
+	"MSG_NO_COMPANY",
+	"MSG_BANK_SETTLE_NO_BANK_ACCOUNT",
+	"MSG_RULE_MISSING",
+	"MSG_RULE_PENDING",
 	"MSG_MENU",
 	"BOT_COMMAND_DESCRIPTIONS",
 )
+
+#: The other half of the sweep: the places on an intake path where somebody else really is
+#: needed. They may name that person, and they must then name the door — a command to type or a
+#: named screen — because «хандана уу» on its own is the dead end this work exists to remove.
+STILL_NEEDS_SOMEBODY_ELSE = {
+	"MSG_NO_COMPANY": "/link",
+	"MSG_BANK_SETTLE_NO_BANK_ACCOUNT": "/эхлэх",
+	"MSG_BANK_SETTLE_ERPNEXT_PERMISSION": "холболтын код",
+	"MSG_RULE_AMBIGUOUS": "ERPNext",
+	"MSG_RULES_SITE_ADMIN_ONLY": "сайтын админ",
+}
 
 
 @pytest.mark.parametrize("name", INTAKE_PATH_STRINGS)
@@ -395,13 +411,19 @@ def test_no_intake_path_string_tells_the_accountant_to_wait_for_an_admin(name: s
 	)
 
 
-def test_where_an_admin_really_is_needed_the_string_says_which_one_and_what_to_do():
-	"""The other half of the rule: an honest «you cannot» must still name a door that opens."""
-	site_admin_only = mn.MSG_RULES_SITE_ADMIN_ONLY
-	assert "сайтын админ" in site_admin_only, "which admin"
-	assert "хандана уу" in site_admin_only, "and how to reach them"
-	# The accountant is never sent there for their own books: their own answer is on the card.
-	assert mn.BTN_RULE_ACCEPT and mn.BTN_RULE_VERIFY_SITE != mn.BTN_RULE_ACCEPT
+@pytest.mark.parametrize("name,door", sorted(STILL_NEEDS_SOMEBODY_ELSE.items()))
+def test_where_somebody_else_really_is_needed_the_string_names_the_door(name: str, door: str):
+	"""An honest «you cannot» must still name a door that opens, not a role to go and look for."""
+	assert door in getattr(mn, name), (
+		f"{name} sends the reader to another person without naming what that person does. "
+		"Name the command or the screen, the way MSG_NO_COMPANY names /link."
+	)
+
+
+def test_the_two_acts_on_a_rule_card_are_never_worded_as_one():
+	"""The accountant's answer binds their company; the site admin's binds every client (VER-08)."""
+	assert mn.BTN_RULE_VERIFY_SITE != mn.BTN_RULE_ACCEPT
+	assert "айт" in mn.BTN_RULE_VERIFY_SITE and "компани" in mn.BTN_RULE_ACCEPT
 
 
 def test_the_menu_and_the_command_list_offer_the_rules_command_to_everyone(books: str):
