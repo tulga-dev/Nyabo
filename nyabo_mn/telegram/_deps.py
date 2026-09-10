@@ -340,11 +340,6 @@ def accept_rule(
 	return _call("nyabo_mn.rules.verify", "accept", kind, rule, company, user, telegram_id=telegram_id)
 
 
-def rule_acceptance(company: str | None, rule: str) -> Any:
-	"""That company's acceptance of the rule, or None — the question the guard asks."""
-	return _call("nyabo_mn.rules.verify", "acceptance", company, rule)
-
-
 def blocked_proposal(rule: str, company: str | None, telegram_id: str | int | None) -> str | None:
 	"""The proposal this person's own refused [Батлах] was about, so an acceptance can finish it."""
 	return _call("nyabo_mn.rules.verify", "blocked_proposal", rule, company, telegram_id)

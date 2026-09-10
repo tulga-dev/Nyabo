@@ -1,17 +1,21 @@
 """The verification write path: what is blocking work, the evidence behind one rule, and the tap.
 
 WHY this module exists: §1.2 refuses a Nyabo Posting Pattern or a Nyabo Tax Parameter with
-``verified = 0`` for a real posting, and ``guard.UnverifiedRuleError`` tells the accountant that
-an admin compares the rule with the primary text and marks it verified. Until now the only place
-that could happen was the ERPNext desk, so from Telegram that sentence pointed at nothing. The
-citation pass has since verified the everyday path — ``purchase_expense_non_vat`` and the rest of
-an ordinary non-VAT day post without a tick — but nine posting patterns and thirteen tax
-parameters still wait for a human, and every one of them stops somebody's work when it is reached.
+``verified = 0`` for a real posting. The citation pass verified the everyday path —
+``purchase_expense_non_vat`` and the rest of an ordinary non-VAT day post without anybody being
+asked — but nine posting patterns and thirteen tax parameters still wait for a human, and every one
+of them stops somebody's work when it is reached: a customer advance recognised as revenue, a
+transfer between a company's own bank accounts, the simplified 1% accrual, the employee social
+insurance withholding.
 
-Verification is deliberately *not* a workflow. It is one human saying "I have read the source and
-I take responsibility": the flag, who, when, and a Nyabo Event — no states, no second approver,
-and no un-verify from the chat (a mistake is corrected in the desk, where the edit is itself a
-Version row and the row stops posting again the moment the flag comes off).
+Who that human is, is the founder's decision (DECISIONS ACC-01): the accountant, who is the main
+user and the person whose signature the entry carries, accepts an uncited rule for their **own
+company's** books; a site admin verifies the **global row** when a citation turns up.
+
+Neither is a workflow. Each is one human saying "I have read this and I take responsibility": a
+row, who, when, and a Nyabo Event — no states, no second approver, and no undoing from the chat
+(a mistake is corrected in the desk, where the edit or deletion is itself traceable, and the rule
+stops posting again the moment it is).
 
 A rule may now be cleared in three different ways, and an auditor must be able to tell them apart
 (DECISIONS VER-07, ACC-01):
@@ -256,14 +260,6 @@ def kinds() -> tuple[str, ...]:
 
 def doctype_for(kind: str) -> str | None:
 	return DOCTYPES.get(kind)
-
-
-def kind_for(doctype: str) -> str | None:
-	"""``"Nyabo Tax Parameter" -> "t"``: the inverse of ``doctype_for``, for callers holding a row."""
-	for kind, name in DOCTYPES.items():
-		if name == doctype:
-			return kind
-	return None
 
 
 # --- the accountant's acceptance, per company ---------------------------------------------------

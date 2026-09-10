@@ -1496,10 +1496,6 @@ MSG_RULE_VERIFY_FAILED = (
 # responsibility, and there is nobody there.
 RULE_VERIFIED_SOURCE_SEED = "Нябогийн эх сурвалжийн ишлэлээр (энэ сайт дээр хүн баталгаажуулаагүй)"
 RULE_VERIFIED_SOURCE_PERSON = "{user} · {when}"
-# ...and the third, which is neither (DECISIONS ACC-01). It must never be printed as either: the
-# rule is not verified for the site, and no citation stands behind it — one named accountant
-# applied it to one named company's books.
-RULE_VERIFIED_SOURCE_COMPANY = "{company}-д хамаарна гэж {user} хүлээн зөвшөөрсөн · {when}"
 MSG_RULE_ALREADY_VERIFIED = "Энэ дүрэм аль хэдийн баталгаажсан: {rule}\nБаталгаажуулсан: {source}"
 MSG_RULE_VERIFIED = "✅ Баталгаажлаа: {rule}\nБаталгаажуулсан: {user} · {when}"
 MSG_RULE_VERIFIED_RETRY = (

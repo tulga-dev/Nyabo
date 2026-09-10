@@ -605,15 +605,6 @@ def _rule_briefing(rule: Any) -> list[str]:
 	return lines
 
 
-def rule_accepted_source(company: Any, accepted_by: Any, accepted_at: Any = "") -> str:
-	"""«accepted for <company> by <person> on <date>» — the third provenance, in its own words."""
-	return mn.RULE_VERIFIED_SOURCE_COMPANY.format(
-		company=str(company or mn.VALUE_UNKNOWN),
-		user=str(accepted_by or mn.VALUE_UNKNOWN),
-		when=str(accepted_at or "")[:16],
-	)
-
-
 def _rule_citation(rule: Any) -> list[str]:
 	if getattr(rule, "kind", "") == LAYOUT_KIND:
 		# A column mapping has no legal source; what it is read against is the accountant's own

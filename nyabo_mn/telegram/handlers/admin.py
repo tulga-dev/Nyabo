@@ -124,8 +124,12 @@ def handle_callback(ctx: Ctx, parts: list[str]) -> Any:
 	action, kind = parts[1], parts[2]
 	rule = keyboards.rule_from_parts(parts)
 	if not ctx.is_accountant:
-		ctx.answer(mn.MSG_RULES_ACCOUNTANT_ONLY, show_alert=True)
-		ctx.reply(mn.MSG_RULES_ACCOUNTANT_ONLY)
+		# A layout is not in `/дүрэм`, so it does not get the sentence that points there (ACC-02).
+		refusal = (
+			mn.MSG_STATEMENT_LAYOUT_ACCOUNTANT_ONLY if kind == LAYOUT_KIND else mn.MSG_RULES_ACCOUNTANT_ONLY
+		)
+		ctx.answer(refusal, show_alert=True)
+		ctx.reply(refusal)
 		log_event("telegram.rules.tap_refused", level="warning", rule=rule, telegram_id=ctx.telegram_id)
 		return {"refused": "not_accountant", "rule": rule}
 	if action == keyboards.VERIFY_OPEN:
@@ -150,8 +154,11 @@ def handle_callback(ctx: Ctx, parts: list[str]) -> Any:
 			return {"refused": "not_site_admin", "rule": rule}
 		return confirm_rule(ctx, kind, rule)
 	if action == keyboards.VERIFY_LEAVE:
-		ctx.answer(mn.MSG_RULE_LEFT)
-		ctx.edit(ctx.callback_message_id, mn.MSG_RULE_LEFT, keyboards.empty_markup())
+		# «This rule will go on refusing postings» is not what an unconfirmed *layout* does — it
+		# refuses statements, and the accountant is entitled to the sentence that says so.
+		left = mn.MSG_STATEMENT_LAYOUT_LEFT if kind == LAYOUT_KIND else mn.MSG_RULE_LEFT
+		ctx.answer(left)
+		ctx.edit(ctx.callback_message_id, left, keyboards.empty_markup())
 		return {"left": rule}
 	log_event("telegram.callback.unknown", level="warning", data=ctx.callback_data[:64])
 	return None
@@ -311,7 +318,9 @@ def _finish_the_blocked_tap(ctx: Ctx, kind: str, rule: str, company: str) -> str
 			chat_id=ctx.chat_id,
 			enqueue_after_commit=True,
 		)
-		return document
+		# Nothing is posted by re-reading a statement — the lines become cards of their own — so
+		# this returns nothing rather than putting a document name in a field called «posted».
+		return None
 	proposal = _deps.blocked_proposal(rule, company, ctx.telegram_id)
 	if not proposal:
 		ctx.reply(mn.MSG_RULE_ACCEPTED_RETRY)
