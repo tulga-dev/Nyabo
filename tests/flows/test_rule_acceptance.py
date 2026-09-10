@@ -392,6 +392,58 @@ def test_a_layouts_fingerprint_covers_what_decides_how_a_statement_is_read(
 	assert any(shown in line for line in changed.after)
 
 
+def _redeploy_pattern(mutate: Any, rule: str = BLOCKING) -> str:
+	"""The same seed row with ``mutate`` applied to it, upserted exactly as a deploy would."""
+	import copy
+
+	from nyabo_mn.nyabo.seed import load_seed
+	from nyabo_mn.rules import seed
+
+	row = copy.deepcopy(next(r for r in load_seed("posting_patterns")["rows"] if r["pattern_id"] == rule))
+	mutate(row)
+	return seed.upsert(
+		seed.POSTING_PATTERN, rule, seed.posting_pattern_values(row), force=False, child_field="lines"
+	)
+
+
+def _swap_the_alternative_class(row: dict[str, Any]) -> None:
+	"""The line keeps its printed class and gains a different one under the same condition."""
+	alternatives = row["lines"][1]["alternatives"]
+	assert alternatives, "this anchor line is supposed to carry an alternative"
+	alternatives[0]["account_class"] = "52"
+
+
+def _mark_the_class_assumed(row: dict[str, Any]) -> None:
+	row["lines"][0]["class_assumed"] = True
+
+
+@pytest.mark.parametrize(
+	("mutate", "field"),
+	[(_swap_the_alternative_class, "alternatives_json"), (_mark_the_class_assumed, "class_assumed")],
+)
+def test_the_line_fingerprint_covers_the_alternative_class_and_the_assumed_flag(
+	books: str, mutate: Any, field: str
+):
+	"""MINOR 5: two columns of the line are content and were outside the fingerprint.
+
+	``alternatives_json`` names a second account class for the same line under a stated condition,
+	and the engine really swaps the line for it when the condition holds — so changing one changes
+	which account this company posts to on the days it is met. ``class_assumed`` says whether the
+	class was assumed rather than printed in the instrument, which is precisely the thing the
+	accountant is being asked to take responsibility for: flipping it changes what an acceptance
+	means without changing the acceptance.
+	"""
+	assert field in verify.CONTENT_LINE_FIELDS
+	verify.accept(verify.KIND_PATTERN, BLOCKING, books, "tg-5001@nyabo.local")
+	guard.require_verified(BLOCKING, company=books)
+
+	assert _redeploy_pattern(mutate) == "updated"
+
+	with pytest.raises(guard.UnverifiedRuleError):
+		guard.require_verified(BLOCKING, company=books)
+	assert frappe.db.count("Nyabo Event", {"event_type": mn.EVENT_RULE_CHANGED_AFTER_ACCEPTANCE}) == 1
+
+
 def test_a_deploy_that_rewrites_an_accepted_rule_stops_it_posting_again(
 	books: str, monkeypatch: pytest.MonkeyPatch
 ):

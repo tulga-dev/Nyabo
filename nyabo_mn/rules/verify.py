@@ -338,7 +338,17 @@ CONTENT_FIELDS: dict[str, tuple[str, ...]] = {
 
 #: A posting pattern's lines, in order: the debit and the credit themselves. This is the thing
 #: MAJOR 2 is about — a deploy that changes them changes what the company posts under the
-#: accountant's name.
+#: accountant's name. Every column of ``Nyabo Posting Pattern Line`` is here, because every one
+#: of them says something about the entry:
+#:
+#: * ``alternatives_json`` names a second account class for the same line under a stated
+#:   condition (``evals.harness._apply_alternatives`` swaps the line for it when the condition
+#:   holds), so adding, removing or re-conditioning one changes which account this company posts
+#:   to on the days the condition is met.
+#: * ``class_assumed`` says whether the class was assumed rather than printed in the instrument.
+#:   It is a statement about how much of this line rests on evidence, and it is exactly what an
+#:   accountant is being asked to take responsibility for; a deploy that flipped it would change
+#:   what the acceptance means without changing the acceptance.
 CONTENT_LINE_FIELDS: tuple[str, ...] = (
 	"side",
 	"account_class",
@@ -347,6 +357,8 @@ CONTENT_LINE_FIELDS: tuple[str, ...] = (
 	"amount_kind",
 	"role",
 	"optional",
+	"alternatives_json",
+	"class_assumed",
 	"v1_code_hint",
 	"v1_code_range",
 )
