@@ -823,6 +823,52 @@ def test_a_tap_twenty_minutes_late_is_recorded_for_the_client_the_card_asked_abo
 	assert posted == [] and mn.MSG_RULE_ACCEPTED_RETRY in bot.texts()
 
 
+def _card_from_before_the_company_travelled(kind: str, rule: str) -> str:
+	"""``v:ac:<kind>:<rule…>`` — the datum shape of a card drawn before this change.
+
+	Its inline button is still live in somebody's chat history; Telegram keeps them for ever.
+	"""
+	return keyboards.encode(keyboards.PREFIX_VERIFY, keyboards.VERIFY_ACCEPT, kind, *rule.split(":"))
+
+
+def test_a_card_drawn_before_the_company_travelled_with_it_says_so_instead_of_nothing(books: str):
+	"""An old datum has no company slot, so the client it asked about cannot be recovered.
+
+	It must not fall back to the active company — that is the record saying what did not happen,
+	which is the whole reason the slot exists — and it must not tap into silence either, which is
+	the dead end this flow exists to remove. So it is answered in words, and the way back is the
+	same one tap.
+	"""
+	link_user(ACCOUNTANT_ID, "Accountant", books)
+	bot = FakeBotApi()
+
+	outcome = run(bot, callback_update(ACCOUNTANT_ID, _card_from_before_the_company_travelled("p", BLOCKING)))
+
+	assert outcome["result"] == {"accepted": False, "reason": "unknown_company", "rule": BLOCKING}
+	assert bot.last_text == mn.MSG_RULE_ACCEPT_COMPANY_UNKNOWN
+	assert frappe.db.count(verify.ACCEPTANCE) == 0
+	with pytest.raises(guard.UnverifiedRuleError):
+		guard.require_verified(BLOCKING, company=books)
+
+
+def test_an_old_card_can_still_be_opened_and_the_card_it_draws_is_answerable(books: str):
+	"""Opening decides nothing and writes nothing, so an old row is read rather than refused.
+
+	The rule name still parses out of the old datum, and the card the tap draws carries the
+	company on its own buttons — so the acceptance that follows is as exact as any other.
+	"""
+	link_user(ACCOUNTANT_ID, "Accountant", books)
+	old = keyboards.encode(keyboards.PREFIX_VERIFY, keyboards.VERIFY_OPEN, "p", BLOCKING)
+	bot = FakeBotApi()
+
+	opened = run(bot, callback_update(ACCOUNTANT_ID, old))
+
+	assert opened["result"]["rule"] == BLOCKING
+	assert any(mn.CARD_RULE_ACCEPT_ASK.format(company=books) in text for text in bot.texts())
+	accepted = run(bot, callback_update(ACCOUNTANT_ID, _drawn_accept_datum(bot)))
+	assert accepted["result"]["company"] == books
+
+
 def test_a_card_whose_client_this_reader_no_longer_keeps_is_refused_not_guessed_at(
 	books: str, company_v03: str, monkeypatch: pytest.MonkeyPatch
 ):

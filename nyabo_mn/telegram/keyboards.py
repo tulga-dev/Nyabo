@@ -428,13 +428,36 @@ def rule_data(action: str, kind: str, rule: str, company: str | None = None) -> 
 
 
 def rule_from_parts(parts: Sequence[str]) -> str:
-	"""``["v", "ok", "t", "", "si.employer_rate", "2027-01-01"] -> "si.employer_rate:2027-01-01"``."""
-	return SEP.join(str(part) for part in parts[4:])
+	"""``["v", "ok", "t", "", "si.employer_rate", "2027-01-01"] -> "si.employer_rate:2027-01-01"``.
+
+	A datum with no company slot is a card drawn before the slot existed, and its inline button is
+	still live in somebody's chat history. The rule is read from where it used to be, so an old
+	card opens instead of tapping into silence; ``company_token_from_parts`` returns nothing for
+	it, and the one act that needs the company — the acceptance — says so in words rather than
+	falling back to whichever company is active, which is the whole point of the slot.
+	"""
+	return SEP.join(str(part) for part in parts[(4 if _has_company_slot(parts) else 3) :])
 
 
 def company_token_from_parts(parts: Sequence[str]) -> str:
 	"""The digest of the company the card was drawn for, or ``""``; never a company name."""
-	return str(parts[3]) if len(parts) > 3 else ""
+	return str(parts[3]) if _has_company_slot(parts) else ""
+
+
+def _has_company_slot(parts: Sequence[str]) -> bool:
+	"""Is the fourth field a company token — ``""`` or ``COMPANY_TOKEN_CHARS`` lowercase hex?
+
+	This is a format test and not a guess: no rule name can look like a token. A posting pattern
+	id is words joined by underscores, a tax parameter is ``key:effective_from`` whose first part
+	carries a dot, and a learned layout is ``custom-<bank>-<digest>`` — none of them is six hex
+	characters, and none of them is empty. So an old datum is never read as a new one.
+	"""
+	if len(parts) < 4:
+		return False
+	token = str(parts[3])
+	return token == "" or (
+		len(token) == COMPANY_TOKEN_CHARS and all(char in "0123456789abcdef" for char in token)
+	)
 
 
 def _rule_button(

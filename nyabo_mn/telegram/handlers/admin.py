@@ -219,7 +219,7 @@ def handle_callback(ctx: Ctx, parts: list[str]) -> Any:
 	people: reading is open to both, [Манай компанид хамаарна] is the accountant's alone, and
 	[Сайт даяар баталгаажуулах] is the site admin's alone (ACC-01, VER-08).
 	"""
-	if len(parts) < 5:
+	if len(parts) < 4:
 		return None
 	action, kind = parts[1], parts[2]
 	rule = keyboards.rule_from_parts(parts)
@@ -345,9 +345,12 @@ def accept_rule(ctx: Ctx, kind: str, rule: str, token: str = "") -> Any:
 	"""
 	company = _card_company(ctx, token)
 	if not company:
-		# The card named no company at all (a site admin's, or a hand-made datum) versus a card
-		# whose company this reader can no longer be tied to: different facts, different sentences.
-		message = mn.MSG_RULE_ACCEPT_NO_COMPANY if not token else mn.MSG_RULE_ACCEPT_COMPANY_UNKNOWN
+		# Two different facts and two different sentences. A reader who keeps somebody's books is
+		# looking at a card whose client cannot be recovered — they were unlinked from it, the
+		# card predates the company travelling with the button, or the datum came from elsewhere;
+		# a reader who keeps nobody's has no books to accept anything for.
+		keeps_books = _keeps_any_books(ctx)
+		message = mn.MSG_RULE_ACCEPT_COMPANY_UNKNOWN if keeps_books else mn.MSG_RULE_ACCEPT_NO_COMPANY
 		ctx.answer(message, show_alert=True)
 		ctx.reply(message)
 		log_event(
@@ -357,7 +360,11 @@ def accept_rule(ctx: Ctx, kind: str, rule: str, token: str = "") -> Any:
 			telegram_id=ctx.telegram_id,
 			had_token=bool(token),
 		)
-		return {"accepted": False, "reason": "unknown_company" if token else "no_company", "rule": rule}
+		return {
+			"accepted": False,
+			"reason": "unknown_company" if keeps_books else "no_company",
+			"rule": rule,
+		}
 	result = _deps.accept_rule(kind, rule, company, ctx.user, telegram_id=ctx.telegram_id)
 	if not result.get("ok"):
 		# A rule that is not there and a write that would not go through are different problems,
