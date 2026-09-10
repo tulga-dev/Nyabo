@@ -405,6 +405,37 @@ def test_the_accountant_is_told_what_changed_and_accepts_the_new_version(
 	assert frappe.db.count("Nyabo Event", {"event_type": mn.EVENT_RULE_ACCEPTED}) == 2
 
 
+def test_a_change_the_lines_do_not_show_is_still_shown(books: str):
+	"""A pattern's scope decides which documents reach those lines, so it is part of the content.
+
+	It is also the one change a card of debit and credit lines would print identically twice —
+	«the rule changed, here it is, and here it is again» is worse than saying nothing, because it
+	reads as a bug and teaches the accountant to tap through the warning.
+	"""
+	import copy
+
+	from nyabo_mn.nyabo.seed import load_seed
+	from nyabo_mn.rules import seed
+
+	verify.accept(verify.KIND_PATTERN, BLOCKING, books, "tg-5001@nyabo.local")
+	row = copy.deepcopy(next(r for r in load_seed("posting_patterns")["rows"] if r["pattern_id"] == BLOCKING))
+	assert row.get("applies_to_vat") == "non_vat"
+	row["applies_to_vat"] = "any"  # the lines are untouched; what reaches them is not
+
+	seed.upsert(
+		seed.POSTING_PATTERN, BLOCKING, seed.posting_pattern_values(row), force=False, child_field="lines"
+	)
+
+	with pytest.raises(guard.UnverifiedRuleError):
+		guard.require_verified(BLOCKING, company=books)
+	change = verify.rule_change(books, BLOCKING, verify.PATTERN)
+	assert change is not None and change.before != change.after, (
+		"the card must never print the two versions identically"
+	)
+	assert mn.RULE_VAT_SCOPE_NON_VAT in "\n".join(change.before)
+	assert mn.RULE_VAT_SCOPE_ANY in "\n".join(change.after)
+
+
 def test_a_deploy_that_changes_nothing_leaves_every_acceptance_standing(books: str):
 	"""The everyday migrate: `sync` runs on every deploy and must not cry wolf."""
 	from nyabo_mn.rules import seed

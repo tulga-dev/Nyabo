@@ -366,7 +366,10 @@ def content_lines(doctype: str | None, content: dict[str, Any]) -> tuple[str, ..
 	if not content:
 		return ()
 	if doctype == PATTERN:
-		return tuple(_pattern_content_line(line) for line in content.get("lines") or ())
+		return (
+			*(_pattern_content_line(line) for line in content.get("lines") or ()),
+			_pattern_scope_line(content),
+		)
 	if doctype == PARAMETER:
 		value = content.get("value_json")
 		return (
@@ -383,6 +386,18 @@ def content_lines(doctype: str | None, content: dict[str, Any]) -> tuple[str, ..
 	if not isinstance(mapping, dict):
 		return ()
 	return tuple(f"{mn.COLUMN_ROLES.get(role, role)} = «{header}»" for role, header in mapping.items())
+
+
+def _pattern_scope_line(content: dict[str, Any]) -> str:
+	"""Which regime and which documents reach these lines — printed so a scope change is visible.
+
+	Without it a deploy that widened ``applies_to_vat`` and left the debits and credits alone
+	produced a card showing the same two lines twice: «the rule changed, here it is, and here it
+	is again». That reads as a bug, and it teaches the accountant to tap through the warning.
+	"""
+	scope = SCOPE_LABELS.get(str(content.get("applies_to_vat") or SCOPE_ANY), SCOPE_LABELS[SCOPE_ANY])
+	documents = str(content.get("document_types") or "").strip() or mn.VALUE_UNKNOWN
+	return mn.CARD_RULE_CHANGED_SCOPE.format(scope=scope, documents=documents)
 
 
 def _pattern_content_line(line: dict[str, Any]) -> str:

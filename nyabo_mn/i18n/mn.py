@@ -1516,6 +1516,10 @@ CARD_RULE_ACCEPT_ASK = "Энэ дүрэм {company}-ийн бүртгэлд ха
 CARD_RULE_CHANGED_TITLE = "⚠️ Дүрмийн бичилт өөрчлөгдсөн"
 CARD_RULE_CHANGED_WHEN = "Хүлээн зөвшөөрсөн хувилбар ({user} · {when}):"
 CARD_RULE_CHANGED_NOW = "Одоогийн хувилбар:"
+# The scope belongs on that card beside the debit and credit: it decides which documents reach
+# those lines, so changing it changes what the company posts even when the lines do not move —
+# and it is the one change a card of lines alone would print identically twice.
+CARD_RULE_CHANGED_SCOPE = "Хамрах хүрээ: {scope} · {documents}"
 CARD_RULE_CHANGED_ASK = (
 	"Хуучин хүлээн зөвшөөрөлт шинэ агуулгад хамаарахгүй тул {company}-д энэ дүрмээр "
 	"бичилт хийхгүй. Шинэ хувилбарыг уншаад дахин хүлээн зөвшөөрнө үү."
