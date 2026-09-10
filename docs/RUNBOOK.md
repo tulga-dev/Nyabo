@@ -187,7 +187,8 @@ bench --site nyabo.s.frappe.cloud execute nyabo_mn.simulator.run.run --kwargs '{
 | Symptom | Cause | Fix |
 |---|---|---|
 | Bot silent after `/start` | webhook not set or secret mismatch | run step 3; check Site Config keys |
-| Card says ⚠️ Дүрэм баталгаажаагүй | posting pattern not verified | desk → Nyabo Posting Pattern → check citation → tick Баталгаажсан |
+| Card says ⚠️ Дүрэм баталгаажаагүй | the rule is uncited and this company has not accepted it | the accountant runs `/дүрэм`, reads the rule and taps [Манай компанид хамаарна] — it clears that company only, and the refused [Батлах] finishes itself (ACC-01). A site admin in `ADMIN_TELEGRAM_IDS` may instead tap [Сайт даяар баталгаажуулах] once a citation is found (VER-08); nobody needs the desk. |
+| Card still says ⚠️ after the accountant accepted | a deploy rewrote the rule's posting lines, so the acceptance no longer covers them | expected: the chat shows both versions and asks for the new one. `Nyabo Event` filtered to `rule_changed_after_acceptance` says when it moved and whose name was on the old content. |
 | `Site config is missing OPENAI_API_KEY` | secret missing | step 2 |
-| Statement import asks for columns | bank layout unknown | answer the column questions once; an admin then verifies the Nyabo Bank Layout |
+| Statement import asks for columns | bank layout unknown | answer the column questions once, then confirm the mapping on the card that follows — the accountant who read the file confirms it for their own company and the stored statement is re-read on the spot (ACC-02). Ticking Баталгаажсан on the Nyabo Bank Layout row in the desk is the separate, site-wide act. |
 | `/хаалт` refuses | month not ended, or rules this company has not cleared were used | wait for month end; the accountant answers them with `/дүрэм` (ACC-01) |
