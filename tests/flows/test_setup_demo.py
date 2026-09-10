@@ -64,6 +64,11 @@ def test_a_ledger_with_a_real_posting_is_refused(run_receipt, books):
 	with pytest.raises(demo.DemoRefused, match=mn.MSG_DEMO_LEDGER_NOT_EMPTY.format(company=books)):
 		demo.seed(books, today=TODAY)
 	assert not demo.already_seeded(books)
+	# The founder's own test company, trial receipts and all: allowed when said so, in one place.
+	before = frappe.db.count("GL Entry", {"company": books, "is_cancelled": 0})
+	report = demo.seed(books, today=TODAY, allow_existing_postings=True)
+	assert report["vouchers"] == demo.MONTHS * 8
+	assert frappe.db.count("GL Entry", {"company": books, "is_cancelled": 0}) > before
 
 
 def test_with_a_bank_account_two_lines_wait_and_the_statement_balance_is_printed(books):

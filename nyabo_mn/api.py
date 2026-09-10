@@ -74,17 +74,18 @@ def setup_commands() -> dict[str, Any]:
 
 
 @frappe.whitelist(methods=["POST"])
-def seed_demo(company: str) -> dict[str, Any]:
-	"""Fill an EMPTY test company's ledger with six months of demo vouchers (``setup.demo``).
+def seed_demo(company: str, allow_existing_postings: int | str = 0) -> dict[str, Any]:
+	"""Fill a test company's ledger with six months of demo vouchers (``setup.demo``).
 
-	POST only, System Manager only, and the module itself refuses a ledger that already holds
-	a posting — so the worst a mis-typed company name can do is answer with the refusal.
+	POST only, System Manager only, and the module refuses a ledger that already holds a
+	posting unless ``allow_existing_postings=1`` says this is the test company whose own trial
+	receipts are in it — so a mis-typed company name answers with the refusal.
 	"""
 	_only_system_manager()
 	from nyabo_mn.setup import demo
 
 	try:
-		return demo.seed(company)
+		return demo.seed(company, allow_existing_postings=bool(int(allow_existing_postings or 0)))
 	except demo.DemoRefused as exc:
 		frappe.throw(str(exc))
 		raise  # unreachable

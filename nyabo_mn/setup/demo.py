@@ -274,15 +274,27 @@ def _seed_stock(company: str, today: dt.date, user: str) -> dict[str, Any]:
 	return {"intake": intake.name, **created}
 
 
-def seed(company: str, today: dt.date | None = None, user: str | None = None) -> dict[str, Any]:
-	"""Fill an empty test ledger; refuse a ledger with postings; answer «already» on a second run."""
+def seed(
+	company: str,
+	today: dt.date | None = None,
+	user: str | None = None,
+	*,
+	allow_existing_postings: bool = False,
+) -> dict[str, Any]:
+	"""Fill a test ledger; refuse one with postings unless told otherwise; «already» on a rerun.
+
+	``allow_existing_postings`` is the founder's own test company, which already carries the
+	receipts they sent while trying the bot: the demo vouchers go in beside them, every one
+	tagged «ДЕМО», and the refusal stays the default so a real client's ledger is never the
+	one that gets six months of invented figures by a slip of the company name.
+	"""
 	today = today or dt.date.today()
 	user = user or frappe.session.user
 	if not frappe.db.exists("Company", company):
 		raise DemoRefused(mn.MSG_DEMO_NO_COMPANY.format(company=company))
 	if already_seeded(company):
 		return {"company": company, "already": True}
-	if not _ledger_is_empty(company):
+	if not _ledger_is_empty(company) and not allow_existing_postings:
 		raise DemoRefused(mn.MSG_DEMO_LEDGER_NOT_EMPTY.format(company=company))
 	acc = _accounts(company)
 	vouchers = _seed_ledger(company, today, acc)
