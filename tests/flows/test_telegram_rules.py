@@ -140,7 +140,11 @@ def test_admin_lists_the_rules_that_are_blocking_work_most_used_first(
 	# The row says what the rule is for, and how much work it is holding up.
 	assert BLOCKING_LABEL in text
 	assert "3 удаа хэрэглэсэн" in text
-	assert _rule_datas(bot)[0] == keyboards.rule_data(keyboards.VERIFY_OPEN, verify.KIND_PATTERN, BLOCKING)
+	# Every row carries the company the list was drawn for, so opening one asks about that client
+	# and not about whichever other client of theirs has a refusal on record (MINOR 10).
+	assert _rule_datas(bot)[0] == keyboards.rule_data(
+		keyboards.VERIFY_OPEN, verify.KIND_PATTERN, BLOCKING, rules_site
+	)
 
 
 def test_the_latin_alias_reaches_the_same_command(rules_site: str):

@@ -890,6 +890,76 @@ def test_after_clearing_one_client_the_accountant_can_clear_the_next(
 	guard.require_verified(BLOCKING, company=books)  # A may post now, and so may B
 
 
+def test_rule_opened_from_the_list_asks_about_the_client_the_list_was_drawn_for(
+	books: str, company_v03: str, monkeypatch: pytest.MonkeyPatch
+):
+	"""MINOR 10: /дүрэм could open a rule and put the question about the wrong client.
+
+	Two of this accountant's clients are blocked on the same rule and neither has accepted it.
+	The list is drawn for the company they are working in, and opening a row from it resolved a
+	company of its own — the one with a refusal on record — so the card named client B while the
+	accountant was working through client A's list. The card names the company, so it is visible
+	rather than silent, but it is still the wrong question, and the answer to it would clear a
+	rule for books nobody was reading.
+
+	The company the list was drawn for now rides on every row, so the card asks about the same
+	client the list is about, and the acceptance is written for that client.
+	"""
+	posted = _guarded_post(monkeypatch)
+	link_user(MULTI_CLIENT_ID, "Accountant", books)
+	link_user(MULTI_CLIENT_ID, "Accountant", company_v03)
+	# Client B is refused first, so B's is the refusal on record; A is the active company.
+	other = make_proposal(company_v03, posting_pattern=BLOCKING)
+	bot = FakeBotApi()
+	run(bot, callback_update(MULTI_CLIENT_ID, f"p:{other.name}:ap"))
+	assert verify.acceptances(BLOCKING) == [] and posted == []
+	assert frappe.db.get_value("Nyabo User Link", str(MULTI_CLIENT_ID), "active_company") == books
+
+	bot.clear()
+	listed = run(bot, message_update(MULTI_CLIENT_ID, "/дүрэм"))
+	assert BLOCKING in listed["result"]["shown"]
+	opened = next(data for data in bot.callback_datas() if BLOCKING in data)
+	bot.clear()
+	run(bot, callback_update(MULTI_CLIENT_ID, opened))
+
+	card = "\n".join(bot.texts())
+	assert mn.CARD_RULE_ACCEPT_ASK.format(company=books) in card, "the list was A's; so is the question"
+	assert mn.CARD_RULE_ACCEPT_ASK.format(company=company_v03) not in card
+
+	accepted = run(bot, callback_update(MULTI_CLIENT_ID, _drawn_accept_datum(bot)))
+
+	assert accepted["result"]["company"] == books
+	assert [row["company"] for row in verify.acceptances(BLOCKING)] == [books]
+	with pytest.raises(guard.UnverifiedRuleError):
+		guard.require_verified(BLOCKING, company=company_v03)
+
+
+def test_a_rule_opened_from_a_list_keeps_asking_about_it_after_the_active_company_moves(
+	books: str, company_v03: str
+):
+	"""The other half: the list is a card that stays on screen while the accountant moves on.
+
+	They run /дүрэм for client A, switch to client B with /компани, then scroll back and tap a
+	row of A's list. The row was drawn for A and says so, so the card asks about A — the client
+	whose list it is — rather than about whichever company happens to be active by then.
+	"""
+	link_user(MULTI_CLIENT_ID, "Accountant", books)
+	link_user(MULTI_CLIENT_ID, "Accountant", company_v03)
+	bot = FakeBotApi()
+	run(bot, message_update(MULTI_CLIENT_ID, "/дүрэм"))
+	opened = next(data for data in bot.callback_datas() if BLOCKING in data)
+
+	run(bot, message_update(MULTI_CLIENT_ID, f"/компани {company_v03}"))
+	assert frappe.db.get_value("Nyabo User Link", str(MULTI_CLIENT_ID), "active_company") == company_v03
+
+	bot.clear()
+	run(bot, callback_update(MULTI_CLIENT_ID, opened))
+
+	card = "\n".join(bot.texts())
+	assert mn.CARD_RULE_ACCEPT_ASK.format(company=books) in card
+	assert mn.CARD_RULE_ACCEPT_ASK.format(company=company_v03) not in card
+
+
 def test_nobody_is_rung_about_a_block_of_their_own(books: str, monkeypatch: pytest.MonkeyPatch):
 	"""A rule name that is no row at all falls through to «who can clear this» — and the people
 	who can are this company's accountants, one of whom is the person who was just stopped.

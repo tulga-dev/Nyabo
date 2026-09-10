@@ -199,7 +199,14 @@ def handle_rules(ctx: Ctx) -> Any:
 		ctx.reply(mn.MSG_RULES_NONE)
 		return {"pending": 0}
 	shown = rules[:RULES_PER_CARD]
-	ctx.reply(cards.pending_rules_card(shown, total=len(rules)), keyboards.pending_rules_keyboard(shown))
+	# The list answers «what will refuse *this* company's postings» — ``pending`` is filtered for
+	# the active company — so every row carries that company and the card under it asks about the
+	# same client. Without it the card resolved a company of its own and could put the question
+	# about a different client of this same accountant than the list they are reading (MINOR 10).
+	ctx.reply(
+		cards.pending_rules_card(shown, total=len(rules)),
+		keyboards.pending_rules_keyboard(shown, company=ctx.company),
+	)
 	return {"pending": len(rules), "shown": [rule.name for rule in shown]}
 
 
