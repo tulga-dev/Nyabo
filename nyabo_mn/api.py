@@ -71,3 +71,20 @@ def setup_commands() -> dict[str, Any]:
 	from nyabo_mn.telegram import commands as commands_mod
 
 	return commands_mod.setup_commands()
+
+
+@frappe.whitelist(methods=["POST"])
+def seed_demo(company: str) -> dict[str, Any]:
+	"""Fill an EMPTY test company's ledger with six months of demo vouchers (``setup.demo``).
+
+	POST only, System Manager only, and the module itself refuses a ledger that already holds
+	a posting — so the worst a mis-typed company name can do is answer with the refusal.
+	"""
+	_only_system_manager()
+	from nyabo_mn.setup import demo
+
+	try:
+		return demo.seed(company)
+	except demo.DemoRefused as exc:
+		frappe.throw(str(exc))
+		raise  # unreachable

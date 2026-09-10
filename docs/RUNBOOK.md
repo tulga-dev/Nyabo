@@ -123,6 +123,21 @@ that is redrawn in place while the accountant taps; a typed answer gets a fresh 
 it. You should see: the `Тохиргоо дууслаа` card with the summary and a [Самбар] button, and,
 in the desk, a Nyabo Company Settings record.
 
+### Demo figures for a test company
+
+An empty test ledger shows «Энэ сард бичилт алга» on every card. To see the dashboard with
+numbers, seed six months of demo vouchers (sales into the bank, rent, salaries, supplies, a
+phone bill; two unmatched bank deposits when a bank account is configured; a small opening
+stock when the company keeps stock) from the desk console (`/app/system-console`):
+
+```js
+frappe.call("nyabo_mn.api.seed_demo", {company: "Тест ХХК"}).then(r => console.log(r.message))
+```
+
+Every voucher carries `nyabo_primary_document_ref` = «ДЕМО: …», so nothing pretends to a
+paper document. The call refuses a company whose ledger already holds a posting and answers
+`already: true` on a second run — it can never double a real ledger.
+
 ## 6. Daily operation
 
 - Receipts: the owner sends a photo; the accountant gets the card and taps Батлах.

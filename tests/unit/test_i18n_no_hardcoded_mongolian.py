@@ -36,6 +36,7 @@ ALLOWED: dict[str, str] = {
 	"matching/bank_import.py": "bank-name keywords matched against statement text",
 	"matching/rules.py": "the legal citation carried by a seeded rule",
 	"setup/chart_csv.py": "CSV column header aliases in the accountant's own file",
+	"setup/demo.py": "demo fixture data for a test company: supplier names, remarks, expense-leaf keywords",
 	"setup/inventory_intake.py": "inventory column header aliases in the accountant's own file",
 	"telegram/handlers/escape.py": "the Cyrillic escape words a user types (цуцлах, буцах, алгасах)",
 	"telegram/router.py": "the Cyrillic command names a user types",
