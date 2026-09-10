@@ -643,6 +643,36 @@ doctype(
 	],
 )
 
+# One accountant saying "this rule applies to *my* client's books" (DECISIONS ACC-01). A posting
+# pattern, a tax parameter and a bank layout are one row for the whole site, so the acceptance
+# cannot live on them: it is per company, and the name is what makes that a unique fact rather
+# than a growing pile of taps. ``rule_kind`` is the one-letter kind ``rules.verify`` already uses
+# in its callback data, so the name stays short enough for Frappe even with a Cyrillic company.
+doctype(
+	"Nyabo Rule Acceptance",
+	autoname="format:{company}:{rule_kind}:{rule}",
+	naming_rule="Expression",
+	permissions=ADMIN_ACCOUNTANT,
+	fields=[
+		F("company", "Link", "Компани", options="Company", reqd=1, in_list_view=1, in_standard_filter=1),
+		F("rule_kind", "Select", "Дүрмийн төрөл", options="p\nt\nb", reqd=1, in_standard_filter=1),
+		F("rule", "Data", "Дүрмийн код", reqd=1, in_list_view=1),
+		# Denormalised for whoever reads the row in the desk a year later: the one-letter kind is
+		# for callback data, and a rule's Mongolian name may be edited on the global row after
+		# this acceptance was given. What the accountant saw is what the audit trail must keep.
+		F("rule_doctype", "Data", "Дүрмийн бичлэгийн төрөл", read_only=1),
+		F("rule_label", "Data", "Дүрмийн нэр", read_only=1),
+		# Whether the rule carried a legal citation at the moment it was accepted: an accountant
+		# who accepted a cited reading and one who vouched for bare mechanics did different things.
+		F("had_citation", "Check", "Ишлэлтэй байсан", default="0", read_only=1),
+		SB("sb_acceptance", "Хүлээн зөвшөөрөлт"),
+		F("accepted_by", "Link", "Хүлээн зөвшөөрсөн хэрэглэгч", options="User", reqd=1, read_only=1),
+		F("accepted_telegram_id", "Data", "Telegram ID", read_only=1),
+		F("accepted_at", "Datetime", "Огноо", reqd=1, read_only=1, in_list_view=1),
+		F("note", "Small Text", "Тэмдэглэл"),
+	],
+)
+
 doctype(
 	"Nyabo Event",
 	autoname="NYEV-.######",

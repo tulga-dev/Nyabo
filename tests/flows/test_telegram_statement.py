@@ -14,7 +14,7 @@ import frappe
 import pytest
 
 from nyabo_mn.i18n import mn
-from nyabo_mn.telegram import _deps
+from nyabo_mn.telegram import _deps, keyboards
 from nyabo_mn.telegram._deps import DependencyMissing
 from tests.fixtures.statements import make_fixtures as fixtures
 from tests.fixtures.telegram.fake_bot import FakeBotApi, link_user, message_update, run
@@ -74,8 +74,13 @@ def test_the_same_file_twice_is_refused_before_it_is_imported(books):
 	assert mn.MSG_STATEMENT_RECEIVED not in bot.texts()
 
 
-def test_a_layout_nobody_verified_imports_nothing(books):
-	"""CORE-08: a mapping that was never verified must not be re-asked and must not post."""
+def test_a_layout_nobody_confirmed_imports_nothing_and_asks_the_accountant(books):
+	"""CORE-08 with ACC-02: the mapping is not re-asked, and the confirmation is the reader's own.
+
+	The sentence used to end «Админд мэдэгдлээ» while this branch notified nobody — the accountant
+	was promised something that did not happen, about a person who could not have read their file
+	anyway. Now the mapping is shown to the person who has it and the button is theirs.
+	"""
 	helpers.setup_banks(books)
 	helpers.register_layouts()
 	frappe.db.set_value("Nyabo Bank Layout", "test_khan_synthetic", "verified", 0)
@@ -83,15 +88,16 @@ def test_a_layout_nobody_verified_imports_nothing(books):
 	link_user(9303, "Accountant", books)
 	bot = FakeBotApi(files={"stmt": data})
 	_send(bot, 9303, filename)
-	assert bot.last_text == mn.MSG_STATEMENT_LAYOUT_UNVERIFIED
+	assert mn.MSG_STATEMENT_LAYOUT_UNVERIFIED.format(layout="test_khan_synthetic") in bot.texts()
+	assert bot.callback_datas() == [
+		keyboards.rule_data(keyboards.VERIFY_ACCEPT, "b", "test_khan_synthetic"),
+		keyboards.rule_data(keyboards.VERIFY_LEAVE, "b", "test_khan_synthetic"),
+	]
 	assert frappe.db.count("Bank Transaction") == 0
 	assert frappe.db.get_value("Nyabo Chat State", {"chat_id": "9303"}, "state") in (None, "")
 	document = frappe.get_last_doc("Nyabo Document")
 	assert document.status == "received"  # nothing was extracted from it
-	# Current behaviour, pinned: MSG_STATEMENT_LAYOUT_UNVERIFIED ends «Админд мэдэгдлээ», but
-	# this branch sends no admin notice (only the newly saved-layout branch does). Either the
-	# branch notifies (notify_admins with the layout id, as save_layout does) or the sentence
-	# goes; until then the accountant is promised something that did not happen.
+	# Nothing waits on an admin, so nothing is sent to one from this branch either.
 	assert [kw for kw in bot.sent("send_message") if kw["chat_id"] == 1001] == []
 
 

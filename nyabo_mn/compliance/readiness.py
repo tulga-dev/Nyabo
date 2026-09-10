@@ -208,19 +208,27 @@ def _check_policy_document() -> dict[str, Any]:
 
 
 def _check_rules_verified() -> dict[str, Any]:
-	"""How many posting patterns may post — and, of those, how many a person actually vouched for.
+	"""How many posting patterns may post, and on whose authority — all three of them, apart.
 
 	A bare count would let a certification reader take 35 verified rows for 35 human decisions,
-	while the flag on most of them came from the seed (DECISIONS VER-07). The split is the row.
+	while the flag on most of them came from the seed (DECISIONS VER-07). A rule one company's
+	accountant accepted for their own books is a third thing again (ACC-01): it is a named
+	person, but it speaks for one company and no citation stands behind it. Three claims, three
+	numbers, never added together.
 	"""
 	from nyabo_mn.rules import verify
 
 	counts = verify.verified_counts("Nyabo Posting Pattern")
+	accepted = verify.accepted_counts("Nyabo Posting Pattern")
 	return _row(
 		"rules_verified",
 		counts["verified"] > 0,
 		mn.READINESS_DETAIL_RULES_VERIFIED.format(
-			count=counts["verified"], by_seed=counts["by_seed"], by_person=counts["by_person"]
+			count=counts["verified"],
+			by_seed=counts["by_seed"],
+			by_person=counts["by_person"],
+			accepted=accepted["rules"],
+			companies=accepted["companies"],
 		),
 	)
 

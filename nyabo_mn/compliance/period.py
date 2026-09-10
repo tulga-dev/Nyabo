@@ -65,12 +65,14 @@ def proposal_pattern_id(proposal: Any) -> str | None:
 	return None
 
 
-def _pattern_verified(pattern_id: str | None) -> bool:
-	"""The same question the posting guard asked: is this rule verified (row first, else seed)?
+def _pattern_verified(pattern_id: str | None, company: str | None = None) -> bool:
+	"""The same question the posting guard asked: may this company post on this rule?
 
-	An id that resolves to no pattern at all counts as unverified — refusing is the safe
-	default (``rules.guard``), and a posted entry whose rule cannot be shown is exactly what
-	the lock exists to catch.
+	The company is part of the question because it was part of the posting guard's question
+	(DECISIONS ACC-01): a rule this company's accountant accepted let the entry through, so the
+	month-end checklist must not then refuse to close on it. An id that resolves to no pattern at
+	all counts as unverified — refusing is the safe default (``rules.guard``), and a posted entry
+	whose rule cannot be shown is exactly what the lock exists to catch.
 	"""
 	if not pattern_id:
 		return False
@@ -81,7 +83,7 @@ def _pattern_verified(pattern_id: str | None) -> bool:
 		spec = patterns.load(pattern_id)
 	except NoPatternError:
 		return False
-	return guard.is_verified(spec)
+	return guard.is_verified(spec, company=company)
 
 
 def unverified_proposals(company: str, start: dt.date, end: dt.date) -> list[str]:
@@ -100,7 +102,7 @@ def unverified_proposals(company: str, start: dt.date, end: dt.date) -> list[str
 		# A proposal that posted no entry of its own (no entry_json) names no rule to check.
 		if not proposal.get("posting_pattern") and not proposal.get("entry_json"):
 			continue
-		if not _pattern_verified(proposal_pattern_id(proposal)):
+		if not _pattern_verified(proposal_pattern_id(proposal), company):
 			pending.append(proposal.name)
 	return pending
 

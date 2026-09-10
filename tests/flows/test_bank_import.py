@@ -6,6 +6,7 @@ import pytest
 
 from nyabo_mn.i18n import mn
 from nyabo_mn.matching import bank_import
+from nyabo_mn.telegram import keyboards
 from tests.fixtures.statements import make_fixtures as fixtures
 from tests.flows import bank_helpers as helpers
 
@@ -216,7 +217,8 @@ def test_run_import_starts_the_column_mapping_for_an_unknown_layout(books):
 	assert frappe.db.get_value("Nyabo Chat State", {"chat_id": "3101"}, "state") == "layout:0"
 
 
-def test_run_import_asks_the_admin_to_verify_a_learned_layout(books):
+def test_run_import_asks_the_accountant_to_confirm_a_learned_layout(books):
+	"""ACC-02: the person who mapped the columns confirms them; nobody is sent away to wait."""
 	import frappe
 
 	helpers.setup_banks(books)
@@ -224,8 +226,14 @@ def test_run_import_asks_the_admin_to_verify_a_learned_layout(books):
 	frappe.db.set_value("Nyabo Bank Layout", layout, "verified", 0)
 	name = helpers.statement_document(books, *fixtures.khan_xlsx())
 	result, bot = _run_import(name, 3102)
-	assert result == {"ok": True, "unverified": True}
-	assert bot.last_text == mn.MSG_STATEMENT_LAYOUT_UNVERIFIED
+	assert result == {"ok": True, "unverified": True, "layout": layout}
+	assert mn.MSG_STATEMENT_LAYOUT_UNVERIFIED.format(layout=layout) in bot.texts()
+	# ...and the confirmation is offered right there, with the mapping to read and a button.
+	assert layout in bot.last_text and "Огноо" in bot.last_text
+	assert bot.callback_datas() == [
+		keyboards.rule_data(keyboards.VERIFY_ACCEPT, "b", layout),
+		keyboards.rule_data(keyboards.VERIFY_LEAVE, "b", layout),
+	]
 	assert frappe.db.count("Bank Transaction") == 0
 	assert frappe.db.get_value("Nyabo Chat State", {"chat_id": "3102"}, "state") in (None, "")
 

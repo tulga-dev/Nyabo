@@ -1,9 +1,14 @@
 """Which layout applies to these rows (ARCHITECTURE §5.4).
 
-Order: verified layouts by header signature; learned (unverified) layouts only under
-``frappe.flags.nyabo_simulation``; never a seed placeholder. The generic keyword guess
-is always computed and returned separately so the bot can show the accountant a
-pre-filled column question even when nothing matched.
+Order: verified layouts by header signature; layouts this company's accountant has confirmed
+(DECISIONS ACC-02); learned (unverified) layouts only under ``frappe.flags.nyabo_simulation``;
+never a seed placeholder. The generic keyword guess is always computed and returned separately so
+the bot can show the accountant a pre-filled column question even when nothing matched.
+
+WHY a company's confirmation counts here: the accountant who read the statement and mapped its
+columns is the person who knows whether the mapping is right, and the evidence is their own file
+rather than a legal text. It stays per company all the same — one client's Khan Bank export is not
+proof about another client's — so the row's site-wide ``verified`` flag is still a site admin's.
 """
 
 from __future__ import annotations
@@ -24,17 +29,34 @@ def simulation_mode() -> bool:
 	return bool(frappe.flags.get("nyabo_simulation"))
 
 
-def usable_layouts(specs: Iterable[LayoutSpec], *, simulation: bool | None = None) -> list[LayoutSpec]:
-	"""Layouts a real import may trust: verified ones, plus learned ones under simulation."""
+def usable_layouts(
+	specs: Iterable[LayoutSpec], *, simulation: bool | None = None, company: str | None = None
+) -> list[LayoutSpec]:
+	"""Layouts a real import may trust for this company (ACC-02), plus learned ones under simulation."""
 	if simulation is None:
 		simulation = simulation_mode()
 	out: list[LayoutSpec] = []
 	for spec in specs:
 		if spec.is_generic:
 			continue
-		if spec.verified or (simulation and layouts_mod.is_learned(spec)):
+		if spec.verified or accepted(spec, company) or (simulation and layouts_mod.is_learned(spec)):
 			out.append(spec)
 	return out
+
+
+def accepted(spec: LayoutSpec, company: str | None) -> bool:
+	"""True when this company's accountant confirmed this layout for their own books.
+
+	Read through ``rules.verify`` so the layout, the posting pattern and the tax parameter all
+	answer the same question in the same words and leave the same audit row.
+	"""
+	if not company or not getattr(spec, "layout_id", None):
+		return False
+	try:
+		from nyabo_mn.rules import verify
+	except ImportError:  # pragma: no cover - the rules package is always present on a site
+		return False
+	return verify.acceptance(company, spec.layout_id, verify.LAYOUT) is not None
 
 
 def generic_template(specs: Iterable[LayoutSpec]) -> LayoutSpec | None:
@@ -55,7 +77,7 @@ def detect(
 ) -> tuple[LayoutSpec | None, LayoutSpec | None]:
 	"""(trusted layout or None, generic guess or None)."""
 	specs = layouts_mod.load_layouts(company)
-	trusted = detect_layout(rows, usable_layouts(specs, simulation=simulation))
+	trusted = detect_layout(rows, usable_layouts(specs, simulation=simulation, company=company))
 	template = generic_template(specs)
 	guess = guess_layout(rows, template=template) if template is not None else guess_layout(rows)
 	return trusted, guess
@@ -68,7 +90,11 @@ def unverified_match(rows: Sequence[Sequence[Any]], company: str | None = None) 
 	the mapping question has been answered once and the admin, not the accountant, is next.
 	"""
 	specs = layouts_mod.load_layouts(company)
-	candidates = [s for s in specs if not s.is_generic and not s.verified and s.header_signature]
+	candidates = [
+		s
+		for s in specs
+		if not s.is_generic and not s.verified and not accepted(s, company) and s.header_signature
+	]
 	return detect_layout(rows, candidates)
 
 
@@ -96,6 +122,7 @@ def find_account_number(rows: Sequence[Sequence[Any]], numbers: Iterable[str]) -
 
 
 __all__ = [
+	"accepted",
 	"detect",
 	"find_account_number",
 	"generic_template",

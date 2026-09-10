@@ -175,6 +175,12 @@ BELOW_POINTS_AT: dict[str, str] = {
 	"MSG_STATEMENT_LAYOUT_INCOMPLETE": (
 		"statement._answer_column re-asks the column straight after it, roles keyboard and all"
 	),
+	"MSG_STATEMENT_LAYOUT_SAVED": (
+		"statement.save_layout sends ask_layout_confirmation straight after it, mapping and buttons"
+	),
+	"MSG_STATEMENT_LAYOUT_UNVERIFIED": (
+		"statement.run_import sends ask_layout_confirmation straight after it, mapping and buttons"
+	),
 	"ONB_CURRENCY_ADDED": "onboarding._on_currency sends it with keyboards.onboarding_currencies()",
 }
 

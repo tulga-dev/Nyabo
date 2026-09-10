@@ -99,7 +99,7 @@ def eligibility(company: str, end: dt.date) -> dict[str, Any]:
 	rows = {}
 	for key in ELIGIBILITY_KEYS:
 		row = rules_bridge.parameter_on(key, end)
-		rules_bridge.require_verified(row)
+		rules_bridge.require_verified(row, company=company)
 		rows[key] = row
 	try:
 		vat_payer: bool | None = _regime_is_vat_payer(company, end)
@@ -154,7 +154,7 @@ def compute(company: str, quarter: str) -> dict[str, Any]:
 	simulation = rules_bridge.is_simulation()
 	eligible = eligibility(company, end)
 	rate_row = rules_bridge.parameter_on(RATE_KEY, end)
-	rules_bridge.require_verified(rate_row)
+	rules_bridge.require_verified(rate_row, company=company)
 	rate = rate_row.as_decimal()
 	base_accounts, other_income_accounts, roles_resolved = revenue_accounts(company)
 	rows = gl.rows(company, start, end, accounts=base_accounts) if base_accounts else []

@@ -57,14 +57,18 @@ def is_simulation() -> bool:
 	return guard.is_simulation()
 
 
-def require_verified(row: ParameterRow) -> None:
+def require_verified(row: ParameterRow, company: str | None = None) -> None:
 	"""Refuse an unverified parameter for a statutory figure (F-11).
 
 	No caller-supplied bypass: ``rules.guard.require_verified`` decides, and its only
 	exemption is ``frappe.flags.nyabo_simulation``. A number nobody checked must not reach
 	a tax return because someone ticked a box on a report.
+
+	``company`` is not a bypass either: it lets through exactly the rows *that company's own
+	accountant* has accepted for their books (DECISIONS ACC-01), which is a named person on the
+	record — the same standard the flag itself holds a site admin to.
 	"""
-	guard.require_verified(row)
+	guard.require_verified(row, company=company)
 
 
 def row_summary(row: ParameterRow) -> dict[str, Any]:

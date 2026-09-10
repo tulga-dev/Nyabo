@@ -306,9 +306,13 @@ def set_regime(company: str, regime: str, effective_from: Any) -> Any:
 # --- nyabo_mn.rules.verify (the door MSG_UNVERIFIED_RULE_BLOCKED points at) ----------------------
 
 
-def pending_rules(limit: int | None = None) -> list[Any]:
-	"""``rules.verify.PendingRule`` rows: the unverified rules that are blocking real postings."""
-	return _call("nyabo_mn.rules.verify", "pending", limit=limit)
+def pending_rules(limit: int | None = None, company: str | None = None) -> list[Any]:
+	"""``rules.verify.PendingRule`` rows: the unverified rules that are blocking real postings.
+
+	With a company, the rules that company's accountant has already accepted are left out: the
+	list answers «what will refuse my postings», and those will not.
+	"""
+	return _call("nyabo_mn.rules.verify", "pending", limit=limit, company=company)
 
 
 def rule_kinds() -> tuple[str, ...]:
@@ -316,13 +320,53 @@ def rule_kinds() -> tuple[str, ...]:
 	return _call("nyabo_mn.rules.verify", "kinds")
 
 
-def rule_evidence(kind: str, rule: str) -> Any:
-	"""``rules.verify.RuleEvidence`` for one rule, or None when the row is gone."""
-	return _call("nyabo_mn.rules.verify", "evidence", kind, rule)
+def rule_evidence(kind: str, rule: str, company: str | None = None) -> Any:
+	"""``rules.verify.RuleEvidence`` for one rule, or None when the row is gone.
+
+	``company`` adds that company's own acceptance to the evidence, so the card can say which of
+	the three provenances (seed citation, site admin, this company's accountant) clears the rule.
+	"""
+	return _call("nyabo_mn.rules.verify", "evidence", kind, rule, company)
 
 
 def verify_rule(kind: str, rule: str, user: str, telegram_id: str | int | None = None) -> dict[str, Any]:
 	return _call("nyabo_mn.rules.verify", "verify", kind, rule, user, telegram_id=telegram_id)
+
+
+def accept_rule(
+	kind: str, rule: str, company: str, user: str, telegram_id: str | int | None = None
+) -> dict[str, Any]:
+	"""[Манай компанид хамаарна]: this company's accountant applying an uncited rule to its books."""
+	return _call("nyabo_mn.rules.verify", "accept", kind, rule, company, user, telegram_id=telegram_id)
+
+
+def rule_acceptance(company: str | None, rule: str) -> Any:
+	"""That company's acceptance of the rule, or None — the question the guard asks."""
+	return _call("nyabo_mn.rules.verify", "acceptance", company, rule)
+
+
+def blocked_proposal(rule: str, company: str | None, telegram_id: str | int | None) -> str | None:
+	"""The proposal this person's own refused [Батлах] was about, so an acceptance can finish it."""
+	return _call("nyabo_mn.rules.verify", "blocked_proposal", rule, company, telegram_id)
+
+
+def record_rule_block(
+	rule: str,
+	company: str | None = None,
+	proposal: str | None = None,
+	telegram_id: str | int | None = None,
+	user: str | None = None,
+) -> str:
+	"""The Nyabo Event behind every refused [Батлах]: which rule stopped which document."""
+	return _call(
+		"nyabo_mn.rules.verify",
+		"record_block",
+		rule,
+		company,
+		proposal,
+		telegram_id,
+		user=user,
+	)
 
 
 def recent_rule_request(rule: str, company: str | None = None) -> Any:
@@ -330,9 +374,13 @@ def recent_rule_request(rule: str, company: str | None = None) -> Any:
 	return _call("nyabo_mn.rules.verify", "recent_request", rule, company)
 
 
-def rule_requesters(rule: str) -> list[str]:
-	"""The chats this rule stopped recently — the people owed the news that it was verified."""
-	return _call("nyabo_mn.rules.verify", "requesters", rule)
+def rule_requesters(rule: str, company: str | None = None) -> list[str]:
+	"""The chats this rule stopped recently — the people owed the news that it was cleared.
+
+	``company`` narrows them to the books an acceptance actually unblocks; a global verification
+	passes nothing and reaches everyone.
+	"""
+	return _call("nyabo_mn.rules.verify", "requesters", rule, company=company)
 
 
 def request_rule_verification(
@@ -341,6 +389,7 @@ def request_rule_verification(
 	user: str | None = None,
 	telegram_id: str | int | None = None,
 	admins_notified: int = 0,
+	proposal: str | None = None,
 ) -> str:
 	"""The Nyabo Event behind «the request has been recorded» in the refusal reply."""
 	return _call(
@@ -351,6 +400,7 @@ def request_rule_verification(
 		user=user,
 		telegram_id=telegram_id,
 		admins_notified=admins_notified,
+		proposal=proposal,
 	)
 
 

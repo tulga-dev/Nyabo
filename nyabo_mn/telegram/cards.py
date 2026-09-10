@@ -461,9 +461,13 @@ def quality_card(company: str, days: int, metrics: dict[str, Any]) -> str:
 
 # --- rule verification (/дүрэм, §1.2) ---------------------------------------------------------------
 
+#: ``rules.verify.KIND_LAYOUT``, spelled here so this module does not import the rules package
+#: (the cards are drawn from plain objects and the simulator draws them without a bench).
+LAYOUT_KIND = "b"
+
 
 def pending_rules_card(rules: Any, total: int | None = None) -> str:
-	"""The list an admin sees: what is blocking work, most-used first, and what each rule is for.
+	"""The list the accountant sees: what is blocking work, most-used first, and what each is for.
 
 	``total`` is the number of unverified rules there really are, when the list was cut short:
 	saying "16" and showing eight is honest, showing eight and saying nothing is not.
@@ -533,6 +537,7 @@ def rule_card(rule: Any) -> str:
 	lines += _rule_citation(rule)
 	lines += _rule_briefing(rule)
 	lines.append("")
+	company = str(getattr(rule, "company", "") or "")
 	if getattr(rule, "verified", False):
 		# The same evidence, read rather than decided: a verified rule asks nothing, and names
 		# whoever vouched for it. Without this branch the card ended «Баталгаажуулах уу?» on a
@@ -544,6 +549,21 @@ def rule_card(rule: Any) -> str:
 				)
 			)
 		)
+	elif getattr(rule, "accepted", False):
+		# The third provenance, and it is never printed as one of the other two: this company's
+		# accountant applied an uncited rule to their own books (DECISIONS ACC-01).
+		lines.append(
+			mn.CARD_RULE_ACCEPTED_BY.format(
+				company=company or mn.VALUE_UNKNOWN,
+				user=str(getattr(rule, "accepted_by", "") or mn.VALUE_UNKNOWN),
+				when=str(getattr(rule, "accepted_at", "") or "")[:16],
+			)
+		)
+	elif company:
+		# The question the accountant is really being asked: not «is this the law» — that is the
+		# site admin's question — but «do the books I sign work this way», answered for one company.
+		lines.append(mn.CARD_RULE_ACCEPT_RESPONSIBILITY.format(company=company))
+		lines.append(mn.CARD_RULE_ACCEPT_ASK.format(company=company))
 	else:
 		lines.append(mn.CARD_RULE_RESPONSIBILITY)
 		lines.append(mn.CARD_RULE_ASK)
@@ -585,7 +605,20 @@ def _rule_briefing(rule: Any) -> list[str]:
 	return lines
 
 
+def rule_accepted_source(company: Any, accepted_by: Any, accepted_at: Any = "") -> str:
+	"""«accepted for <company> by <person> on <date>» — the third provenance, in its own words."""
+	return mn.RULE_VERIFIED_SOURCE_COMPANY.format(
+		company=str(company or mn.VALUE_UNKNOWN),
+		user=str(accepted_by or mn.VALUE_UNKNOWN),
+		when=str(accepted_at or "")[:16],
+	)
+
+
 def _rule_citation(rule: Any) -> list[str]:
+	if getattr(rule, "kind", "") == LAYOUT_KIND:
+		# A column mapping has no legal source; what it is read against is the accountant's own
+		# statement file. «No citation» would send them looking for a provision that cannot exist.
+		return [mn.CARD_RULE_LAYOUT_SOURCE]
 	if not rule.has_citation:
 		return [mn.CARD_RULE_NO_CITATION]
 	head = (

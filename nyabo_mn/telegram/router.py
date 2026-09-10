@@ -307,6 +307,21 @@ def site_admin_ids(settings: Any) -> set[int]:
 
 def company_admin_ids(company: str) -> set[int]:
 	"""Telegram ids of the active links whose role *on this company* is Admin (access.role_for)."""
+	return _company_role_ids(company, ("Admin",))
+
+
+def company_accountant_ids(company: str) -> set[int]:
+	"""Telegram ids of the people who keep this company's books — the accountants and its admins.
+
+	They are the group who may accept a rule for these books (DECISIONS ACC-01), which is why a
+	blocked owner's notice goes here and not only to the site admins: the person who decides
+	whether an uncited rule applies to a company is that company's accountant, and an Admin link
+	role carries the same books (``context.ACCOUNTANT_ROLES``).
+	"""
+	return _company_role_ids(company, ("Accountant", "Admin"))
+
+
+def _company_role_ids(company: str, roles: tuple[str, ...]) -> set[int]:
 	rows = frappe.get_all(
 		access.LINK_COMPANY_DOCTYPE,
 		filters={"parenttype": access.LINK_DOCTYPE, "company": company},
@@ -325,7 +340,7 @@ def company_admin_ids(company: str) -> set[int]:
 	ids: set[int] = set()
 	for row in rows:
 		link = links.get(row["parent"])
-		if link is None or (row.get("role") or link.get("role")) != "Admin":
+		if link is None or (row.get("role") or link.get("role")) not in roles:
 			continue
 		try:
 			ids.add(int(link["telegram_id"]))
