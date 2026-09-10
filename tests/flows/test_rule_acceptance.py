@@ -550,6 +550,44 @@ def test_nobody_is_rung_about_a_block_of_their_own(books: str, monkeypatch: pyte
 	assert frappe.db.exists("Nyabo Event", {"event_type": mn.EVENT_RULE_VERIFY_REQUESTED})
 
 
+def test_a_name_no_guarded_doctype_knows_is_never_cleared_by_an_acceptance(
+	books: str, monkeypatch: pytest.MonkeyPatch
+):
+	"""MINOR 8: ``guard._ref`` returns no DocType for a bare name none of them has, and the
+	acceptance lookup went ahead anyway — with ``doctype=None``, so any acceptance of that name
+	for that company would have cleared it.
+
+	Unknown means unverified. That is ``require_verified``'s own rule and it is what the guard
+	says everywhere else; here it was being decided by accident, which is a different thing from
+	being decided.
+	"""
+	asked: list[tuple[Any, ...]] = []
+	real = verify.acceptance
+
+	def spy(company: Any, rule: str, doctype: str | None = None) -> Any:
+		asked.append((company, rule, doctype))
+		return real(company, rule, doctype)
+
+	monkeypatch.setattr(verify, "acceptance", spy)
+
+	assert guard.accepted_for("no_such_rule_anywhere", books) is False
+
+	# The reachable shape of the same thing: the rule row is deleted and its acceptance is left
+	# behind. A rule Nyabo cannot look up has no content anybody can have read.
+	monkeypatch.undo()
+	verify.accept(verify.KIND_PATTERN, BLOCKING, books, "tg-5001@nyabo.local")
+	guard.require_verified(BLOCKING, company=books)
+	frappe.delete_doc(verify.PATTERN, BLOCKING)
+
+	assert guard.accepted_for(BLOCKING, books) is False
+	assert guard.is_verified(BLOCKING, company=books) is False
+	with pytest.raises(guard.UnverifiedRuleError):
+		guard.require_verified(BLOCKING, company=books)
+	# The acceptance row stays: it is a record of what somebody read, never a permission.
+	assert [row["company"] for row in verify.acceptances(BLOCKING)] == [books]
+	assert asked == [], "nothing is asked about a name that is in none of the guarded DocTypes"
+
+
 # --- 5. a cited rule asks nobody -------------------------------------------------------------------
 
 

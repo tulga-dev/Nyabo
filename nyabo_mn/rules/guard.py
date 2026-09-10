@@ -79,9 +79,17 @@ def accepted_for(rule: Any, company: str | None) -> bool:
 
 	Kept separate from `is_verified` so a card can say *which* of the two cleared the rule: an
 	accountant's acceptance and a legal citation are not the same claim (DECISIONS VER-07).
+
+	A rule `_ref` cannot place in any guarded DocType clears nothing, and that is decided here
+	rather than left to happen. The lookup used to go ahead with `doctype=None`, which asks «is
+	there any acceptance of this name for this company» — and the reachable shape of that is a
+	rule row deleted in the desk with its acceptance left behind: a name Nyabo can no longer look
+	up, clearing postings because somebody once answered for content that is no longer there.
+	Unknown means unverified, which is `require_verified`'s own rule, said once more where it was
+	being decided by accident.
 	"""
 	doctype, name = _ref(rule)
-	if not name or not company:
+	if not doctype or not name or not company:
 		return False
 	from nyabo_mn.rules import verify
 
