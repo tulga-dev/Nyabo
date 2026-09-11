@@ -76,6 +76,7 @@ def answer_question(
 	memory: dict[str, Any] | None = None,
 	on_turn: Callable[[], None] | None = None,
 	on_step: Callable[[str, dict[str, Any]], None] | None = None,
+	source: dict[str, Any] | None = None,
 ) -> Any:
 	"""``agent.questions.Reply``: the sentence, its follow-up buttons and the memory to store.
 
@@ -92,6 +93,7 @@ def answer_question(
 		memory=memory,
 		on_turn=on_turn,
 		on_step=on_step,
+		source=source,
 	)
 
 

@@ -39,7 +39,12 @@ def _books_call(kind: str, result: dict, **args) -> ToolCall:
 
 
 def test_tool_specs_are_strict_and_named_per_contract():
-	assert questions.TOOL_NAMES == ("answer_from_books", "answer_faq", "escalate_to_admin")
+	assert questions.TOOL_NAMES == (
+		"answer_from_books",
+		"answer_faq",
+		"record_transaction",
+		"escalate_to_admin",
+	)
 	for spec in questions.TOOL_SPECS:
 		assert spec.parameters["additionalProperties"] is False
 		assert spec.parameters["required"] == list(spec.parameters["properties"])
@@ -90,7 +95,7 @@ def test_answer_from_default_fixture_builds_flags_from_trace():
 	assert (
 		call.purpose == "question"
 		and call.tools == questions.TOOL_NAMES
-		and call.prompt_version == "question.v3"
+		and call.prompt_version == "question.v4"
 	)
 	assert 'label="question"' in call.user_text and call.user_text.rstrip().endswith(
 		"Current time: 2026-09-08T12:00+00:00"

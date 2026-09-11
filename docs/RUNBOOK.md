@@ -158,6 +158,9 @@ and bank line (they stay in the desk, cancelled — art. 11.1) and touches nothi
     back to Unpaid and the statement line back to Unreconciled, ready to settle again.
 - Month end: `/хаалт 2026-09` → checklist → summaries as PDF → **Хаах**.
 - Corrections: on a posted entry's card, **Засах** → reason → reversal + new proposal.
+- Typed transactions: «Ганзориг ХХК-аас 2 сая орлого орлоо» or «Шатахуунд 85 000 бэлнээр төлсөн»
+  becomes a proposal card with [Батлах] for the accountant — the message is filed as the primary
+  document, nothing posts before the tap, and a sentence without an amount is asked back.
 - Questions: type a sentence; the answer comes from the books, read-only. While the model
   works the chat shows a streamed «Бодож байна…» draft (Bot API `sendRichMessageDraft`); the
   answer card carries the handler's rows as a table and the next reads as buttons.

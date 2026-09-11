@@ -1438,3 +1438,21 @@ while the model works is no longer «typing…» alone: `sendRichMessageDraft` s
 «Дэвтрээс уншиж байна: 6210 · 2026 оны 9-р сар» per tool call, the line built by code from
 the call's arguments (`handlers.question.step_text`), never from the model's words.
 
+### PRO-03 A transaction typed in words is a draft for the accountant, never a question for an admin
+Free text used to have one door, the read-only question answerer, whose prompt sent anything
+that "needs an action" to `escalate_to_admin` — so «Ганзориг ХХК-аас 2 сая орлого орлоо» came
+back as «Асуултыг админд дамжууллаа», to a founder who had just been told there is no admin
+step. The question loop now carries a fourth tool, `record_transaction` (`agent.typed`): the
+model turns the sentence into direction, amount, party, how it was paid and (for an expense)
+an account code; code re-reads the amount as a Decimal and refuses anything that is not
+positive, resolves every account from the chart by role (income always credits the sales
+revenue role; a VAT payer's output VAT is carved out at the verified rate; an expense takes
+the model's code only when it is an expense leaf of this chart, else the default), builds the
+lines the seeded pattern shape says, files the typed message itself as the `Nyabo Document`
+behind the entry (art. 13.7, as the typed stock list already is), and inserts a `Nyabo
+Proposal` of kind `text` with `needs_accountant` set. The chat then sends the same card a
+receipt gets, with [Батлах] [Данс солих] [Татгалзах]; the model's closing words are not sent.
+The prompt (`question.v4`) says it plainly: escalation is for what only an admin can do, and
+recording a transaction is the accountant's confirmation, never an admin's. A sentence with
+no amount is answered as a question — the code never guesses a figure.
+

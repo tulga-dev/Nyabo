@@ -1880,3 +1880,18 @@ ANSWER_TRUNCATED_SUPPLIERS = (
 CARD_THINKING_STEP = "Дэвтрээс уншиж байна: {subject}"
 CARD_THINKING_FAQ = "Тусламжаас хайж байна…"
 CARD_THINKING_ESCALATE = "Админд дамжуулж байна…"
+
+# --- a transaction typed in words (agent.typed): the card, its explanation, its warning ---------------
+TYPED_INCOME_LABEL = "орлого"
+TYPED_EXPENSE_LABEL = "зардал"
+MSG_TYPED_PROPOSED = (
+	"Бичсэн {kind}: {amount}₮ ({date}). Доорх картыг нягтлан батална — батлах хүртэл юу ч бүртгэгдэхгүй."
+)
+EXPL_TYPED_INCOME = (
+	"«{party}» — {amount}₮ орлого, бичгээр бүртгүүлэв: {debit_code} дебет, {credit_code} кредит."
+)
+EXPL_TYPED_EXPENSE = (
+	"«{party}» — {amount}₮ зардал, бичгээр бүртгүүлэв: {debit_code} дебет, {credit_code} кредит."
+)
+WARN_TYPED_NO_DOCUMENT = "Баримтгүй, бичгээр бүртгүүлсэн — баримт ирвэл зураг илгээж хавсаргана уу"
+CARD_THINKING_DRAFTING = "Бичилтийн санал бэлтгэж байна…"

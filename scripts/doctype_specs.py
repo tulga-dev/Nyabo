@@ -254,7 +254,7 @@ doctype(
 
 # --- documents and proposals --------------------------------------------------------------
 
-DOC_TYPES = "receipt\nsales_ebarimt\nbank_statement\ninventory\nother"
+DOC_TYPES = "receipt\nsales_ebarimt\nbank_statement\ninventory\nother\ntext"
 DOC_STATUS = "received\nextracted\nproposed\napproved\nrejected\nposted\nfailed"
 
 doctype(
@@ -322,7 +322,7 @@ doctype(
 			"kind",
 			"Select",
 			"Төрөл",
-			options="receipt\nbank_line\ninventory\ncorrection",
+			options="receipt\nbank_line\ninventory\ncorrection\ntext",
 			default="receipt",
 			in_standard_filter=1,
 		),
@@ -665,11 +665,12 @@ doctype(
 		# Whether the rule carried a legal citation at the moment it was accepted: an accountant
 		# who accepted a cited reading and one who vouched for bare mechanics did different things.
 		F("had_citation", "Check", "Ишлэлтэй байсан", default="0", read_only=1),
+		F("rule_fingerprint", "Data", "Агуулгын хурууны хээ", reqd=1, read_only=1, in_standard_filter=1),
+		F("rule_content_json", "JSON", "Хүлээн зөвшөөрсөн агуулга", read_only=1),
 		SB("sb_acceptance", "Хүлээн зөвшөөрөлт"),
 		F("accepted_by", "Link", "Хүлээн зөвшөөрсөн хэрэглэгч", options="User", reqd=1, read_only=1),
 		F("accepted_telegram_id", "Data", "Telegram ID", read_only=1),
 		F("accepted_at", "Datetime", "Огноо", reqd=1, read_only=1, in_list_view=1),
-		F("note", "Small Text", "Тэмдэглэл"),
 	],
 )
 

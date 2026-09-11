@@ -179,10 +179,31 @@ class EscalateArgs(StrictModel):
 	summary: str = Field(description="One-sentence summary of what the user needs, in Mongolian")
 
 
+class RecordTransactionArgs(StrictModel):
+	"""A transaction the user described in words; code turns it into a proposal card."""
+
+	direction: Literal["income", "expense"] = Field(
+		description="income when money came in (sale, revenue, a customer paid); expense when money went out"
+	)
+	amount_mnt: float = Field(description="The amount in MNT as a plain number, e.g. 2000000 for two million")
+	party: str | None = Field(description="The customer or supplier as the user named it; null when not said")
+	description: str | None = Field(
+		description="What it was for, in the user's words, short; null when not said"
+	)
+	paid_via: Literal["bank", "cash", "unknown"] = Field(
+		description="bank for a transfer or card, cash for cash, unknown when the user did not say"
+	)
+	date: str | None = Field(description="ISO date YYYY-MM-DD when the user named a day; null for today")
+	account_code: str | None = Field(
+		description="For an expense only: the expense account code from the chart when obvious (e.g. 6210); null otherwise"
+	)
+
+
 TOOL_ARG_MODELS: dict[str, type[StrictModel]] = {
 	"answer_from_books": AnswerFromBooksArgs,
 	"answer_faq": AnswerFaqArgs,
 	"escalate_to_admin": EscalateArgs,
+	"record_transaction": RecordTransactionArgs,
 }
 
 TOOL_SPECS: list[ToolSpec] = [
@@ -204,6 +225,17 @@ TOOL_SPECS: list[ToolSpec] = [
 		name="answer_faq",
 		description="Look up how Nyabo works or a bookkeeping basic in the product FAQ. Returns a short text.",
 		parameters=json_schema(AnswerFaqArgs),
+	),
+	ToolSpec(
+		name="record_transaction",
+		description=(
+			"Draft a ledger entry from a transaction the user describes in words — money received "
+			"(a sale, revenue, a customer paid) or money spent (a purchase, a bill, a payment). Creates "
+			"a proposal card the accountant confirms with a button; nothing is posted. Use this, never "
+			"escalate_to_admin, whenever the user wants to record, register or book a transaction. "
+			"Requires an amount; without one, ask for it."
+		),
+		parameters=json_schema(RecordTransactionArgs),
 	),
 	ToolSpec(
 		name="escalate_to_admin",
@@ -242,6 +274,9 @@ class AnswerOutcome:
 	follow_ups: tuple[FollowUp, ...] = ()
 	memory: dict[str, Any] | None = None
 	unverified_numbers: tuple[str, ...] = ()
+	# The Nyabo Proposal a ``record_transaction`` call drafted: the chat sends its card, with
+	# the accountant's buttons, instead of a sentence.
+	proposal: str | None = None
 	# {number: "invented" | "derived"} — what the event log says about each of the above.
 	number_kinds: Mapping[str, str] = field(default_factory=dict)
 	subject: Mapping[str, str] = field(default_factory=dict)
@@ -835,6 +870,8 @@ class Reply:
 	# The last successful books read, as the handler returned it: the rows behind the sentence,
 	# which the card draws as a table. Figures only ever come from here, never from the text.
 	facts: Mapping[str, Any] | None = None
+	# A proposal drafted from the user's words (``agent.typed``): the chat shows its card.
+	proposal: str | None = None
 
 
 def reply_of(outcome: AnswerOutcome) -> Reply:
@@ -846,6 +883,7 @@ def reply_of(outcome: AnswerOutcome) -> Reply:
 		needs_escalation=outcome.answer.needs_escalation,
 		subject=subject_label(outcome.subject),
 		facts=dict(books_call.result) if books_call is not None and books_call.result else None,
+		proposal=outcome.proposal,
 	)
 
 
@@ -959,6 +997,34 @@ def answer(
 	)
 	tools_used = tuple(call.name for call in llm.tool_calls)
 	escalated = any(call.name == "escalate_to_admin" and not call.is_error for call in llm.tool_calls)
+	proposal = next(
+		(
+			str(call.result["proposal"])
+			for call in reversed(llm.tool_calls)
+			if call.name == "record_transaction" and not call.is_error and (call.result or {}).get("proposal")
+		),
+		None,
+	)
+	if proposal:
+		# The card is the answer. The handler's own sentence goes with it; the model's closing
+		# words are not sent, so nothing it wrote can contradict the lines the accountant reads.
+		handler_text = next(
+			str(call.result.get("text") or "")
+			for call in reversed(llm.tool_calls)
+			if call.name == "record_transaction" and not call.is_error
+		)
+		return AnswerOutcome(
+			answer=QuestionAnswer(
+				answer_mn=handler_text, used_tool="record_transaction", needs_escalation=False
+			),
+			llm=llm,
+			injection_suspected=False,
+			injection_fragment=None,
+			tools_used=tools_used,
+			follow_ups=(),
+			memory=None,
+			proposal=proposal,
+		)
 	last_ok = next((call.name for call in reversed(llm.tool_calls) if not call.is_error), None)
 	all_failed = bool(llm.tool_calls) and all(call.is_error for call in llm.tool_calls)
 	handler_broke = any(

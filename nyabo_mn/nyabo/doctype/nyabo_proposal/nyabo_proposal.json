@@ -68,7 +68,7 @@
    "fieldname": "kind",
    "fieldtype": "Select",
    "label": "Төрөл",
-   "options": "receipt\nbank_line\ninventory\ncorrection",
+   "options": "receipt\nbank_line\ninventory\ncorrection\ntext",
    "default": "receipt",
    "in_standard_filter": 1
   },
@@ -291,7 +291,7 @@
  "index_web_pages_for_search": 0,
  "istable": 0,
  "links": [],
- "modified": "2026-09-08 00:00:00.000000",
+ "modified": "2026-09-11 09:36:33.271541",
  "modified_by": "Administrator",
  "module": "Nyabo",
  "name": "Nyabo Proposal",

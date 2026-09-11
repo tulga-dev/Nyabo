@@ -26,6 +26,8 @@ import time
 from collections.abc import Callable
 from typing import Any
 
+import frappe
+
 from nyabo_mn.agent import questions
 from nyabo_mn.agent.llm_client import ToolCall
 from nyabo_mn.i18n import mn
@@ -69,6 +71,17 @@ def _send(ctx: Ctx, reply: questions.Reply, message_id: int | None = None) -> di
 	as a table, the next reads as buttons, the subject line as the footer. Its plain twin is
 	what a client that cannot draw one receives, and it ends with the same subject line.
 	"""
+	if reply.proposal:
+		# A transaction typed in words became a proposal: the card the accountant confirms is the
+		# answer, drawn by the receipt handler so it is the same card a photo gets.
+		from nyabo_mn.telegram.handlers import receipt
+
+		proposal = frappe.get_doc("Nyabo Proposal", reply.proposal)
+		text, markup = receipt.card_for(proposal)
+		if reply.text:
+			text = f"{reply.text}\n{text}"
+		ctx.reply(text, markup)
+		return {"proposal": reply.proposal}
 	card = richcards.answer_card(reply.text, reply.subject, reply.follow_ups, reply.facts)
 	if message_id is None:
 		ctx.reply_card(card)
@@ -113,6 +126,8 @@ def step_text(name: str, args: dict[str, Any]) -> str:
 		return mn.CARD_THINKING_STEP.format(subject=subject) if subject else mn.CARD_THINKING_READING
 	if name == "answer_faq":
 		return mn.CARD_THINKING_FAQ
+	if name == "record_transaction":
+		return mn.CARD_THINKING_DRAFTING
 	if name == "escalate_to_admin":
 		return mn.CARD_THINKING_ESCALATE
 	return mn.CARD_THINKING_READING
@@ -156,7 +171,10 @@ def handle_text(ctx: Ctx) -> Any:
 	beat()
 	pulse, step = _thinking(ctx, beat)
 	memory = chat_state.get_question_memory(ctx.chat_id)
-	reply = _deps.answer_question(ctx.user, company, ctx.text, memory, on_turn=pulse, on_step=step)
+	source = {"chat_id": ctx.chat_id, "message_id": ctx.message_id, "sender": ctx.sender}
+	reply = _deps.answer_question(
+		ctx.user, company, ctx.text, memory, on_turn=pulse, on_step=step, source=source
+	)
 	chat_state.set_question_memory(ctx.chat_id, reply.memory, telegram_id=ctx.telegram_id)
 	return _send(ctx, reply)
 

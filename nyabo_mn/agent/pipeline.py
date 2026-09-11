@@ -1928,6 +1928,7 @@ def answer_question(
 	now: dt.datetime | None = None,
 	on_turn: Callable[[], None] | None = None,
 	on_step: Callable[[str, dict[str, Any]], None] | None = None,
+	source: Mapping[str, Any] | None = None,
 ) -> questions.Reply:
 	"""One read-only, tool-using model call; returns the sentence, its buttons and its memory.
 
@@ -1944,10 +1945,17 @@ def answer_question(
 		client = get_client(_settings_obj(), "mock" if _simulation() else "auto", record_call=recorder)
 	elif getattr(client, "record_call", None) is None and hasattr(client, "record_call"):
 		client.record_call = recorder
+	from nyabo_mn.agent import typed
+
 	handlers = {
 		**books_handlers(company, today=now.date()),
 		"answer_faq": faq_handler,
 		"escalate_to_admin": escalate_handler(user, company, text),
+		# ``source`` names the chat message (chat_id, message_id, sender) so the typed text can
+		# be filed as the entry's primary document; without it the document still has the text.
+		"record_transaction": lambda args: typed.propose(
+			company, user, args, text=text, source=source, today=now.date()
+		),
 	}
 	try:
 		ctx = regime_context(company, now.date())
