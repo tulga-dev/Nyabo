@@ -72,10 +72,11 @@ from nyabo_mn.i18n import mn
 
 PROMPT_NAME = "question"
 PURPOSE = "question"
-# Four was enough for one lookup and a sentence. Ten query kinds and a follow-up that has to
-# resolve «мөн өнгөрсөн сард?» against the previous subject need room for a second lookup and
-# a correction after a bad account code, so the loop gets one more round trip, not four more.
-MAX_TURNS = 5
+# Four was enough for one lookup and a sentence; five for ten query kinds and a follow-up. An
+# accountant's answer to «why did costs jump?» is three reads — this month, last month, the
+# entries behind the difference — and a sentence that connects them, so the loop gets room
+# for that walk on the reasoning model without turning one question into an open-ended run.
+MAX_TURNS = 8
 MAX_QUESTION_CHARS = 2000
 # Errors that mean "the model asked for something impossible". They mean "no answer", not "the
 # ledger is broken", so the user gets a different sentence. ``unknown_account`` is one of them:
@@ -110,6 +111,8 @@ QueryKind = Literal[
 	"unmatched_count",
 	"unmatched_lines",
 	"explain_entry",
+	"monthly_trend",
+	"top_suppliers",
 ]
 
 # Which of ``BooksArgs`` each kind reads, in the order a follow-up button carries them.
@@ -126,6 +129,8 @@ QUERY_ARGS: Mapping[str, tuple[str, ...]] = {
 	"unmatched_count": (),
 	"unmatched_lines": (),
 	"explain_entry": ("entry_ref",),
+	"monthly_trend": ("period",),
+	"top_suppliers": ("period",),
 }
 # Three-letter verbs, because the whole callback datum is 64 bytes and a Cyrillic supplier
 # name is two bytes a letter.
@@ -140,6 +145,8 @@ QUERY_SHORT: Mapping[str, str] = {
 	"unmatched_count": "unc",
 	"unmatched_lines": "unm",
 	"explain_entry": "exp",
+	"monthly_trend": "trd",
+	"top_suppliers": "tsp",
 }
 SHORT_QUERY: Mapping[str, str] = {short: kind for kind, short in QUERY_SHORT.items()}
 # Two verbs that are not a query: hand the question to a human, and go back to the menu.
@@ -186,7 +193,9 @@ TOOL_SPECS: list[ToolSpec] = [
 			"spend_by_account (account_code, period); account_entries (account_code, period — the "
 			"entries behind that figure); last_entries_for_supplier (supplier); supplier_total "
 			"(supplier, period); vat_position (period); top_spend_accounts (period); unmatched_count; "
-			"unmatched_lines; explain_entry (entry_ref — what a posted entry was and why). "
+			"unmatched_lines; explain_entry (entry_ref — what a posted entry was and why); "
+			"monthly_trend (period — revenue and expense for that month and the five before it); "
+			"top_suppliers (period — the suppliers bought from most in a month). "
 			"Returns figures in MNT formatted by the system."
 		),
 		parameters=json_schema(AnswerFromBooksArgs),
@@ -727,7 +736,14 @@ def follow_ups(calls: Sequence[ToolCall], *, now: datetime, answered: bool = Tru
 	subject = {"period": _default_period(kind, answered_subject, now), **answered_subject}
 	out: list[FollowUp] = []
 
-	if kind in ("spend_by_account", "account_entries", "vat_position", "top_spend_accounts"):
+	if kind in (
+		"spend_by_account",
+		"account_entries",
+		"vat_position",
+		"top_spend_accounts",
+		"monthly_trend",
+		"top_suppliers",
+	):
 		out += _period_follow_ups(kind, subject, now)
 
 	# (this query kind) -> the next question the accountant would ask, and its label. A label
@@ -746,7 +762,12 @@ def follow_ups(calls: Sequence[ToolCall], *, now: datetime, answered: bool = Tru
 		"unmatched_lines": (("unmatched_count", mn.BTN_Q_UNMATCHED_COUNT),),
 		"explain_entry": (("last_entries_for_supplier", mn.BTN_Q_SUPPLIER_ENTRIES),),
 		"vat_position": (("top_spend_accounts", mn.BTN_Q_TOP_ACCOUNTS),),
-		"top_spend_accounts": (("unmatched_count", mn.BTN_Q_UNMATCHED_COUNT),),
+		"top_spend_accounts": (
+			("top_suppliers", mn.BTN_Q_TOP_SUPPLIERS),
+			("monthly_trend", mn.BTN_Q_TREND),
+		),
+		"monthly_trend": (("top_spend_accounts", mn.BTN_Q_TOP_ACCOUNTS),),
+		"top_suppliers": (("top_spend_accounts", mn.BTN_Q_TOP_ACCOUNTS),),
 	}
 	for target, label in next_questions.get(kind, ()):
 		args = _args_for(target, subject)
@@ -850,14 +871,27 @@ def build_user_text(
 
 
 def _beating(
-	dispatch: Callable[[str, dict[str, Any]], dict[str, Any]], on_turn: Callable[[], None] | None
+	dispatch: Callable[[str, dict[str, Any]], dict[str, Any]],
+	on_turn: Callable[[], None] | None,
+	on_step: Callable[[str, dict[str, Any]], None] | None = None,
 ) -> Callable[[str, dict[str, Any]], dict[str, Any]]:
-	"""``dispatch`` with a beat before every tool call, or ``dispatch`` itself when unwanted."""
-	if on_turn is None:
+	"""``dispatch`` with a beat — and the step being taken — before every tool call.
+
+	``on_step`` is told the tool and its arguments, so the chat can say *what* the model is
+	reading («Дэвтрээс уншиж байна: 6210 · 2026 оны 9-р сар») rather than only that it is
+	busy. Neither callback may cost the answer: a failure inside one is swallowed.
+	"""
+	if on_turn is None and on_step is None:
 		return dispatch
 
 	def beating(name: str, args: dict[str, Any]) -> dict[str, Any]:
-		on_turn()
+		if on_turn is not None:
+			on_turn()
+		if on_step is not None:
+			try:
+				on_step(name, dict(args or {}))
+			except Exception:  # noqa: BLE001 - narration is a courtesy
+				pass
 		return dispatch(name, args)
 
 	return beating
@@ -874,6 +908,7 @@ def answer(
 	now: datetime | None = None,
 	max_turns: int = MAX_TURNS,
 	on_turn: Callable[[], None] | None = None,
+	on_step: Callable[[str, dict[str, Any]], None] | None = None,
 ) -> AnswerOutcome:
 	"""One tool-using model call; the answer sentence is the model's, the flags are ours.
 
@@ -918,7 +953,7 @@ def answer(
 		system=system,
 		user=[TextPart(build_user_text(text, company_context=company_context, now=now, memory=memory))],
 		tools=list(TOOL_SPECS),
-		handler=_beating(make_dispatcher(handlers), on_turn),
+		handler=_beating(make_dispatcher(handlers), on_turn, on_step),
 		max_turns=max_turns,
 		prompt_version=prompts.version_tag(PROMPT_NAME, version),
 	)

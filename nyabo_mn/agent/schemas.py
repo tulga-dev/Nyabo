@@ -175,6 +175,13 @@ class QuestionAnswer(StrictModel):
 	needs_escalation: bool = Field(description="True when the question was handed to the admin")
 
 
+class InsightNote(StrictModel):
+	"""The accountant's note over the signals the detectors found (agent.insights)."""
+
+	note_mn: str = Field(description="Two to four short sentences in polite Mongolian Cyrillic")
+	order: list[str] = Field(description="The signal kinds in the order the note mentions them")
+
+
 def _strictify(node: Any) -> Any:
 	"""Make a JSON Schema node strict-mode compatible, recursively."""
 	if isinstance(node, list):

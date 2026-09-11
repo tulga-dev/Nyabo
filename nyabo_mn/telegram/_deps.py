@@ -75,14 +75,23 @@ def answer_question(
 	text: str,
 	memory: dict[str, Any] | None = None,
 	on_turn: Callable[[], None] | None = None,
+	on_step: Callable[[str, dict[str, Any]], None] | None = None,
 ) -> Any:
 	"""``agent.questions.Reply``: the sentence, its follow-up buttons and the memory to store.
 
 	``on_turn`` is called between model turns, so the chat can keep showing a sign of life
-	through an answer that takes several of them. It must not raise.
+	through an answer that takes several of them; ``on_step`` is told which tool is being
+	called with what, so the sign of life can say what is being read. Neither may raise.
 	"""
 	return _call(
-		"nyabo_mn.agent.pipeline", "answer_question", user, company, text, memory=memory, on_turn=on_turn
+		"nyabo_mn.agent.pipeline",
+		"answer_question",
+		user,
+		company,
+		text,
+		memory=memory,
+		on_turn=on_turn,
+		on_step=on_step,
 	)
 
 

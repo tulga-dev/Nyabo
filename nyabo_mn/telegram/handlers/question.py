@@ -82,21 +82,40 @@ def _draft_id() -> int:
 	return int(time.time() * 1000) & 0x7FFFFFFF
 
 
-def _thinking(ctx: Ctx, beat: Callable[[], None]) -> Callable[[], None]:
-	"""«Бодож байна…» in the chat while the model works — a streamed draft, refreshed per turn.
+def _thinking(
+	ctx: Ctx, beat: Callable[[], None]
+) -> tuple[Callable[[], None], Callable[[str, dict[str, Any]], None]]:
+	"""«Бодож байна…» in the chat while the model works — a streamed draft that names each read.
 
 	``sendRichMessageDraft`` shows "a temporary 30-second preview" (Bot API 10.1), so the
-	draft is re-sent on every tool dispatch with the reading step named; the typing action
-	still beats beside it for clients that cannot draw a draft. A refused draft costs nothing.
+	draft is re-sent on every tool dispatch, and what it says is the step being taken —
+	«Дэвтрээс уншиж байна: 6210 · 2026 оны 9-р сар» — built by code from the tool's
+	arguments, never from the model's words. The typing action still beats beside it for
+	clients that cannot draw a draft. A refused draft costs nothing.
 	"""
 	draft_id = _draft_id()
 
 	def pulse() -> None:
 		beat()
-		ctx.draft(richcards.thinking_card(mn.CARD_THINKING_READING), draft_id)
+
+	def step(name: str, args: dict[str, Any]) -> None:
+		ctx.draft(richcards.thinking_card(step_text(name, args)), draft_id)
 
 	ctx.draft(richcards.thinking_card(mn.CARD_THINKING), draft_id)
-	return pulse
+	return pulse, step
+
+
+def step_text(name: str, args: dict[str, Any]) -> str:
+	"""The one line the draft shows for a tool call: which read, about what."""
+	if name == "answer_from_books":
+		inner = {k: str(v) for k, v in (args.get("args") or {}).items() if v not in (None, "")}
+		subject = questions.subject_label(inner)
+		return mn.CARD_THINKING_STEP.format(subject=subject) if subject else mn.CARD_THINKING_READING
+	if name == "answer_faq":
+		return mn.CARD_THINKING_FAQ
+	if name == "escalate_to_admin":
+		return mn.CARD_THINKING_ESCALATE
+	return mn.CARD_THINKING_READING
 
 
 def _typing(ctx: Ctx) -> Callable[[], None]:
@@ -135,9 +154,9 @@ def handle_text(ctx: Ctx) -> Any:
 		return None
 	beat = _typing(ctx)
 	beat()
-	pulse = _thinking(ctx, beat)
+	pulse, step = _thinking(ctx, beat)
 	memory = chat_state.get_question_memory(ctx.chat_id)
-	reply = _deps.answer_question(ctx.user, company, ctx.text, memory, on_turn=pulse)
+	reply = _deps.answer_question(ctx.user, company, ctx.text, memory, on_turn=pulse, on_step=step)
 	chat_state.set_question_memory(ctx.chat_id, reply.memory, telegram_id=ctx.telegram_id)
 	return _send(ctx, reply)
 

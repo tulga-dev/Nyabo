@@ -49,10 +49,17 @@ def _commands_text(ctx: Ctx) -> str:
 
 
 def home_card(ctx: Ctx, company: str) -> Any:
-	overview = data.overview(company, _today())
 	from nyabo_mn import miniapp
+	from nyabo_mn.agent import insights
 
-	return richcards.dashboard_card(overview, commands_text=_commands_text(ctx), app_url=miniapp.page_url())
+	today = _today()
+	overview = data.overview(company, today)
+	# The note is a section like the others: a detector or the model failing is a logged gap,
+	# never a menu that will not open.
+	note = data.section("insights", lambda: insights.note_for(company, today), None, company=company)
+	return richcards.dashboard_card(
+		overview, commands_text=_commands_text(ctx), app_url=miniapp.page_url(), note=note
+	)
 
 
 def send_home(ctx: Ctx, company: str) -> Any:
@@ -134,6 +141,10 @@ def _open(ctx: Ctx, company: str, view: str, arg: str | None, today: dt.date, me
 		return _send_unmatched(ctx, company)
 	elif view == V.VIEW_STATEMENT_HINT:
 		ctx.reply(mn.CARD_STATEMENT_HINT)
+	elif view == V.VIEW_RULES:
+		from nyabo_mn.telegram.handlers import admin
+
+		return admin.handle_rules(ctx)
 	return {"view": view, "company": company}
 
 

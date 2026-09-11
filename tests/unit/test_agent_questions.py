@@ -55,6 +55,8 @@ def test_tool_specs_are_strict_and_named_per_contract():
 		"unmatched_count",
 		"unmatched_lines",
 		"explain_entry",
+		"monthly_trend",
+		"top_suppliers",
 	]
 
 
@@ -88,7 +90,7 @@ def test_answer_from_default_fixture_builds_flags_from_trace():
 	assert (
 		call.purpose == "question"
 		and call.tools == questions.TOOL_NAMES
-		and call.prompt_version == "question.v2"
+		and call.prompt_version == "question.v3"
 	)
 	assert 'label="question"' in call.user_text and call.user_text.rstrip().endswith(
 		"Current time: 2026-09-08T12:00+00:00"

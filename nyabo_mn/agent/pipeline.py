@@ -1669,6 +1669,92 @@ def books_handlers(
 		received = frappe.db.get_value("Nyabo Document", document, "received_at")
 		return str(received)[:10] if received else ""
 
+	def _monthly_trend(inner: dict[str, Any]) -> dict[str, Any]:
+		"""Revenue and expense for the month asked and the five before it — the shape, not a point.
+
+		The read an accountant does before saying «why»: a cost that is high this month is a
+		different story from one that has been climbing for four.
+		"""
+		from nyabo_mn.reports import dashboard as dashboard_mod
+
+		period = _period(inner.get("period"))
+		rows = dashboard_mod.revenue_trend(company, period)
+		months = [
+			{
+				"period": str(r["period"]),
+				"label": dates.period_label(str(r["period"])),
+				"revenue": fmt_mnt(r["revenue"]),
+				"expense": fmt_mnt(r["expense"]),
+			}
+			for r in rows
+		]
+		text = mn.MSG_MONTHLY_TREND_ANSWER.format(
+			from_period=months[0]["label"],
+			to_period=months[-1]["label"],
+			lines="\n".join(
+				mn.MONTHLY_TREND_LINE.format(month=m["label"], revenue=m["revenue"], expense=m["expense"])
+				for m in months
+			),
+		)
+		return {
+			"period": period,
+			"months": months,
+			"count": len(months),
+			"text": text,
+			**_figures(
+				len(months),
+				[m["revenue"] for m in months],
+				[m["expense"] for m in months],
+				[part for m in months for part in _calendar(m["period"])],
+			),
+		}
+
+	def _top_suppliers(inner: dict[str, Any]) -> dict[str, Any]:
+		"""Who the month's purchases went to, largest first, returns netted out."""
+		period = _period(inner.get("period"))
+		start, end = dates.period_bounds(period)
+		rows = frappe.get_all(
+			"Purchase Invoice",
+			filters={
+				"company": company,
+				"docstatus": 1,
+				"posting_date": ["between", [start.isoformat(), end.isoformat()]],
+			},
+			fields=["supplier", "supplier_name", "grand_total", "is_return"],
+		)
+		totals: dict[str, Decimal] = {}
+		names: dict[str, str] = {}
+		for row in rows:
+			amount = Decimal(str(row.grand_total or 0))
+			totals[row.supplier] = totals.get(row.supplier, ZERO) + (-amount if row.is_return else amount)
+			names[row.supplier] = row.supplier_name or row.supplier
+		ranked = sorted(((s, v) for s, v in totals.items() if v > ZERO), key=lambda p: p[1], reverse=True)
+		total = len(ranked)
+		label = dates.period_label(period)
+		suppliers = [{"supplier": names[s], "amount": fmt_mnt(v)} for s, v in ranked[:TOP_ACCOUNTS_LIMIT]]
+		if suppliers:
+			text = mn.MSG_TOP_SUPPLIERS_ANSWER.format(
+				period=label,
+				suppliers="\n".join(
+					mn.TOP_SUPPLIER_LINE.format(supplier=s["supplier"], amount=s["amount"]) for s in suppliers
+				),
+			) + _truncation_note(total, len(suppliers), mn.ANSWER_TRUNCATED_SUPPLIERS)
+		else:
+			text = mn.TOP_SUPPLIERS_NONE.format(period=label)
+		return {
+			"period": period,
+			"suppliers": suppliers,
+			"count": total,
+			"text": text,
+			**_figures(
+				total,
+				len(suppliers),
+				_calendar(period),
+				[s["amount"] for s in suppliers],
+				[s["supplier"] for s in suppliers],
+			),
+		}
+
 	kinds: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
 		"balance_on_date": _balance_on_date,
 		"spend_by_account": _spend_by_account,
@@ -1680,6 +1766,8 @@ def books_handlers(
 		"unmatched_count": _unmatched_count,
 		"unmatched_lines": _unmatched_lines,
 		"explain_entry": _explain_entry,
+		"monthly_trend": _monthly_trend,
+		"top_suppliers": _top_suppliers,
 	}
 
 	def _books(args: dict[str, Any]) -> dict[str, Any]:
@@ -1839,6 +1927,7 @@ def answer_question(
 	client: LlmClient | None = None,
 	now: dt.datetime | None = None,
 	on_turn: Callable[[], None] | None = None,
+	on_step: Callable[[str, dict[str, Any]], None] | None = None,
 ) -> questions.Reply:
 	"""One read-only, tool-using model call; returns the sentence, its buttons and its memory.
 
@@ -1886,6 +1975,7 @@ def answer_question(
 		memory=recalled,
 		now=now,
 		on_turn=on_turn,
+		on_step=on_step,
 	)
 	if outcome.injection_suspected:
 		write_event(

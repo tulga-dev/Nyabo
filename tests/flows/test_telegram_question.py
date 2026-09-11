@@ -62,7 +62,7 @@ def test_the_bot_says_it_is_working_and_offers_the_next_read(company, monkeypatc
 	monkeypatch.setattr(
 		_deps,
 		"answer_question",
-		lambda user, comp, text, memory=None, on_turn=None: (
+		lambda user, comp, text, memory=None, on_turn=None, on_step=None: (
 			asked.append((comp, text, memory)) or _spend_reply(memory=_memory(comp))
 		),
 	)
@@ -83,7 +83,7 @@ def test_the_bot_says_it_is_working_and_offers_the_next_read(company, monkeypatc
 def test_the_next_question_is_answered_in_the_context_of_the_last(company, monkeypatch):
 	seen: list = []
 
-	def _answer(user, comp, text, memory=None, on_turn=None):
+	def _answer(user, comp, text, memory=None, on_turn=None, on_step=None):
 		seen.append(memory)
 		return _spend_reply(memory=_memory(comp))
 
@@ -102,7 +102,7 @@ def test_an_open_flow_takes_the_question_memory_with_it(company, monkeypatch):
 	monkeypatch.setattr(
 		_deps,
 		"answer_question",
-		lambda user, comp, text, memory=None, on_turn=None: _spend_reply(memory=_memory(comp)),
+		lambda user, comp, text, memory=None, on_turn=None, on_step=None: _spend_reply(memory=_memory(comp)),
 	)
 	link_user(9003, "Accountant", company)
 	bot = FakeBotApi()
@@ -121,7 +121,7 @@ def test_the_typing_bubble_is_re_sent_around_every_model_turn(company, monkeypat
 	"""
 	turns = 3
 
-	def _answer(user, comp, text, memory=None, on_turn=None):
+	def _answer(user, comp, text, memory=None, on_turn=None, on_step=None):
 		assert on_turn is not None, "the answerer is given something to beat with"
 		for _ in range(turns):
 			on_turn()
@@ -141,7 +141,7 @@ def test_the_typing_bubble_is_re_sent_around_every_model_turn(company, monkeypat
 def test_a_bot_that_cannot_send_the_action_still_answers(company, monkeypatch):
 	"""A missing typing bubble must never cost the answer, mid-loop as well as at the start."""
 
-	def _answer(user, comp, text, memory=None, on_turn=None):
+	def _answer(user, comp, text, memory=None, on_turn=None, on_step=None):
 		on_turn()
 		return _spend_reply(memory=_memory(comp))
 
@@ -258,7 +258,7 @@ def test_the_typed_dead_end_says_the_same_next_step_as_the_tapped_one(books, mon
 	monkeypatch.setattr(
 		_deps,
 		"answer_question",
-		lambda user, comp, text, memory=None, on_turn=None: questions.Reply(
+		lambda user, comp, text, memory=None, on_turn=None, on_step=None: questions.Reply(
 			text=mn.MSG_QUESTION_CANNOT_FULL,
 			follow_ups=question.STUCK_BUTTONS,
 		),
@@ -284,7 +284,7 @@ def test_the_ask_admin_button_escalates_with_the_question_the_user_typed(company
 	monkeypatch.setattr(
 		_deps,
 		"answer_question",
-		lambda user, comp, text, memory=None, on_turn=None: _spend_reply(memory=_memory(comp)),
+		lambda user, comp, text, memory=None, on_turn=None, on_step=None: _spend_reply(memory=_memory(comp)),
 	)
 	link_user(9009, "Accountant", company)
 	bot = FakeBotApi()
@@ -308,7 +308,7 @@ def test_the_escalation_never_quotes_a_memory_from_another_company(company, comp
 	monkeypatch.setattr(
 		_deps,
 		"answer_question",
-		lambda user, comp, text, memory=None, on_turn=None: _spend_reply(memory=_memory(comp)),
+		lambda user, comp, text, memory=None, on_turn=None, on_step=None: _spend_reply(memory=_memory(comp)),
 	)
 	link_user(9014, "Accountant", company)
 	bot = FakeBotApi()
@@ -401,3 +401,30 @@ def test_a_chat_with_no_company_is_told_so(company, data, monkeypatch):
 	bot = FakeBotApi()
 	run(bot, callback_update(9013, data))
 	assert reads == [] and bot.last_text == mn.MSG_NO_COMPANY
+
+
+def test_the_draft_names_each_read_the_model_makes(company, monkeypatch):
+	"""«Дэвтрээс уншиж байна: 6210 · 2026 оны 9-р сар» — built by code from the tool call."""
+
+	def _answer(user, comp, text, memory=None, on_turn=None, on_step=None):
+		on_step(
+			"answer_from_books",
+			{"query_kind": "spend_by_account", "args": {"account_code": "6210", "period": "2026-09"}},
+		)
+		on_step("answer_faq", {"question": "x"})
+		return _spend_reply()
+
+	monkeypatch.setattr(_deps, "answer_question", _answer)
+	link_user(9020, "Accountant", company)
+	bot = FakeBotApi()
+	run(bot, message_update(9020, "Шатахуунд хэд зарцуулсан бэ?"))
+	drafts = [d["html"] for d in bot.sent("send_rich_draft")]
+	assert drafts[0] == f"<tg-thinking>{mn.CARD_THINKING}</tg-thinking>"
+	assert (
+		drafts[1]
+		== "<tg-thinking>"
+		+ mn.CARD_THINKING_STEP.format(subject="6210 · 2026 оны 9-р сар")
+		+ "</tg-thinking>"
+	)
+	assert drafts[2] == f"<tg-thinking>{mn.CARD_THINKING_FAQ}</tg-thinking>"
+	assert len({d["draft_id"] for d in bot.sent("send_rich_draft")}) == 1, "one draft, refreshed"

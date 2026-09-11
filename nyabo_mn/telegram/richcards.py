@@ -58,7 +58,9 @@ VIEW_UNMATCHED = "unm"
 VIEW_STATEMENT_HINT = "stm"
 VIEW_TB_PDF = "tbpdf"
 VIEW_TB_XLSX = "tbx"
+VIEW_RULES = "rules"
 VIEWS = (
+	VIEW_RULES,
 	VIEW_HOME,
 	VIEW_TRANSACTIONS,
 	VIEW_BANK,
@@ -150,9 +152,12 @@ def dashboard_card(
 	commands_text: str,
 	now: dt.datetime | None = None,
 	app_url: str | None = None,
+	note: Any = None,
 ) -> Card:
 	"""``app_url`` is the Mini App page (``miniapp.page_url``); None on a site without HTTPS,
-	because Telegram opens only https ``web_app`` URLs and a bad one refuses the whole card."""
+	because Telegram opens only https ``web_app`` URLs and a bad one refuses the whole card.
+	``note`` is the day's ``insights.Note`` (or None): the accountant's paragraph over the
+	signals the detectors found, drawn above «Таны ээлж» with one button per signal."""
 	company = str(overview["company"])
 	today: dt.date = overview["today"]
 	period = str(overview["period"])
@@ -201,6 +206,12 @@ def dashboard_card(
 		blocks.append(Table(rows))
 	else:
 		blocks.append(Paragraph(mn.MSG_RECON_NONE))
+	if note is not None and note.text:
+		blocks.append(Heading(mn.INS_HEADING, size=5))
+		blocks.append(Paragraph(note.text))
+		buttons = signal_buttons(note.signals)
+		if buttons:
+			blocks.append(Buttons(buttons))
 	blocks.append(Heading(mn.CARD_YOUR_TURN, size=5))
 	todo = [
 		CheckItem(mn.CARD_TODO_PROPOSALS.format(count=pending.get("proposals", 0)))
@@ -238,6 +249,31 @@ def dashboard_card(
 	blocks.append(Details(mn.CARD_COMMANDS, [Paragraph(commands_text)]))
 	blocks.append(Footer(mn.CARD_FOOT_LEDGER.format(time=f"{today.isoformat()} {stamp}")))
 	return Card(blocks)
+
+
+def signal_buttons(found: Sequence[Any]) -> list[Button]:
+	"""One button per signal that has somewhere to go, loudest first, at most three."""
+	from nyabo_mn.agent import insights
+
+	out: list[Button] = []
+	for s in insights.actions(found):
+		if s.action_view not in VIEWS:
+			continue
+		args = (s.action_arg,) if s.action_arg else ()
+		out.append(Button(str(s.action_label or s.kind)[:40], data=datum(s.action_view, *args)))
+	return out
+
+
+def notes_card(company: str, text: str, found: Sequence[Any]) -> Card:
+	"""The morning push: the note, its buttons, and the way to the dashboard."""
+	buttons = signal_buttons(found)
+	return card(
+		Heading(mn.INS_PUSH_TITLE.format(company=company)),
+		Paragraph(text),
+		Buttons(buttons) if buttons else None,
+		_home_row(),
+		Footer(mn.INS_FOOT_CODE),
+	)
 
 
 def _bank_label(row: Mapping[str, Any]) -> str:
@@ -745,6 +781,23 @@ def _facts_table(facts: Mapping[str, Any] | None) -> Table | None:
 			for line in lines
 		)
 		return Table(rows, striped=True)
+	months = facts.get("months")
+	if isinstance(months, list) and months and isinstance(months[0], Mapping):
+		rows = [_header(mn.LBL_MONTH, mn.CARD_REVENUE, mn.CARD_EXPENSE, right_from=1)]
+		rows.extend(
+			[
+				str(m.get("label") or m.get("period") or ""),
+				_r(f"{m.get('revenue', '')}₮"),
+				_r(f"{m.get('expense', '')}₮"),
+			]
+			for m in months
+		)
+		return Table(rows, striped=True)
+	suppliers = facts.get("suppliers")
+	if isinstance(suppliers, list) and suppliers and isinstance(suppliers[0], Mapping):
+		rows = [_header(mn.COL_PARTY, mn.COL_AMOUNT, right_from=1)]
+		rows.extend([str(s.get("supplier") or ""), _r(f"{s.get('amount', '')}₮")] for s in suppliers)
+		return Table(rows)
 	entries = facts.get("entries")
 	if isinstance(entries, list) and entries and isinstance(entries[0], Mapping):
 		rows = [_header(mn.COL_DATE, mn.CARD_COL_ENTRY, mn.COL_AMOUNT, right_from=2)]
@@ -763,6 +816,7 @@ __all__ = [
 	"dashboard_card",
 	"datum",
 	"inventory_card",
+	"notes_card",
 	"pending_card",
 	"profit_loss_card",
 	"reports_card",

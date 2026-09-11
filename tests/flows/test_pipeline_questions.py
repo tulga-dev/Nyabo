@@ -1184,3 +1184,36 @@ def test_the_received_date_the_card_prints_is_vouched_for(run_receipt, books):
 
 	sentence = f"Эх баримт нь {received}-нд ирсэн, {explained['entry_ref']} дугаартай бичилт."
 	assert questions.unverified_numbers(sentence, _trace("explain_entry", args, explained), NOW) == ()
+
+
+def test_the_trend_and_supplier_reads_answer_from_the_ledger(run_receipt, books):
+	"""The two reads the reasoning model walks before saying «why»: the shape, and who got the money."""
+	proposal = run_receipt("petrovis_fuel", date="2026-09-05")
+	post.post_proposal(proposal.name, ACCOUNTANT)
+	books_handler = pipeline.books_handlers(books, today=NOW.date())["answer_from_books"]
+
+	trend = books_handler({"query_kind": "monthly_trend", "args": {"period": "2026-09"}})
+	assert [m["period"] for m in trend["months"]] == [
+		"2026-04",
+		"2026-05",
+		"2026-06",
+		"2026-07",
+		"2026-08",
+		"2026-09",
+	]
+	assert trend["months"][-1]["expense"] == fmt_mnt("77272.73") and trend["months"][0]["expense"] == fmt_mnt(
+		0
+	)
+	assert trend["text"].startswith(mn.MSG_MONTHLY_TREND_ANSWER.split("{")[0].strip() or "2026")
+	assert fmt_mnt("77272.73") in trend[questions.COMPUTED_NUMBERS_FIELD]
+	assert "09" in trend[questions.COMPUTED_NUMBERS_FIELD], "the months are vouched for, the year is not"
+	assert "2026" not in trend[questions.COMPUTED_NUMBERS_FIELD]
+
+	suppliers = books_handler({"query_kind": "top_suppliers", "args": {"period": "2026-09"}})
+	assert suppliers["count"] == 1 and suppliers["suppliers"][0]["amount"] == fmt_mnt(85000)
+	assert suppliers["suppliers"][0]["supplier"] in suppliers["text"]
+	assert suppliers["suppliers"][0]["supplier"] in suppliers[questions.COMPUTED_NUMBERS_FIELD]
+	empty = books_handler({"query_kind": "top_suppliers", "args": {"period": "2026-07"}})
+	assert empty["suppliers"] == [] and empty["text"] == mn.TOP_SUPPLIERS_NONE.format(
+		period="2026 оны 7-р сар"
+	)

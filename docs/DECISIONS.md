@@ -1401,3 +1401,40 @@ written for travels on the card that asked the question (VER-03) rather than bei
 the tap: reading it back from this chat's own recent refusals answered nothing once the retry
 window had passed, and the button outlives the window by any amount. Nobody is ever notified
 about a block of their own.
+
+## the harness as a general accountant (proactive, reasoning; the code/model balance)
+
+### PRO-01 Code notices, the model narrates, and the note is checked like an answer
+`agent.insights` is the proactive half of the harness. Nine deterministic *detectors* read the
+ledger — a cost ≥30% and ≥300 000₮ above last month, revenue ≤70% of last month once the
+month is three weeks old, a supplier paid in each of the last three months and not this one
+after its usual day plus five, statement lines unmatched for a week (a month makes it urgent),
+proposals waiting two days, a cash balance below zero, rules the company has not cleared,
+open items in the last week of a month, revenue at 80% of the simplified regime's threshold.
+Each detector writes its own Mongolian sentence and lists the figures it rests on. The model
+(Astra, the question route) is handed those signals as fenced facts and asked for two to
+four sentences in the order that matters, connecting what the facts connect. Its note is kept
+only when every number in it is one a detector produced (`questions.numbers_in` over the
+facts, any accepted spelling); otherwise the detectors' own sentences go out. The note is
+cached per company on the signals' fingerprint, so a dashboard tap is a read. It is drawn on
+the dashboard above «Таны ээлж» with one button per signal, and pushed to the accountant's
+chat at 09:00 when the loudest signal needs a look (severity ≥ 2), never twice a day.
+Why this split and not "let the model look at the books": a detector is a rule an
+accountant can read and disagree with, it costs nothing to run on every tap, and the model's
+one job — prioritising and phrasing — is the one it is good at and the one that cannot invent
+a figure past the check. The thresholds are constants at the top of the module, meant to be
+argued with.
+
+### PRO-02 The question loop reasons in reads, and the chat shows each read
+Prompt `question.v3` tells the model to read before it answers and to read enough: a
+"why / compared to / is it normal" question is the month, the month before or the six-month
+trend, and the entries or suppliers behind the difference — then a sentence that says what
+the reads show and what they do not. Two reads were added for that walk, `monthly_trend`
+(revenue and expense for six months) and `top_suppliers` (who the month's purchases went
+to), both computed by code, both vouching only for what they computed. `MAX_TURNS` went from
+five to eight so the walk fits. Every figure rule of Q-02 stands unchanged: a sentence with a
+number no read produced is still replaced by the read's own text. What the accountant sees
+while the model works is no longer «typing…» alone: `sendRichMessageDraft` streams
+«Дэвтрээс уншиж байна: 6210 · 2026 оны 9-р сар» per tool call, the line built by code from
+the call's arguments (`handlers.question.step_text`), never from the model's words.
+

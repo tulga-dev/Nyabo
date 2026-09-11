@@ -508,7 +508,7 @@ def test_quality_policy_question_and_status(company, monkeypatch):
 	monkeypatch.setattr(
 		_deps,
 		"answer_question",
-		lambda user, company, text, memory=None, on_turn=None: questions.Reply(
+		lambda user, company, text, memory=None, on_turn=None, on_step=None: questions.Reply(
 			f"{company}: 1110 данс 500 000₮"
 		),
 	)

@@ -105,6 +105,9 @@ scheduler_events = {
 		"nyabo_mn.agent.few_shot.refresh_all",
 		"nyabo_mn.telegram.state.expire_link_codes",
 	],
+	# The accountant's morning note (agent.insights): one card per company whose ledger shows
+	# something that needs a look, at 09:00 site time, never twice a day.
+	"cron": {"0 9 * * *": ["nyabo_mn.agent.insights.push_daily"]},
 }
 
 # Telegram webhook: nyabo_mn.telegram.webhook.webhook is a guest-allowed whitelisted method

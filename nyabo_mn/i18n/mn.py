@@ -1842,3 +1842,41 @@ MSG_MINIAPP_BAD_INITDATA = (
 MSG_MINIAPP_NOT_LINKED = "Энэ Telegram хаяг Нябо-д холбогдоогүй байна. Ботод холболтын кодоо бичнэ үү."
 MSG_MINIAPP_LOADING = "Дэвтрээс уншиж байна…"
 MSG_MINIAPP_OPEN_IN_TELEGRAM = "Энэ хуудас Telegram доторх Нябо ботоос нээгдэнэ."
+
+# --- accountant's notes (agent.insights): one sentence per detector, the model paraphrases --------
+INS_HEADING = "Нягтлангийн тэмдэглэл"
+INS_EXPENSE_SPIKE = (
+	"«{account}» зардал энэ сард {amount}₮ болж, өмнөх сарын {previous}₮-с {pct}% өссөн байна."
+)
+INS_REVENUE_DROP = "Энэ сарын орлого {amount}₮ — өмнөх сарын {previous}₮-с {pct}% бага."
+INS_RECURRING_MISSING = (
+	"«{supplier}» нийлүүлэгчийн төлбөр сүүлийн {months} сар бүр (ихэвчлэн сарын {day} дахь өдрийн "
+	"дотор) бүртгэгддэг байсан ч энэ сард хараахан алга."
+)
+INS_UNMATCHED_AGING = "Банкны {count} гүйлгээ тулгагдаагүй; хамгийн хуучин нь {days} хоногийн өмнөх."
+INS_PROPOSALS_WAITING = "{count} баримт баталгаажуулахыг {days} хоног хүлээж байна."
+INS_CASH_NEGATIVE = (
+	"Кассын үлдэгдэл {balance}₮ — сөрөг байна; бүртгэгдээгүй орлого эсвэл давхар зарлага байж магадгүй."
+)
+INS_RULES_BLOCKING = "{count} дүрэм баталгаажаагүй тул тэдгээрт тулгуурласан бичилт татгалзагдана."
+INS_MONTH_END = "{period} дуусахад ойрхон: хаалтын өмнө {count} ажил хүлээгдэж байна."
+INS_THRESHOLD = "Энэ жилийн орлого {revenue}₮ — хялбаршуулсан горимын {threshold}₮ босгын {pct}% хүрлээ."
+INS_BTN_RULES = "Дүрэм харах"
+INS_FOOT_MODEL = "Тоо бүрийг код тооцов · тэмдэглэлийг Нябо бичив"
+INS_FOOT_CODE = "Тоо бүрийг код тооцов"
+INS_PUSH_TITLE = "{company} · өглөөний тэмдэглэл"
+
+# --- two more reads for the reasoning model, and what the draft says while it reads ----------------
+BTN_Q_TOP_SUPPLIERS = "Нийлүүлэгчээр"
+BTN_Q_TREND = "6 сарын чиглэл"
+MSG_MONTHLY_TREND_ANSWER = "{from_period} — {to_period}, сар бүрийн орлого, зардал:\n{lines}"
+MONTHLY_TREND_LINE = "{month}: орлого {revenue}₮ · зардал {expense}₮"
+MSG_TOP_SUPPLIERS_ANSWER = "{period}: хамгийн их худалдан авалттай нийлүүлэгчид:\n{suppliers}"
+TOP_SUPPLIER_LINE = "{supplier} · {amount}₮"
+TOP_SUPPLIERS_NONE = "{period}: нийлүүлэгчийн худалдан авалт бүртгэгдээгүй."
+ANSWER_TRUNCATED_SUPPLIERS = (
+	"\n… нийт {total} нийлүүлэгчээс хамгийн их дүнтэй {shown} нийлүүлэгчийг харууллаа."
+)
+CARD_THINKING_STEP = "Дэвтрээс уншиж байна: {subject}"
+CARD_THINKING_FAQ = "Тусламжаас хайж байна…"
+CARD_THINKING_ESCALATE = "Админд дамжуулж байна…"

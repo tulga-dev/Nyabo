@@ -7,7 +7,7 @@ from nyabo_mn.agent import prompts
 # The version each prompt is on. It is pinned rather than merely "the highest on disk" so a
 # new file has to be paired with a deliberate bump here — the version travels into
 # ``Nyabo Proposal.prompt_version`` and an eval regression is tied to it.
-EXPECTED = {"receipt_extract": 1, "classify": 1, "question": 2, "explain": 1}
+EXPECTED = {"receipt_extract": 1, "classify": 1, "question": 3, "explain": 1, "insight": 1}
 
 
 @pytest.mark.parametrize("name", sorted(EXPECTED))

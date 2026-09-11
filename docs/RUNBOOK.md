@@ -168,6 +168,18 @@ and bank line (they stay in the desk, cancelled — art. 11.1) and touches nothi
   unmatched lines) and the pending proposals; every card edits itself in place and pages by
   month. Every figure is read from the ledger on the tap — nothing is cached.
 
+### The accountant's notes («Нягтлангийн тэмдэглэл»)
+
+The dashboard opens with a short note when the books show something worth a look: a cost
+that jumped against last month, a supplier paid every month and missing this one, statement
+lines unmatched for a week, a cash balance below zero, rules that will refuse a posting,
+open items in the last week of the month, revenue near the simplified-regime threshold. The
+findings are computed by code (`nyabo_mn/agent/insights.py`, thresholds at the top of the
+file); the model only orders and phrases them, and a note carrying a figure the code did not
+produce is replaced by the code's own sentences. The same note is pushed to the accountant's
+chat at 09:00 site time when something needs a look (scheduler `cron` in hooks.py), once a
+day at most; `Nyabo Event` rows of type `insight_sent` say when. A quiet ledger has no note.
+
 ### The Mini App («Дэлгэрэнгүй самбар»)
 
 The dashboard and reports cards carry a **Дэлгэрэнгүй самбар** button that opens
