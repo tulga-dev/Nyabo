@@ -239,7 +239,11 @@ TOOL_SPECS: list[ToolSpec] = [
 	),
 	ToolSpec(
 		name="escalate_to_admin",
-		description="Hand the question to a human admin when it needs an action or cannot be answered from the books.",
+		description=(
+			"Hand the question to a human admin when it needs something only an admin can do (a "
+			"setting, a deletion, linking a user) or when no tool can answer it. Never for recording, "
+			"registering or booking a transaction — that is record_transaction."
+		),
 		parameters=json_schema(EscalateArgs),
 	),
 ]

@@ -95,7 +95,7 @@ def test_answer_from_default_fixture_builds_flags_from_trace():
 	assert (
 		call.purpose == "question"
 		and call.tools == questions.TOOL_NAMES
-		and call.prompt_version == "question.v4"
+		and call.prompt_version == "question.v5"
 	)
 	assert 'label="question"' in call.user_text and call.user_text.rstrip().endswith(
 		"Current time: 2026-09-08T12:00+00:00"
