@@ -1474,7 +1474,10 @@ figures the check found (count, dates, opening → closing balance) and [Ман�
 [Багана засах] [Одоохондоо үлдээх]; the accept button is `rules.verify`'s own for a layout, so
 it writes the same acceptance and re-reads the same waiting file (ACC-02). [Багана засах] opens
 the old column questions on the stored file and their answers overwrite the reading's row. A
-reading the file refutes, or a model that fails, falls straight to the questions. The
+reading the file refutes, or a model that fails, falls straight to the questions. A layout
+somebody mapped earlier and nobody confirmed (`unverified_layout`) takes the same door: the
+stored mapping is read against the file and shown as the same card, on its own row — the
+founder's own row, mapped before the bank was known, was corrected this way rather than twinned. The
 principle the founder stated: the model is a general accountant; the harness supplies the
 Mongolian case, the tools and the memory, and keeps the arithmetic and the proof.
 

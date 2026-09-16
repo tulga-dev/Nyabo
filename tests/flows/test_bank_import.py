@@ -232,12 +232,17 @@ def test_run_import_asks_the_accountant_to_confirm_a_learned_layout(books):
 	frappe.db.set_value("Nyabo Bank Layout", layout, "verified", 0)
 	name = helpers.statement_document(books, *fixtures.khan_xlsx())
 	result, bot = _run_import(name, 3102)
-	assert result == {"ok": True, "unverified": True, "layout": layout}
-	assert mn.MSG_STATEMENT_LAYOUT_UNVERIFIED.format(layout=layout) in bot.texts()
-	# ...and the confirmation is offered right there, with the mapping to read and a button.
-	assert layout in bot.last_text and "Огноо" in bot.last_text
+	assert result == {"ok": True, "unverified": True, "read": layout, "layout": layout}
+	# ...and the confirmation is offered right there: the stored mapping, read against the file
+	# and shown with the figures it yields (PRO-04), with the accountant's button on that row.
+	assert bot.last_text.startswith(
+		mn.MSG_STATEMENT_LAYOUT_READ.split("\n")[0].format(bank=mn.BANK_NAMES_MN["Khan Bank"])
+	)
+	assert "Огноо" in bot.last_text
+	assert mn.STM_READ_FACTS.format(count=5, first="2026-09-02", last="2026-09-06") in bot.last_text
 	assert bot.callback_datas() == [
 		keyboards.rule_data(keyboards.VERIFY_ACCEPT, "b", layout, books),
+		f"l:fix:{name}",
 		keyboards.rule_data(keyboards.VERIFY_LEAVE, "b", layout, books),
 	]
 	assert frappe.db.count("Bank Transaction") == 0

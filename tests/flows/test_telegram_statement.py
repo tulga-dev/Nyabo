@@ -94,11 +94,18 @@ def test_a_layout_nobody_confirmed_imports_nothing_and_asks_the_accountant(books
 	link_user(9303, "Accountant", books)
 	bot = FakeBotApi(files={"stmt": data})
 	_send(bot, 9303, filename)
-	assert mn.MSG_STATEMENT_LAYOUT_UNVERIFIED.format(layout="test_khan_synthetic") in bot.texts()
+	# PRO-04: the stored mapping is shown with the figures the file proves, on its own row.
+	assert bot.last_text.startswith(
+		mn.MSG_STATEMENT_LAYOUT_READ.split("\n")[0].format(bank=mn.BANK_NAMES_MN["Khan Bank"])
+	)
+	assert mn.STM_READ_FACTS.format(count=5, first="2026-09-02", last="2026-09-06") in bot.last_text
+	document = frappe.get_last_doc("Nyabo Document").name
 	assert bot.callback_datas() == [
 		keyboards.rule_data(keyboards.VERIFY_ACCEPT, "b", "test_khan_synthetic", books),
+		f"l:fix:{document}",
 		keyboards.rule_data(keyboards.VERIFY_LEAVE, "b", "test_khan_synthetic", books),
 	]
+	assert frappe.db.count("Nyabo Bank Layout", {"verified": 0}) == 1, "the reading lands on the stored row"
 	assert frappe.db.count("Bank Transaction") == 0
 	assert frappe.db.get_value("Nyabo Chat State", {"chat_id": "9303"}, "state") in (None, "")
 	document = frappe.get_last_doc("Nyabo Document")
@@ -296,7 +303,12 @@ def test_a_layout_another_company_confirmed_is_still_refused_here(books, company
 	_send(bot, 9306, filename)
 
 	assert frappe.db.count("Bank Transaction") == 0
-	assert mn.MSG_STATEMENT_LAYOUT_UNVERIFIED.format(layout="test_khan_synthetic") in bot.texts()
+	# This company is asked for its own confirmation (as a reading card, PRO-04), on the same row.
+	assert (
+		keyboards.rule_data(keyboards.VERIFY_ACCEPT, "b", "test_khan_synthetic", books)
+		in bot.callback_datas()
+	)
+	assert mn.MSG_STATEMENT_IMPORTED.split("\n")[1].split("{")[0] not in "\n".join(bot.texts())
 
 
 def test_a_bank_that_is_not_in_the_settings_says_which_one(books):

@@ -131,6 +131,13 @@ def run_import(document_name: str, chat_id: int | str) -> dict[str, Any]:
 	status = summary.get("status")
 	if status == "unverified_layout":
 		layout_id = str(summary.get("layout") or "")
+		# A mapping somebody made and nobody confirmed is shown the way a fresh reading is — with
+		# the figures the file proves — on the same row, so the accountant sees what the format
+		# reads rather than a bare list of column names (PRO-04). Only when the file will not
+		# bear the stored mapping out does the plain confirmation card stand.
+		read = offer_reading(bot, chat_id, document_name, summary, layout_id=layout_id)
+		if read:
+			return {"ok": True, "unverified": True, "read": read, "layout": read}
 		bot.send_message(chat_id, mn.MSG_STATEMENT_LAYOUT_UNVERIFIED.format(layout=layout_id))
 		_record_layout_block(
 			layout_id, summary.get("company"), document_name, _sender_of(document_name) or chat_id
@@ -190,7 +197,9 @@ def header_row(summary: dict[str, Any]) -> int | None:
 	return best
 
 
-def offer_reading(bot: Any, chat_id: int | str, document_name: str, summary: dict[str, Any]) -> str | None:
+def offer_reading(
+	bot: Any, chat_id: int | str, document_name: str, summary: dict[str, Any], layout_id: str | None = None
+) -> str | None:
 	"""Read the file, and if the file bears the reading out, show it as one card. Returns the layout id.
 
 	``None`` means nothing could be proved — the caller falls back to the column questions. The
@@ -223,6 +232,7 @@ def offer_reading(bot: Any, chat_id: int | str, document_name: str, summary: dic
 		note=f"read by {reading.source} for {document_name}",
 		header_row_hint=reading.header_row,
 		date_formats=(reading.date_format,) if reading.date_format else None,
+		layout_id=layout_id,
 	)
 	sender = _sender_of(document_name) or chat_id
 	_record_layout_block(layout_id, company, document_name, sender)
@@ -507,18 +517,22 @@ def store_layout(
 	note: str,
 	header_row_hint: int | None = None,
 	date_formats: tuple[str, ...] | None = None,
+	layout_id: str | None = None,
 ) -> str:
 	"""The unverified ``Nyabo Bank Layout`` for these headers, written or brought up to date.
 
 	Keyed to the header signature, so a reading and the column answers that corrected it land on
-	one row. A row somebody verified or a company accepted is left as it is: a fresh mapping must
-	not silently rewrite what a person signed off on.
+	one row; ``layout_id`` names a row that already matched this file (a mapping made before the
+	bank was known, say) so the reading corrects it instead of leaving a twin. A row somebody
+	verified or a company accepted is left as it is: a fresh mapping must not silently rewrite
+	what a person signed off on.
 	"""
 	from nyabo_mn.rules import verify
 
 	bank = bank if bank in LAYOUT_BANKS else "Other"
 	digest = hashlib.sha256("|".join(headers).encode("utf-8")).hexdigest()[:8]
-	layout_id = f"custom-{bank.lower().replace(' ', '_')}-{digest}"
+	if not layout_id or not frappe.db.exists(BANK_LAYOUT, layout_id):
+		layout_id = f"custom-{bank.lower().replace(' ', '_')}-{digest}"
 	values = {
 		"bank": bank,
 		"amount_style": "signed_amount" if "amount" in mapping else "separate_debit_credit",

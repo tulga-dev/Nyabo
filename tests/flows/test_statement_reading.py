@@ -372,10 +372,8 @@ def test_a_statement_that_sat_unread_can_be_put_back_through_the_reader(books):
 	with telegram_api.use_bot(bot):
 		result = api.reread_statement(document)
 	assert result == {"document": document, "chat_id": "9408", "queued": True}
-	# The reading's row is already stored, so the second pass is the confirmation of that row —
-	# the accountant is asked once more, never a question per column, and no twin row appears.
-	layout_id = frappe.get_all("Nyabo Bank Layout", filters={"verified": 0}, pluck="name")
-	assert len(layout_id) == 1
-	assert mn.MSG_STATEMENT_LAYOUT_UNVERIFIED.format(layout=layout_id[0]) in bot.texts()
-	assert sum(1 for t in bot.texts() if t.startswith(_card_head("Khan Bank"))) == first_cards
+	# The reading's row is already stored, so the second pass lands on that row — the same card
+	# with the figures again, never a question per column, and no twin row.
+	assert frappe.db.count("Nyabo Bank Layout", {"verified": 0}) == 1
+	assert sum(1 for t in bot.texts() if t.startswith(_card_head("Khan Bank"))) == first_cards + 1
 	assert mn.MSG_STATEMENT_LAYOUT_ASK_COLUMN.format(header="Гүйлгээний огноо") not in bot.texts()

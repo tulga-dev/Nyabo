@@ -281,6 +281,11 @@ A statement whose format no `Nyabo Bank Layout` matches is read before anyone is
    is never overwritten.
 4. If neither the keywords nor the model can read the file, or the model call fails (no key,
    timeout), the column questions are asked as before — nothing else changes.
+5. A stored-but-unconfirmed layout (`status = unverified_layout`) goes through the same reading
+   and lands on its own row (bank, header row and reference corrected); only when the file
+   refutes it does the bare «баталгаажуулаагүй» card appear.
+6. `nyabo_mn.api.reread_statement(document)` (System Manager, POST) puts a stored statement
+   back through the worker — for a file that sat unread before a deploy.
 
 To see what the model was shown: `Nyabo LLM Call` with `prompt_version = statement_layout.v1`;
 the rows are fenced as `statement_rows` and cut to 40 characters per cell.
