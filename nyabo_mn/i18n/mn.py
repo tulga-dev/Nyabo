@@ -1387,6 +1387,21 @@ CARD_BANK_CANDIDATE = "{index}. {voucher} · {date} · {amount}₮ · {party}"
 MSG_BANK_EXPENSE_CHOOSE_ACCOUNT = "Энэ гүйлгээг аль дансанд бүртгэх вэ?"
 MSG_BANK_TRANSACTION_NOT_FOUND = "Банкны гүйлгээ олдсонгүй: {name}"
 MSG_STATEMENT_LAYOUT_DONE = "Баганын тохиргоо: {mapping}"
+# The one card that replaced a question per column (DECISIONS PRO-04): how the file was read, the
+# figures the check found in it, and what each button does. It never says «доорх»: the buttons are
+# named, and the plain twin a client without buttons sees still reads correctly.
+MSG_STATEMENT_LAYOUT_READ = (
+	"🏦 {bank} хуулгыг ингэж уншлаа:\n{mapping}\n{facts}\n"
+	"Зөв бол «{accept}» дарна уу — хуулга шууд бүртгэгдэнэ. "
+	"Аль нэг багана буруу бол «{fix}» дарж зааж өгнө үү."
+)
+STM_READ_MAPPING_LINE = "• {role} = «{header}»"
+STM_READ_FACTS = "{count} гүйлгээ · {first} — {last}"
+STM_READ_BALANCE_OK = "Үлдэгдэл {opening}₮ → {closing}₮, мөр бүрд тохирч байна."
+STM_READ_BALANCE_NONE = "Үлдэгдлийн багана байхгүй тул үлдэгдлээр шалгаж чадсангүй."
+BTN_LAYOUT_FIX = "Багана засах"
+MSG_STATEMENT_LAYOUT_FIX_START = "За. Багана бүрийн үүргийг зааж өгнө үү."
+MSG_STATEMENT_LAYOUT_FIX_GONE = "Энэ хуулгын файл олдсонгүй; дахин илгээнэ үү."
 # Nothing waits on this notice any more: the accountant who mapped the columns confirms them for
 # their own company. It exists so a site admin can still see a new format appear and, if they want
 # it used by every client on the site, tick the global row in the desk.

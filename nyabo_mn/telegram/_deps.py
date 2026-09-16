@@ -113,6 +113,20 @@ def import_statement(document_name: str) -> dict[str, Any]:
 	return _call("nyabo_mn.matching.bank_import", "import_statement", document_name)
 
 
+def statement_rows(document_name: str) -> list[list[Any]]:
+	"""The stored statement file as cell rows, for a reading or a re-mapping of its columns."""
+	from nyabo_mn.parsers import excel
+
+	doc = _call("nyabo_mn.matching.bank_import", "load_document", document_name)
+	data, filename = _call("nyabo_mn.matching.bank_import", "file_bytes", doc)
+	return excel.read_rows(data, filename)
+
+
+def read_layout(rows: list[list[Any]], company: str, guess: Any, bank_hint: str | None) -> Any:
+	"""``agent.layout.read_layout``: a reading the file agreed with, or ``None`` (then the questions)."""
+	return _call("nyabo_mn.agent.layout", "read_layout", rows, company, guess, bank_hint)
+
+
 def bank_import_error() -> type[Exception]:
 	"""``bank_import.BankImportError``, resolved late like every other target here.
 

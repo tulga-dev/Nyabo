@@ -291,11 +291,14 @@ Photo → `Nyabo Document` (sha256 dedup per company → `MSG_DUPLICATE_DOCUMENT
 ### 5.4 Bank statement
 
 Document (xlsx/csv) → `Nyabo Document(bank_statement)` → `parsers.excel.read_rows` →
-`core.statements.detect_layout` against `Nyabo Bank Layout` rows. Unknown → the bot
-shows the first three rows and asks the accountant to map columns (buttons per column
-role); the answer is saved as a new Bank Layout with `verified = 0` and the accountant who
-read the file is asked to confirm the mapping for their own company (a `Nyabo Rule
-Acceptance` of kind `b`, DECISIONS ACC-02). Confirming re-reads the stored `Nyabo Document`,
+`core.statements.detect_layout` against `Nyabo Bank Layout` rows. Unknown → `agent.layout`
+reads the file first (the keyword guess, else the model over the first rows) and
+`core.statements.check_layout` proves the reading against the file's own running balance;
+a proved reading is saved as a new Bank Layout with `verified = 0` and shown once, with the
+figures, for the accountant who read the file to confirm for their own company (a `Nyabo Rule
+Acceptance` of kind `b`, DECISIONS ACC-02, PRO-04). Only a file nothing can read — or a
+[Багана засах] tap — falls to the column questions (buttons per column role), whose answers
+are saved the same way. Confirming re-reads the stored `Nyabo Document`,
 because re-sending the file would meet the sha256 dedup; the site-wide `verified` flag stays
 a site admin's. Known → `matching.bank_import.create_bank_transactions` (idempotent on
 `bank_account + date + amount + reference + row hash`) → `matching.match.run`:

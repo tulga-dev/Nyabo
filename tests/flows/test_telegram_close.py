@@ -285,6 +285,14 @@ def test_unknown_layout_mapping_conversation(company):
 			},
 		),
 	)
+	# PRO-04: the file is read first and offered as one card; the column questions are behind
+	# [Багана засах], and that conversation is what this test is about.
+	assert bot.last_text.startswith(
+		mn.MSG_STATEMENT_LAYOUT_READ.split("\n")[0].format(bank=mn.BANK_NAMES_MN["Khan Bank"])
+	)
+	document = frappe.get_last_doc("Nyabo Document").name
+	assert f"l:fix:{document}" in bot.callback_datas()
+	run(bot, callback_update(8020, f"l:fix:{document}"))
 	texts = "\n".join(bot.texts())
 	# the accountant is never told an empty import succeeded
 	assert (

@@ -116,10 +116,13 @@
       "currency_default": "MNT",
       "keywords": {
         "balance": [
+          "эцсийн үлдэгдэл",
+          "closing balance",
           "үлдэгдэл",
           "balance"
         ],
         "date": [
+          "гүйлгээний огноо",
           "огноо",
           "date"
         ],
@@ -139,7 +142,9 @@
           "лавлах",
           "reference",
           "гүйлгээний дугаар",
-          "transaction id"
+          "transaction id",
+          "харьцсан данс",
+          "харьцсан"
         ],
         "currency": [
           "валют",

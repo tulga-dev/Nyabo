@@ -204,17 +204,23 @@ def _run_import(document: str, chat_id: int) -> tuple[object, object]:
 		return statement.run_import(document, chat_id), bot
 
 
-def test_run_import_starts_the_column_mapping_for_an_unknown_layout(books):
+def test_run_import_reads_an_unknown_layout_and_offers_one_card(books):
+	"""PRO-04: an export the keywords can read is proved against its own balance and shown once —
+	not asked about column by column. The questions remain behind [Багана засах]."""
 	import frappe
 
 	helpers.setup_banks(books)  # no layout registered: the export is unrecognised
 	name = helpers.statement_document(books, *fixtures.khan_xlsx())
 	result, bot = _run_import(name, 3101)
-	assert result == {"ok": True, "mapping": True}
-	assert bot.last_text == mn.MSG_STATEMENT_LAYOUT_ASK_COLUMN.format(header="Огноо")
-	assert any("Огноо | Гүйлгээний утга" in text for text in bot.texts())
-	assert not any(text.startswith(mn.MSG_STATEMENT_IMPORTED[:2]) for text in bot.texts())
-	assert frappe.db.get_value("Nyabo Chat State", {"chat_id": "3101"}, "state") == "layout:0"
+	assert result["ok"] is True and result["read"].startswith("custom-khan_bank-")
+	assert bot.last_text.startswith(
+		mn.MSG_STATEMENT_LAYOUT_READ.split("\n")[0].format(bank=mn.BANK_NAMES_MN["Khan Bank"])
+	)
+	assert mn.MSG_STATEMENT_LAYOUT_ASK_COLUMN.format(header="Огноо") not in bot.texts()
+	imported = mn.MSG_STATEMENT_IMPORTED.split("\n")[1].split("{")[0]
+	assert not any(imported in text for text in bot.texts())
+	assert frappe.db.get_value("Nyabo Chat State", {"chat_id": "3101"}, "state") in (None, "")
+	assert frappe.db.count("Bank Transaction") == 0
 
 
 def test_run_import_asks_the_accountant_to_confirm_a_learned_layout(books):

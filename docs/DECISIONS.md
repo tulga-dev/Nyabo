@@ -1456,3 +1456,25 @@ The prompt (`question.v4`) says it plainly: escalation is for what only an admin
 recording a transaction is the accountant's confirmation, never an admin's. A sentence with
 no amount is answered as a question — the code never guesses a figure.
 
+### PRO-04 An unrecognised statement is read and proved before anyone is asked about a column
+The founder sent a Khan Bank export and was asked «Огноо» багана юу вэ? six times — by a
+harness whose model had just drafted journal entries from a sentence. The column questions
+existed because CORE-08 forbids guessing a bank's columns, and that rule stands; what changed
+is who does the guessing and what counts as proof. `agent.layout` now reads the file before
+the questions: the free keyword guess first, and when the keywords cannot read the headers,
+the model (`statement_layout.v1`, purpose `classify`) is handed the first rows and the
+Mongolian vocabulary of the roles — no more — and says which row is the header and which
+column plays which role. Neither reading is trusted on its own word: `core.statements.check_layout`
+applies it to the whole file and keeps it only when it yields lines and, when a balance column
+is mapped, the file's own running balance agrees with the debit and credit it read
+(`balance[i] == balance[i-1] + credit − debit` on at least 80 % of consecutive rows — a swapped
+debit/credit fails on every row). A reading that passes is stored as the same unverified
+`Nyabo Bank Layout` a manual mapping produces and shown once, as a card with the mapping, the
+figures the check found (count, dates, opening → closing balance) and [Манай компанид хамаарна]
+[Багана засах] [Одоохондоо үлдээх]; the accept button is `rules.verify`'s own for a layout, so
+it writes the same acceptance and re-reads the same waiting file (ACC-02). [Багана засах] opens
+the old column questions on the stored file and their answers overwrite the reading's row. A
+reading the file refutes, or a model that fails, falls straight to the questions. The
+principle the founder stated: the model is a general accountant; the harness supplies the
+Mongolian case, the tools and the memory, and keeps the arithmetic and the proof.
+

@@ -261,3 +261,27 @@ bench --site nyabo.s.frappe.cloud execute nyabo_mn.simulator.run.run --kwargs '{
 | `Site config is missing OPENAI_API_KEY` | secret missing | step 2 |
 | Statement import asks for columns | bank layout unknown | answer the column questions once, then confirm the mapping on the card that follows — the accountant who read the file confirms it for their own company and the stored statement is re-read on the spot (ACC-02). Ticking Баталгаажсан on the Nyabo Bank Layout row in the desk is the separate, site-wide act. |
 | `/хаалт` refuses | month not ended, or rules this company has not cleared were used | wait for month end; the accountant answers them with `/дүрэм` (ACC-01) |
+
+### Reading an unrecognised bank statement (PRO-04)
+
+A statement whose format no `Nyabo Bank Layout` matches is read before anyone is asked:
+
+1. `agent.layout.read_layout` tries the keyword guess, then the model (`statement_layout.v1`,
+   routed as `classify`, so Astra). Both are checked by `core.statements.check_layout`: lines
+   must come out, and when a balance column is mapped the running balance must agree with the
+   debit/credit read on ≥ 80 % of consecutive rows. `Nyabo Event statement_layout_read` records
+   which source won and the check's figures; `layout.candidate_refuted` in the log names a
+   reading the file rejected.
+2. The accountant sees one card: the mapping, «N гүйлгээ · first — last», the opening → closing
+   balance when it was proved, and [Манай компанид хамаарна] [Багана засах] [Одоохондоо үлдээх].
+   Accepting writes the company's acceptance of the layout and re-reads the waiting file; the
+   next statement in that format imports with no card at all.
+3. [Багана засах] opens the column questions on the stored file; the answers overwrite the
+   reading's row (same header signature, same layout id). A verified or already-accepted row
+   is never overwritten.
+4. If neither the keywords nor the model can read the file, or the model call fails (no key,
+   timeout), the column questions are asked as before — nothing else changes.
+
+To see what the model was shown: `Nyabo LLM Call` with `prompt_version = statement_layout.v1`;
+the rows are fenced as `statement_rows` and cut to 40 characters per cell.
+

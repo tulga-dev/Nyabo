@@ -23,6 +23,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 from collections.abc import Sequence
 from decimal import Decimal
 from typing import Any
@@ -73,14 +74,27 @@ def file_bytes(doc: Any) -> tuple[bytes, str]:
 	return file_doc.get_content(), str(file_doc.file_name or os.path.basename(file_url))
 
 
+#: Bank codes as they appear in a Mongolian IBAN (``MNkk BBBB …``): the founder's own Khan Bank
+#: export names no bank anywhere in its title block, only ``IBAN: MN0600050050…`` — and 0005 is
+#: Khan Bank. The others are the Bank of Mongolia codes of the banks Nyabo knows.
+IBAN_BANK_CODES: dict[str, str] = {
+	"0005": "Khan Bank",
+	"0004": "TDB",
+	"0015": "Golomt Bank",
+	"0032": "XacBank",
+}
+_IBAN_RE = re.compile(r"\bMN\d{2}(\d{4})\d{6,}")
+
+
 def guess_bank(rows: Sequence[Sequence[Any]]) -> str | None:
-	"""Bank named in the title block (English key or Mongolian name), for the unknown-layout card."""
+	"""Bank named in the title block (English key, Mongolian name or IBAN bank code), for the card."""
 	names = {key: [key.lower(), value.lower()] for key, value in mn.BANK_NAMES_MN.items()}
 	names.setdefault("Khan Bank", []).append("хаан")
 	names.setdefault("Golomt Bank", []).append("голомт")
 	names.setdefault("XacBank", []).append("хас банк")
 	names.setdefault("TDB", []).append("ххб")
-	for row in list(rows)[: PREVIEW_ROWS * 3]:
+	head = list(rows)[: PREVIEW_ROWS * 3]
+	for row in head:
 		for cell in row:
 			text = str(cell or "").lower()
 			if not text:
@@ -88,6 +102,11 @@ def guess_bank(rows: Sequence[Sequence[Any]]) -> str | None:
 			for bank, needles in names.items():
 				if any(needle in text for needle in needles):
 					return bank
+	for row in head:
+		for cell in row:
+			match = _IBAN_RE.search(str(cell or "").upper().replace(" ", ""))
+			if match and match.group(1) in IBAN_BANK_CODES:
+				return IBAN_BANK_CODES[match.group(1)]
 	return None
 
 

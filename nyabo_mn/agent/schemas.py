@@ -167,6 +167,46 @@ class ClassificationResult(StrictModel):
 		return _unit_interval(value)
 
 
+ColumnRole = Literal[
+	"date", "description", "debit", "credit", "amount", "balance", "reference", "currency", "ignore"
+]
+StatementBank = Literal["Khan Bank", "TDB", "Golomt Bank", "Trans Bank", "XacBank", "Other"]
+AmountStyle = Literal["separate_debit_credit", "signed_amount"]
+
+
+class StatementColumn(StrictModel):
+	index: int = Field(description="0-based column index in the header row")
+	role: ColumnRole = Field(
+		description="date, description, debit, credit, amount, balance, reference, currency or ignore"
+	)
+
+
+class StatementLayoutRead(StrictModel):
+	"""How the model reads an unrecognised bank export (agent.layout); code checks it against the file."""
+
+	header_row: int = Field(description="0-based index of the row that holds the column headers")
+	bank: StatementBank = Field(description="The bank named in the title block, or Other")
+	columns: list[StatementColumn] = Field(description="One entry per column that plays a role")
+	amount_style: AmountStyle = Field(
+		description="separate_debit_credit when money out and money in are two columns, signed_amount for one signed column"
+	)
+	date_format: str | None = Field(
+		description="Python strptime pattern of the date cells when they are text in an unusual form, else null"
+	)
+	confidence: float = Field(description="0..1 confidence in the whole mapping")
+	note: str | None = Field(description="One short English sentence about anything doubtful, or null")
+
+	@field_validator("confidence")
+	@classmethod
+	def _clamp(cls, value: float) -> float:
+		return _unit_interval(value)
+
+	@field_validator("header_row")
+	@classmethod
+	def _non_negative(cls, value: int) -> int:
+		return max(0, int(value))
+
+
 class QuestionAnswer(StrictModel):
 	"""Final shape of a question-answering turn (built by code from the tool trace)."""
 
@@ -224,6 +264,8 @@ __all__ = [
 	"QuestionAnswer",
 	"ReceiptExtraction",
 	"ReceiptLine",
+	"StatementColumn",
+	"StatementLayoutRead",
 	"StrictModel",
 	"VatTreatment",
 	"json_schema",

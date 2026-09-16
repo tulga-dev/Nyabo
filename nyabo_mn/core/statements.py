@@ -51,16 +51,25 @@ AMOUNT_STYLES = ("separate_debit_credit", "signed_amount")
 # Header keywords for the generic fallback, most specific first per role. A cell matches a
 # role when it contains one of the keywords; roles are assigned in this order so "үлдэгдэл"
 # (balance) is taken before "дүн" (amount) and "орлого" (credit) before "утга" (description).
+# Within a role the keywords are tried in order across every column before the next keyword is
+# tried, so «Эцсийн үлдэгдэл» (the balance after the row) wins over «Эхний үлдэгдэл» (the balance
+# before it) when a Khan Bank export carries both — the wrong one fails the running-balance
+# check on every row, and used to cost the accountant a question per column.
 GENERIC_KEYWORDS: tuple[tuple[str, tuple[str, ...]], ...] = (
-	("balance", ("үлдэгдэл", "balance")),
-	("date", ("огноо", "date")),
+	("balance", ("эцсийн үлдэгдэл", "closing balance", "үлдэгдэл", "balance")),
+	("date", ("гүйлгээний огноо", "огноо", "date")),
 	("debit", ("дебит", "зарлага", "debit", "withdrawal")),
 	("credit", ("кредит", "орлого", "credit", "deposit")),
-	("reference", ("лавлах", "reference", "гүйлгээний дугаар", "transaction id")),
+	(
+		"reference",
+		("лавлах", "reference", "гүйлгээний дугаар", "transaction id", "харьцсан данс", "харьцсан"),
+	),
 	("currency", ("валют", "currency")),
 	("description", ("гүйлгээний утга", "утга", "description", "details", "narrative", "тайлбар")),
 	("amount", ("дүн", "amount")),
 )
+# A header the balance role must never take: it is the balance *before* the row.
+BALANCE_EXCLUDED: tuple[str, ...] = ("эхний үлдэгдэл", "opening balance")
 # Narrative fragments that mark opening/closing/total rows, which are not transactions.
 SUMMARY_ROW_MARKERS: tuple[str, ...] = (
 	"эхний үлдэгдэл",
@@ -239,13 +248,20 @@ def guess_layout(rows: Sequence[Sequence[Any]], template: LayoutSpec | None = No
 		taken: set[int] = set()
 		for role in ordered_roles:
 			words = keyword_map.get(role, ())
-			for col, header in enumerate(headers):
-				if col in taken or not header:
-					continue
-				if any(word in header for word in words):
-					column_map[role] = col
-					taken.add(col)
+			found = None
+			for word in words:
+				for col, header in enumerate(headers):
+					if col in taken or not header or word not in header:
+						continue
+					if role == "balance" and any(bad in header for bad in BALANCE_EXCLUDED):
+						continue
+					found = col
 					break
+				if found is not None:
+					break
+			if found is not None:
+				column_map[role] = found
+				taken.add(found)
 		has_amount = any(r in column_map for r in ("debit", "credit", "amount"))
 		if "date" in column_map and "description" in column_map and has_amount:
 			style = (
@@ -379,3 +395,107 @@ def parse_rows(rows: Sequence[Sequence[Any]], layout: LayoutSpec) -> list[BankLi
 def _no_amount(row: Sequence[Any], columns: Mapping[str, int], layout: LayoutSpec) -> bool:
 	roles = ("amount",) if layout.amount_style == "signed_amount" else ("debit", "credit")
 	return all(parse_cell_amount(_get(row, columns, r)) in (None, ZERO) for r in roles)
+
+
+# --- checking a candidate layout against the file ---------------------------------------------------
+
+#: A running balance that agrees on fewer rows than this is a sign the money columns are wrong.
+BALANCE_AGREEMENT = Decimal("0.8")
+#: Under this share of dated rows with an amount, the mapping is reading the wrong columns.
+LINE_SHARE = Decimal("0.5")
+
+
+@dataclass(frozen=True)
+class LayoutCheck:
+	"""What the file says about a candidate mapping — the proof a reading is right, or is not.
+
+	The strongest evidence a bank export offers is its own running balance: when the balance
+	column is mapped, ``balance[i] == balance[i-1] + credit - debit`` on nearly every consecutive
+	pair means the date, debit, credit and balance columns are the ones they claim to be, and a
+	swapped debit/credit (the one mistake that silently inverts a whole month) fails it on every
+	row. Without a balance column the check is weaker — dated rows that yield an amount — and the
+	card says so.
+	"""
+
+	lines: int
+	dated_rows: int
+	balance_checked: int
+	balance_agreed: int
+	first_date: dt.date | None
+	last_date: dt.date | None
+	opening_balance: Decimal | None
+	closing_balance: Decimal | None
+
+	@property
+	def balance_ok(self) -> bool | None:
+		"""``None`` when there was no balance to check; otherwise whether it agreed."""
+		if self.balance_checked == 0:
+			return None
+		return Decimal(self.balance_agreed) >= BALANCE_AGREEMENT * Decimal(self.balance_checked)
+
+	@property
+	def ok(self) -> bool:
+		if self.lines < 1:
+			return False
+		if self.balance_ok is False:
+			return False
+		if self.dated_rows and Decimal(self.lines) < LINE_SHARE * Decimal(self.dated_rows):
+			return False
+		return True
+
+	def facts(self) -> dict[str, Any]:
+		return {
+			"lines": self.lines,
+			"dated_rows": self.dated_rows,
+			"balance_checked": self.balance_checked,
+			"balance_agreed": self.balance_agreed,
+			"balance_ok": self.balance_ok,
+			"first_date": self.first_date.isoformat() if self.first_date else None,
+			"last_date": self.last_date.isoformat() if self.last_date else None,
+			"opening_balance": str(self.opening_balance) if self.opening_balance is not None else None,
+			"closing_balance": str(self.closing_balance) if self.closing_balance is not None else None,
+		}
+
+
+def check_layout(rows: Sequence[Sequence[Any]], layout: LayoutSpec) -> LayoutCheck:
+	"""Read the file through ``layout`` and measure how well the reading holds together.
+
+	Raises ``LayoutError`` like ``parse_rows`` when the mapping cannot be applied at all.
+	"""
+	lines = parse_rows(rows, layout)
+	header_index, columns = resolve_columns(rows, layout)
+	start = header_index + 1 if header_index is not None else 0
+	dated = 0
+	for row in rows[start:]:
+		if row is None or all(cell_text(c) == "" for c in row):
+			continue
+		if parse_cell_date(_get(row, columns, "date"), layout.date_formats) is not None:
+			dated += 1
+	checked = agreed = 0
+	previous: BankLine | None = None
+	for line in lines:
+		if previous is not None and previous.balance is not None and line.balance is not None:
+			checked += 1
+			expected = quantize(previous.balance + line.credit - line.debit)
+			if expected == quantize(line.balance):
+				agreed += 1
+		previous = line
+	# The opening balance is the running balance *before* the first line; the file's own
+	# «Эхний үлдэгдэл» row is skipped as a summary row, so it is derived from the first line.
+	first = lines[0] if lines else None
+	last = next((line for line in reversed(lines) if line.balance is not None), None)
+	opening = (
+		quantize(first.balance - first.credit + first.debit)
+		if first is not None and first.balance is not None
+		else None
+	)
+	return LayoutCheck(
+		lines=len(lines),
+		dated_rows=dated,
+		balance_checked=checked,
+		balance_agreed=agreed,
+		first_date=min(line.date for line in lines) if lines else None,
+		last_date=max(line.date for line in lines) if lines else None,
+		opening_balance=opening,
+		closing_balance=quantize(last.balance) if last is not None and last.balance is not None else None,
+	)

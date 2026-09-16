@@ -2,10 +2,14 @@
 
 An xlsx/csv/pdf becomes a ``Nyabo Document(bank_statement)`` and ``import_statement``
 runs on the ``long`` queue. When the importer does not recognise the layout it returns
-``status = "unknown_layout"`` with the header row and a preview; the accountant is then
-asked, one column at a time, which role the column plays, and the answer is saved as a
-``Nyabo Bank Layout`` with ``verified = 0`` so nothing is imported on a guessed mapping
-(CORE-08). The accountant who mapped the columns is then asked to confirm them for their own
+``status = "unknown_layout"`` with the header row and a preview. The file is then *read*
+before anyone is asked (``agent.layout``, DECISIONS PRO-04): the keyword guess, or the model's
+reading of the first rows, is applied to the whole file and kept only when the file's own
+running balance agrees with it — and the accountant gets one card with the mapping and the
+figures, not a question per column. Only a file nothing can read falls to the questions: the
+accountant is asked, one column at a time, which role the column plays. Either way the answer
+is saved as a ``Nyabo Bank Layout`` with ``verified = 0`` so nothing is imported on a guessed
+mapping (CORE-08). The accountant who mapped the columns is then asked to confirm them for their own
 company (DECISIONS ACC-02) — they read the file, so they are the person who can say whether the
 mapping is right, and nothing waits on an admin who never saw it. A layout that was already
 mapped but not confirmed comes back as ``status = "unverified_layout"``: the same confirmation
@@ -135,6 +139,9 @@ def run_import(document_name: str, chat_id: int | str) -> dict[str, Any]:
 		return {"ok": True, "unverified": True, "layout": layout_id}
 	# The importer sets both keys; a caller (or a test double) may send only ``status``.
 	if status == "unknown_layout" or summary.get("unknown_layout"):
+		read = offer_reading(bot, chat_id, document_name, summary)
+		if read:
+			return {"ok": True, "read": read}
 		start_layout_mapping(bot, chat_id, document_name, summary)
 		return {"ok": True, "mapping": True}
 	bank_name = summary.get("bank") or ""
@@ -181,6 +188,99 @@ def header_row(summary: dict[str, Any]) -> int | None:
 		if filled > best_filled:
 			best, best_filled = index, filled
 	return best
+
+
+def offer_reading(bot: Any, chat_id: int | str, document_name: str, summary: dict[str, Any]) -> str | None:
+	"""Read the file, and if the file bears the reading out, show it as one card. Returns the layout id.
+
+	``None`` means nothing could be proved — the caller falls back to the column questions. The
+	reading is stored exactly as a manual mapping is (an unverified ``Nyabo Bank Layout`` keyed to
+	the header signature), so the accountant's [Манай компанид хамаарна] is the same acceptance,
+	re-reads the same waiting file, and the next statement in this format imports on its own.
+	"""
+	from nyabo_mn.core.statements import LayoutSpec
+
+	company = summary.get("company")
+	if not company:
+		return None
+	try:
+		rows = _deps.statement_rows(document_name)
+		guess_dict = summary.get("guess")
+		guess = LayoutSpec.from_dict(guess_dict) if guess_dict else None
+		reading = _deps.read_layout(rows, str(company), guess, summary.get("bank"))
+	except DependencyMissing:
+		return None
+	except Exception as exc:  # noqa: BLE001 - a failed reading costs nothing; the questions remain
+		log_error("telegram.layout.reading_failed", exc, document=document_name)
+		return None
+	if reading is None or len(reading.headers) < 2:
+		return None
+	bank = reading.spec.bank if reading.spec.bank in LAYOUT_BANKS else (summary.get("bank") or "Other")
+	layout_id = store_layout(
+		reading.headers,
+		reading.mapping,
+		bank,
+		note=f"read by {reading.source} for {document_name}",
+		header_row_hint=reading.header_row,
+		date_formats=(reading.date_format,) if reading.date_format else None,
+	)
+	sender = _sender_of(document_name) or chat_id
+	_record_layout_block(layout_id, company, document_name, sender)
+	bot.send_message(
+		chat_id,
+		reading_text(reading, bank),
+		reply_markup=keyboards.layout_reading(layout_id, str(company), document_name),
+	)
+	from nyabo_mn.matching import common
+
+	common.write_event(
+		"statement_layout_read",
+		company=str(company),
+		ref_doctype="Nyabo Document",
+		ref_name=document_name,
+		payload={
+			"layout": layout_id,
+			"source": reading.source,
+			"confidence": reading.confidence,
+			"mapping": reading.mapping,
+			**reading.check.facts(),
+		},
+	)
+	log_event("telegram.layout.read", layout=layout_id, document=document_name, source=reading.source)
+	return layout_id
+
+
+def reading_text(reading: Any, bank: str) -> str:
+	"""The card: the mapping, then what the check found — every figure the file's own."""
+	from nyabo_mn.core.money import fmt_mnt
+
+	mapping = "\n".join(
+		mn.STM_READ_MAPPING_LINE.format(role=mn.COLUMN_ROLES.get(role, role), header=header)
+		for role, header in reading.mapping.items()
+	)
+	check = reading.check
+	facts = [
+		mn.STM_READ_FACTS.format(
+			count=check.lines,
+			first=check.first_date.isoformat() if check.first_date else "—",
+			last=check.last_date.isoformat() if check.last_date else "—",
+		)
+	]
+	if check.balance_ok and check.opening_balance is not None and check.closing_balance is not None:
+		facts.append(
+			mn.STM_READ_BALANCE_OK.format(
+				opening=fmt_mnt(check.opening_balance), closing=fmt_mnt(check.closing_balance)
+			)
+		)
+	elif check.balance_ok is None:
+		facts.append(mn.STM_READ_BALANCE_NONE)
+	return mn.MSG_STATEMENT_LAYOUT_READ.format(
+		bank=mn.BANK_NAMES_MN.get(bank, bank) or mn.VALUE_UNKNOWN,
+		mapping=mapping,
+		facts="\n".join(facts),
+		accept=mn.BTN_RULE_ACCEPT,
+		fix=mn.BTN_LAYOUT_FIX,
+	)
 
 
 def start_layout_mapping(bot: Any, chat_id: int | str, document_name: str, summary: dict[str, Any]) -> None:
@@ -247,7 +347,9 @@ def _ask_column(bot: Any, chat_id: int | str, headers: list[str], index: int) ->
 
 
 def handle_layout_callback(ctx: Ctx, parts: list[str]) -> Any:
-	"""``l:<column index>:<role>``; roles come from ``mn.COLUMN_ROLES``."""
+	"""``l:<column index>:<role>``; roles come from ``mn.COLUMN_ROLES``. ``l:fix:<document>`` re-maps."""
+	if len(parts) > 1 and parts[1] == keyboards.LAYOUT_FIX:
+		return _fix_reading(ctx, parts[2] if len(parts) > 2 else "")
 	state, payload = ctx.get_state()
 	if not state or not state.startswith(STATE_PREFIX):
 		ctx.answer(mn.MSG_CANCELLED)
@@ -325,6 +427,122 @@ def _answer_column(
 	return save_layout(ctx, payload)
 
 
+def _fix_reading(ctx: Ctx, document_name: str) -> Any:
+	"""[Багана засах] under a reading: the column questions, on the stored file, from the first column.
+
+	The reading's own row is keyed to the same header signature, so the answers overwrite it
+	(``store_layout``) rather than leave the refuted mapping beside the corrected one.
+	"""
+	ctx.answer()
+	if not ctx.is_accountant:
+		ctx.reply(mn.MSG_NO_PERMISSION)
+		return None
+	if not document_name or not frappe.db.exists("Nyabo Document", document_name):
+		ctx.reply(mn.MSG_STATEMENT_LAYOUT_FIX_GONE)
+		return None
+	try:
+		rows = _deps.statement_rows(document_name)
+	except Exception as exc:  # noqa: BLE001 - the file may be gone; the sentence says so
+		log_error("telegram.layout.fix_unreadable", exc, document=document_name)
+		ctx.reply(mn.MSG_STATEMENT_LAYOUT_FIX_GONE)
+		return None
+	index, bank = _stored_reading(document_name, rows)
+	if index is None:
+		ctx.reply(mn.MSG_STATEMENT_LAYOUT_FIX_GONE)
+		return None
+	from nyabo_mn.parsers import excel
+
+	headers = [str(cell).strip() if cell is not None else "" for cell in rows[index]]
+	summary = {
+		"headers": headers,
+		"preview": excel.preview_rows(list(rows)[index + 1 :], MAX_PREVIEW_ROWS),
+		"preview_rows": excel.preview_rows(list(rows), MAX_PREVIEW_ROWS + index + 1),
+		"bank": bank,
+		"company": ctx.company,
+	}
+	if ctx.callback_message_id is not None:
+		# The reading's buttons go: a mapping the accountant has just doubted must not stay
+		# acceptable one scroll up while its columns are being re-answered.
+		try:
+			ctx.bot.edit_message_reply_markup(ctx.chat_id, ctx.callback_message_id, keyboards.empty_markup())
+		except Exception as exc:  # noqa: BLE001 - a stale card is a nuisance, not a reason to stop
+			log_event("telegram.layout.fix_markup_failed", level="warning", error=type(exc).__name__)
+	ctx.reply(mn.MSG_STATEMENT_LAYOUT_FIX_START)
+	start_layout_mapping(ctx.bot, ctx.chat_id, document_name, summary)
+	log_event("telegram.layout.fix", document=document_name, header_row=index)
+	return {"fix": document_name}
+
+
+def _stored_reading(document_name: str, rows: list[list[Any]]) -> tuple[int | None, str | None]:
+	"""(header row, bank) of the reading stored for this file, else the keyword guess's."""
+	from nyabo_mn.parsers import detect as detect_mod
+
+	payload = frappe.db.get_value(
+		"Nyabo Event",
+		{"event_type": "statement_layout_read", "ref_name": document_name},
+		"payload_json",
+		order_by="creation desc",
+	)
+	layout_id = None
+	if payload:
+		try:
+			layout_id = (json.loads(payload) or {}).get("layout")
+		except (ValueError, AttributeError):
+			layout_id = None
+	if layout_id and frappe.db.exists(BANK_LAYOUT, layout_id):
+		hint, bank = frappe.db.get_value(BANK_LAYOUT, layout_id, ["header_row_hint", "bank"])
+		if hint not in (None, "") and 0 <= int(hint) < len(rows):
+			return int(hint), str(bank or "") or None
+	_trusted, guess = detect_mod.detect(rows)
+	if guess is not None and guess.header_row_hint is not None:
+		return int(guess.header_row_hint), guess.bank
+	return None, None
+
+
+def store_layout(
+	headers: list[str],
+	mapping: dict[str, str],
+	bank: str,
+	*,
+	note: str,
+	header_row_hint: int | None = None,
+	date_formats: tuple[str, ...] | None = None,
+) -> str:
+	"""The unverified ``Nyabo Bank Layout`` for these headers, written or brought up to date.
+
+	Keyed to the header signature, so a reading and the column answers that corrected it land on
+	one row. A row somebody verified or a company accepted is left as it is: a fresh mapping must
+	not silently rewrite what a person signed off on.
+	"""
+	from nyabo_mn.rules import verify
+
+	bank = bank if bank in LAYOUT_BANKS else "Other"
+	digest = hashlib.sha256("|".join(headers).encode("utf-8")).hexdigest()[:8]
+	layout_id = f"custom-{bank.lower().replace(' ', '_')}-{digest}"
+	values = {
+		"bank": bank,
+		"amount_style": "signed_amount" if "amount" in mapping else "separate_debit_credit",
+		"header_row_hint": header_row_hint,
+		"header_signature_json": json.dumps([h for h in headers if str(h).strip()], ensure_ascii=False),
+		"column_map_json": json.dumps(mapping, ensure_ascii=False),
+		"notes": note,
+	}
+	if date_formats:
+		values["date_formats"] = "\n".join(date_formats)
+	if frappe.db.exists(BANK_LAYOUT, layout_id):
+		layout = frappe.get_doc(BANK_LAYOUT, layout_id)
+		if int(layout.get("verified") or 0) or verify.acceptances(layout_id):
+			return layout_id
+		layout.update(values)
+		layout.flags.ignore_permissions = True
+		layout.save()
+		return layout_id
+	layout = frappe.get_doc({"doctype": BANK_LAYOUT, "layout_id": layout_id, "verified": 0, **values})
+	layout.flags.ignore_permissions = True
+	layout.insert()
+	return layout_id
+
+
 def save_layout(ctx: Ctx, payload: dict[str, Any]) -> Any:
 	headers: list[str] = payload.get("headers") or []
 	mapping: dict[str, str] = payload.get("mapping") or {}
@@ -336,23 +554,9 @@ def save_layout(ctx: Ctx, payload: dict[str, Any]) -> Any:
 		log_event("telegram.layout.refused", level="warning", document=payload.get("document"))
 		return {"refused": sorted(mapping)}
 	bank = payload.get("bank") if payload.get("bank") in LAYOUT_BANKS else "Other"
-	digest = hashlib.sha256("|".join(headers).encode("utf-8")).hexdigest()[:8]
-	layout_id = f"custom-{bank.lower().replace(' ', '_')}-{digest}"
-	if not frappe.db.exists(BANK_LAYOUT, layout_id):
-		layout = frappe.get_doc(
-			{
-				"doctype": BANK_LAYOUT,
-				"layout_id": layout_id,
-				"bank": bank,
-				"verified": 0,
-				"amount_style": "signed_amount" if "amount" in mapping else "separate_debit_credit",
-				"header_signature_json": json.dumps(headers, ensure_ascii=False),
-				"column_map_json": json.dumps(mapping, ensure_ascii=False),
-				"notes": f"mapped in Telegram by {ctx.user} for {payload.get('document')}",
-			}
-		)
-		layout.flags.ignore_permissions = True
-		layout.insert()
+	layout_id = store_layout(
+		headers, mapping, bank, note=f"mapped in Telegram by {ctx.user} for {payload.get('document')}"
+	)
 	mapping_text = ", ".join(f"{mn.COLUMN_ROLES[r]} = «{h}»" for r, h in mapping.items())
 	ctx.reply(mn.MSG_STATEMENT_LAYOUT_DONE.format(mapping=mapping_text))
 	ctx.reply(mn.MSG_STATEMENT_LAYOUT_SAVED.format(layout=layout_id))

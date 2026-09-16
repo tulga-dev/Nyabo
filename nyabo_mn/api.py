@@ -92,6 +92,35 @@ def seed_demo(company: str, allow_existing_postings: int | str = 0) -> dict[str,
 
 
 @frappe.whitelist(methods=["POST"])
+def reread_statement(document: str) -> dict[str, Any]:
+	"""Run the statement import again for a stored ``Nyabo Document`` (a file that sat unread).
+
+	The founder's case: a statement refused before a deploy is still in the store, and the sha256
+	dedup answers a re-upload with «this document is already here». This puts the same file back
+	through ``handlers.statement.run_import`` — the reading, the card, or the import — and replies
+	into the chat the file came from. POST only, System Manager only; a document that is not a
+	statement is refused by the importer with its own Mongolian sentence.
+	"""
+	_only_system_manager()
+	from nyabo_mn.telegram.handlers import statement
+
+	if not frappe.db.exists("Nyabo Document", document):
+		frappe.throw(f"Nyabo Document {document} not found")
+	chat_id = frappe.db.get_value("Nyabo Document", document, "telegram_chat_id")
+	if not chat_id:
+		frappe.throw(f"Nyabo Document {document} carries no telegram_chat_id")
+	frappe.enqueue(
+		statement.IMPORT_METHOD,
+		queue="long",
+		timeout=900,
+		document_name=document,
+		chat_id=chat_id,
+		enqueue_after_commit=True,
+	)
+	return {"document": document, "chat_id": str(chat_id), "queued": True}
+
+
+@frappe.whitelist(methods=["POST"])
 def unseed_demo(company: str) -> dict[str, Any]:
 	"""Cancel the demo vouchers ``seed_demo`` wrote (they stay, cancelled); nothing else is touched."""
 	_only_system_manager()

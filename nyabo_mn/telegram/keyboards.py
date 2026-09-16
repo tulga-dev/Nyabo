@@ -527,6 +527,24 @@ def rule_decision(
 	return markup(*rows_out)
 
 
+LAYOUT_FIX = "fix"
+
+
+def layout_reading(layout_id: str, company: str | None, document: str) -> dict[str, Any]:
+	"""Under the card that shows how a statement was read: accept it, fix a column, or leave it.
+
+	[Манай компанид хамаарна] is ``rule_decision``'s own accept button for a layout (kind ``b``), so
+	the tap lands in the same handler, writes the same acceptance and re-reads the same waiting file
+	as a manually mapped layout. [Багана засах] opens the column questions on the stored file.
+	"""
+	accept = _rule_button(
+		mn.BTN_RULE_ACCEPT, VERIFY_ACCEPT, "b", layout_id, style=STYLE_SUCCESS, company=company
+	)
+	fix = button(mn.BTN_LAYOUT_FIX, encode(PREFIX_LAYOUT, LAYOUT_FIX, document))
+	leave = _rule_button(mn.BTN_RULE_LEAVE, VERIFY_LEAVE, "b", layout_id, company=company)
+	return markup([accept] if accept else [], [fix], [leave] if leave else [])
+
+
 # --- month-end -------------------------------------------------------------------------------------
 
 
